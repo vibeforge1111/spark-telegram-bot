@@ -34,7 +34,7 @@ If the summary prints `Recapture hint` for stale `/proof` panel captures, genera
 npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first/live-canary-observations.json' --stale-proof-run-guide --out 'outputs/live-canary-safe-first/live-canary-proof-recapture-guide.md'
 ```
 
-The focused guide includes only cases whose recorded proof panel is missing required readiness fields, such as `Audit actionable`, `Audit fresh-strict`, or `Audit posture`; its generated record commands refresh the current summary files.
+The focused guide includes only cases whose recorded proof panel is missing required readiness fields, such as `Audit actionable`, `Audit fresh-strict`, `Audit posture`, or the derived `Evidence capsule gaps` row; its generated record commands refresh the current summary files.
 
 The summaries print both `Runtime evidence collected` and `Runtime evidence expires`; the expiry timestamp is the freshness deadline for release claims.
 

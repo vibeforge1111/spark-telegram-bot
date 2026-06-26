@@ -3280,6 +3280,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Audit actionable/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Audit fresh-strict/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Audit posture/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Evidence capsule gaps/);
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --record-case cp-builder-001`));
     assert.match(readFileSync(bundledGuidePath, 'utf8'), /--record-case cp-builder-001[\s\S]*--no-other-side-effects/);
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--summary-out '${escapeRegExp(bundledSummaryPath)}'`));
