@@ -123,13 +123,14 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
     maxLiveEvidenceAgeMs
   }));
   const gapRows = rows.filter((row) => row.gaps.length > 0).length;
-  const noActionEvidenceRows = rows.filter((row) => row.noActionEvidence).length;
+  const joinedRows = rows.length - gapRows;
+  const noActionEvidenceRows = rows.filter((row) => row.noActionEvidence && row.gaps.length === 0).length;
+  const insufficientLiveRouteRows = liveEvidenceRequired && joinedRows < minRouteRows;
   const insufficientNoActionRows = liveEvidenceRequired && noActionEvidenceRows < minNoActionRows;
-  const liveEvidenceReady = sampled.length >= minRouteRows &&
+  const liveEvidenceReady = joinedRows >= minRouteRows &&
     noActionEvidenceRows >= minNoActionRows &&
     gapRows === 0 &&
     routeRead.parseErrors === 0;
-  const insufficientLiveRouteRows = liveEvidenceRequired && sampled.length < minRouteRows;
   const routeLedgerState = classifyRouteLedgerState(routeRead, routeRecords.length);
 
   return {
@@ -160,7 +161,7 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
     insufficientLiveRouteRows,
     insufficientNoActionRows,
     maxLiveEvidenceAgeMs,
-    joinedRows: rows.length - gapRows,
+    joinedRows,
     noActionEvidenceRows,
     staleRouteRows: rows.filter((row) => row.gaps.includes('stale_live_route_evidence')).length,
     gapRows,
@@ -198,7 +199,7 @@ export function formatControlProofTraceJoinReport(summary: ControlProofTraceJoin
     `Parse errors: ${summary.parseErrors}`,
     ...(summary.noRouteEvidence ? liveRouteLedgerDiagnosisLines(summary) : []),
     ...(summary.liveEvidenceRequired ? [
-      `Live route proof: ${summary.liveEvidenceReady ? 'ready' : 'not ready'} (${summary.sampledRouteRows}/${summary.minRouteRows} minimum joined rows)`,
+      `Live route proof: ${summary.liveEvidenceReady ? 'ready' : 'not ready'} (${summary.joinedRows}/${summary.minRouteRows} minimum joined rows)`,
       `No-action route proof: ${summary.noActionEvidenceRows >= summary.minNoActionRows ? 'ready' : 'not ready'} (${summary.noActionEvidenceRows}/${summary.minNoActionRows} minimum no-action rows)`,
       ...(summary.liveEvidenceReady ? [] : liveTraceCaptureGuideLines())
     ] : []),

@@ -346,6 +346,50 @@ test('live evidence mode requires joined no-action route rows, not only joined a
   });
 });
 
+test('live evidence mode counts only clean joined rows toward readiness', () => {
+  withTempRoot((root) => {
+    const routeLedger = path.join(root, 'route-ledger.jsonl');
+    const finalAnswer = path.join(root, 'final-answer.jsonl');
+    const outbound = path.join(root, 'outbound.jsonl');
+    const rows = Array.from({ length: 4 }, (_, index) => routeRow({
+      request_id: `turn:route-${index}`,
+      trace_ref: `trace:route-${index}`,
+      harness_proof_ref: `turn:sha256:joined${index}`,
+      executed_action: 'answer',
+      delivery: 'delivered'
+    }));
+    writeJsonl(routeLedger, rows);
+    writeJsonl(finalAnswer, rows.slice(0, 2).map((row) => ({
+      request_id: row.request_id,
+      trace_ref: row.trace_ref,
+      harness_proof_ref: row.harness_proof_ref,
+      proof_capsule: { schema: 'spark.harness_proof.v1', turnRef: row.harness_proof_ref }
+    })));
+    writeJsonl(outbound, []);
+
+    const result = auditControlProofTraceJoins({
+      sparkHome: root,
+      naturalRouteLedger: routeLedger,
+      finalAnswerAudit: finalAnswer,
+      outboundAudit: outbound,
+      requireLiveEvidence: true,
+      minRouteRows: 4,
+      minNoActionRows: 4,
+      generatedAt: '2026-06-26T00:00:00.000Z'
+    });
+    const report = formatControlProofTraceJoinReport(result);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.sampledRouteRows, 4);
+    assert.equal(result.joinedRows, 2);
+    assert.equal(result.noActionEvidenceRows, 2);
+    assert.equal(result.insufficientLiveRouteRows, true);
+    assert.equal(result.insufficientNoActionRows, true);
+    assert.match(report, /Live route proof: not ready \(2\/4 minimum joined rows\)/);
+    assert.match(report, /No-action route proof: not ready \(2\/4 minimum no-action rows\)/);
+  });
+});
+
 test('trace join CLI fails strict mode on gaps', () => {
   withTempRoot((root) => {
     const routeLedger = path.join(root, 'route-ledger.jsonl');
@@ -401,6 +445,8 @@ test('trace join CLI fails live evidence mode when route rows are below the mini
       '--require-live-evidence',
       '--min-route-rows',
       '4',
+      '--max-live-age-minutes',
+      '1000000',
       '--spark-home',
       root,
       '--natural-route-ledger',
