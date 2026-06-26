@@ -62,6 +62,22 @@ test('surface eval catches raw internals and generic chatbot voice', () => {
   assert.ok(result.issues.some((issue) => issue.caseId === 'cp-memory-001' && issue.code === 'raw_trace_ref'));
 });
 
+test('surface eval catches legacy source references in observed replies', () => {
+  const packet = fullPacket();
+  const entry = packet.cases.find((item) => item.id === 'cp-authority-001');
+  assert.ok(entry);
+  entry.observed.reply = 'The Genesis live Telegram 100 benchmark says this is current.';
+
+  const result = checkSurfaceEval({ observations: packet });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some((issue) =>
+    issue.caseId === 'cp-authority-001' &&
+    issue.code === 'legacy_source_reference'
+  ));
+  assert.match(formatSurfaceEvalReport(result), /legacy_source_reference/);
+});
+
 test('surface eval catches missing replies and oversized paragraphs', () => {
   const packet = fullPacket();
   const missing = packet.cases.find((item) => item.id === 'cp-authority-001');

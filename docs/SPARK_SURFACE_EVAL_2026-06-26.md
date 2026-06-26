@@ -23,6 +23,7 @@ The gate fails:
 
 - missing observed replies
 - raw Harness reason codes, proof refs, trace refs, local paths, or stack traces
+- legacy plan, catalog, runbook, or handoff names/titles in observed replies
 - generic chatbot phrases
 - ordinary replies that collapse into `Mission`, `Provider`, `Move`, or similar report-card headings
 - bold Markdown, dash-family punctuation, emoji spam, or oversized paragraph dumps

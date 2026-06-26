@@ -360,6 +360,7 @@ test('surface eval doc records human-feel reply gate', () => {
   assert.match(doc, /npm run control:proof:surface -- --strict/);
   assert.match(doc, /logically correct and still fail/);
   assert.match(doc, /generic chatbot phrases/);
+  assert.match(doc, /legacy plan, catalog, runbook, or handoff names\/titles in observed replies/);
   assert.match(doc, /proof panels/);
   assert.match(doc, /ordinary replies/);
 });

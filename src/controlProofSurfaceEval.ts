@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { LEGACY_PROMPT_SURFACE_BLOCKED_REFS } from './controlProofLegacyPromptSurface';
 import type { ControlProofCanaryObservationTemplate } from './controlProofLiveCanaryPack';
 
 export type SurfaceEvalIssueCode =
@@ -15,7 +16,8 @@ export type SurfaceEvalIssueCode =
   | 'dash_family'
   | 'emoji_spam'
   | 'paragraph_too_long'
-  | 'proof_panel_on_natural_surface';
+  | 'proof_panel_on_natural_surface'
+  | 'legacy_source_reference';
 
 export interface SurfaceEvalIssue {
   caseId: string;
@@ -109,6 +111,18 @@ function issueCodesForReply(text: string): Array<Omit<SurfaceEvalIssue, 'caseId'
   for (const rule of ISSUE_RULES) {
     if (rule.pattern.test(text)) {
       issues.push({ code: rule.code, detail: rule.detail });
+    }
+  }
+
+  const lowerText = text.toLocaleLowerCase();
+  for (const ref of LEGACY_PROMPT_SURFACE_BLOCKED_REFS) {
+    const pattern = ref.patterns.find((entry) => lowerText.includes(entry.toLocaleLowerCase()));
+    if (pattern) {
+      issues.push({
+        code: 'legacy_source_reference',
+        detail: `Legacy source reference leaked into reply surface: ${ref.label}.`
+      });
+      break;
     }
   }
 
