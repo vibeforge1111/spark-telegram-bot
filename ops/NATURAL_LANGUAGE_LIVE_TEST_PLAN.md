@@ -20,6 +20,8 @@ npm run nl:harness-map
 
 Use this before promoting an old case into the new live canary pack. The map makes hidden mutations visible, such as old `safe` cases that write memory, change access, start missions, write files, or call external research. It is not release proof by itself.
 
+Generated NL evidence packets and observation templates carry `claim_scope=legacy_breadth`, `release_gate=none`, and `promotion_target=control_proof_canary`. Treat those fields as the proof boundary: they can guide refurbishment, but they cannot authorize release readiness or high-agency execution.
+
 ## Current Improvement Targets
 
 1. Command vocabulary: decide which phrases should launch, plan, remember, diagnose, or refuse.

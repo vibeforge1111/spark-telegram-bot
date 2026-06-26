@@ -64,6 +64,8 @@ export type LiveNlHarnessCoreUse =
   | 'promote_after_refurbish'
   | 'run_only_with_intentional_action_confirmation';
 
+export type LiveNlClaimScope = 'legacy_breadth';
+
 export interface LiveNlHarnessCoreMapping {
   id: string;
   suite: string;
@@ -90,12 +92,13 @@ type LiveNlSideEffects = LiveNlPacketCase['side_effects'];
 type LiveNlEvidenceRefs = LiveNlPacketCase['evidence_refs'];
 
 export const LIVE_NL_AUTHORITY_CLAIM_BOUNDARY =
-  'This is a legacy natural-language live QA observation container, not Harness Core release proof. Even when every selected case passes, it remains legacy breadth evidence unless the case is promoted into a Harness-shaped control-proof canary packet, and it must not authorize high-agency actions.';
+  'claim_scope=legacy_breadth; release_gate=none; promotion_target=control_proof_canary. This is a legacy natural-language live QA observation container, not Harness Core release proof. Even when every selected case passes, it remains legacy breadth evidence unless the case is promoted into a Harness-shaped control-proof canary packet, and it must not authorize high-agency actions.';
 
 export interface LiveNlObservationFile {
   generatedAt?: string;
   runId?: string;
   title?: string;
+  claimScope?: LiveNlClaimScope;
   authorityClaimBoundary?: string;
   session?: Partial<TelegramLiveQaEvidencePacketV1['required_session_evidence']>;
   cases: LiveNlCaseObservation[];
@@ -471,7 +474,7 @@ export function buildLiveNlEvidencePacket(
   const suite = options.suite?.trim() || null;
   const includeRisky = Boolean(options.includeRisky);
 
-  return createTelegramLiveQaEvidencePacket({
+  const packet = createTelegramLiveQaEvidencePacket({
     generated_at: generatedAt,
     run_id: options.runId,
     title: options.title || 'Spark Telegram Live QA Evidence Packet',
@@ -481,6 +484,8 @@ export function buildLiveNlEvidencePacket(
     required_session_evidence: options.requiredSessionEvidence,
     cases: buildLiveNlPacketCases(cases)
   });
+  packet.authority_claim_boundary = LIVE_NL_AUTHORITY_CLAIM_BOUNDARY;
+  return packet;
 }
 
 export function buildLiveNlObservationTemplate(
@@ -493,6 +498,7 @@ export function buildLiveNlObservationTemplate(
     generatedAt,
     runId: options.runId,
     title: options.title || 'Spark Telegram Live QA Observation Template',
+    claimScope: 'legacy_breadth',
     authorityClaimBoundary: LIVE_NL_AUTHORITY_CLAIM_BOUNDARY,
     session: options.requiredSessionEvidence,
     cases: cases.map((entry) => ({
@@ -706,6 +712,7 @@ export function parseLiveNlObservationFile(value: unknown): LiveNlObservationFil
     generatedAt: stringField(record, 'generatedAt') || stringField(record, 'generated_at') || undefined,
     runId: stringField(record, 'runId') || stringField(record, 'run_id') || undefined,
     title: stringField(record, 'title') || undefined,
+    claimScope: stringField(record, 'claimScope') as LiveNlClaimScope || stringField(record, 'claim_scope') as LiveNlClaimScope || undefined,
     authorityClaimBoundary: stringField(record, 'authorityClaimBoundary') || stringField(record, 'authority_claim_boundary') || undefined,
     session: session as LiveNlObservationFile['session'],
     cases: rawCases.map(parseCaseObservation)
@@ -772,7 +779,7 @@ export function buildObservedLiveNlEvidencePacket(
     sessionEvidence.overall_verdict = deriveOverallVerdict(packetCases);
   }
 
-  return createTelegramLiveQaEvidencePacket({
+  const packet = createTelegramLiveQaEvidencePacket({
     generated_at: observations.generatedAt || options.generatedAt?.toISOString(),
     run_id: observations.runId || options.runId,
     title: observations.title || options.title || 'Spark Telegram Live QA Evidence Packet',
@@ -782,6 +789,8 @@ export function buildObservedLiveNlEvidencePacket(
     required_session_evidence: sessionEvidence,
     cases: packetCases
   });
+  packet.authority_claim_boundary = LIVE_NL_AUTHORITY_CLAIM_BOUNDARY;
+  return packet;
 }
 
 export function formatLiveNlVerdictReport(

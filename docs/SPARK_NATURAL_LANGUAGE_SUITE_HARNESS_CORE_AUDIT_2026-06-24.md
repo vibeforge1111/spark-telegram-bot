@@ -149,6 +149,14 @@ The control-proof canary pack answers "can Spark prove authority, side effects, 
 
 Both are useful. Only the second one should be used as the main release gate for the new Harness Core work.
 
+Legacy NL evidence packets and observation templates now carry a deterministic claim boundary:
+
+```text
+claim_scope=legacy_breadth; release_gate=none; promotion_target=control_proof_canary
+```
+
+Automation and future agents should treat that scope as authoritative. A passing NL packet can support breadth confidence or promotion decisions, but it must not be joined into a release-ready claim until the relevant prompt has been promoted into the control-proof canary schema and rerun with proof joins, side-effect capture, reply-shape checks, and Telegram visual or user confirmation.
+
 ## Renewed Audit Decision
 
 After checking the current mapper, canary pack, and focused tests, the decision still stands:

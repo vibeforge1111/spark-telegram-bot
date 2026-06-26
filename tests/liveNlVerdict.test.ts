@@ -368,8 +368,10 @@ test('Genesis live Telegram evidence packet is a structured untested run contain
   assert.deepEqual(packet.cases[99].evidence_refs.authorization_ledgers, []);
   assert.equal(packet.cases[99].side_effects.mission_started, null);
   assert.equal(packet.required_session_evidence.overall_verdict, 'untested');
-  assert.match(packet.authority_claim_boundary, /does not prove release readiness/);
-  assert.match(packet.authority_claim_boundary, /remains legacy breadth evidence unless promoted into a Harness-shaped control-proof canary packet/);
+  assert.match(packet.authority_claim_boundary, /claim_scope=legacy_breadth/);
+  assert.match(packet.authority_claim_boundary, /release_gate=none/);
+  assert.match(packet.authority_claim_boundary, /not Harness Core release proof/);
+  assert.match(packet.authority_claim_boundary, /remains legacy breadth evidence unless the case is promoted into a Harness-shaped control-proof canary packet/);
 });
 
 test('Genesis live Telegram observation template hides scoring expectations', () => {
@@ -384,7 +386,10 @@ test('Genesis live Telegram observation template hides scoring expectations', ()
 
   assert.equal(template.generatedAt, '2026-06-02T00:00:00.000Z');
   assert.equal(template.title, 'Spark Genesis Telegram Live QA Observation Template');
+  assert.equal(template.claimScope, 'legacy_breadth');
   assert.equal(template.authorityClaimBoundary, LIVE_NL_AUTHORITY_CLAIM_BOUNDARY);
+  assert.match(template.authorityClaimBoundary || '', /claim_scope=legacy_breadth/);
+  assert.match(template.authorityClaimBoundary || '', /release_gate=none/);
   assert.match(template.authorityClaimBoundary || '', /not Harness Core release proof/);
   assert.equal(template.cases.length, 2);
   assert.equal(template.cases[0].id, 'genesis-002');
@@ -398,6 +403,7 @@ test('Genesis live Telegram observation template hides scoring expectations', ()
   assert.doesNotMatch(serialized, /chat_plan|chat_draft_text/);
 
   const parsed = parseLiveNlObservationFile(template);
+  assert.equal(parsed.claimScope, 'legacy_breadth');
   assert.equal(parsed.authorityClaimBoundary, LIVE_NL_AUTHORITY_CLAIM_BOUNDARY);
   assert.deepEqual(parsed.cases.map((entry) => entry.id), ['genesis-002', 'genesis-010']);
 });
@@ -460,6 +466,8 @@ test('observed live QA packet imports replies, side effects, evidence refs, and 
   assert.equal(packet.required_session_evidence.profile, 'sparkqa-bot');
   assert.equal(packet.required_session_evidence.overall_verdict, 'fail');
   assert.deepEqual(packet.required_session_evidence.remaining_risks, ['full 100-case run still incomplete']);
+  assert.match(packet.authority_claim_boundary, /claim_scope=legacy_breadth/);
+  assert.match(packet.authority_claim_boundary, /release_gate=none/);
 
   const safeCase = packet.cases.find((entry) => entry.id === 'safe-001');
   assert.ok(safeCase);
@@ -605,6 +613,8 @@ test('live NL verdict CLI emits a Genesis evidence packet', () => {
   assert.equal(packet.schema_version, 'spark.telegram_live_qa_evidence_packet.v1');
   assert.equal(packet.catalog, 'genesis-live-telegram-100.json');
   assert.equal(packet.selection.case_count, 100);
+  assert.match(packet.authority_claim_boundary, /claim_scope=legacy_breadth/);
+  assert.match(packet.authority_claim_boundary, /release_gate=none/);
   assert.equal(packet.summary.untested, 100);
   assert.equal(packet.cases[0].id, 'genesis-001');
   assert.equal(packet.cases[99].id, 'genesis-100');
@@ -633,6 +643,9 @@ test('live NL verdict CLI emits a Genesis observation template', () => {
   const template = JSON.parse(result.stdout);
   const serialized = JSON.stringify(template);
   assert.equal(template.title, 'Spark Genesis Telegram Live QA Observation Template');
+  assert.equal(template.claimScope, 'legacy_breadth');
+  assert.match(template.authorityClaimBoundary, /claim_scope=legacy_breadth/);
+  assert.match(template.authorityClaimBoundary, /release_gate=none/);
   assert.match(template.authorityClaimBoundary, /not Harness Core release proof/);
   assert.match(template.authorityClaimBoundary, /must not authorize high-agency actions/);
   assert.equal(template.cases.length, 1);
@@ -709,7 +722,9 @@ test('live NL verdict CLI emits an observed Genesis evidence packet from observa
     assert.equal(packet.summary.pass, 1);
     assert.equal(packet.summary.untested, 0);
     assert.equal(packet.required_session_evidence.profile, 'sparkqa-bot');
-    assert.match(packet.authority_claim_boundary, /remains legacy breadth evidence unless promoted into a Harness-shaped control-proof canary packet/);
+    assert.match(packet.authority_claim_boundary, /claim_scope=legacy_breadth/);
+    assert.match(packet.authority_claim_boundary, /release_gate=none/);
+    assert.match(packet.authority_claim_boundary, /remains legacy breadth evidence unless the case is promoted into a Harness-shaped control-proof canary packet/);
     assert.equal(packet.cases[0].observed_turns[0].reply, 'Yes, use it when you have a concrete startup proof target.');
     assert.equal(packet.cases[0].side_effects.mission_started, false);
     assert.deepEqual(packet.cases[0].evidence_refs.screenshots, ['/tmp/genesis-001.png']);
