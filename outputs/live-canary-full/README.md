@@ -55,7 +55,7 @@ The JSON summary also carries `packetEvidenceDetails` beside the compatibility a
 
 The JSON summary `cases` array carries safe Harness metadata for each canary: `expectedRoute`, `expectedAuthority`, `expectedMutationClass`, `expectedReplyShape`, optional sanitized `sourceRefs`, verdict, and missing capture names. It intentionally omits raw Telegram prompts, observed replies, proof-panel bodies, screenshots, and user confirmations; read the observation packet only when reviewed live evidence is needed.
 
-The JSON summary carries `controlProofAuditDetails` parsed from the fresh-strict trace audit transcript. Automation should use it for audit generated time, blocking status, gap posture, gap counts, gap planes, joined `gapDetails`, normalized `releaseBlocking`/`publishBlocking`/`backingStatus`, and per-plane trace/proof coverage instead of scraping the raw `controlProofAudit` command output.
+The JSON summary carries `controlProofAuditDetails` from the fresh-strict trace audit. Automation should use `controlProofAuditDetails.actionableStatus`, `controlProofAuditDetails.freshStrictOk`, `controlProofAuditDetails.gapPosture`, and `controlProofAuditDetails.legacyGapBackingDetails` to verify each visible historical proof-gap plane has complete backing, no latest gap, `releaseBlocking=false`, and a safe repair source/command instead of scraping the raw audit transcript or `Legacy gap backing` prose.
 
 The JSON summary carries `gateScope` beside the compatibility booleans `readyForRelease` and `readyForPublish`. Automation should read `readyForRelease=true` as full release readiness only when `gateScope=full_release_pack`; `gateScope=selected_case_gate` proves the selected cases only.
 
