@@ -247,8 +247,23 @@ test('warns cleanly when structured provider output is malformed', () => {
 
   assert.match(message, /⚠️ Spark finished, but the final payload needs a look\./);
   assert.match(message, /• Claude returned structured output I could not summarize cleanly\./);
+  assert.match(message, /The canvas or board has the full record\./);
+  assert.doesNotMatch(message, /raw record|raw trace/i);
   assert.doesNotMatch(message, /Mission: spark-bad-json/);
   assert.doesNotMatch(message, /"status"/);
+});
+
+test('failed completion fallback points to the full trace without debug wording', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'spark-no-link-failed',
+    verbosity: 'normal',
+    openLink: null,
+    response: 'Blocked before task start. The app did not pass the final browser smoke check.'
+  });
+
+  assert.match(message, /The board has the full trace if you want to inspect it\./);
+  assert.doesNotMatch(message, /raw trace|raw record/i);
 });
 
 test('uses neutral completion copy when there is no preview link', () => {

@@ -1418,7 +1418,7 @@ export function formatProviderCompletionForTelegram(input: {
         'Review',
         `• ${provider} returned structured output I could not summarize cleanly.`,
         '',
-        'The canvas or board has the raw record.'
+        'The canvas or board has the full record.'
       ].join('\n');
     }
     const projectPath = extractProjectPathFromText(input.response);
@@ -1441,7 +1441,7 @@ export function formatProviderCompletionForTelegram(input: {
       lines.push('', lead);
     }
     if (completionKind === 'failed' && !openLink) {
-      lines.push('', 'The board has the raw trace if you want to inspect it.');
+      lines.push('', 'The board has the full trace if you want to inspect it.');
     }
     if (openLink) {
       lines.push('', ...openProjectLines(openLink));
