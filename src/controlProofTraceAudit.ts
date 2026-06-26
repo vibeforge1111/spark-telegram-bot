@@ -60,6 +60,18 @@ export interface ControlProofGapCounts {
   stackLikeLeak: number;
 }
 
+export interface ControlProofLegacyGapBackingDetail {
+  plane: string;
+  backing: ControlProofTracePlaneSummary['proofGapBacking'];
+  proofGapMarked: number;
+  proofGapBackingIncomplete: number;
+  latestProofGapMarked: boolean;
+  latestRecordAt: string | null;
+  releaseBlocking: boolean;
+  repairSource: string;
+  repairCommand: string | null;
+}
+
 export type ControlProofGapPosture =
   | 'clean'
   | 'blocking gaps require repair'
@@ -76,6 +88,7 @@ export interface ControlProofTraceAuditResult {
   planes: ControlProofTracePlaneSummary[];
   gapCounts: ControlProofGapCounts;
   gapPlanes: Record<keyof ControlProofGapCounts, string[]>;
+  legacyGapBackingDetails: ControlProofLegacyGapBackingDetail[];
 }
 
 const REQUEST_ID_KEYS = ['request_id', 'requestId', 'requestID', 'request_ref', 'requestRef'];
@@ -157,6 +170,7 @@ export function auditControlProofTraceContinuity(options: ControlProofTraceAudit
   const planes = evidenceFiles.map((file) => summarizeEvidenceFile(file, sampleSize));
   const gapCounts = summarizeGapCounts(planes);
   const gapPlanes = summarizeGapPlanes(planes);
+  const legacyGapBackingDetails = summarizeLegacyGapBackingDetails(planes);
   const ok = Object.values(gapCounts).every((count) => count === 0);
   const blockingOk = releaseBlockingGapCounts(gapCounts).every((count) => count === 0);
   const gapPosture = summarizeGapPosture(ok, blockingOk, gapCounts);
@@ -169,7 +183,8 @@ export function auditControlProofTraceContinuity(options: ControlProofTraceAudit
     sparkHome,
     planes,
     gapCounts,
-    gapPlanes
+    gapPlanes,
+    legacyGapBackingDetails
   };
 }
 
@@ -229,6 +244,10 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
   const gapDetails = formatGapPlaneDetails(result);
   if (gapDetails.length > 0) {
     lines.push('', 'Gap planes:', ...gapDetails);
+  }
+  const legacyGapDetails = formatLegacyGapBackingDetails(result);
+  if (legacyGapDetails.length > 0) {
+    lines.push('', 'Legacy gap backing:', ...legacyGapDetails);
   }
   return `${lines.join('\n')}\n`;
 }
@@ -490,6 +509,24 @@ function summarizeGapPlanes(planes: ControlProofTracePlaneSummary[]): Record<key
   };
 }
 
+function summarizeLegacyGapBackingDetails(
+  planes: ControlProofTracePlaneSummary[]
+): ControlProofLegacyGapBackingDetail[] {
+  return planes
+    .filter((plane) => !plane.missing && plane.proofGapMarked > 0)
+    .map((plane) => ({
+      plane: plane.label,
+      backing: plane.proofGapBacking,
+      proofGapMarked: plane.proofGapMarked,
+      proofGapBackingIncomplete: plane.proofGapBackingIncomplete,
+      latestProofGapMarked: plane.latestProofGapMarked,
+      latestRecordAt: plane.latestRecordAt,
+      releaseBlocking: plane.latestProofGapMarked || plane.proofGapBackingIncomplete > 0,
+      repairSource: legacyGapRepairSource(plane.label),
+      repairCommand: legacyGapRepairCommand(plane.label)
+    }));
+}
+
 function formatGapPlaneDetails(result: ControlProofTraceAuditResult): string[] {
   return (Object.entries(result.gapPlanes) as Array<[keyof ControlProofGapCounts, string[]]>)
     .filter(([, planes]) => planes.length > 0)
@@ -510,6 +547,39 @@ function gapPlaneDecisionSuffix(key: keyof ControlProofGapCounts, result: Contro
         : 'none';
   const releaseBlocking = latestGapPlaneCount > 0 || incompleteBackingPlaneCount > 0;
   return ` (backing ${backingStatus}; latest gaps ${latestGapPlaneCount}; release blocking ${releaseBlocking ? 'yes' : 'no'})`;
+}
+
+function formatLegacyGapBackingDetails(result: ControlProofTraceAuditResult): string[] {
+  return result.legacyGapBackingDetails.map((detail) => {
+    const command = detail.repairCommand ? ` | repair ${detail.repairCommand}` : '';
+    return [
+      `- ${detail.plane}: backing ${detail.backing}`,
+      `source ${detail.repairSource}`,
+      `latest_gap ${detail.latestProofGapMarked ? 'yes' : 'no'}`,
+      `release_blocking ${detail.releaseBlocking ? 'yes' : 'no'}`,
+      `marked ${detail.proofGapMarked}`,
+      `incomplete ${detail.proofGapBackingIncomplete}`,
+      detail.latestRecordAt ? `latest ${detail.latestRecordAt}` : 'latest unknown'
+    ].join(' | ') + command;
+  });
+}
+
+function legacyGapRepairSource(label: string): string {
+  return {
+    telegram_route_confidence: 'route_confidence_legacy_repair',
+    builder_gateway: 'builder_gateway_trace_legacy_repair',
+    spawner_prd_trace: 'spawner_prd_trace_legacy_repair'
+  }[label] || 'unknown_legacy_gap_backing';
+}
+
+function legacyGapRepairCommand(label: string): string | null {
+  if (label === 'telegram_route_confidence') {
+    return 'npm run control:proof:repair:route-confidence -- --dry-run --json';
+  }
+  if (label === 'builder_gateway' || label === 'spawner_prd_trace') {
+    return `npm run control:proof:repair:legacy -- --plane ${label} --dry-run --json`;
+  }
+  return null;
 }
 
 function gapCountLabel(key: keyof ControlProofGapCounts): string {

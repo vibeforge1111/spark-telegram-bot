@@ -450,6 +450,8 @@ The audit header now includes `Gap posture` to prevent `Status: gaps found` from
 
 The audit JSON result also carries `gapPosture` with the same value as the human report. Downstream gates should read that field directly instead of re-inferring the posture from `ok`, `blockingOk`, and legacy-gap counters when they need a compact machine-readable summary.
 
+The audit JSON and markdown report also carry `legacyGapBackingDetails` / `Legacy gap backing`. Each historical proof-gap plane must name its backing status, latest-gap status, release-blocking impact, repair source, and dry-run repair command. Use that detail when explaining why visible legacy gaps are allowed: acceptable release evidence requires `releaseBlocking=false`, complete backing, and zero latest gaps.
+
 Canary observation packets now store a sanitized `evidence.controlProofAuditSummary` beside the human audit transcript. It preserves generated time, status, blocking status, gap posture, gap counts, and gap plane labels without copying raw evidence file paths or trace rows. If that summary is present and disagrees with the transcript, the packet is invalid.
 
 Machine-readable summary details are part of the proof contract, not decoration. `outputs/live-canary-full/live-canary-summary.json` must keep release and publish claims traceable without requiring a human to parse prose lines:

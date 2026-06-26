@@ -290,6 +290,19 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.equal(result.gapCounts.latestProofGap, 1);
     assert.deepEqual(result.gapPlanes.legacyProofGap, ['telegram_route_confidence']);
     assert.deepEqual(result.gapPlanes.latestProofGap, ['telegram_route_confidence']);
+    assert.deepEqual(result.legacyGapBackingDetails, [
+      {
+        plane: 'telegram_route_confidence',
+        backing: 'complete',
+        proofGapMarked: 1,
+        proofGapBackingIncomplete: 0,
+        latestProofGapMarked: true,
+        latestRecordAt: null,
+        releaseBlocking: true,
+        repairSource: 'route_confidence_legacy_repair',
+        repairCommand: 'npm run control:proof:repair:route-confidence -- --dry-run --json'
+      }
+    ]);
     assert.equal(result.ok, false);
     assert.equal(result.blockingOk, true);
     assert.equal(result.gapPosture, 'non-blocking gaps visible');
@@ -305,6 +318,8 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.match(formatControlProofTraceAuditReport(result), /latest proof gaps: 1/);
     assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: telegram_route_confidence/);
     assert.match(formatControlProofTraceAuditReport(result), /latest proof gaps: telegram_route_confidence/);
+    assert.match(formatControlProofTraceAuditReport(result), /Legacy gap backing:/);
+    assert.match(formatControlProofTraceAuditReport(result), /telegram_route_confidence: backing complete \| source route_confidence_legacy_repair \| latest_gap yes \| release_blocking yes/);
   });
 });
 
@@ -401,11 +416,26 @@ test('distinguishes historical legacy proof gaps from the latest clean producer 
     assert.equal(result.gapCounts.latestProofGap, 0);
     assert.deepEqual(result.gapPlanes.latestProofGap, []);
     assert.equal(result.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
+    assert.deepEqual(result.legacyGapBackingDetails, [
+      {
+        plane: 'builder_gateway',
+        backing: 'complete',
+        proofGapMarked: 1,
+        proofGapBackingIncomplete: 0,
+        latestProofGapMarked: false,
+        latestRecordAt: '2026-06-24T12:05:00.000Z',
+        releaseBlocking: false,
+        repairSource: 'builder_gateway_trace_legacy_repair',
+        repairCommand: 'npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json'
+      }
+    ]);
     const report = formatControlProofTraceAuditReport(result);
     assert.match(report, /builder_gateway: .*proof_gap 1 .* gap_capsule 1 .* gap_capsule_valid 1 .* gap_ref 1 .* gap_backing complete .* latest_gap no/);
     assert.match(report, /Gap posture: backed legacy gaps only; no blocking or latest proof gaps/);
     assert.match(report, /latest proof gaps: 0/);
     assert.match(report, /legacy proof gaps: builder_gateway \(backing complete; latest gaps 0; release blocking no\)/);
+    assert.match(report, /builder_gateway: backing complete \| source builder_gateway_trace_legacy_repair \| latest_gap no \| release_blocking no/);
+    assert.match(report, /repair npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json/);
   });
 });
 
@@ -436,8 +466,9 @@ test('CLI JSON includes machine-readable gap posture', () => {
       { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' }
     );
     assert.equal(jsonAudit.status, 0, jsonAudit.stderr);
-    const parsed = JSON.parse(jsonAudit.stdout) as { gapPosture?: string };
+    const parsed = JSON.parse(jsonAudit.stdout) as { gapPosture?: string; legacyGapBackingDetails?: unknown[] };
     assert.equal(parsed.gapPosture, 'clean');
+    assert.deepEqual(parsed.legacyGapBackingDetails, []);
   });
 });
 
