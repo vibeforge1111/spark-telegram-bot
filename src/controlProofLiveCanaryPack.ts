@@ -3148,10 +3148,13 @@ function hasCleanRouteBoundaryTraceJoin(value: string): boolean {
 function hasCleanLiveTraceJoin(value: string): boolean {
   if (!/(?:^|\n)(?:[$>]\s*)?npm\s+run\s+control:proof:live-trace\b/i.test(value)) return false;
   if (commandEvidencePassed(value) !== true) return false;
+  const safePromptEvidencePattern = /Safe prompt evidence:\s*risk_profile_no_build,\s*mission_routing_explain_only,\s*repair_status_no_action,\s*memory_vs_fresh_state/i;
   return /Control-proof trace join checker/i.test(value) &&
     /Status:\s*clean/i.test(value) &&
     /Live route proof:\s*ready\s*\(([4-9]|\d{2,})\/4 minimum joined rows\)/i.test(value) &&
     /No-action route proof:\s*ready\s*\(([4-9]|\d{2,})\/4 minimum no-action rows\)/i.test(value) &&
+    /Safe prompt proof:\s*ready\s*\(4\/4 required safe prompts\)/i.test(value) &&
+    safePromptEvidencePattern.test(value) &&
     /Route rows:\s*([4-9]|\d{2,})\/\d+\s+sampled/i.test(value) &&
     /Joined rows:\s*[4-9]\d*|Joined rows:\s*[4-9]/i.test(value) &&
     /Gap rows:\s*0/i.test(value) &&

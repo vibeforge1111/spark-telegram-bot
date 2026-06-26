@@ -102,6 +102,8 @@ const CLEAN_LIVE_TRACE_JOIN = [
   'Parse errors: 0',
   'Live route proof: ready (4/4 minimum joined rows)',
   'No-action route proof: ready (4/4 minimum no-action rows)',
+  'Safe prompt proof: ready (4/4 required safe prompts)',
+  'Safe prompt evidence: risk_profile_no_build, mission_routing_explain_only, repair_status_no_action, memory_vs_fresh_state',
   '',
   'Gap counts:',
   '- missing join keys: 0',
@@ -1148,6 +1150,15 @@ test('observation summary requires pass verdicts and all requested capture evide
   );
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  template.evidence.liveTraceJoin = CLEAN_LIVE_TRACE_JOIN
+    .replace('Safe prompt proof: ready (4/4 required safe prompts)\n', '')
+    .replace('Safe prompt evidence: risk_profile_no_build, mission_routing_explain_only, repair_status_no_action, memory_vs_fresh_state\n', '');
+  const staleLiveTraceShape = summarizeControlProofCanaryObservations(template);
+  assert.equal(staleLiveTraceShape.readyForRelease, false);
+  assert.deepEqual(staleLiveTraceShape.invalidPacketEvidence, ['live_trace_join']);
+  assert.match(formatControlProofCanaryObservationSummary(staleLiveTraceShape), /Packet evidence invalid: live_trace_join/);
+
+  template.evidence.liveTraceJoin = CLEAN_LIVE_TRACE_JOIN;
   template.evidence.sparkOsCompile = null;
   const missingCompileEvidence = summarizeControlProofCanaryObservations(template);
   assert.equal(missingCompileEvidence.readyForRelease, false);
@@ -3629,6 +3640,8 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '  echo "Parse errors: 0"',
       '  echo "Live route proof: ready (4/4 minimum joined rows)"',
       '  echo "No-action route proof: ready (4/4 minimum no-action rows)"',
+      '  echo "Safe prompt proof: ready (4/4 required safe prompts)"',
+      '  echo "Safe prompt evidence: risk_profile_no_build, mission_routing_explain_only, repair_status_no_action, memory_vs_fresh_state"',
       '  echo ""',
       '  echo "Gap counts:"',
       '  echo "- missing join keys: 0"',
@@ -3756,6 +3769,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.routeBoundaryTraceJoin, /missing proof joins: 0/);
     assert.doesNotMatch(observed.evidence.routeBoundaryTraceJoin, /\/tmp\/spark-route-boundary-handler/);
     assert.match(observed.evidence.liveTraceJoin, /Live route proof: ready \(4\/4 minimum joined rows\)/);
+    assert.match(observed.evidence.liveTraceJoin, /Safe prompt evidence: risk_profile_no_build, mission_routing_explain_only, repair_status_no_action, memory_vs_fresh_state/);
     assert.match(observed.evidence.liveTraceJoin, /missing proof joins: 0/);
     assert.match(observed.evidence.sparkOsCompile, /"ok": true/);
     assert.match(observed.evidence.sparkOsCompile, /"gaps": 0/);
@@ -3825,6 +3839,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(refreshedObserved.evidence.controlProofAudit, /Fresh-strict status: clean/);
     assert.match(refreshedObserved.evidence.routeBoundaryTraceJoin, /Route rows: 4\/4 sampled/);
     assert.match(refreshedObserved.evidence.liveTraceJoin, /Live route proof: ready \(4\/4 minimum joined rows\)/);
+    assert.match(refreshedObserved.evidence.liveTraceJoin, /Safe prompt evidence: risk_profile_no_build, mission_routing_explain_only, repair_status_no_action, memory_vs_fresh_state/);
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.freshStrictOk, true);
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.actionableStatus, 'clean');
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
