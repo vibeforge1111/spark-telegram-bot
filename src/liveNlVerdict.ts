@@ -74,6 +74,7 @@ export interface LiveNlHarnessCoreMapping {
   expectedAuthority: LiveNlHarnessCoreAuthorityExpectation;
   expectedMutationClass: LiveNlHarnessCoreMutationClass;
   recommendedUse: LiveNlHarnessCoreUse;
+  promotionGapRequired: string;
   proofRequiredIfPromoted: boolean;
   captureRequired: string[];
   notes: string[];
@@ -341,6 +342,9 @@ export function deriveLiveNlHarnessCoreMapping(entry: LiveNlCommandCase): LiveNl
     expectedAuthority: authority,
     expectedMutationClass: mutationClass,
     recommendedUse,
+    promotionGapRequired: recommendedUse === 'keep_legacy_breadth'
+      ? 'none'
+      : 'name measured control-proof or trace-join gap before promotion',
     proofRequiredIfPromoted: recommendedUse !== 'keep_legacy_breadth',
     captureRequired: Array.from(new Set(captureRequired)),
     notes
@@ -430,8 +434,8 @@ export function formatLiveNlHarnessCoreMap(
     '',
     '## Cases',
     '',
-    '| Case | Suite | Old risk | Mutation | Authority | Use | Proof if promoted | Capture required |',
-    '| --- | --- | --- | --- | --- | --- | --- | --- |'
+    '| Case | Suite | Old risk | Mutation | Authority | Use | Promotion gap | Proof if promoted | Capture required |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- |'
   ];
 
   for (const entry of mapped) {
@@ -442,6 +446,7 @@ export function formatLiveNlHarnessCoreMap(
       entry.expectedMutationClass,
       entry.expectedAuthority,
       entry.recommendedUse,
+      tableCell(entry.promotionGapRequired),
       entry.proofRequiredIfPromoted ? 'yes' : 'no',
       tableCell(entry.captureRequired.join(', '))
     ].join(' | ').replace(/^/, '| ').replace(/$/, ' |'));
