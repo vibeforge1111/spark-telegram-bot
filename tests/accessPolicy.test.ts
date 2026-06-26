@@ -273,6 +273,7 @@ async function main(): Promise<void> {
 
   await test('natural state-sensitive chat is grounded by fresh runtime truth', async () => {
     const indexSource = await readFile(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
+    const liveSurfaceSource = await readFile(path.join(__dirname, '..', 'src', 'sparkLiveStatusSurface.ts'), 'utf8');
     assert.match(indexSource, /function runtimeTruthSignals/);
     assert.match(indexSource, /shouldAnswerAuthoritativeRuntimeStatus/);
     assert.match(indexSource, /renderAuthoritativeSparkLiveStateAnswer/);
@@ -312,21 +313,21 @@ async function main(): Promise<void> {
     assert.match(indexSource, /Authoritative current-state context for this answer/);
     assert.match(indexSource, /highest-priority source for current state/);
     assert.match(indexSource, /const reply = await renderAuthoritativeSparkLiveStateAnswer\(\{ rawDetails: shouldShowRawSparkLiveDetails\(text\) \}\);[\s\S]*?await ctx\.reply\(reply\);/);
-    assert.match(indexSource, /Live loop/);
-    assert.match(indexSource, /Spawner: \$\{summary\.spawnerOk \? 'reachable' : 'needs attention'\}/);
-    assert.match(indexSource, /Telegram: \$\{summary\.telegramOk \? 'polling' : 'needs attention'\}/);
-    assert.match(indexSource, /Mission Control: \$\{summary\.liveReady \? 'ready' : 'not fully ready'\}/);
-    assert.match(indexSource, /Raw proof/);
+    assert.match(liveSurfaceSource, /Live loop/);
+    assert.match(liveSurfaceSource, /Spawner: \$\{summary\.spawnerOk \? 'reachable' : 'needs attention'\}/);
+    assert.match(liveSurfaceSource, /Telegram: \$\{summary\.telegramOk \? 'polling' : 'needs attention'\}/);
+    assert.match(liveSurfaceSource, /Mission Control: \$\{summary\.liveReady \? 'ready' : 'not fully ready'\}/);
+    assert.match(liveSurfaceSource, /Raw proof/);
     assert.match(indexSource, /shouldShowRawSparkLiveDetails/);
-    assert.match(indexSource, /replace\(\/\\n\{3,\}\/g, '\\n\\n'\)\.trim\(\)/);
+    assert.match(liveSurfaceSource, /replace\(\/\\n\{3,\}\/g, '\\n\\n'\)\.trim\(\)/);
     assert.doesNotMatch(indexSource, /System Status\\n\\n/);
-    const liveSummaryFn = indexSource.match(/function renderSparkLiveSummary[\s\S]*?\r?\n}\r?\n\r?\nfunction shouldShowRawSparkLiveDetails/);
+    const liveSummaryFn = liveSurfaceSource.match(/function renderSparkLiveSummary[\s\S]*?\r?\n}\r?\n\r?\nexport function shouldShowRawSparkLiveDetails/);
     assert.ok(liveSummaryFn, 'expected live summary formatter to exist');
     assert.doesNotMatch(liveSummaryFn[0], /Fresh check:/);
     assert.match(indexSource, /const reply = await renderAuthoritativeSparkEditCapabilityAnswer\(ctx\.chat\.id\);[\s\S]*?await ctx\.reply\(reply\);/);
     assert.match(indexSource, /fresh `spark live status` says Spawner is up/);
     assert.match(indexSource, /Current Spark risk profile:/);
-    assert.match(indexSource, /No restart needed\. Restarting now would mostly add churn\./);
+    assert.match(liveSurfaceSource, /No restart needed\. Restarting now would mostly add churn\./);
     assert.match(indexSource, /Memory can change recall\/history/);
     assert.match(indexSource, /A plain chat answer would not have a Spawner mission id/);
     assert.match(indexSource, /failed to record \$\{item\.source\} for \$\{selectedRoute\}/);
