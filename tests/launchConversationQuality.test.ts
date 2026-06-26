@@ -73,6 +73,8 @@ test('repo carries the Telegram composition standard as mergeable product guidan
   assert.match(standard, /Use dotted bullets/);
   assert.match(standard, /Do not combine icons with bullets/);
   assert.match(standard, /Put raw evidence behind Workspace, Decisions, Canvas, Board, logs, or trace links/);
+  assert.match(standard, /name the proof posture in human words/);
+  assert.match(standard, /keep raw proof refs like `turn:sha256:\.\.\.` behind `\/proof`, logs, or an inspect link/);
   assert.match(standard, /Does it sound like Spark helping a person/);
   assert.match(standard, /Status: clean/);
   assert.match(standard, /Check: clean/);
@@ -249,6 +251,8 @@ test('launch conversation style lint catches common drift shapes', () => {
 
   const rawReason = issueCodes('Blocked by route_not_selected_by_turn_envelope from harness_core:owner_mismatch.');
   assert.equal(rawReason.has('raw_reason_code'), true);
+  const rawProofRef = issueCodes('Proof ref: turn:sha256:abcdef1234567890');
+  assert.equal(rawProofRef.has('raw_proof_ref'), true);
 });
 
 test('launch natural work replies pass the readability ergonomics vibe bar', () => {
