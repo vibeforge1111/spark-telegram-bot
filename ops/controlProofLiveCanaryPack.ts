@@ -402,6 +402,7 @@ function summarizeCommandResult(
 }
 
 const SAFE_LONG_RUNTIME_EVIDENCE_TOKENS = new Set([
+  'builder_gateway_trace_legacy_repair',
   'current_unresolved_high_severity_open_count',
   'historical_missing_trace_ref_count',
   'historical_open_high_severity_events',
@@ -412,6 +413,8 @@ const SAFE_LONG_RUNTIME_EVIDENCE_TOKENS = new Set([
   'latest_missing_source_group_count',
   'local_runtime_test_artifact',
   'owner_sets',
+  'route_confidence_legacy_repair',
+  'spawner_prd_trace_legacy_repair',
   'unresolved_high_severity_source_group_count',
   'unresolved_high_severity_open_count',
 ]);
