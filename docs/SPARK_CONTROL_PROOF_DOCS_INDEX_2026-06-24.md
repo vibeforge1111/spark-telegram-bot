@@ -60,15 +60,19 @@ Read these in order:
    - Active trace join checker implementation note.
    - Source for `user intent -> route decision -> action/no-action -> reply` verification.
 
-13. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
+13. `docs/SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26.md`
+   - Active proof-capsule coverage implementation note.
+   - Source for action-capable authority plane proof path policy.
+
+14. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
    - Streaming and Rich Message architecture.
    - Source for keeping Telegram drafts presentation-only.
 
-14. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
+15. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
    - Recursive/QA Operator Telegram behavior.
    - Source for SparkRecursive_bot-specific canaries.
 
-15. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
+16. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
    - Voice path context.
    - Source for voice trace continuity.
 
@@ -110,6 +114,7 @@ Avoid old-style wording that implies:
 Each implementation slice should update docs in the same commit or an adjacent commit:
 
 - Proof capsule changes update `SPARK_CONTROL_PROOF_PLAN_2026-06-24.md`.
+- Proof capsule coverage behavior updates `SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26.md`.
 - Trace audit commands update `SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md`.
 - Trace join checker behavior updates `SPARK_TRACE_JOIN_CHECKER_2026-06-26.md`.
 - Telegram copy rules update `TELEGRAM_COMPOSITION_STANDARD.md`.
