@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-26T19:37:07.870Z",
-    "runtimeEvidenceCollectedAt": "2026-06-26T19:37:07.870Z",
+    "generatedAt": "2026-06-26T19:46:54.222Z",
+    "runtimeEvidenceCollectedAt": "2026-06-26T19:46:54.222Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-26T20:37:07.870Z",
+    "runtimeEvidenceExpiresAt": "2026-06-26T20:46:54.222Z",
     "totalCases": 4,
     "verdictCounts": {
       "pass": 4,
@@ -13,39 +13,18 @@
       "needs-retest": 0,
       "untested": 0
     },
-    "readyForRelease": false,
+    "readyForRelease": true,
     "readyForPublish": false,
-    "releaseBlockers": [
-      "invalid_packet_evidence"
-    ],
+    "releaseBlockers": [],
     "publishBlockers": [
-      "release_gate_not_ready",
       "release_caveats",
       "release_handoffs"
     ],
     "gateDecisionDetails": {
       "release": {
-        "ready": false,
-        "blockers": [
-          "invalid_packet_evidence"
-        ],
-        "blockerDetails": {
-          "invalid_packet_evidence": {
-            "keys": [
-              "live_trace_join"
-            ],
-            "details": [
-              {
-                "key": "live_trace_join",
-                "state": "invalid",
-                "reason": "live Telegram trace-join proof is dirty, incomplete, failed, or missing the minimum joined route rows",
-                "generatedAt": "2026-06-26T19:37:07.870Z",
-                "runtimeEvidenceCollectedAt": "2026-06-26T19:37:07.870Z",
-                "runtimeEvidenceExpiresAt": "2026-06-26T20:37:07.870Z"
-              }
-            ]
-          }
-        },
+        "ready": true,
+        "blockers": [],
+        "blockerDetails": {},
         "caveats": [
           "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
           "repo_release_blocks | blocked_release_count=4 | critical_repo_count=3",
@@ -338,9 +317,7 @@
         "handoffCount": 6,
         "packetEvidence": {
           "missing": [],
-          "invalid": [
-            "live_trace_join"
-          ],
+          "invalid": [],
           "stale": []
         },
         "failingCases": []
@@ -348,34 +325,10 @@
       "publish": {
         "ready": false,
         "blockers": [
-          "release_gate_not_ready",
           "release_caveats",
           "release_handoffs"
         ],
         "blockerDetails": {
-          "release_gate_not_ready": {
-            "releaseReady": false,
-            "releaseBlockers": [
-              "invalid_packet_evidence"
-            ],
-            "releaseBlockerDetails": {
-              "invalid_packet_evidence": {
-                "keys": [
-                  "live_trace_join"
-                ],
-                "details": [
-                  {
-                    "key": "live_trace_join",
-                    "state": "invalid",
-                    "reason": "live Telegram trace-join proof is dirty, incomplete, failed, or missing the minimum joined route rows",
-                    "generatedAt": "2026-06-26T19:37:07.870Z",
-                    "runtimeEvidenceCollectedAt": "2026-06-26T19:37:07.870Z",
-                    "runtimeEvidenceExpiresAt": "2026-06-26T20:37:07.870Z"
-                  }
-                ]
-              }
-            }
-          },
           "release_caveats": {
             "caveatCount": 3,
             "caveatFamilies": [
@@ -967,9 +920,7 @@
         "handoffCount": 6,
         "packetEvidence": {
           "missing": [],
-          "invalid": [
-            "live_trace_join"
-          ],
+          "invalid": [],
           "stale": []
         },
         "failingCases": []
@@ -1062,7 +1013,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-26T19:36:59.867Z",
+      "generatedAt": "2026-06-26T19:46:46.015Z",
       "status": "gaps found",
       "actionableStatus": "clean",
       "blockingStatus": "clean",
@@ -1228,12 +1179,12 @@
         {
           "label": "telegram_outbound",
           "sampledRows": 100,
-          "totalRows": 1639,
+          "totalRows": 1647,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
           "proofRefPresent": 100,
-          "proofCapsulePresent": 98,
+          "proofCapsulePresent": 100,
           "proofNotApplicable": 0,
           "proofGap": 0,
           "gapCapsule": 0,
@@ -1620,26 +1571,15 @@
       }
     },
     "missingPacketEvidence": [],
-    "invalidPacketEvidence": [
-      "live_trace_join"
-    ],
+    "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-26T19:37:07.870Z",
-      "runtimeEvidenceCollectedAt": "2026-06-26T19:37:07.870Z",
+      "generatedAt": "2026-06-26T19:46:54.222Z",
+      "runtimeEvidenceCollectedAt": "2026-06-26T19:46:54.222Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-26T20:37:07.870Z",
+      "runtimeEvidenceExpiresAt": "2026-06-26T20:46:54.222Z",
       "missing": [],
-      "invalid": [
-        {
-          "key": "live_trace_join",
-          "state": "invalid",
-          "reason": "live Telegram trace-join proof is dirty, incomplete, failed, or missing the minimum joined route rows",
-          "generatedAt": "2026-06-26T19:37:07.870Z",
-          "runtimeEvidenceCollectedAt": "2026-06-26T19:37:07.870Z",
-          "runtimeEvidenceExpiresAt": "2026-06-26T20:37:07.870Z"
-        }
-      ],
+      "invalid": [],
       "stale": []
     },
     "cases": [
