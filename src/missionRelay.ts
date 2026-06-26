@@ -1030,7 +1030,7 @@ function scheduleDelayedCompletionSummary(
   event: DeliverableRelayEvent,
   verbosity: TelegramRelayVerbosity
 ): void {
-  setTimeout(() => {
+  const summaryTimer = setTimeout(() => {
     void (async () => {
       if (completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
       const completion = await fetchMissionCompletionSummary(event.missionId, { attempts: 12, delayMs: 5000 });
@@ -1041,6 +1041,9 @@ function scheduleDelayedCompletionSummary(
       console.warn(formatCompletionSummaryDeliveryFailureLog(event.missionId, error));
     });
   }, 1000);
+  // Delayed completion summary is a background poll — keep it from pinning the
+  // event loop and blocking SIGTERM shutdown while the 1s wait is pending.
+  summaryTimer.unref?.();
 }
 
 function safeCompletionSummaryErrorDetail(error: unknown): string {
