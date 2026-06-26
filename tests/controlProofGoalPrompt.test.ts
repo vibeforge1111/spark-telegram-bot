@@ -109,9 +109,13 @@ test('active reliability control workplan records status and task order', () => 
   assert.match(workplan, /Expanded form:/);
   assert.match(workplan, /npm run control:proof:audit -- --sample 100 --fresh-strict/);
   assert.match(workplan, /npm run control:proof:live-trace/);
+  assert.match(workplan, /npm run control:proof:capsules -- --strict/);
   assert.match(workplan, /npm run control:proof:evals -- --strict/);
+  assert.match(workplan, /npm run control:proof:legacy-prompts -- --strict/);
+  assert.match(workplan, /npm run control:proof:capabilities -- --strict/);
   assert.match(workplan, /npm run control:proof:surface -- --strict/);
   assert.match(workplan, /missing evidence, trace joins, proof capsules, incomplete legacy backing, latest proof gaps, raw leaks, robotic reasons, stack-like leaks/);
+  assert.match(workplan, /action-capable proof policy coverage, old-edge eval coverage, legacy prompt\/UI summary leaks, capability last-success and last-failure\/boundary evidence/);
   assert.match(workplan, /Backed historical legacy gaps may remain visible only when the fresh-strict audit says the backing is complete/);
   assert.match(workplan, /Active Task Order/);
   assert.match(workplan, /Reduce proof gaps and trace-join gaps/);
@@ -129,7 +133,10 @@ test('package exposes one-command reliability proof battery', () => {
 
   assert.match(script, /npm run control:proof:audit -- --sample 100 --fresh-strict/);
   assert.match(script, /npm run control:proof:live-trace/);
+  assert.match(script, /npm run control:proof:capsules -- --strict/);
   assert.match(script, /npm run control:proof:evals -- --strict/);
+  assert.match(script, /npm run control:proof:legacy-prompts -- --strict/);
+  assert.match(script, /npm run control:proof:capabilities -- --strict/);
   assert.match(script, /npm run control:proof:surface -- --strict/);
 });
 

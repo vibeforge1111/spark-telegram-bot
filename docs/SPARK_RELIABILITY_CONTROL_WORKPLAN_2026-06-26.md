@@ -49,11 +49,14 @@ Expanded form:
 ```bash
 npm run control:proof:audit -- --sample 100 --fresh-strict
 npm run control:proof:live-trace
+npm run control:proof:capsules -- --strict
 npm run control:proof:evals -- --strict
+npm run control:proof:legacy-prompts -- --strict
+npm run control:proof:capabilities -- --strict
 npm run control:proof:surface -- --strict
 ```
 
-The battery must stay clean for missing evidence, trace joins, proof capsules, incomplete legacy backing, latest proof gaps, raw leaks, robotic reasons, stack-like leaks, live route joins, old-edge eval coverage, and ordinary-reply surface quality. Backed historical legacy gaps may remain visible only when the fresh-strict audit says the backing is complete, latest gaps are zero, and release blocking is no.
+The battery must stay clean for missing evidence, trace joins, proof capsules, incomplete legacy backing, latest proof gaps, raw leaks, robotic reasons, stack-like leaks, live route joins, action-capable proof policy coverage, old-edge eval coverage, legacy prompt/UI summary leaks, capability last-success and last-failure/boundary evidence, and ordinary-reply surface quality. Backed historical legacy gaps may remain visible only when the fresh-strict audit says the backing is complete, latest gaps are zero, and release blocking is no.
 
 ## Active Task Order
 
