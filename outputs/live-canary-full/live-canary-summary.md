@@ -1,8 +1,8 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
-Generated: 2026-06-26T05:59:23.267Z
-Runtime evidence collected: 2026-06-26T05:59:23.267Z
-Runtime evidence expires: 2026-06-26T06:59:23.267Z (1h window)
+Generated: 2026-06-26T06:10:23.186Z
+Runtime evidence collected: 2026-06-26T06:10:23.186Z
+Runtime evidence expires: 2026-06-26T07:10:23.186Z (1h window)
 Cases: 28
 Gate scope: full release pack
 Release gate: ready
@@ -19,7 +19,7 @@ Verdicts:
 Release note: ready with caveats; complete the listed handoffs before publish/registry claims.
 
 Release caveats:
-- builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=24h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0
+- builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0
 - repo_release_blocks | blocked_release_count=4 | critical_repo_count=3
 - local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0
 
