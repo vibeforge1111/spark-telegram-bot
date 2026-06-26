@@ -1,11 +1,11 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
-Generated: 2026-06-26T06:50:10.150Z
-Runtime evidence collected: 2026-06-26T06:50:10.150Z
-Runtime evidence expires: 2026-06-26T07:50:10.150Z (1h window)
+Generated: 2026-06-26T06:55:16.238Z
+Runtime evidence collected: 2026-06-26T06:55:16.238Z
+Runtime evidence expires: 2026-06-26T07:55:16.238Z (1h window)
 Cases: 28
 Gate scope: full release pack
-Release gate: ready
+Release gate: not ready
 Publish gate: not ready
 Structured gate details: summary JSON `summary.gateDecisionDetails`
 
@@ -15,8 +15,6 @@ Verdicts:
 - blocked: 0
 - needs-retest: 0
 - untested: 0
-
-Release note: ready with caveats; complete the listed handoffs before publish/registry claims.
 
 Release caveats:
 - builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0
@@ -31,4 +29,34 @@ Release handoffs:
 - spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.
 - spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.
 
-All selected canaries passed with required captures present.
+Attention summary:
+- proof_panel_actionable_status: 25 cases
+- proof_panel_fresh_strict_status: 25 cases
+- proof_panel_gap_posture: 25 cases
+
+Cases needing attention:
+- cp-noaction-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-noaction-002: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-noaction-003: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-noaction-004: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-authority-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-authority-002: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-proof-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-proof-002: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-builder-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-builder-002: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-memory-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-memory-002: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-access-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-access-002: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-model-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-model-002: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-web-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-web-002: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-spawner-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-spawner-002: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-mission-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-media-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-media-002: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-voice-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+- cp-audio-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
