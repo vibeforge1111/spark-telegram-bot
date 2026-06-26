@@ -149,6 +149,7 @@ test('control-proof canary pack covers the current Harness Core behavior areas',
 test('checked-in full canary summary JSON matches the observation packet', () => {
   const observations = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-observations.json'), 'utf8'));
   const summaryJson = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-summary.json'), 'utf8'));
+  const summaryMd = readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-summary.md'), 'utf8');
   const summary = summarizeControlProofCanaryObservations(observations, {
     maxRuntimeEvidenceAgeHours: 1,
     now: observations.evidence.collectedAt
@@ -165,6 +166,7 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.equal(summaryJson.summary.readyForRelease, summary.readyForRelease);
   assert.equal(summaryJson.summary.readyForPublish, summary.readyForPublish);
   assert.equal(summaryJson.summary.gateScope, 'full_release_pack');
+  assert.match(summaryMd, /Gate scope: full release pack/);
   assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
   assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
   assert.deepEqual(summaryJson.summary.releaseBlockers, []);
@@ -268,10 +270,12 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   const bundleDir = resolve(ROOT, 'outputs/live-canary-safe-first');
   const observationsPath = resolve(bundleDir, 'live-canary-observations.json');
   const summaryJsonPath = resolve(bundleDir, 'live-canary-summary.json');
+  const summaryMdPath = resolve(bundleDir, 'live-canary-summary.md');
   const runGuidePath = resolve(bundleDir, 'live-canary-run-guide.md');
   const readmePath = resolve(bundleDir, 'README.md');
   const observations = JSON.parse(readFileSync(observationsPath, 'utf8'));
   const summaryJson = JSON.parse(readFileSync(summaryJsonPath, 'utf8'));
+  const summaryMd = readFileSync(summaryMdPath, 'utf8');
   const summary = summarizeControlProofCanaryObservations(observations, {
     maxRuntimeEvidenceAgeHours: 1,
     now: observations.evidence.collectedAt
@@ -290,6 +294,7 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   assert.equal(summaryJson.summary.readyForRelease, summary.readyForRelease);
   assert.equal(summaryJson.summary.readyForPublish, summary.readyForPublish);
   assert.equal(summaryJson.summary.gateScope, 'selected_case_gate');
+  assert.match(summaryMd, /Gate scope: selected-case gate/);
   assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
   assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
   assert.deepEqual(summaryJson.summary.releaseBlockers, []);
@@ -765,6 +770,7 @@ test('observation summary requires pass verdicts and all requested capture evide
     parseErrors: NaN
   });
   assert.match(formatControlProofCanaryObservationSummary(summary), /Release gate: ready/);
+  assert.match(formatControlProofCanaryObservationSummary(summary), /Gate scope: selected-case gate/);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Publish gate: not ready/);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Runtime evidence collected: \d{4}-\d{2}-\d{2}T/);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Runtime evidence expires: \d{4}-\d{2}-\d{2}T.*\(24h window\)/);
@@ -2689,6 +2695,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       { cwd: ROOT, encoding: 'utf8' }
     );
     assert.equal(summary.status, 0, summary.stderr);
+    assert.match(summary.stdout, /Gate scope: selected-case gate/);
     assert.match(summary.stdout, /Release gate: ready/);
 
     const summaryJson = spawnSync(

@@ -3174,6 +3174,9 @@ export function summarizeControlProofCanaryObservations(
 }
 
 export function formatControlProofCanaryObservationSummary(summary: ControlProofCanaryObservationSummary): string {
+  const gateScope = summary.totalCases === CONTROL_PROOF_LIVE_CANARY_CASES.length
+    ? 'full release pack'
+    : 'selected-case gate';
   const lines = [
     `# ${summary.target} Control-Proof Canary Evidence Summary`,
     '',
@@ -3181,6 +3184,7 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
     `Runtime evidence collected: ${summary.runtimeEvidenceCollectedAt || 'missing'}`,
     `Runtime evidence expires: ${summary.runtimeEvidenceExpiresAt || 'missing'} (${summary.runtimeEvidenceMaxAgeHours}h window)`,
     `Cases: ${summary.totalCases}`,
+    `Gate scope: ${gateScope}`,
     `Release gate: ${summary.readyForRelease ? 'ready' : 'not ready'}`,
     `Publish gate: ${summary.readyForPublish ? 'ready' : 'not ready'}`,
     '',
