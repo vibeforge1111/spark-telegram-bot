@@ -89,6 +89,9 @@ test('streaming design preserves the measured rich-message proof shape', () => {
   assert.match(design, /Check: clean/);
   assert.match(design, /Token: ok/);
   assert.match(design, /one final Telegram message/);
+  assert.match(design, /TELEGRAM_STREAMING_DEFAULTS/);
+  assert.match(design, /source-owned default policy/);
+  assert.match(design, /profile env files persist runtime choices/);
 });
 
 test('repo carries a readability ergonomics and vibe rubric', () => {
