@@ -47,7 +47,7 @@ Everything else belongs in Workspace, Canvas, Kanban, logs, traces, dashboards, 
 - Treat saved trace, score, baseline, manifest, and candidate artifact rows as evidence metadata when the outcome already explains the movement. Keep those rows in Workspace.
 - Avoid raw IDs, hashes, opaque tokens, stack traces, timestamps, file paths, or provider details unless the user explicitly asked for raw details.
 - Put raw evidence behind Workspace, Decisions, Canvas, Board, logs, or trace links.
-- For proof/status surfaces, name the proof posture in human words such as `fresh-strict clean`, `backed legacy gaps visible`, or `publish handoff open`; keep raw proof refs like `turn:sha256:...` behind `/proof`, logs, or an inspect link unless the user asks for the exact ref.
+- For proof/status surfaces, name the proof posture in human words such as `fresh-strict clean`, `backed legacy gaps visible`, or `publish handoff open`; keep raw proof refs and trace refs like `turn:sha256:...` or `trace:...` behind `/proof`, logs, or an inspect link unless the user asks for the exact ref.
 - Local Workspace links should be real and clickable in Telegram. Prefer `127.0.0.1` over `localhost`.
 - If Workspace is intentionally private or gated, say that plainly only when the user may hit the gate. Do not present it as a recursive-loop failure.
 - Verify link text matches the actual served preview port before calling a Workspace link ready.
