@@ -160,6 +160,9 @@ test('legacy source inventory classifies old plans before fresh-turn use', () =>
   assert.match(inventory, /`ops\/genesis-live-telegram-100\.json` \| read-only evidence/);
   assert.match(inventory, /`outputs\/live-canary-full\/\*` \| active/);
   assert.match(inventory, /`outputs\/live-canary-safe-first\/\*` \| active/);
+  assert.match(inventory, /`docs\/SPARK_RELIABILITY_CONTROL_WORKPLAN_2026-06-26\.md` \| active/);
+  assert.match(inventory, /`docs\/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-26\.md` \| active/);
+  assert.match(inventory, /`docs\/SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26\.md` \| read-only evidence/);
   assert.match(inventory, /`docs\/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md` \| active/);
   assert.match(inventory, /`docs\/SPARK_TRACE_JOIN_CHECKER_2026-06-26\.md` \| active/);
   assert.match(inventory, /`docs\/SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26\.md` \| active/);
