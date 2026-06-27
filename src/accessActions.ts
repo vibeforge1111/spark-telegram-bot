@@ -277,14 +277,11 @@ export function formatSparkAccessActionReply(actionId: SparkAccessActionId, payl
     const activation = String(state.activation_state || '');
     const activeForServices = state.service_enabled === true || stateMachine.service_can_operate_whole_computer === true;
     const effectiveCodexSandbox = String(state.effective_codex_sandbox || '');
-    const serviceCodexSandbox = String(state.service_codex_sandbox || '');
-    const configuredCodexSandbox = String(state.configured_codex_sandbox || '');
-    const codexSandbox = effectiveCodexSandbox || serviceCodexSandbox || configuredCodexSandbox;
-    const fullAccessEffective = codexSandbox === 'danger-full-access';
+    const fullAccessEffective = effectiveCodexSandbox === 'danger-full-access';
     const sandboxProofLine = activeForServices
       ? fullAccessEffective
         ? 'Effective Codex sandbox: danger-full-access.'
-        : `Attention: effective Codex sandbox is ${codexSandbox || 'unknown'}, so Level 5 is not full-access yet.`
+        : `Attention: effective Codex sandbox is ${effectiveCodexSandbox || 'unknown'}, so Level 5 is not full-access yet.`
       : '';
     return [
       ok ? 'Level 5 guardrails were configured.' : 'Level 5 setup did not complete.',

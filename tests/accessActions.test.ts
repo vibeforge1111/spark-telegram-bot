@@ -143,6 +143,27 @@ void (async () => {
     assert.doesNotMatch(reply, /Effective Codex sandbox: danger-full-access/);
   });
 
+  await test('requires effective Level 5 sandbox proof instead of falling back to configured service sandbox', () => {
+    const reply = formatSparkAccessActionReply('level5_enable', {
+      ok: true,
+      effective_access_level: 5,
+      level5: {
+        service_enabled: true,
+        activation_state: 'active_for_services',
+        service_codex_sandbox: 'danger-full-access',
+        configured_codex_sandbox: 'danger-full-access',
+      },
+      state_machine: {
+        service_can_operate_whole_computer: true,
+      },
+    });
+
+    assert.match(reply, /full access is blocked/i);
+    assert.match(reply, /Attention: effective Codex sandbox is unknown, so Level 5 is not full-access yet/);
+    assert.doesNotMatch(reply, /Whole-computer operator mode is active/);
+    assert.doesNotMatch(reply, /Effective Codex sandbox: danger-full-access/);
+  });
+
   await test('returns a useful Telegram-safe message when CLI requires interactive access confirmation', async () => {
     const result = await runSparkAccessActionDetailed('level5_disable', async () => {
       const error = new Error('Command failed: spark access disable-level5 --json') as Error & { stderr?: string };
