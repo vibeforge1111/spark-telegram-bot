@@ -6,6 +6,7 @@ import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { LoopResult } from './chipLoop';
+import { effectiveLevel5RuntimeEnv } from './level5RuntimeEnv';
 import type { PathLoopResult, SpecializationLoopInsights, SpecializationLoopPackageResult, SpecializationLoopStatus } from './pathLoop';
 import { redactText } from './redaction';
 
@@ -906,7 +907,7 @@ export async function syncRecursiveArtifactToWorkspace(input: RecursiveArtifactS
     'python'
   ).trim();
   const bridgeSrc = resolveSparkSwarmBridgeSrc();
-  const env: NodeJS.ProcessEnv = { ...process.env };
+  const env: NodeJS.ProcessEnv = effectiveLevel5RuntimeEnv({ ...process.env });
   if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
   if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
   if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN = config.accessToken;
@@ -1068,7 +1069,7 @@ export async function proposeRecursiveWorkspaceEvidence(
     'python'
   ).trim();
   const bridgeSrc = resolveSparkSwarmBridgeSrc();
-  const env: NodeJS.ProcessEnv = { ...process.env };
+  const env: NodeJS.ProcessEnv = effectiveLevel5RuntimeEnv({ ...process.env });
   if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
   if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
   if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN = config.accessToken;
@@ -1320,9 +1321,7 @@ async function syncBuilderChipLoopViaBridge(
     'python'
   ).trim();
   const bridgeSrc = resolveSparkSwarmBridgeSrc();
-  const env: NodeJS.ProcessEnv = {
-    ...process.env
-  };
+  const env: NodeJS.ProcessEnv = effectiveLevel5RuntimeEnv({ ...process.env });
   if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
   if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
   if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN = config.accessToken;

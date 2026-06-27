@@ -65,4 +65,32 @@ void (async () => {
     assert.equal(env.SPARK_CODEX_SANDBOX, 'read-only');
     assert.equal(level5RuntimeGuardrailsActive({ SPARK_HOME: sparkHome, SPARK_CODEX_SANDBOX: 'read-only' }), false);
   });
+
+  await test('uses profile-specific persisted Level 5 guardrails for Telegram profiles', async () => {
+    const sparkHome = await mkdtemp(path.join(os.tmpdir(), 'spark-level5-runtime-env-profile-'));
+    const modulesDir = path.join(sparkHome, 'config', 'modules');
+    await import('node:fs/promises').then(({ mkdir }) => mkdir(modulesDir, { recursive: true }));
+    await writeFile(
+      path.join(modulesDir, 'spark-telegram-bot.recursive.env'),
+      [
+        'SPARK_ALLOW_HIGH_AGENCY_WORKERS=1',
+        'SPARK_ALLOW_EXTERNAL_PROJECT_PATHS=1',
+        'SPARK_CODEX_SANDBOX=danger-full-access',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    const staleEnv: Record<string, string | undefined> = {
+      SPARK_HOME: sparkHome,
+      SPARK_TELEGRAM_PROFILE: 'recursive',
+      SPARK_CODEX_SANDBOX: 'read-only',
+    };
+    const env = effectiveLevel5RuntimeEnv(staleEnv);
+
+    assert.equal(env.SPARK_ALLOW_HIGH_AGENCY_WORKERS, '1');
+    assert.equal(env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS, '1');
+    assert.equal(env.SPARK_CODEX_SANDBOX, 'danger-full-access');
+    assert.equal(level5RuntimeGuardrailsActive(staleEnv), true);
+  });
 })();
