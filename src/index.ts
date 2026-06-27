@@ -8176,8 +8176,7 @@ bot.command('access', async (ctx) => {
   if (!next) { await ctx.reply(ACCESS_LEVEL_CHOICE_TEXT); return; }
 
   if (next === 'operator' && current === 'operator' && !accessLevelChangeConfirmed(raw)) {
-    const runtimeGate = validateSparkAccessProfileForRuntime(next);
-    if (runtimeGate.ok) {
+    if (await level5FullAccessProofAvailable()) {
       const reply = await renderLevel5ActivationAnswer(ctx.chat.id);
       await ctx.reply(reply); await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {}); return;
     }
@@ -8222,8 +8221,27 @@ async function readLevel5FullAccessProof(): Promise<Record<string, unknown>> {
   return payload;
 }
 
+async function level5FullAccessProofAvailable(): Promise<boolean> {
+  try {
+    await readLevel5FullAccessProof();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function level5FullAccessProofError(): Promise<string | null> {
+  try {
+    await readLevel5FullAccessProof();
+    return null;
+  } catch (error) {
+    return redactText(error instanceof Error ? error.message : String(error));
+  }
+}
+
 async function applySparkAccessProfileChange(ctx: any, next: SparkAccessProfile): Promise<TelegramAuthorityExecutionResult> {
-  const runtimeGate = validateSparkAccessProfileForRuntime(next);
+  const level5ProofReady = next === 'operator' ? await level5FullAccessProofAvailable() : false;
+  const runtimeGate = level5ProofReady ? { ok: true as const } : validateSparkAccessProfileForRuntime(next);
   if (!runtimeGate.ok) {
     if (next === 'operator') {
       return await prepareLevel5AndApplyAccess(ctx);
@@ -8235,11 +8253,9 @@ async function applySparkAccessProfileChange(ctx: any, next: SparkAccessProfile)
   const current = await getSparkAccessProfile(ctx.chat.id);
   const level5ServiceStillEnabled = next !== 'operator' && (current === 'operator' || await isLevel5ServiceEnabled());
   if (next === 'operator') {
-    try {
-      await readLevel5FullAccessProof();
-    } catch (error) {
-      const detail = redactText(error instanceof Error ? error.message : String(error));
-      await ctx.reply(['I did not switch this chat to Access Level 5 yet.', '', `Fresh Level 5 proof failed: ${detail}`, 'Run `/access 5` again so Spark can repair the guardrails and restart services if needed.'].join('\n'));
+    const proofError = level5ProofReady ? null : await level5FullAccessProofError();
+    if (proofError) {
+      await ctx.reply(['I did not switch this chat to Access Level 5 yet.', '', `Fresh Level 5 proof failed: ${proofError}`, 'Run `/access 5` again so Spark can repair the guardrails and restart services if needed.'].join('\n'));
       return { status: 'failure', summary: 'Access change to operator failed Level 5 full-access proof.' };
     }
   }
@@ -8423,8 +8439,7 @@ async function handleAccessChangeRequest(ctx: any, raw: string): Promise<boolean
 
   const current = await getSparkAccessProfile(ctx.chat.id);
   if (next === 'operator' && current === 'operator' && !accessLevelChangeConfirmed(raw)) {
-    const runtimeGate = validateSparkAccessProfileForRuntime(next);
-    if (runtimeGate.ok) {
+    if (await level5FullAccessProofAvailable()) {
       const reply = await renderLevel5ActivationAnswer(ctx.chat.id);
       await ctx.reply(reply); await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {}); return true;
     }
@@ -9737,7 +9752,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       const accessPreference = parseNaturalAccessChangeIntent(text);
       const normalizedAccessPreference = accessPreference ? normalizeSparkAccessProfile(accessPreference) : null;
       if (normalizedAccessPreference) {
-        const runtimeGate = validateSparkAccessProfileForRuntime(normalizedAccessPreference);
+        const runtimeGate = normalizedAccessPreference === 'operator' && await level5FullAccessProofAvailable()
+          ? { ok: true as const }
+          : validateSparkAccessProfileForRuntime(normalizedAccessPreference);
         if (!runtimeGate.ok) {
           await ctx.reply(runtimeGate.message);
           return;

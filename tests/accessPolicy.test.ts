@@ -251,8 +251,11 @@ async function main(): Promise<void> {
     assert.match(indexSource, /bot\.action\(\/\^spark_access_level:operator:confirm/);
     assert.match(indexSource, /Access Level 5 guardrails were prepared\./);
     assert.match(indexSource, /sparkLevel5PayloadProvesFullAccess/);
+    assert.match(indexSource, /level5FullAccessProofAvailable/);
     assert.match(accessPolicySource, /function sparkLevel5PayloadProvesFullAccess/);
     assert.match(indexSource, /await readLevel5FullAccessProof\(\)/);
+    assert.match(indexSource, /const level5ProofReady = next === 'operator' \? await level5FullAccessProofAvailable\(\) : false/);
+    assert.match(indexSource, /level5ProofReady \? \{ ok: true as const \} : validateSparkAccessProfileForRuntime\(next\)/);
     assert.match(indexSource, /I did not switch this chat to Access Level 5 yet/);
     assert.match(accessPolicySource, /effectiveAccess === 5/);
     assert.match(accessPolicySource, /serviceEnabled/);
@@ -419,6 +422,7 @@ async function main(): Promise<void> {
     const buildIntentRoute = indexSource.match(/if \(buildIntent\) \{\s*console\.log\(`\[BuildIntent\][\s\S]*?await handleBuildIntent\(/);
     assert.ok(buildIntentRoute, 'expected main build intent route to exist');
     assert.match(buildIntentRoute[0], /validateSparkAccessProfileForRuntime\(normalizedAccessPreference\)/);
+    assert.match(buildIntentRoute[0], /normalizedAccessPreference === 'operator' && await level5FullAccessProofAvailable\(\)/);
     assert.match(buildIntentRoute[0], /await ctx\.reply\(runtimeGate\.message\)/);
     assert.match(buildIntentRoute[0], /await setSparkAccessProfile\(ctx\.chat\.id, normalizedAccessPreference\)/);
   });
