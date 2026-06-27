@@ -91,6 +91,34 @@ void (async () => {
     assert.match(formatSparkAccessAutomaticRestartNotice('level5_disable'), /\/access/);
   });
 
+  await test('runs Level 5 setup with high-agency guardrails and reports active services', async () => {
+    const result = await runSparkAccessActionDetailed('level5_enable', async (args, timeoutMs) => {
+      assert.deepEqual(args, ['access', 'setup', '--level', '5', '--enable-high-agency', '--json']);
+      assert.equal(timeoutMs, 60_000);
+      return {
+        stdout: JSON.stringify({
+          ok: true,
+          effective_access_level: 5,
+          level5: {
+            service_enabled: true,
+            activation_state: 'active_for_services',
+          },
+          state_machine: {
+            service_can_operate_whole_computer: true,
+            configured_codex_sandbox: 'danger-full-access',
+          },
+        }),
+        stderr: '',
+      };
+    });
+
+    assert.equal(result.needsSparkRestart, false);
+    assert.match(result.reply, /Level 5 guardrails were configured/);
+    assert.match(result.reply, /whole-computer operator mode is active/i);
+    assert.match(result.reply, /danger-full-access/);
+    assert.doesNotMatch(result.reply, /needs to reload/i);
+  });
+
   await test('returns a useful Telegram-safe message when CLI requires interactive access confirmation', async () => {
     const result = await runSparkAccessActionDetailed('level5_disable', async () => {
       const error = new Error('Command failed: spark access disable-level5 --json') as Error & { stderr?: string };

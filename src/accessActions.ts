@@ -273,11 +273,16 @@ export function formatSparkAccessActionReply(actionId: SparkAccessActionId, payl
   }
   if (actionId === 'level5_enable') {
     const state = objectValue(payload.level5);
+    const stateMachine = objectValue(payload.state_machine);
     const activation = String(state.activation_state || '');
+    const activeForServices = state.service_enabled === true || stateMachine.service_can_operate_whole_computer === true;
+    const codexSandbox = String(stateMachine.configured_codex_sandbox || '');
     return [
       ok ? 'Level 5 guardrails were configured.' : 'Level 5 setup did not complete.',
       activation ? `Activation state: ${activation}.` : '',
-      'Spark needs to reload Telegram and Spawner before whole-computer operator mode becomes active.',
+      activeForServices
+        ? `Whole-computer operator mode is active for Telegram and Spawner${codexSandbox ? ` with Codex sandbox ${codexSandbox}.` : '.'}`
+        : 'Spark needs to reload Telegram and Spawner before whole-computer operator mode becomes active.',
       nextLine(payload),
     ].filter(Boolean).join('\n');
   }
