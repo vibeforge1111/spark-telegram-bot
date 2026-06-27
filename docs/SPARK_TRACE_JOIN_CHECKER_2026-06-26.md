@@ -15,6 +15,8 @@ Reply joins are row-correlated. A route row is not considered joined merely beca
 
 Proof joins are row-correlated too. A route row is not considered proof-joined merely because its proof ref appears somewhere in the audits; the proof ref must appear on evidence that also carries the same request and trace pair.
 
+The report distinguishes structural joins from release-usable fresh joins. `Structurally joined rows` counts rows whose request, trace, proof, route, and action/no-action evidence line up even if live freshness fails. `Joined rows` remains strict release evidence; stale live rows do not count there.
+
 ## Sources
 
 - Natural route ledger: `spark.nlp.route_execution.v1`
@@ -78,6 +80,8 @@ If memory says Spawner is down but spark live status says it is up, which source
 After the prompts, rerun the live gate. A passing result must show `Live route proof: ready`, `No-action route proof: ready`, `Safe prompt proof: ready`, the four matched safe-prompt evidence ids, and no missing join, reply, proof, action/no-action, stale, or route-mismatch gaps.
 
 Live rows must also be current. The default live evidence freshness window is four hours; use `--max-live-age-minutes <minutes>` only for an intentional local audit. When rows are stale, the gap sample prints a redacted age such as `age 5h > max 4h` so the operator can see whether recapture is needed without exposing request ids, trace refs, chat ids, user ids, or prompt text.
+
+If stale rows show `Structurally joined rows: 4` and `Joined rows: 0`, the join chain is present but too old for release proof. Recapture the safe prompts rather than repairing join keys.
 
 ## Repeatable Handler Proof
 

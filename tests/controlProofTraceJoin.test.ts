@@ -113,12 +113,14 @@ test('joins natural route decisions to reply and proof evidence', () => {
     });
 
     assert.equal(result.ok, true);
+    assert.equal(result.structurallyJoinedRows, 1);
     assert.equal(result.joinedRows, 1);
     assert.equal(result.gapRows, 0);
     assert.equal(result.rows[0].replyJoined, true);
     assert.equal(result.rows[0].proofJoined, true);
     assert.equal(result.rows[0].noActionEvidence, true);
     assert.equal(result.rows[0].staleLiveEvidence, false);
+    assert.match(formatControlProofTraceJoinReport(result), /Structurally joined rows: 1/);
     assert.match(formatControlProofTraceJoinReport(result), /Status: clean/);
   });
 });
@@ -290,11 +292,15 @@ test('live evidence mode rejects stale joined route rows', () => {
     const report = formatControlProofTraceJoinReport(result);
 
     assert.equal(result.ok, false);
+    assert.equal(result.structurallyJoinedRows, 1);
+    assert.equal(result.joinedRows, 0);
     assert.equal(result.staleRouteRows, 1);
     assert.equal(result.rows[0].staleLiveEvidence, true);
     assert.equal(result.rows[0].liveEvidenceAgeMs, 2.5 * 60 * 60 * 1000);
     assert.equal(result.rows[0].maxLiveEvidenceAgeMs, 60 * 60 * 1000);
     assert.deepEqual(result.rows[0].gaps, ['stale_live_route_evidence']);
+    assert.match(report, /Structurally joined rows: 1/);
+    assert.match(report, /Joined rows: 0/);
     assert.match(report, /stale live route evidence: 1/);
     assert.match(report, /age 2h 30m > max 1h/);
   });

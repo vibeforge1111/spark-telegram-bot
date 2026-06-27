@@ -89,6 +89,7 @@ export interface ControlProofTraceJoinSummary {
   insufficientLiveRouteRows: boolean;
   insufficientNoActionRows: boolean;
   maxLiveEvidenceAgeMs: number;
+  structurallyJoinedRows: number;
   joinedRows: number;
   noActionEvidenceRows: number;
   safePromptEvidenceRows: number;
@@ -153,6 +154,7 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
     maxLiveEvidenceAgeMs
   }));
   const gapRows = rows.filter((row) => row.gaps.length > 0).length;
+  const structurallyJoinedRows = rows.filter((row) => row.gaps.every((gap) => gap === 'stale_live_route_evidence')).length;
   const joinedRows = rows.length - gapRows;
   const noActionEvidenceRows = rows.filter((row) => row.noActionEvidence && row.gaps.length === 0).length;
   const safePromptEvidence = safePromptEvidenceIds(rows);
@@ -201,6 +203,7 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
     insufficientLiveRouteRows,
     insufficientNoActionRows,
     maxLiveEvidenceAgeMs,
+    structurallyJoinedRows,
     joinedRows,
     noActionEvidenceRows,
     safePromptEvidenceRows: safePromptEvidence.size,
@@ -237,6 +240,7 @@ export function formatControlProofTraceJoinReport(summary: ControlProofTraceJoin
     `Evidence audits: final answers ${summary.finalAnswerAuditRows} rows, outbound ${summary.outboundAuditRows} rows`,
     '',
     summary.ok ? 'Status: clean' : 'Status: gaps found',
+    `Structurally joined rows: ${summary.structurallyJoinedRows}`,
     `Joined rows: ${summary.joinedRows}`,
     `Gap rows: ${summary.gapRows}`,
     `Parse errors: ${summary.parseErrors}`,
