@@ -276,7 +276,7 @@ export function formatSparkAccessActionReply(actionId: SparkAccessActionId, payl
     const stateMachine = objectValue(payload.state_machine);
     const activation = String(state.activation_state || '');
     const activeForServices = state.service_enabled === true || stateMachine.service_can_operate_whole_computer === true;
-    const codexSandbox = String(stateMachine.configured_codex_sandbox || '');
+    const codexSandbox = String(state.configured_codex_sandbox || '');
     return [
       ok ? 'Level 5 guardrails were configured.' : 'Level 5 setup did not complete.',
       activation ? `Activation state: ${activation}.` : '',

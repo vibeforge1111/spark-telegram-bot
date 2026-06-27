@@ -102,10 +102,10 @@ void (async () => {
           level5: {
             service_enabled: true,
             activation_state: 'active_for_services',
+            configured_codex_sandbox: 'danger-full-access',
           },
           state_machine: {
             service_can_operate_whole_computer: true,
-            configured_codex_sandbox: 'danger-full-access',
           },
         }),
         stderr: '',
