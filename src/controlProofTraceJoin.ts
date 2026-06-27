@@ -93,7 +93,9 @@ export interface ControlProofTraceJoinSummary {
   joinedRows: number;
   noActionEvidenceRows: number;
   safePromptEvidenceRows: number;
+  staleSafePromptEvidenceRows: number;
   safePromptEvidence: string[];
+  staleSafePromptEvidence: string[];
   missingSafePromptEvidence: string[];
   staleRouteRows: number;
   gapRows: number;
@@ -158,15 +160,19 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
   const joinedRows = rows.length - gapRows;
   const noActionEvidenceRows = rows.filter((row) => row.noActionEvidence && row.gaps.length === 0).length;
   const safePromptEvidence = safePromptEvidenceIds(rows);
+  const staleSafePromptEvidence = staleSafePromptEvidenceIds(rows);
   const safePromptEvidenceList = LIVE_TRACE_JOIN_SAFE_PROMPT_CASES
     .map((signature) => signature.id)
     .filter((id) => safePromptEvidence.has(id));
+  const staleSafePromptEvidenceList = LIVE_TRACE_JOIN_SAFE_PROMPT_CASES
+    .map((signature) => signature.id)
+    .filter((id) => staleSafePromptEvidence.has(id));
   const missingSafePromptEvidence = LIVE_TRACE_JOIN_SAFE_PROMPT_CASES
     .map((signature) => signature.id)
-    .filter((id) => !safePromptEvidence.has(id));
+    .filter((id) => !safePromptEvidence.has(id) && !staleSafePromptEvidence.has(id));
   const insufficientLiveRouteRows = liveEvidenceRequired && joinedRows < minRouteRows;
   const insufficientNoActionRows = liveEvidenceRequired && noActionEvidenceRows < minNoActionRows;
-  const insufficientSafePromptEvidence = liveEvidenceRequired && missingSafePromptEvidence.length > 0;
+  const insufficientSafePromptEvidence = liveEvidenceRequired && safePromptEvidence.size < LIVE_TRACE_JOIN_SAFE_PROMPT_CASES.length;
   const liveEvidenceReady = joinedRows >= minRouteRows &&
     noActionEvidenceRows >= minNoActionRows &&
     !insufficientSafePromptEvidence &&
@@ -207,7 +213,9 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
     joinedRows,
     noActionEvidenceRows,
     safePromptEvidenceRows: safePromptEvidence.size,
+    staleSafePromptEvidenceRows: staleSafePromptEvidence.size,
     safePromptEvidence: safePromptEvidenceList,
+    staleSafePromptEvidence: staleSafePromptEvidenceList,
     missingSafePromptEvidence,
     staleRouteRows: rows.filter((row) => row.gaps.includes('stale_live_route_evidence')).length,
     gapRows,
@@ -248,8 +256,9 @@ export function formatControlProofTraceJoinReport(summary: ControlProofTraceJoin
     ...(summary.liveEvidenceRequired ? [
       `Live route proof: ${summary.liveEvidenceReady ? 'ready' : 'not ready'} (${summary.joinedRows}/${summary.minRouteRows} minimum joined rows)`,
       `No-action route proof: ${summary.noActionEvidenceRows >= summary.minNoActionRows ? 'ready' : 'not ready'} (${summary.noActionEvidenceRows}/${summary.minNoActionRows} minimum no-action rows)`,
-      `Safe prompt proof: ${summary.missingSafePromptEvidence.length === 0 ? 'ready' : 'not ready'} (${summary.safePromptEvidenceRows}/${LIVE_TRACE_JOIN_SAFE_PROMPT_CASES.length} required safe prompts)`,
+      `Safe prompt proof: ${summary.safePromptEvidenceRows === LIVE_TRACE_JOIN_SAFE_PROMPT_CASES.length ? 'ready' : 'not ready'} (${summary.safePromptEvidenceRows}/${LIVE_TRACE_JOIN_SAFE_PROMPT_CASES.length} required safe prompts)`,
       ...(summary.safePromptEvidence.length ? [`Safe prompt evidence: ${summary.safePromptEvidence.join(', ')}`] : []),
+      ...(summary.staleSafePromptEvidence.length ? [`Stale safe prompt evidence: ${summary.staleSafePromptEvidence.join(', ')}`] : []),
       ...(summary.missingSafePromptEvidence.length ? [`Missing safe prompt evidence: ${summary.missingSafePromptEvidence.join(', ')}`] : []),
       ...(summary.liveEvidenceReady ? [] : liveTraceCaptureGuideLines())
     ] : []),
@@ -343,6 +352,22 @@ function safePromptEvidenceIds(rows: ControlProofTraceJoinRow[]): Set<string> {
   const ids = new Set<string>();
   for (const row of rows) {
     if (row.gaps.length > 0 || !row.noActionEvidence) continue;
+    addSafePromptEvidenceId(ids, row);
+  }
+  return ids;
+}
+
+function staleSafePromptEvidenceIds(rows: ControlProofTraceJoinRow[]): Set<string> {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (!row.noActionEvidence || !row.gaps.includes('stale_live_route_evidence')) continue;
+    if (row.gaps.some((gap) => gap !== 'stale_live_route_evidence')) continue;
+    addSafePromptEvidenceId(ids, row);
+  }
+  return ids;
+}
+
+function addSafePromptEvidenceId(ids: Set<string>, row: ControlProofTraceJoinRow): void {
     const route = row.executedRoute.toLowerCase();
     const action = row.executedAction.toLowerCase();
     const signature = LIVE_TRACE_JOIN_SAFE_PROMPT_CASES.find((entry) => (
@@ -350,8 +375,6 @@ function safePromptEvidenceIds(rows: ControlProofTraceJoinRow[]): Set<string> {
       entry.action === action
     ));
     if (signature) ids.add(signature.id);
-  }
-  return ids;
 }
 
 function summarizeRouteJoin(

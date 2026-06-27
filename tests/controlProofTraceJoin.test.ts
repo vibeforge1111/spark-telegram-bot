@@ -294,6 +294,7 @@ test('live evidence mode rejects stale joined route rows', () => {
     assert.equal(result.ok, false);
     assert.equal(result.structurallyJoinedRows, 1);
     assert.equal(result.joinedRows, 0);
+    assert.equal(result.staleSafePromptEvidenceRows, 0);
     assert.equal(result.staleRouteRows, 1);
     assert.equal(result.rows[0].staleLiveEvidence, true);
     assert.equal(result.rows[0].liveEvidenceAgeMs, 2.5 * 60 * 60 * 1000);
@@ -537,7 +538,9 @@ test('live evidence mode requires the distinct safe prompt signatures', () => {
     assert.equal(result.joinedRows, 4);
     assert.equal(result.noActionEvidenceRows, 4);
     assert.equal(result.safePromptEvidenceRows, 0);
+    assert.equal(result.staleSafePromptEvidenceRows, 0);
     assert.deepEqual(result.safePromptEvidence, []);
+    assert.deepEqual(result.staleSafePromptEvidence, []);
     assert.deepEqual(result.missingSafePromptEvidence, [
       'risk_profile_no_build',
       'mission_routing_explain_only',
@@ -576,6 +579,7 @@ test('live evidence mode accepts clean joined rows for all safe prompt signature
     assert.equal(result.joinedRows, 4);
     assert.equal(result.noActionEvidenceRows, 4);
     assert.equal(result.safePromptEvidenceRows, 4);
+    assert.equal(result.staleSafePromptEvidenceRows, 0);
     assert.deepEqual(result.safePromptEvidence, [
       'risk_profile_no_build',
       'mission_routing_explain_only',
@@ -583,8 +587,54 @@ test('live evidence mode accepts clean joined rows for all safe prompt signature
       'memory_vs_fresh_state'
     ]);
     assert.deepEqual(result.missingSafePromptEvidence, []);
+    assert.deepEqual(result.staleSafePromptEvidence, []);
     assert.match(report, /Safe prompt proof: ready \(4\/4 required safe prompts\)/);
     assert.match(report, /Safe prompt evidence: risk_profile_no_build, mission_routing_explain_only, repair_status_no_action, memory_vs_fresh_state/);
+  });
+});
+
+test('live evidence mode reports stale safe prompt signatures separately from missing evidence', () => {
+  withTempRoot((root) => {
+    const routeLedger = path.join(root, 'route-ledger.jsonl');
+    const finalAnswer = path.join(root, 'final-answer.jsonl');
+    const outbound = path.join(root, 'outbound.jsonl');
+    const rows = safePromptRows().map((row) => ({
+      ...row,
+      recorded_at: '2026-06-26T00:00:00.000Z'
+    }));
+    writeJsonl(routeLedger, rows);
+    writeJsonl(finalAnswer, proofRowsFor(rows));
+    writeJsonl(outbound, []);
+
+    const result = auditControlProofTraceJoins({
+      sparkHome: root,
+      naturalRouteLedger: routeLedger,
+      finalAnswerAudit: finalAnswer,
+      outboundAudit: outbound,
+      requireLiveEvidence: true,
+      minRouteRows: 4,
+      minNoActionRows: 4,
+      maxLiveEvidenceAgeMs: 60 * 60 * 1000,
+      generatedAt: '2026-06-26T02:30:00.000Z'
+    });
+    const report = formatControlProofTraceJoinReport(result);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.structurallyJoinedRows, 4);
+    assert.equal(result.joinedRows, 0);
+    assert.equal(result.safePromptEvidenceRows, 0);
+    assert.equal(result.staleSafePromptEvidenceRows, 4);
+    assert.deepEqual(result.safePromptEvidence, []);
+    assert.deepEqual(result.staleSafePromptEvidence, [
+      'risk_profile_no_build',
+      'mission_routing_explain_only',
+      'repair_status_no_action',
+      'memory_vs_fresh_state'
+    ]);
+    assert.deepEqual(result.missingSafePromptEvidence, []);
+    assert.match(report, /Safe prompt proof: not ready \(0\/4 required safe prompts\)/);
+    assert.match(report, /Stale safe prompt evidence: risk_profile_no_build, mission_routing_explain_only, repair_status_no_action, memory_vs_fresh_state/);
+    assert.doesNotMatch(report, /Missing safe prompt evidence:/);
   });
 });
 

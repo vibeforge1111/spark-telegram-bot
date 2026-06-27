@@ -111,6 +111,8 @@ An empty route sample is not clean proof. It means no route evidence was availab
 
 The live gate also requires the safe prompt sample to be clean joined no-action/read-only evidence. Four joined action rows are not enough to pass `npm run control:proof:live-trace`; four generic no-action rows are not enough; and four sampled no-action rows with missing reply/proof joins are not enough either. The live proof must show the named no-action boundary was exercised end to end through the expected safe route/action signatures, and the report must list the matched safe-prompt evidence ids so a clean run is auditable without raw prompt text.
 
+Safe-prompt evidence is split by state. `Safe prompt evidence` lists clean current matches. `Stale safe prompt evidence` lists matching safe routes that joined structurally but are outside the freshness window. `Missing safe prompt evidence` lists safe cases with no clean or stale matching route/action evidence in the sampled rows.
+
 Legacy route rows that predate join refs should remain visible as gaps when inspected. Do not backfill them unless the backing evidence proves the exact request, trace, proof, action/no-action, and reply join.
 
 ## Relationship To The Ladder
