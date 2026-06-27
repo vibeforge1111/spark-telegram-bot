@@ -1,13 +1,13 @@
 # Spark Publish Readiness Handoffs
 
 Date: 2026-06-27
-Status: active publish-readiness map
+Status: active publish-readiness map, repo release blockers locally reconciled
 
 ## Purpose
 
 This document separates Telegram behavior release readiness from Spark-wide publish readiness.
 
-Telegram reliability is green enough for route-safety work to stop being the blocker. Publish is still not ready while upstream, registry, and lifecycle handoffs remain open.
+Telegram reliability is green enough for route-safety work to stop being the blocker. Repo release blockers are now locally reconciled; publish still needs registry/runtime artifact convergence and owner lifecycle decisions before a full publish-green claim.
 
 ## Verified Baseline
 
@@ -21,41 +21,49 @@ Checked from the local SparkRecursive control-proof branch on 2026-06-27:
 - `spark os compile --json`: `ok=true`, `gaps=0`, `dirty_repo_count=0`
 - `outputs/live-canary-full/live-canary-summary.md`: `Release gate: ready`, `Publish gate: not ready`
 
+Publish-handoff refresh on 2026-06-27T09:16Z:
+
+- `domain-chip-memory`: fast-forwarded to upstream, then committed `1fd272e Accept vNext memory write authority proof`; SDK authority tests passed.
+- `spark-researcher`: fast-forwarded to upstream; memory status health passed.
+- `spark-intelligence-builder`: merged upstream and committed `f21522a Reconcile Builder memory authority after merge`; focused Builder suite passed.
+- `spawner-ui`: merged upstream and committed `0a892f0b Merge remote-tracking branch 'origin/release/stability-2026-06-02-spawner-authority' into release/stability-2026-06-02-spawner-authority`; focused Spawner tests and `npm run check` passed.
+- `spark os compile --json`: `ok=true`, `gaps=0`, `dirty_repo_count=0`, `blocked_release_count=0`.
+
 Backed historical proof gaps remain visible in route-confidence, Builder gateway, and Spawner PRD trace. The fresh-strict audit reports latest gaps as zero and release blocking as no.
 
 ## Publish Handoff Inventory
 
 | Area | Status | Blocking class | Current evidence | Next safe action |
 | --- | --- | --- | --- | --- |
-| `domain-chip-memory` | owner-handoff | publish-blocking, release-non-blocking | Branch `codex/turnintent-memory-boundary-20260531` is behind upstream by 6 commits and has no local ahead commits. Runtime health is green. | Publishing owner can pull/fast-forward or merge upstream, then rerun memory health and Spark-wide proof before publish claims. |
-| `spark-intelligence-builder` | owner-handoff | publish-blocking, release-non-blocking | Branch `codex/turnintent-builder-boundary-20260531` is ahead 41 and behind upstream by 12 commits. Runtime health is green. | Publishing owner must reconcile local ahead work with upstream before publish; do not auto-merge from this machine. Rerun Builder and Spark-wide proof after reconciliation. |
-| `spark-researcher` | owner-handoff | publish-blocking, release-non-blocking | Branch `codex/researcher-self-edit-governor-20260602` is behind upstream by 61 commits and has no local ahead commits. Runtime health is green. | Publishing owner can pull/fast-forward or merge upstream, then rerun Researcher health and Spark-wide proof before publish claims. |
-| `spawner-ui` | owner-handoff | publish-blocking, release-non-blocking | Branch `release/stability-2026-06-02-spawner-authority` is ahead 8 and behind upstream by 29 commits. Live health is HTTP 200. | Publishing owner must reconcile local ahead work with upstream before publish; do not auto-merge from this machine. Rerun Spawner health and Spark-wide proof after reconciliation. |
-| `spark-installer-registry` | owner-handoff | publish-blocking warning | Installed `spark-telegram-bot` head is `856c504`, registry pin is `e5a1bd0`; installed `spawner-ui` head is `e9ba42e`, registry pin is `19b7d0b`. Both are intentionally marked `local_runtime_test_artifact` for SparkRecursive proof. | Port/push owner commits and update registry or release metadata before registry readiness claims. Keep installed sources for local proof only until then. |
+| `domain-chip-memory` | locally reconciled | not currently release-blocking | Ahead-only locally by 1 commit after accepting vNext memory write authority proof. `PYTHONPATH=src python3 -m domain_chip_memory.cli benchmark-contracts` and SDK authority tests passed. | Publishing owner can review/push the local commit or port it to the owner lane before registry publish claims. |
+| `spark-intelligence-builder` | locally reconciled | not currently release-blocking | Ahead-only locally after upstream merge and Builder authority fix. Focused suite passed: `tests/test_bridge_authority.py`, `tests/test_memory_orchestrator.py`, `tests/test_gateway_ask_telegram.py`, `tests/test_user_instructions_authority.py`. | Publishing owner can review/push the merge/fix commits or port them to the owner lane before registry publish claims. |
+| `spark-researcher` | reconciled | not currently release-blocking | Fast-forwarded to upstream and clean. `PYTHONPATH=src python3 -m spark_researcher.cli memory status --config spark-researcher.project.json` passed. | No repo-release blocker remains; include in final Spark-wide publish proof. |
+| `spawner-ui` | locally reconciled | not currently release-blocking | Ahead-only locally after upstream merge. Focused PRD/events/harness tests passed and `npm run check` reported 0 errors, 0 warnings. | Publishing owner can review/push the merge commit or port it to the owner lane before registry publish claims. |
+| `spark-installer-registry` | owner-handoff | publish-blocking warning | `spark os compile --json` still reports 2 `local_runtime_test_artifact` duplicate truths owned by `spark-telegram-bot` and `spawner-ui`. | Port/push owner commits and update registry or release metadata before registry readiness claims. Keep installed sources for local proof only until then. |
 | Builder trace health | owner-handoff | publish-blocking warning | Current 1h and 24h trace windows are clean, but 1 unresolved historical high-severity integrity family remains; latest event 2026-06-02T09:03:25Z. Current unresolved high-severity count is 0. | Audit the historical family and append owner-approved lifecycle resolution, or keep it explicit as a publish handoff. |
 | Voice surface | non-blocking evidence boundary | not publish-green | Voice/audio evidence boundary is covered, but system map reports `voice_surface_mode=disabled` with 2 blockers: `spark-voice-comms repo not discovered` and `voice final-answer join evidence is not compiled`. | Do not call voice fully green until the repo discovery and final-answer join evidence blockers are resolved and fresh voice proof shows enabled runtime behavior. |
 | Line-count ratchet | maintenance | not publish-blocking | Gate passes, but 13 baselined large files remain. | Shrink one baselined file at a time after publish blockers are mapped. |
 
 ## Handoff Classification
 
-Current classification after direct repo inspection:
+Current classification after direct repo inspection and local reconciliation:
 
-- Blocking owner handoffs that are safe for the publishing owner to reconcile:
-  - `domain-chip-memory`: behind-only, likely fast-forwardable after owner review.
-  - `spark-researcher`: behind-only, likely fast-forwardable after owner review.
-- Blocking owner handoffs that require merge/cherry-pick judgment because local work exists:
-  - `spark-intelligence-builder`: ahead 41 / behind 12.
-  - `spawner-ui`: ahead 8 / behind 29.
+- Repo release blockers:
+  - None currently reported by `spark os compile --json`; `blocked_release_count=0`.
+- Ahead-only local owner handoffs requiring review/push/port before publish metadata claims:
+  - `domain-chip-memory`: local vNext authority proof compatibility commit.
+  - `spark-intelligence-builder`: upstream merge plus memory authority reconciliation commit.
+  - `spawner-ui`: upstream merge commit with PRD proof-continuity conflict resolved.
 - Registry/release metadata handoff:
-  - `spark-telegram-bot` and `spawner-ui` installed heads intentionally differ from registry pins for local SparkRecursive proof. Publish readiness requires owner repo commits and registry/release metadata to converge.
+  - `spark-telegram-bot` and `spawner-ui` still appear as local runtime test artifacts. Publish readiness requires owner repo commits and registry/release metadata to converge.
 - Evidence-boundary handoff:
   - Voice remains boundary-covered but disabled/blockered; it is not a publish-green capability.
 
 ## Work Order
 
 1. Keep Telegram reliability green. Do not reopen route-safety work without a fresh failing proof.
-2. Resolve publish owner handoffs before claiming registry or Spark-wide publish readiness.
-3. For each upstream repo handoff, make the owner merge/pull decision in that repo, then rerun its local health gate and the Spark-wide proof battery.
+2. Review/push or port the ahead-only local owner commits before claiming registry or Spark-wide publish readiness.
+3. Keep each reconciled repo clean and rerun its local health gate after any owner-lane movement.
 4. Resolve local runtime test artifacts by porting/pushing owner commits and updating installer registry or release metadata.
 5. Resolve Builder historical trace health by owner-approved lifecycle closure, not by hiding the historical debt.
 6. Keep voice described as boundary-covered but disabled/blockered until runtime proof changes.
