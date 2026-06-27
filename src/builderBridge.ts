@@ -1085,8 +1085,8 @@ function idString(value: unknown): string {
 
 export function assertTelegramIntegerId(value: number | string, label: string): string {
   const normalized = String(value).trim();
-  if (!/^-?\d{1,20}$/.test(normalized)) {
-    throw new Error(`${label} must be a Telegram integer id.`);
+  if (!/^\d{1,20}$/.test(normalized)) {
+    throw new Error(`${label} must be a positive Telegram integer id.`);
   }
   return normalized;
 }
