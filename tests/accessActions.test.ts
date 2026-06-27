@@ -137,8 +137,9 @@ void (async () => {
       },
     });
 
-    assert.match(reply, /Whole-computer operator mode is active/);
-    assert.match(reply, /Attention: effective Codex sandbox is read-only/);
+    assert.match(reply, /full access is blocked/i);
+    assert.match(reply, /Attention: effective Codex sandbox is read-only, so Level 5 is not full-access yet/);
+    assert.doesNotMatch(reply, /Whole-computer operator mode is active/);
     assert.doesNotMatch(reply, /Effective Codex sandbox: danger-full-access/);
   });
 

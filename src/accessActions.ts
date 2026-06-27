@@ -280,16 +280,19 @@ export function formatSparkAccessActionReply(actionId: SparkAccessActionId, payl
     const serviceCodexSandbox = String(state.service_codex_sandbox || '');
     const configuredCodexSandbox = String(state.configured_codex_sandbox || '');
     const codexSandbox = effectiveCodexSandbox || serviceCodexSandbox || configuredCodexSandbox;
+    const fullAccessEffective = codexSandbox === 'danger-full-access';
     const sandboxProofLine = activeForServices
-      ? codexSandbox === 'danger-full-access'
+      ? fullAccessEffective
         ? 'Effective Codex sandbox: danger-full-access.'
-        : `Attention: effective Codex sandbox is ${codexSandbox || 'unknown'}, so do not treat this as full-access yet.`
+        : `Attention: effective Codex sandbox is ${codexSandbox || 'unknown'}, so Level 5 is not full-access yet.`
       : '';
     return [
       ok ? 'Level 5 guardrails were configured.' : 'Level 5 setup did not complete.',
       activation ? `Activation state: ${activation}.` : '',
       activeForServices
-        ? 'Whole-computer operator mode is active for Telegram and Spawner.'
+        ? fullAccessEffective
+          ? 'Whole-computer operator mode is active for Telegram and Spawner.'
+          : 'Level 5 service restart is visible, but full access is blocked until the effective Codex sandbox is danger-full-access.'
         : 'Spark needs to reload Telegram and Spawner before whole-computer operator mode becomes active.',
       sandboxProofLine,
       nextLine(payload),
