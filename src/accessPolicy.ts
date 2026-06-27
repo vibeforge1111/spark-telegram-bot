@@ -359,7 +359,7 @@ export function renderSparkAccessBriefStatus(profile: SparkAccessProfile, runner
   if (profile === 'operator') {
     const lines = [
       `You are already on ${sparkAccessLabel(profile)}.`,
-      '\u2022 Whole-computer operator mode is active for this trusted install.',
+      '\u2022 Whole-computer operator mode still needs live guardrail and effective-sandbox proof before Spark claims full access.',
       runnerSummary,
       '\u2022 Safety checks still stay on for secrets, deletes, publishing, and deploys.',
       'Use `/access 4` to return to the safer workspace sandbox.'
@@ -395,7 +395,7 @@ export function renderSparkAccessChangeSummary(profile: SparkAccessProfile, runn
   if (profile === 'operator') {
     const runnerLine = runner?.runnerWritable === 'no'
       ? 'One note: this runner still looks read-only, so Spark may route some local work through Mission Control.'
-      : 'Spark can use this trusted local machine for operator work.';
+      : 'Spark will verify live guardrails and the effective Codex sandbox before claiming whole-computer work here.';
     return [
       confirmation,
       '',

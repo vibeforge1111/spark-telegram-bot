@@ -191,13 +191,13 @@ async function main(): Promise<void> {
 
     const operatorStatus = renderSparkAccessBriefStatus('operator', { runnerWritable: 'yes' });
     assert.match(operatorStatus, /You are already on Access level 5/);
-    assert.match(operatorStatus, /Whole-computer operator mode is active/i);
+    assert.match(operatorStatus, /needs live guardrail and effective-sandbox proof/i);
     assert.match(operatorStatus, /Runner: writable here/);
     assert.match(operatorStatus, /Use `\/access 4`/);
 
     const operatorChange = renderSparkAccessChangeSummary('operator', { runnerWritable: 'yes' });
     assert.match(operatorChange, /Done - I changed this chat setting to Access level 5/);
-    assert.match(operatorChange, /trusted local machine/);
+    assert.match(operatorChange, /verify live guardrails and the effective Codex sandbox/);
     assert.match(operatorChange, /still ask before deleting important files/);
     assert.doesNotMatch(operatorChange, /Important distinction/);
 
@@ -248,7 +248,9 @@ async function main(): Promise<void> {
     assert.match(indexSource, /renderSparkAccessChangeSummary\(profile, await probeTelegramRunnerWritability\(\)\)/);
     assert.match(indexSource, /renderSparkAccessLevel5ConfirmationPrompt\(\), buildSparkAccessLevel5ConfirmKeyboard\(\)/);
     assert.match(indexSource, /bot\.action\(\/\^spark_access_level:operator:confirm/);
-    assert.match(indexSource, /I prepared the local guardrails\./);
+    assert.match(indexSource, /Access Level 5 guardrails were prepared\./);
+    assert.match(indexSource, /effective_codex_sandbox !== 'danger-full-access'/);
+    assert.match(indexSource, /Access Level 5 setup did not prove danger-full-access effective sandbox/);
     assert.match(indexSource, /isLevel5ServiceEnabled/);
     assert.match(indexSource, /runSparkAccessActionDetailed\(actionId\)/);
     assert.match(indexSource, /level5_disable/);
@@ -279,6 +281,8 @@ async function main(): Promise<void> {
     assert.match(indexSource, /renderAuthoritativeSparkLiveStateAnswer/);
     assert.match(indexSource, /shouldAnswerAuthoritativeAccessCapability/);
     assert.match(indexSource, /renderAuthoritativeSparkEditCapabilityAnswer/);
+    assert.match(indexSource, /const fullAccessSandbox = accessState\.effectiveCodexSandbox === 'danger-full-access'/);
+    assert.match(indexSource, /effective full-access sandbox/);
     assert.match(indexSource, /shouldAnswerRuntimeTruthPriority/);
     assert.match(indexSource, /renderRuntimeTruthPriorityAnswer/);
     assert.match(indexSource, /shouldAnswerSparkRiskProfile/);

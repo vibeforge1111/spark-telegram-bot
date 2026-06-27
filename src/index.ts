@@ -1194,6 +1194,7 @@ async function readSparkAccessState(): Promise<{
   requested: unknown;
   activation: string;
   serviceEnabled: boolean;
+  effectiveCodexSandbox: string;
   workspaceWritable: unknown;
 }> {
   const rawStatus = await runSparkCli(['access', 'status', '--level', '5', '--json'], 30_000);
@@ -1206,6 +1207,7 @@ async function readSparkAccessState(): Promise<{
     requested: stateMachine.requested_access_level ?? payload.access_level ?? 'unknown',
     activation: String(level5.activation_state || stateMachine.activation_state || 'unknown'),
     serviceEnabled: level5.service_enabled === true || stateMachine.service_can_operate_whole_computer === true,
+    effectiveCodexSandbox: String(level5.effective_codex_sandbox || ''),
     workspaceWritable: workspacePreflight.writable
   };
 }
@@ -1315,7 +1317,8 @@ async function renderAuthoritativeSparkEditCapabilityAnswer(chatId: string | num
     const accessState = await readSparkAccessState();
     const chatLevel = sparkAccessLevel(chatProfile);
     const runnerWritable = runnerPreflight.runnerWritable === 'yes';
-    const canOperateOutsideWorkspace = accessState.serviceEnabled && chatProfile === 'operator' && runnerWritable;
+    const fullAccessSandbox = accessState.effectiveCodexSandbox === 'danger-full-access';
+    const canOperateOutsideWorkspace = accessState.serviceEnabled && chatProfile === 'operator' && runnerWritable && fullAccessSandbox;
     return [
       canOperateOutsideWorkspace
         ? 'Yes. This Telegram runner is writable and Level 5 operator mode is active.'
@@ -1326,12 +1329,13 @@ async function renderAuthoritativeSparkEditCapabilityAnswer(chatId: string | num
       `- Requested by CLI: Level ${accessState.requested}.`,
       `- Effective by CLI: Level ${accessState.effective}.`,
       `- Level 5 service guardrails: ${accessState.serviceEnabled ? 'active' : 'off/blocked'} (${accessState.activation}).`,
+      `- Effective Codex sandbox: ${accessState.effectiveCodexSandbox || 'unknown'}.`,
       `- Runner writable: ${runnerPreflight.runnerWritable}.`,
       `- Spark workspace writable: ${boolText(accessState.workspaceWritable)}.`,
       '',
       canOperateOutsideWorkspace
         ? 'Boundary: routine outside-workspace operator work is allowed, but deleting important files, exposing secrets, publishing, or deploying still requires confirmation.'
-        : 'Boundary: Spark should stay in the workspace/sandbox path unless Level 5 service guardrails, chat access, and runner writability are all active.'
+        : 'Boundary: Spark should stay in the workspace/sandbox path unless Level 5 service guardrails, chat access, effective full-access sandbox, and runner writability are all active.'
     ].join('\n');
   } catch (error) {
     const detail = redactText(error instanceof Error ? error.message : String(error));
@@ -1360,25 +1364,40 @@ async function renderLevel5ActivationAnswer(chatId: string | number): Promise<st
     const requested = stateMachine.requested_access_level ?? payload.access_level ?? 'unknown';
     const activation = String(level5.activation_state || stateMachine.activation_state || 'unknown');
     const serviceEnabled = level5.service_enabled === true || stateMachine.service_can_operate_whole_computer === true;
+    const effectiveCodexSandbox = String(level5.effective_codex_sandbox || '');
+    const fullAccessSandbox = effectiveCodexSandbox === 'danger-full-access';
     const runner = runnerPreflight.runnerWritable === 'yes'
       ? 'This Telegram runner is writable.'
       : `This Telegram runner is not writable${runnerPreflight.failureReason ? ` (${runnerPreflight.failureReason})` : ''}.`;
+    const sandboxLine = `Effective Codex sandbox: ${effectiveCodexSandbox || 'unknown'}.`;
     if (serviceEnabled && chatProfile !== 'operator') {
       return [
         'Level 5 service guardrails are active, but this chat is not in Level 5 operator mode.',
         '',
         `This chat is set to Access level ${sparkAccessLevel(chatProfile)}. Requested level is ${requested}, effective service level is ${effective}.`,
+        sandboxLine,
         runner,
         'Use /access 5 to enter operator mode, or /access 4 to return services to the workspace sandbox.'
       ].join('\n');
     }
-    if (serviceEnabled) {
+    if (serviceEnabled && fullAccessSandbox) {
       return [
         'Level 5 is active.',
         '',
         `Requested level is ${requested}, effective level is ${effective}, and the service guardrails are enabled.`,
+        sandboxLine,
         runner,
         'I will still ask before destructive actions, secret exposure, publishing, or deploys.'
+      ].join('\n');
+    }
+    if (serviceEnabled) {
+      return [
+        'Level 5 service guardrails are visible, but full access is blocked here.',
+        '',
+        `Requested level is ${requested}, effective level is ${effective}, and the service guardrails are enabled.`,
+        sandboxLine,
+        runner,
+        'I will not claim whole-computer operator mode until the effective Codex sandbox is danger-full-access.'
       ].join('\n');
     }
     return [
@@ -8278,26 +8297,35 @@ async function prepareLevel5AndApplyAccess(ctx: any): Promise<TelegramAuthorityE
       await ctx.reply(result.reply);
       return { status: 'failure', summary: 'Access Level 5 setup did not complete.' };
     }
+    if (result.needsSparkRestart) {
+      const reply = [
+        'Access Level 5 guardrails were prepared.',
+        '',
+        formatSparkAccessAutomaticRestartNotice('level5_enable')
+      ].join('\n');
+      await ctx.reply(reply);
+      await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+      scheduleSparkRestartAfterAccessChange();
+      return { status: 'partial', summary: 'Access Level 5 guardrails were prepared and Spark restart was scheduled.' };
+    }
+    const level5 = objectRecord(result.payload?.level5);
+    if (level5.effective_codex_sandbox !== 'danger-full-access') {
+      await ctx.reply(result.reply);
+      return { status: 'failure', summary: 'Access Level 5 setup did not prove danger-full-access effective sandbox.' };
+    }
 
     await setSparkAccessProfile(ctx.chat.id, 'operator');
     await conversation.learnAboutUser(ctx.from, `Spark access profile for this chat is operator. ${describeSparkAccessProfile('operator')}`).catch(() => {});
     const reply = [
       'Access Level 5 is approved.',
       '',
-      result.needsSparkRestart
-        ? ['I prepared the local guardrails.', '', formatSparkAccessAutomaticRestartNotice('level5_enable')].join('\n')
-        : await renderSparkAccessChangeReply('operator'),
+      await renderSparkAccessChangeReply('operator'),
     ].join('\n');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
-    if (result.needsSparkRestart) {
-      scheduleSparkRestartAfterAccessChange();
-    }
     return {
-      status: result.needsSparkRestart ? 'partial' : 'success',
-      summary: result.needsSparkRestart
-        ? 'Access Level 5 guardrails were prepared and Spark restart was scheduled.'
-        : 'Access profile changed to operator.'
+      status: 'success',
+      summary: 'Access profile changed to operator.'
     };
   } catch (error) {
     const detail = redactText(error instanceof Error ? error.message : String(error));
