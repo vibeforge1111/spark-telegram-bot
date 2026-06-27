@@ -4337,7 +4337,7 @@ async function run(): Promise<void> {
 			sparkShim,
 			[
 				'#!/bin/sh',
-				'if [ "$1" = "access" ] && [ "$2" = "status" ] && [ "$3" = "--json" ] && [ -z "$4" ]; then',
+				'if [ "$1" = "access" ] && [ "$2" = "status" ] && [ "$3" = "--level" ] && [ "$4" = "5" ] && [ "$5" = "--json" ]; then',
 				`  cat "${path.join(tempRoot, 'spark-access-status.json').replace(/"/g, '\\"')}"`,
 				'  exit 0',
 				'fi',
@@ -4351,7 +4351,7 @@ async function run(): Promise<void> {
 			path.join(binDir, 'spark.cmd'),
 			[
 				'@echo off',
-				'if "%~1"=="access" if "%~2"=="status" if "%~3"=="--json" if "%~4"=="" (',
+				'if "%~1"=="access" if "%~2"=="status" if "%~3"=="--level" if "%~4"=="5" if "%~5"=="--json" (',
 				`  type "${path.join(tempRoot, 'spark-access-status.json').replace(/"/g, '""')}"`,
 				'  exit /b 0',
 				')',

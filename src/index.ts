@@ -1137,6 +1137,12 @@ function boolText(value: unknown): string {
   return value === true ? 'yes' : value === false ? 'no' : 'unknown';
 }
 
+function sparkAccessStatusArgsForProfile(profile: SparkAccessProfile): string[] {
+  return profile === 'operator'
+    ? ['access', 'status', '--level', '5', '--json']
+    : ['access', 'status', '--json'];
+}
+
 async function renderAuthoritativeSparkAccessStatus(chatId: string | number): Promise<string> {
   const [chatProfile, runnerPreflight] = await Promise.all([
     getSparkAccessProfile(chatId),
@@ -1145,7 +1151,7 @@ async function renderAuthoritativeSparkAccessStatus(chatId: string | number): Pr
   const runnerSummary = renderSparkAccessCapabilityStatus(chatProfile, runnerPreflight);
   const runnerLine = runnerSummary.split('\n').find((line) => /^Runner:/i.test(line)) || 'Runner: not checked yet.';
   try {
-    const rawStatus = await runSparkCli(['access', 'status', '--json'], 30_000);
+    const rawStatus = await runSparkCli(sparkAccessStatusArgsForProfile(chatProfile), 30_000);
     const payload = JSON.parse(rawStatus) as Record<string, unknown>;
     const level5 = objectRecord(payload.level5);
     const stateMachine = objectRecord(payload.state_machine);
@@ -2362,7 +2368,7 @@ async function handleTelegramIntentGateV2SafeRoute(
         source: 'spark_access_status',
         role: 'access_truth',
         freshness: 'fresh',
-        sourceRef: 'spark access status --json',
+        sourceRef: 'spark access status [--level 5 for operator chats] --json',
         summary: 'Intent Gate V2 routed access status to the authoritative Spark CLI access state and runner writability preflight.'
       }
     ]);
@@ -9137,7 +9143,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         source: 'spark_access_status',
         role: 'access_truth',
         freshness: 'fresh',
-        sourceRef: 'spark access status --json',
+        sourceRef: 'spark access status [--level 5 for operator chats] --json',
         summary: 'Telegram answered access status from the Spark CLI access state and runner writability preflight.'
       }
     ]);
