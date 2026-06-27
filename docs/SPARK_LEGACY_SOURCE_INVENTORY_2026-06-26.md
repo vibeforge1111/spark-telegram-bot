@@ -47,6 +47,7 @@ No repo-local source is marked `delete candidate` in this first pass.
 | `docs/SPARK_RELIABILITY_CONTROL_WORKPLAN_2026-06-26.md` | active | Current organized reliability workplan and release-vs-publish handoff source. |
 | `docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-27.md` | active | Current under-4,000-character writable-lane prompt; starts from the 2026-06-27 local proof battery and keeps publish readiness separate. |
 | `docs/SPARK_LINE_COUNT_RATCHET_PLAN_2026-06-27.md` | active | Current R-21 line-count baseline plan; allows the reviewed ratchet checkpoint while requiring future reliability work to shrink, not grow, oversized files. |
+| `docs/SPARK_TELEGRAM_CONTROL_RELEASE_PACKET_2026-06-27.md` | active | Current Telegram control release evidence packet; treats the layer as clean while keeping older reliability material in maintenance/read-only posture unless a fresh gate fails. |
 | `docs/SPARK_PUBLISH_READINESS_HANDOFFS_2026-06-27.md` | active | Current publish-readiness handoff map; keeps release-ready behavior separate from publish-not-ready upstream, registry, Builder trace-health, voice, and line-count maintenance work. |
 | `docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-26.md` | read-only evidence | Previous reliability control prompt; useful baseline, but superseded by the 2026-06-27 active prompt for new lanes. |
 | `docs/SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26.md` | read-only evidence | Previous reliability ladder prompt; useful historical baseline, not the active prompt for new lanes. |
@@ -100,9 +101,11 @@ None in this pass.
 
 Deletion requires a separate owner-reviewed change proving the source is duplicated, unsafe, or misleading with no remaining audit value.
 
-## Next Reliability Slice
+## Maintenance Posture
 
-Keep this inventory enforced:
+The Telegram control layer is release-clean when `docs/SPARK_TELEGRAM_CONTROL_RELEASE_PACKET_2026-06-27.md` is green. Legacy plans, older reliability prompts, historical runbooks, and broad natural-language suites should stay read-only evidence, archive candidates, or maintenance material unless a current failing gate promotes a specific item back into active work.
+
+Keep this inventory enforced during maintenance:
 
 1. Keep the render firewall covered by tests so read-only evidence cannot leak into ordinary Telegram replies unless explicitly inspected.
 2. Keep the end-to-end trace join checker covered for `user intent -> route decision -> action/no-action -> reply`.

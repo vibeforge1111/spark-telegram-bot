@@ -25,6 +25,7 @@ Already built or documented:
 - Surface eval: `docs/SPARK_SURFACE_EVAL_2026-06-26.md`
 - Natural-language suite audit: `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`
 - Line-count ratchet plan: `docs/SPARK_LINE_COUNT_RATCHET_PLAN_2026-06-27.md`
+- Telegram control release packet: `docs/SPARK_TELEGRAM_CONTROL_RELEASE_PACKET_2026-06-27.md`
 - Publish-readiness handoff map: `docs/SPARK_PUBLISH_READINESS_HANDOFFS_2026-06-27.md`
 - Current canary evidence: `outputs/live-canary-full/live-canary-summary.md`
 
@@ -37,6 +38,7 @@ Current proof state:
 - After commit `bd7dba9`, the source/docs/test slice is locally verified, but a full canary evidence refresh must wait if `npm run control:proof:live-trace` reports stale SparkRecursive_bot rows. The canary refresh command now refuses to overwrite observation or summary packets when refreshed packet evidence is missing or invalid; do not commit regenerated canary packets from stale or unjoined live trace evidence.
 - The proof-capsule coverage gate now also rejects weak policy summaries. Direct capsule policies must say they emit, attach, create, or record a proof capsule or delivery/reply proof; joined policies must say they join or preserve downstream proof; no-action policies must prove fresh no-action evidence.
 - Publish readiness remains separate. `Publish gate: not ready` means owner handoffs remain open and must not be described as registry or publish readiness.
+- Telegram control is now maintenance-clean when `docs/SPARK_TELEGRAM_CONTROL_RELEASE_PACKET_2026-06-27.md` is green. Do not reopen broad route-safety or legacy-plan work unless a fresh gate fails.
 
 Current open handoffs:
 

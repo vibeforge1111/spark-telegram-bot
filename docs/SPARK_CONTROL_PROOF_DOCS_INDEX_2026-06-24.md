@@ -69,51 +69,55 @@ Read these in order:
    - Current line-count ratchet baseline plan.
    - Source for why the R-21 baseline was updated and which oversized files must shrink next.
 
-15. `docs/SPARK_PUBLISH_READINESS_HANDOFFS_2026-06-27.md`
+15. `docs/SPARK_TELEGRAM_CONTROL_RELEASE_PACKET_2026-06-27.md`
+   - Current boring release evidence packet for the Telegram control layer.
+   - Source for calling Telegram control clean while keeping legacy plans in maintenance/read-only posture unless a fresh gate fails.
+
+16. `docs/SPARK_PUBLISH_READINESS_HANDOFFS_2026-06-27.md`
    - Current Spark-wide publish-readiness handoff map.
    - Source for release-ready vs publish-not-ready distinctions, upstream repo handoffs, local runtime test artifact handling, Builder trace-health lifecycle debt, voice boundary wording, and line-count maintenance ordering.
 
-16. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
+17. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
    - Human surface rules for Telegram.
    - Source for repairing policy-shaped replies.
 
-17. `docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md`
+18. `docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md`
    - Active Telegram render firewall implementation note.
    - Source for ordinary-vs-inspect redaction behavior.
 
-18. `docs/SPARK_TRACE_JOIN_CHECKER_2026-06-26.md`
+19. `docs/SPARK_TRACE_JOIN_CHECKER_2026-06-26.md`
    - Active trace join checker implementation note.
    - Source for `user intent -> route decision -> action/no-action -> reply` verification.
 
-19. `docs/SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26.md`
+20. `docs/SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26.md`
    - Active proof-capsule coverage implementation note.
    - Source for action-capable authority plane proof path policy.
 
-20. `docs/SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26.md`
+21. `docs/SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26.md`
    - Active reliability eval coverage implementation note.
    - Source for old-edge eval coverage categories.
 
-21. `docs/SPARK_LEGACY_PROMPT_SURFACE_2026-06-26.md`
+22. `docs/SPARK_LEGACY_PROMPT_SURFACE_2026-06-26.md`
    - Active legacy prompt/UI summary surface gate.
    - Source for keeping read-only legacy plans out of ordinary prompt and human summary surfaces unless explicitly inspected.
 
-22. `docs/SPARK_CAPABILITY_EVIDENCE_2026-06-26.md`
+23. `docs/SPARK_CAPABILITY_EVIDENCE_2026-06-26.md`
    - Active capability last-success and last-failure/boundary evidence gate.
    - Source for capability reliability claims from full canary evidence rather than registry visibility.
 
-23. `docs/SPARK_SURFACE_EVAL_2026-06-26.md`
+24. `docs/SPARK_SURFACE_EVAL_2026-06-26.md`
    - Active human-feel surface eval gate.
    - Source for failing logically correct but robotic ordinary replies.
 
-24. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
+25. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
    - Streaming and Rich Message architecture.
    - Source for keeping Telegram drafts presentation-only.
 
-25. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
+26. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
    - Recursive/QA Operator Telegram behavior.
    - Source for SparkRecursive_bot-specific canaries.
 
-26. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
+27. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
    - Voice path context.
    - Source for voice trace continuity.
 
@@ -162,6 +166,7 @@ Each implementation slice should update docs in the same commit or an adjacent c
 - Legacy prompt/UI summary surface behavior updates `SPARK_LEGACY_PROMPT_SURFACE_2026-06-26.md`.
 - Capability evidence behavior updates `SPARK_CAPABILITY_EVIDENCE_2026-06-26.md`.
 - Surface eval behavior updates `SPARK_SURFACE_EVAL_2026-06-26.md`.
+- Telegram control release-packet updates `SPARK_TELEGRAM_CONTROL_RELEASE_PACKET_2026-06-27.md`.
 - Publish-readiness handoff status updates `SPARK_PUBLISH_READINESS_HANDOFFS_2026-06-27.md`.
 - Telegram copy rules update `TELEGRAM_COMPOSITION_STANDARD.md`.
 - Telegram render-firewall behavior updates `SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md`.
