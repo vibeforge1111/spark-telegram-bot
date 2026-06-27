@@ -3729,6 +3729,11 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
   if (summary.invalidPacketEvidence.length > 0) {
     lines.push(`Packet evidence invalid: ${summary.invalidPacketEvidence.join(', ')}`, '');
     lines.push(...formatPacketEvidenceDetailLines(summary.packetEvidenceDetails.invalid), '');
+    if (summary.invalidPacketEvidence.includes('source_snapshot')) {
+      lines.push('Refresh hint:');
+      lines.push('- Commit or revert source/docs/test changes, then rerun `--refresh-runtime-evidence` before making a release claim.');
+      lines.push('');
+    }
   }
   if (summary.stalePacketEvidence.length > 0) {
     lines.push(`Packet evidence stale: ${summary.stalePacketEvidence.join(', ')}`, '');

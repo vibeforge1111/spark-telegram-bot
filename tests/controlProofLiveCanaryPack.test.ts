@@ -2570,6 +2570,10 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const staleSourceSnapshot = summarizeControlProofCanaryObservations(template);
   assert.equal(staleSourceSnapshot.readyForRelease, false);
   assert.ok(staleSourceSnapshot.invalidPacketEvidence.includes('source_snapshot'));
+  assert.match(
+    formatControlProofCanaryObservationSummary(staleSourceSnapshot),
+    /Commit or revert source\/docs\/test changes, then rerun `--refresh-runtime-evidence`/
+  );
 
   template.generatedAt = '2026-06-24T00:06:00.000Z';
   template.evidence.collectedAt = '2026-06-24T00:06:00.000Z';
