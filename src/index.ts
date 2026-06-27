@@ -125,30 +125,7 @@ import {
 } from './localWorkspace';
 import { createSchedule, deleteSchedule, listSchedules, formatScheduleList, humanizeCron, formatNextFireLocal } from './schedule';
 import { probeTelegramRunnerWritability } from './runnerPreflight';
-import {
-  describeSparkAccessProfile,
-  getConfiguredSparkAccessProfile,
-  getSparkAccessProfile,
-  normalizeSparkAccessProfile,
-  renderSparkAccessBriefStatus,
-  renderSparkAccessChangeSummary,
-  renderSparkAccessCapabilityStatus,
-  renderSparkAccessChangeConfirmation,
-  renderSparkAccessLevel5ConfirmationPrompt,
-  renderSparkAccessConversationHelp,
-  renderSparkAccessDenial,
-  renderSparkAccessOnboarding,
-  renderSparkAccessRuntimeHint,
-  renderSparkAccessStatus,
-  setSparkAccessProfile,
-  sparkAccessAllows,
-  sparkAccessLevel,
-  sparkLevel5PayloadProvesFullAccess,
-  sparkMissionNeedsOperatingSystemAccess,
-  validateSparkAccessProfileForRuntime,
-  type SparkAccessProfile,
-  type SparkAccessRequirement
-} from './accessPolicy';
+import { describeSparkAccessProfile, getConfiguredSparkAccessProfile, getSparkAccessProfile, normalizeSparkAccessProfile, renderSparkAccessBriefStatus, renderSparkAccessChangeSummary, renderSparkAccessCapabilityStatus, renderSparkAccessChangeConfirmation, renderSparkAccessLevel5ConfirmationPrompt, renderSparkAccessConversationHelp, renderSparkAccessDenial, renderSparkAccessOnboarding, renderSparkAccessRuntimeHint, renderSparkAccessStatus, setSparkAccessProfile, sparkAccessAllows, sparkAccessLevel, sparkLevel5PayloadProvesFullAccess, sparkMissionNeedsOperatingSystemAccess, validateSparkAccessProfileForRuntime, type SparkAccessProfile, type SparkAccessRequirement } from './accessPolicy';
 import {
   parseSparkLiveSummary,
   renderSparkLiveSummary,
