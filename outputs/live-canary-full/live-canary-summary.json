@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-27T00:40:24.222Z",
-    "runtimeEvidenceCollectedAt": "2026-06-27T00:40:24.222Z",
+    "generatedAt": "2026-06-27T08:14:25.718Z",
+    "runtimeEvidenceCollectedAt": "2026-06-27T08:14:25.718Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-27T01:40:24.222Z",
+    "runtimeEvidenceExpiresAt": "2026-06-27T09:14:25.718Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -1055,7 +1055,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-27T00:40:15.486Z",
+      "generatedAt": "2026-06-27T08:14:16.670Z",
       "status": "gaps found",
       "actionableStatus": "clean",
       "blockingStatus": "clean",
@@ -1116,17 +1116,17 @@
             {
               "label": "builder_gateway",
               "sampledRows": 100,
-              "totalRows": 532,
+              "totalRows": 535,
               "requestPresent": 100,
               "tracePresent": 100,
               "proofPresent": 100,
               "proofRefPresent": 100,
               "proofCapsulePresent": 72,
               "proofNotApplicable": 0,
-              "proofGap": 45,
-              "gapCapsule": 45,
-              "gapCapsuleValid": 45,
-              "gapRef": 45,
+              "proofGap": 42,
+              "gapCapsule": 42,
+              "gapCapsuleValid": 42,
+              "gapRef": 42,
               "gapBacking": "complete",
               "latestGap": false,
               "rawRefs": 0,
@@ -1179,9 +1179,9 @@
           "repairSource": "builder_gateway_trace_legacy_repair",
           "latestGap": false,
           "releaseBlocking": false,
-          "proofGapMarked": 45,
+          "proofGapMarked": 42,
           "incompleteBacking": 0,
-          "latestRecordAt": "2026-06-26T19:59:04+00:00",
+          "latestRecordAt": "2026-06-27T07:50:56+00:00",
           "repairCommand": "npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json"
         },
         {
@@ -1200,7 +1200,7 @@
         {
           "label": "telegram_final_answer",
           "sampledRows": 100,
-          "totalRows": 7887,
+          "totalRows": 7890,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
@@ -1221,7 +1221,7 @@
         {
           "label": "telegram_outbound",
           "sampledRows": 100,
-          "totalRows": 1652,
+          "totalRows": 1659,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
@@ -1263,17 +1263,17 @@
         {
           "label": "builder_gateway",
           "sampledRows": 100,
-          "totalRows": 532,
+          "totalRows": 535,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
           "proofRefPresent": 100,
           "proofCapsulePresent": 72,
           "proofNotApplicable": 0,
-          "proofGap": 45,
-          "gapCapsule": 45,
-          "gapCapsuleValid": 45,
-          "gapRef": 45,
+          "proofGap": 42,
+          "gapCapsule": 42,
+          "gapCapsuleValid": 42,
+          "gapRef": 42,
           "gapBacking": "complete",
           "latestGap": false,
           "rawRefs": 0,
@@ -1392,7 +1392,7 @@
       {
         "plane": "builder_gateway",
         "changedRows": 0,
-        "rowsRead": 532,
+        "rowsRead": 535,
         "capsulesAdded": 0,
         "parseErrors": 0
       },
@@ -1630,10 +1630,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-27T00:40:24.222Z",
-      "runtimeEvidenceCollectedAt": "2026-06-27T00:40:24.222Z",
+      "generatedAt": "2026-06-27T08:14:25.718Z",
+      "runtimeEvidenceCollectedAt": "2026-06-27T08:14:25.718Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-27T01:40:24.222Z",
+      "runtimeEvidenceExpiresAt": "2026-06-27T09:14:25.718Z",
       "missing": [],
       "invalid": [],
       "stale": []
