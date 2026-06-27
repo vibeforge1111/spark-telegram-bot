@@ -4,6 +4,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
+  LIVE_TRACE_JOIN_SAFE_PROMPT_CASES,
   auditControlProofTraceJoins,
   formatControlProofTraceJoinReport,
   formatLiveTraceSafePromptGuide
@@ -588,6 +589,23 @@ test('safe prompt guide keeps route expectations outside Telegram prompt blocks'
   assert.match(guide, /```text\nIf memory says Spawner is down but spark live status says it is up, which source wins\?\n```/);
   assert.match(guide, /npm run control:proof:live-trace/);
   assert.doesNotMatch(guide, /fresh_state\.risk_profile|harness_core\.risk_profile|risk_profile_no_build/);
+});
+
+test('safe prompt catalog keeps prompt text and proof signatures aligned', () => {
+  const ids = LIVE_TRACE_JOIN_SAFE_PROMPT_CASES.map((entry) => entry.id);
+  const prompts = LIVE_TRACE_JOIN_SAFE_PROMPT_CASES.map((entry) => entry.prompt);
+  const routeActionPairs = LIVE_TRACE_JOIN_SAFE_PROMPT_CASES.map((entry) => `${entry.route}\u0000${entry.action}`);
+
+  assert.equal(LIVE_TRACE_JOIN_SAFE_PROMPT_CASES.length, 4);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.equal(new Set(prompts.map((prompt) => prompt.trim().toLowerCase())).size, prompts.length);
+  assert.equal(new Set(routeActionPairs).size, routeActionPairs.length);
+  for (const entry of LIVE_TRACE_JOIN_SAFE_PROMPT_CASES) {
+    assert.match(entry.id, /^[a-z0-9_]+$/);
+    assert.ok(entry.prompt.length > 20);
+    assert.ok(entry.route.includes('.'));
+    assert.ok(entry.action.includes('.'));
+  }
 });
 
 test('trace join CLI fails strict mode on gaps', () => {

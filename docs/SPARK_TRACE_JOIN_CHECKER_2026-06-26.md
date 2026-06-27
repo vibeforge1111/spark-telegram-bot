@@ -52,7 +52,7 @@ To print only the safe recapture prompts without reading runtime evidence, use:
 npm run control:proof:live-trace:prompts
 ```
 
-The prompt guide keeps route/action expectations out of the Telegram copy blocks. Use it when the live gate says the safe rows are missing or stale, then rerun the live gate after Spark replies.
+The prompt guide keeps route/action expectations out of the Telegram copy blocks. Use it when the live gate says the safe rows are missing or stale, then rerun the live gate after Spark replies. The guide and the route/action matcher are generated from one safe-prompt catalog so prompt text, evidence ids, and proof signatures cannot drift independently.
 
 The live report separates the route-ledger state from the join result:
 
