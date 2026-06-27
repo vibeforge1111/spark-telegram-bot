@@ -1154,6 +1154,11 @@ async function renderAuthoritativeSparkAccessStatus(chatId: string | number): Pr
     const stateMachineWholeComputer = stateMachine.can_operate_whole_computer === true ||
       stateMachine.effective_access_level === 5 ||
       payload.effective_access_level === 5;
+    const effectiveCodexSandbox = String(level5.effective_codex_sandbox || '');
+    const fullAccessSandbox = effectiveCodexSandbox === 'danger-full-access';
+    const level5Summary = serviceEnabled
+      ? fullAccessSandbox ? 'active' : 'guardrails visible / full-access blocked'
+      : 'blocked/off';
     const chatLevel = sparkAccessLevel(chatProfile);
     return [
       'Spark Access Status',
@@ -1161,12 +1166,15 @@ async function renderAuthoritativeSparkAccessStatus(chatId: string | number): Pr
       `Chat setting: Access level ${chatLevel}.`,
       `Requested by CLI: Level ${requested}.`,
       `Effective by CLI: Level ${effective}.`,
-      `Level 5: ${serviceEnabled ? 'active' : 'blocked/off'} (activation_state: ${activation}, service_enabled: ${boolText(level5.service_enabled)}).`,
+      `Level 5: ${level5Summary} (activation_state: ${activation}, service_enabled: ${boolText(level5.service_enabled)}).`,
+      `Effective Codex sandbox: ${effectiveCodexSandbox || 'unknown'}.`,
       '',
       runnerLine,
       '',
-      serviceEnabled && chatProfile === 'operator' && stateMachineWholeComputer
+      serviceEnabled && chatProfile === 'operator' && stateMachineWholeComputer && fullAccessSandbox
         ? 'Verdict: whole-computer operator mode is active, with destructive/secret/publish safety checks still on.'
+        : serviceEnabled && chatProfile === 'operator' && !fullAccessSandbox
+          ? 'Verdict: Level 5 service guardrails are visible, but I will not claim full operator access until the effective Codex sandbox is danger-full-access.'
         : serviceEnabled && chatProfile === 'operator'
           ? `Verdict: chat is set to Level ${chatLevel} and Level 5 service guardrails are active, but plain CLI effective access is Level ${effective}. Treat whole-computer work as service-lane only until the execution route proves Level 5 for this turn.`
         : serviceEnabled

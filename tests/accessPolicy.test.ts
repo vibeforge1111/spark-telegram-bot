@@ -251,6 +251,9 @@ async function main(): Promise<void> {
     assert.match(indexSource, /Access Level 5 guardrails were prepared\./);
     assert.match(indexSource, /effective_codex_sandbox !== 'danger-full-access'/);
     assert.match(indexSource, /Access Level 5 setup did not prove danger-full-access effective sandbox/);
+    assert.match(indexSource, /const fullAccessSandbox = effectiveCodexSandbox === 'danger-full-access'/);
+    assert.match(indexSource, /serviceEnabled && chatProfile === 'operator' && stateMachineWholeComputer && fullAccessSandbox/);
+    assert.match(indexSource, /I will not claim full operator access until the effective Codex sandbox is danger-full-access/);
     assert.match(indexSource, /isLevel5ServiceEnabled/);
     assert.match(indexSource, /runSparkAccessActionDetailed\(actionId\)/);
     assert.match(indexSource, /level5_disable/);
