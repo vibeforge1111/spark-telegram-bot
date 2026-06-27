@@ -13,7 +13,7 @@
     "tests/buildE2E.test.ts": 4624,
     "tests/controlProofLiveCanaryPack.test.ts": 4065,
     "tests/conversationIntent.test.ts": 2098,
-    "tests/missionRelayFormatting.test.ts": 1741,
+    "tests/missionRelayFormatting.test.ts": 1711,
     "tests/recursive.test.ts": 2380,
     "tests/spawner.test.ts": 1565
   }

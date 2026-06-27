@@ -30,6 +30,7 @@ import {
   shouldSuppressMissionHandoff,
   shouldStopMissionHeartbeat
 } from '../src/missionRelay';
+import type { MissionSubscription } from '../src/missionRelay';
 import { resetJsonStateForTests } from '../src/jsonState';
 
 function test(name: string, fn: () => void): void {
@@ -40,6 +41,18 @@ function test(name: string, fn: () => void): void {
     console.error(`not ok - ${name}`);
     throw error;
   }
+}
+
+function missionSubscription(overrides: Partial<MissionSubscription> = {}): MissionSubscription {
+  return {
+    missionId: 'spark-123',
+    chatId: '8319079055',
+    userId: '8319079055',
+    requestId: 'tg-build-1',
+    goal: 'Build a tiny board.',
+    createdAt: '2026-04-26T00:00:00Z',
+    ...overrides
+  };
 }
 
 test('formats structured provider JSON as readable Telegram text', () => {
@@ -442,14 +455,7 @@ test('mission start update links the mission once through kanban', () => {
       taskName: 'Codex',
       data: {}
     },
-    {
-      missionId: 'spark-123',
-      chatId: '8319079055',
-      userId: '8319079055',
-      requestId: 'tg-build-1',
-      goal: 'Build a tiny board.',
-      createdAt: '2026-04-26T00:00:00Z'
-    },
+    missionSubscription(),
     'normal',
     'board'
   );
@@ -521,14 +527,7 @@ test('verbose mission start does not paste the whole build brief', () => {
       missionId: 'spark-123',
       data: {}
     },
-    {
-      missionId: 'spark-123',
-      chatId: '8319079055',
-      userId: '8319079055',
-      requestId: 'tg-build-1',
-      goal: 'Build this at C:\\Users\\USER\\Desktop\\huge-project with many implementation details.',
-      createdAt: '2026-04-26T00:00:00Z'
-    },
+    missionSubscription({ goal: 'Build this at C:\\Users\\USER\\Desktop\\huge-project with many implementation details.' }),
     'verbose',
     'both'
   );
@@ -544,14 +543,7 @@ test('verbose mission start does not paste the whole build brief', () => {
 });
 
 test('normal verbosity suppresses task starts and noisy progress', () => {
-  const subscription = {
-    missionId: 'spark-123',
-    chatId: '8319079055',
-    userId: '8319079055',
-    requestId: 'tg-build-1',
-    goal: 'Build a tiny board.',
-    createdAt: '2026-04-26T00:00:00Z'
-  };
+  const subscription = missionSubscription();
 
   const started = formatProgressMessageForTelegram(
     {
@@ -595,14 +587,11 @@ test('task pack starts stay quiet instead of announcing every future step', () =
         assignedTaskCount: 4
       }
     },
-    {
+    missionSubscription({
       missionId: 'spark-pack',
-      chatId: '8319079055',
-      userId: '8319079055',
       requestId: 'tg-build-pack',
-      goal: 'Build a sprite creator.',
-      createdAt: '2026-04-26T00:00:00Z'
-    },
+      goal: 'Build a sprite creator.'
+    }),
     'normal',
     'board'
   );
@@ -675,14 +664,7 @@ test('task start labels stay suppressed instead of exposing node slugs', () => {
       taskName: 'node-2-task-task-2-threejs-sprite-forge-core',
       data: {}
     },
-    {
-      missionId: 'spark-123',
-      chatId: '8319079055',
-      userId: '8319079055',
-      requestId: 'tg-build-1',
-      goal: 'Build a tiny board.',
-      createdAt: '2026-04-26T00:00:00Z'
-    },
+    missionSubscription(),
     'normal',
     'board'
   );
@@ -699,14 +681,7 @@ test('verbose task completion messages stay compact and human readable', () => {
       taskName: 'node-3-task-task-3-localstorage-and-saved-sprites',
       data: {}
     },
-    {
-      missionId: 'spark-123',
-      chatId: '8319079055',
-      userId: '8319079055',
-      requestId: 'tg-build-1',
-      goal: 'Build a sprite creator.',
-      createdAt: '2026-04-26T00:00:00Z'
-    },
+    missionSubscription({ goal: 'Build a sprite creator.' }),
     'verbose',
     'board'
   );
@@ -728,14 +703,12 @@ test('suppresses provider-only task completion chatter after the final result', 
       source: 'codex',
       data: { provider: 'codex' }
     },
-    {
+    missionSubscription({
       missionId: 'spark-no-edit',
-      chatId: '8319079055',
-      userId: '8319079055',
       requestId: 'tg-no-edit',
       goal: 'Run a no-edit Spawner proof.',
       createdAt: '2026-05-14T00:00:00Z'
-    },
+    }),
     'verbose',
     'board'
   );
@@ -817,14 +790,11 @@ test('fast-lane build-and-check progress avoids duplicate working-on blocks', ()
       message: 'Running the single-file checks now.',
       data: {}
     },
-    {
+    missionSubscription({
       missionId: 'spark-fast-lane-progress',
-      chatId: '8319079055',
-      userId: '8319079055',
       requestId: 'tg-fast-lane-progress',
-      goal: 'Build a tiny page.',
-      createdAt: '2026-04-26T00:00:00Z'
-    },
+      goal: 'Build a tiny page.'
+    }),
     'verbose',
     'board'
   ) || '';
