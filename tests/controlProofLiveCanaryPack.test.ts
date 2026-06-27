@@ -1145,6 +1145,7 @@ test('observation summary requires pass verdicts and all requested capture evide
     key: 'control_proof_audit',
     state: 'missing',
     reason: 'control_proof_audit runtime proof is absent',
+    nextSafeAction: null,
     generatedAt: template.generatedAt,
     runtimeEvidenceCollectedAt: template.evidence.collectedAt,
     runtimeEvidenceExpiresAt: missingPacketEvidence.runtimeEvidenceExpiresAt
@@ -1166,6 +1167,10 @@ test('observation summary requires pass verdicts and all requested capture evide
   const staleLiveTraceShape = summarizeControlProofCanaryObservations(template);
   assert.equal(staleLiveTraceShape.readyForRelease, false);
   assert.deepEqual(staleLiveTraceShape.invalidPacketEvidence, ['live_trace_join']);
+  assert.match(
+    staleLiveTraceShape.packetEvidenceDetails.invalid[0].nextSafeAction || '',
+    /control:proof:live-trace:prompts/
+  );
   assert.match(formatControlProofCanaryObservationSummary(staleLiveTraceShape), /Packet evidence invalid: live_trace_join/);
 
   template.evidence.liveTraceJoin = CLEAN_LIVE_TRACE_JOIN;
@@ -1187,6 +1192,7 @@ test('observation summary requires pass verdicts and all requested capture evide
     key: 'runtime_evidence_collected_at',
     state: 'stale',
     reason: 'runtime evidence collection timestamp is invalid, future-dated, or outside the allowed freshness window',
+    nextSafeAction: 'Rerun --refresh-runtime-evidence from the current committed source state.',
     generatedAt: template.generatedAt,
     runtimeEvidenceCollectedAt: '2026-06-23T00:00:00.000Z',
     runtimeEvidenceExpiresAt: '2026-06-24T00:00:00.000Z'
@@ -1725,6 +1731,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     key: 'control_proof_audit_summary',
     state: 'invalid',
     reason: 'control-proof audit summary does not match the audit transcript',
+    nextSafeAction: null,
     generatedAt: template.generatedAt,
     runtimeEvidenceCollectedAt: template.evidence.collectedAt,
     runtimeEvidenceExpiresAt: mismatchedAuditSummary.runtimeEvidenceExpiresAt
@@ -2537,6 +2544,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     key: 'spark_os_compile',
     state: 'invalid',
     reason: 'spark os compile proof is dirty, incomplete, failed, or timestamp-mismatched',
+    nextSafeAction: null,
     generatedAt: template.generatedAt,
     runtimeEvidenceCollectedAt: template.evidence.collectedAt,
     runtimeEvidenceExpiresAt: staleEmbeddedCompile.runtimeEvidenceExpiresAt
@@ -2570,6 +2578,10 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const staleSourceSnapshot = summarizeControlProofCanaryObservations(template);
   assert.equal(staleSourceSnapshot.readyForRelease, false);
   assert.ok(staleSourceSnapshot.invalidPacketEvidence.includes('source_snapshot'));
+  assert.match(
+    staleSourceSnapshot.packetEvidenceDetails.invalid.find((entry) => entry.key === 'source_snapshot')?.nextSafeAction || '',
+    /Commit or revert source\/docs\/test changes/
+  );
   assert.match(
     formatControlProofCanaryObservationSummary(staleSourceSnapshot),
     /Commit or revert source\/docs\/test changes, then rerun `--refresh-runtime-evidence`/

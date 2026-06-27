@@ -451,6 +451,8 @@ Canary release validation also treats non-execution memory and voice planes as a
 
 When a canary summary reports invalid `source_snapshot` evidence, it prints a refresh hint to commit or revert source/docs/test changes before rerunning `--refresh-runtime-evidence`. Treat that as a hard release-proof boundary: a green packet from before the source change cannot prove the current tree.
 
+Machine-readable `packetEvidenceDetails` now carries `nextSafeAction` for actionable packet blockers such as `live_trace_join`, `source_snapshot`, and stale runtime evidence, so automation can guide recapture or refresh without scraping prose summaries.
+
 Use audit `--fresh-strict` when checking the current release-blocking state directly: it fails silent missing evidence, trace joins, proof capsules, source proof gaps, raw-ref leaks, robotic reason leaks, stack-like leaks, and any latest producer row that still carries a proof-gap marker, while allowing historical legacy proof-gap capsules to stay visible.
 
 Source proof gaps and legacy proof gaps are different release claims. A producer-written `source_gap_capsule` means the source boundary still emitted a row without fresh Harness authority, so it is release-blocking even if a later row is clean. A repaired `legacy_gap_capsule` means historical evidence remains visible and backed; it may be non-blocking only when backing is complete, latest gaps are zero, and the repair dry-run reports no rows left to change.

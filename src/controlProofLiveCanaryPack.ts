@@ -190,6 +190,7 @@ export interface ControlProofPacketEvidenceDetail {
   key: string;
   state: 'missing' | 'invalid' | 'stale';
   reason: string;
+  nextSafeAction: string | null;
   generatedAt: string | null;
   runtimeEvidenceCollectedAt: string | null;
   runtimeEvidenceExpiresAt: string | null;
@@ -1543,6 +1544,16 @@ function packetEvidenceReason(
   return `${key} runtime proof is failed, incomplete, or does not match the expected command`;
 }
 
+function packetEvidenceNextSafeAction(
+  state: ControlProofPacketEvidenceDetail['state'],
+  key: string
+): string | null {
+  if (key === 'live_trace_join') return 'Run npm run control:proof:live-trace:prompts, send the safe prompts to SparkRecursive_bot, then rerun npm run control:proof:live-trace and --refresh-runtime-evidence.';
+  if (key === 'source_snapshot') return 'Commit or revert source/docs/test changes, then rerun --refresh-runtime-evidence before making a release claim.';
+  if (state === 'stale' && key === 'runtime_evidence_collected_at') return 'Rerun --refresh-runtime-evidence from the current committed source state.';
+  return null;
+}
+
 function packetEvidenceDetails(
   observations: ControlProofCanaryObservationTemplate,
   context: {
@@ -1562,6 +1573,7 @@ function packetEvidenceDetails(
     key,
     state,
     reason: packetEvidenceReason(state, key),
+    nextSafeAction: packetEvidenceNextSafeAction(state, key),
     generatedAt: generatedAt || null,
     runtimeEvidenceCollectedAt: collectedAt,
     runtimeEvidenceExpiresAt: context.expiresAt
