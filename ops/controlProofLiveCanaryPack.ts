@@ -723,6 +723,9 @@ function main(): void {
           'Refused to write refreshed control-proof runtime evidence because packet evidence is not release-safe.',
           `Missing packet evidence: ${refreshedSummary.missingPacketEvidence.length ? refreshedSummary.missingPacketEvidence.join(', ') : 'none'}`,
           `Invalid packet evidence: ${refreshedSummary.invalidPacketEvidence.length ? refreshedSummary.invalidPacketEvidence.join(', ') : 'none'}`,
+          ...(refreshedSummary.invalidPacketEvidence.includes('live_trace_join')
+            ? ['Live trace prompt guide: npm run control:proof:live-trace:prompts']
+            : []),
           'Recapture the required live/runtime evidence, then rerun --refresh-runtime-evidence.'
         ].join('\n'));
         console.log(formatControlProofCanaryObservationSummary(refreshedSummary).trimEnd());

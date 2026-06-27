@@ -227,7 +227,7 @@ Standard checked-in live canary bundles now keep both human and machine-readable
 
 For a standard bundle path named `live-canary-observations.json`, `--refresh-runtime-evidence` also refreshes the sibling markdown and JSON summaries automatically. Scratch observation files still need explicit `--summary-out` and `--summary-json-out` flags when summary artifacts should be written.
 
-Runtime evidence refresh is fail-closed. If refreshed packet evidence is missing or invalid, including stale or unjoined `live_trace_join` proof, the command exits nonzero before writing the observation packet or sibling summaries. Recapture the required live/runtime evidence first; do not overwrite a previously checked packet with a known invalid refresh.
+Runtime evidence refresh is fail-closed. If refreshed packet evidence is missing or invalid, including stale or unjoined `live_trace_join` proof, the command exits nonzero before writing the observation packet or sibling summaries. When `live_trace_join` blocks the refresh, the refusal points to `npm run control:proof:live-trace:prompts` for the safe SparkRecursive_bot recapture sheet. Recapture the required live/runtime evidence first; do not overwrite a previously checked packet with a known invalid refresh.
 
 Live recapture of `cp-builder-001` on 2026-06-24 cleared its stale legacy-gap count and confirmed the correct contract: route-confidence definitions are no-execution `plain_conversation` turns with a Builder-backed answer, not `builder_gateway.plain_chat` execution proof.
 
