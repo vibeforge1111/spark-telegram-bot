@@ -24,6 +24,7 @@ Already built or documented:
 - Capability evidence: `docs/SPARK_CAPABILITY_EVIDENCE_2026-06-26.md`
 - Surface eval: `docs/SPARK_SURFACE_EVAL_2026-06-26.md`
 - Natural-language suite audit: `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`
+- Line-count ratchet plan: `docs/SPARK_LINE_COUNT_RATCHET_PLAN_2026-06-27.md`
 - Current canary evidence: `outputs/live-canary-full/live-canary-summary.md`
 
 Current proof state:
@@ -62,9 +63,12 @@ npm run control:proof:evals -- --strict
 npm run control:proof:legacy-prompts -- --strict
 npm run control:proof:capabilities -- --strict
 npm run control:proof:surface -- --strict
+npm run check:line-count
 ```
 
 The battery must stay clean for missing evidence, trace joins, proof capsules, incomplete legacy backing, latest proof gaps, raw leaks, robotic reasons, stack-like leaks, live route joins, source-inventory classification, render-firewall redaction, action-capable proof policy coverage, old-edge eval coverage, legacy prompt/UI summary leaks, capability last-success and last-failure/boundary evidence, and ordinary-reply surface quality. Backed historical legacy gaps may remain visible only when the fresh-strict audit says the backing is complete, latest gaps are zero, and release blocking is no.
+
+The R-21 line-count ratchet must also pass before calling the cleanup lane green. The 2026-06-27 baseline update is documented in `docs/SPARK_LINE_COUNT_RATCHET_PLAN_2026-06-27.md`; future reliability work should shrink those files rather than grow the baseline again.
 
 ## Active Task Order
 

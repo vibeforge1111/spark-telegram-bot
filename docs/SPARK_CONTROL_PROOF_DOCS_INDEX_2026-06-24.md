@@ -65,47 +65,51 @@ Read these in order:
    - Historical baseline for render firewall, trace join checker, legacy prompt removal, capability evidence, and surface eval sequencing.
    - Prefer the 2026-06-27 reliability control goal prompt for active lanes.
 
-14. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
+14. `docs/SPARK_LINE_COUNT_RATCHET_PLAN_2026-06-27.md`
+   - Current line-count ratchet baseline plan.
+   - Source for why the R-21 baseline was updated and which oversized files must shrink next.
+
+15. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
    - Human surface rules for Telegram.
    - Source for repairing policy-shaped replies.
 
-15. `docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md`
+16. `docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md`
    - Active Telegram render firewall implementation note.
    - Source for ordinary-vs-inspect redaction behavior.
 
-16. `docs/SPARK_TRACE_JOIN_CHECKER_2026-06-26.md`
+17. `docs/SPARK_TRACE_JOIN_CHECKER_2026-06-26.md`
    - Active trace join checker implementation note.
    - Source for `user intent -> route decision -> action/no-action -> reply` verification.
 
-17. `docs/SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26.md`
+18. `docs/SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26.md`
    - Active proof-capsule coverage implementation note.
    - Source for action-capable authority plane proof path policy.
 
-18. `docs/SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26.md`
+19. `docs/SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26.md`
    - Active reliability eval coverage implementation note.
    - Source for old-edge eval coverage categories.
 
-19. `docs/SPARK_LEGACY_PROMPT_SURFACE_2026-06-26.md`
+20. `docs/SPARK_LEGACY_PROMPT_SURFACE_2026-06-26.md`
    - Active legacy prompt/UI summary surface gate.
    - Source for keeping read-only legacy plans out of ordinary prompt and human summary surfaces unless explicitly inspected.
 
-20. `docs/SPARK_CAPABILITY_EVIDENCE_2026-06-26.md`
+21. `docs/SPARK_CAPABILITY_EVIDENCE_2026-06-26.md`
    - Active capability last-success and last-failure/boundary evidence gate.
    - Source for capability reliability claims from full canary evidence rather than registry visibility.
 
-21. `docs/SPARK_SURFACE_EVAL_2026-06-26.md`
+22. `docs/SPARK_SURFACE_EVAL_2026-06-26.md`
    - Active human-feel surface eval gate.
    - Source for failing logically correct but robotic ordinary replies.
 
-22. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
+23. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
    - Streaming and Rich Message architecture.
    - Source for keeping Telegram drafts presentation-only.
 
-23. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
+24. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
    - Recursive/QA Operator Telegram behavior.
    - Source for SparkRecursive_bot-specific canaries.
 
-24. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
+25. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
    - Voice path context.
    - Source for voice trace continuity.
 
