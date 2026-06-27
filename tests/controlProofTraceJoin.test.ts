@@ -586,10 +586,16 @@ test('safe prompt guide keeps route expectations outside Telegram prompt blocks'
   const guide = formatLiveTraceSafePromptGuide();
 
   assert.match(guide, /SparkRecursive_bot live trace safe prompts/);
+  assert.match(guide, /1\. risk_profile_no_build\nExpected proof: fresh_state\.risk_profile -> harness_core\.risk_profile/);
+  assert.match(guide, /4\. memory_vs_fresh_state\nExpected proof: fresh_state\.authority_answer -> harness_core\.source_priority/);
   assert.match(guide, /```text\nI am mentioning build and mission, but do not start anything/);
   assert.match(guide, /```text\nIf memory says Spawner is down but spark live status says it is up, which source wins\?\n```/);
   assert.match(guide, /npm run control:proof:live-trace/);
-  assert.doesNotMatch(guide, /fresh_state\.risk_profile|harness_core\.risk_profile|risk_profile_no_build/);
+  const promptBlocks = [...guide.matchAll(/```text\n([\s\S]*?)\n```/g)].map((match) => match[1]);
+  assert.equal(promptBlocks.length, LIVE_TRACE_JOIN_SAFE_PROMPT_CASES.length);
+  for (const block of promptBlocks) {
+    assert.doesNotMatch(block, /fresh_state\.|harness_core\.|risk_profile_no_build|memory_vs_fresh_state/);
+  }
 });
 
 test('safe prompt catalog keeps prompt text and proof signatures aligned', () => {
@@ -659,8 +665,9 @@ test('trace join CLI prints safe prompt guide without reading runtime evidence',
 
     assert.equal(result.status, 0);
     assert.match(result.stdout, /SparkRecursive_bot live trace safe prompts/);
+    assert.match(result.stdout, /Expected proof: fresh_state\.read_only_repair_status -> harness_core\.read_only_state/);
     assert.match(result.stdout, /Do not repair anything\. Just tell me whether a repair is needed right now, using fresh state\./);
-    assert.doesNotMatch(result.stdout, /Route ledger state|Status: gaps found|fresh_state\.read_only_repair_status/);
+    assert.doesNotMatch(result.stdout, /Route ledger state|Status: gaps found|missing-route-ledger/);
   });
 });
 

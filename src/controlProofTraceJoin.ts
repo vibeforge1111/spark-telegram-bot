@@ -278,7 +278,8 @@ export function formatLiveTraceSafePromptGuide(): string {
     'Copy each block into SparkRecursive_bot private chat. These prompts are read-only/no-action checks for the live trace-join gate.',
     '',
     ...LIVE_TRACE_JOIN_SAFE_PROMPT_CASES.flatMap((entry, index) => [
-      `${index + 1}.`,
+      `${index + 1}. ${entry.id}`,
+      `Expected proof: ${entry.route} -> ${entry.action}`,
       '```text',
       entry.prompt,
       '```',
