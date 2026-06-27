@@ -47,6 +47,7 @@ No repo-local source is marked `delete candidate` in this first pass.
 | `docs/SPARK_RELIABILITY_CONTROL_WORKPLAN_2026-06-26.md` | active | Current organized reliability workplan and release-vs-publish handoff source. |
 | `docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-27.md` | active | Current under-4,000-character writable-lane prompt; starts from the 2026-06-27 local proof battery and keeps publish readiness separate. |
 | `docs/SPARK_LINE_COUNT_RATCHET_PLAN_2026-06-27.md` | active | Current R-21 line-count baseline plan; allows the reviewed ratchet checkpoint while requiring future reliability work to shrink, not grow, oversized files. |
+| `docs/SPARK_PUBLISH_READINESS_HANDOFFS_2026-06-27.md` | active | Current publish-readiness handoff map; keeps release-ready behavior separate from publish-not-ready upstream, registry, Builder trace-health, voice, and line-count maintenance work. |
 | `docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-26.md` | read-only evidence | Previous reliability control prompt; useful baseline, but superseded by the 2026-06-27 active prompt for new lanes. |
 | `docs/SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26.md` | read-only evidence | Previous reliability ladder prompt; useful historical baseline, not the active prompt for new lanes. |
 | `docs/TELEGRAM_COMPOSITION_STANDARD.md` | active | Human Telegram surface rules. |

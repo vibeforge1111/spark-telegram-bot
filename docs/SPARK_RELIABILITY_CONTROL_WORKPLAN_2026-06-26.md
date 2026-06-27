@@ -25,6 +25,7 @@ Already built or documented:
 - Surface eval: `docs/SPARK_SURFACE_EVAL_2026-06-26.md`
 - Natural-language suite audit: `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`
 - Line-count ratchet plan: `docs/SPARK_LINE_COUNT_RATCHET_PLAN_2026-06-27.md`
+- Publish-readiness handoff map: `docs/SPARK_PUBLISH_READINESS_HANDOFFS_2026-06-27.md`
 - Current canary evidence: `outputs/live-canary-full/live-canary-summary.md`
 
 Current proof state:
@@ -39,9 +40,10 @@ Current proof state:
 
 Current open handoffs:
 
-- Publish handoffs listed in the full canary summary.
-- Historical Builder trace-health lifecycle resolution listed in the full canary summary.
-- Local runtime test artifact handoff listed in the full canary summary.
+- Publish handoffs listed in the full canary summary and organized in `docs/SPARK_PUBLISH_READINESS_HANDOFFS_2026-06-27.md`.
+- Historical Builder trace-health lifecycle resolution listed in the full canary summary and kept as an owner handoff until lifecycle closure is approved.
+- Local runtime test artifact handoff listed in the full canary summary; do not claim registry readiness until owner commits and release metadata are reconciled.
+- Voice evidence is boundary-covered but not fully green while the system map reports disabled/blocker state.
 
 ## Current Proof Battery
 

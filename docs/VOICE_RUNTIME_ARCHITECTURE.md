@@ -1,10 +1,12 @@
 # Spark Telegram Voice Runtime Architecture
 
-Last audited: 2026-06-24
+Last audited: 2026-06-27
 
 ## Verdict
 
 Voice is a Builder/chip capability delivered through the Telegram bot. The Telegram bot must not answer `/voice` from the legacy Spark dashboard/resonance helper.
+
+Current publish boundary: voice evidence is covered for safe handling and proof continuity, but voice must not be called fully green while the Spark system map reports `voice_surface_mode=disabled` or voice blockers. In that state, publish and status surfaces should say voice is boundary-covered but disabled/blockered.
 
 The canonical live path is:
 
