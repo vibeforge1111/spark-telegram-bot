@@ -8,6 +8,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { Telegraf } from 'telegraf';
 import { loadSparkTelegramProfileEnv } from './profileEnv';
+import { effectiveLevel5RuntimeEnv } from './level5RuntimeEnv';
 
 // Load .env.override LAST with override=true. Wins over anything spark-cli
 // rewrites in .env. Never committed (.gitignored).
@@ -491,6 +492,7 @@ async function runSparkCli(args: string[], timeoutMs = 30_000): Promise<string> 
     withHiddenWindows({
       timeout: timeoutMs,
       maxBuffer: 1024 * 1024,
+      env: effectiveLevel5RuntimeEnv(process.env),
     })
   );
   return redactText([stdout, stderr].map((value) => String(value || '').trim()).filter(Boolean).join('\n'));

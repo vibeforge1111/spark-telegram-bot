@@ -1,4 +1,5 @@
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
+import { level5RuntimeGuardrailsActive } from './level5RuntimeEnv';
 
 export type SparkAccessProfile = 'chat' | 'builder' | 'agent' | 'developer' | 'operator';
 export type SparkAccessRequirement = 'spawner_build' | 'external_research' | 'operating_system';
@@ -154,11 +155,7 @@ export function sparkHighAgencyWorkersAllowed(env: NodeJS.ProcessEnv = process.e
 }
 
 export function sparkLevel5RuntimeGuardrailsActive(env: NodeJS.ProcessEnv = process.env): boolean {
-  return (
-    envFlagEnabled(env.SPARK_ALLOW_HIGH_AGENCY_WORKERS) &&
-    envFlagEnabled(env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS) &&
-    String(env.SPARK_CODEX_SANDBOX || '').trim() === 'danger-full-access'
-  );
+  return level5RuntimeGuardrailsActive(env);
 }
 
 function objectRecord(value: unknown): Record<string, unknown> {

@@ -6,6 +6,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { renderSparkErrorReply } from './errorExplain';
 import { spawnHidden } from './hiddenProcess';
+import { effectiveLevel5RuntimeEnv } from './level5RuntimeEnv';
 import { chatCommandTimeoutMs } from './timeoutConfig';
 
 loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: true });
@@ -355,7 +356,7 @@ function runProcess(command: string, args: string[], input: string, timeoutMs: n
   return new Promise((resolve) => {
     const child = spawnHidden(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env },
+      env: effectiveLevel5RuntimeEnv(process.env),
     });
     let stdout = '';
     let stderr = '';

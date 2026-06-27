@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { spawnHidden, withHiddenWindows } from './hiddenProcess';
+import { effectiveLevel5RuntimeEnv } from './level5RuntimeEnv';
 import { redactText } from './redaction';
 
 const execFileAsync = promisify(execFile);
@@ -230,6 +231,7 @@ async function defaultSparkCommandRunner(args: string[], timeoutMs: number): Pro
     withHiddenWindows({
       timeout: timeoutMs,
       maxBuffer: 1024 * 1024,
+      env: effectiveLevel5RuntimeEnv(process.env),
     })
   );
   return {
@@ -337,7 +339,7 @@ export function scheduleSparkRestartAfterAccessChange(delayMs = 2_000): void {
   const child = spawnHidden(process.execPath, ['-e', script, String(delayMs)], {
     detached: true,
     stdio: 'ignore',
-    env: process.env,
+    env: effectiveLevel5RuntimeEnv(process.env),
   });
   child.unref();
 }
