@@ -276,13 +276,22 @@ export function formatSparkAccessActionReply(actionId: SparkAccessActionId, payl
     const stateMachine = objectValue(payload.state_machine);
     const activation = String(state.activation_state || '');
     const activeForServices = state.service_enabled === true || stateMachine.service_can_operate_whole_computer === true;
-    const codexSandbox = String(state.configured_codex_sandbox || '');
+    const effectiveCodexSandbox = String(state.effective_codex_sandbox || '');
+    const serviceCodexSandbox = String(state.service_codex_sandbox || '');
+    const configuredCodexSandbox = String(state.configured_codex_sandbox || '');
+    const codexSandbox = effectiveCodexSandbox || serviceCodexSandbox || configuredCodexSandbox;
+    const sandboxProofLine = activeForServices
+      ? codexSandbox === 'danger-full-access'
+        ? 'Effective Codex sandbox: danger-full-access.'
+        : `Attention: effective Codex sandbox is ${codexSandbox || 'unknown'}, so do not treat this as full-access yet.`
+      : '';
     return [
       ok ? 'Level 5 guardrails were configured.' : 'Level 5 setup did not complete.',
       activation ? `Activation state: ${activation}.` : '',
       activeForServices
-        ? `Whole-computer operator mode is active for Telegram and Spawner${codexSandbox ? ` with Codex sandbox ${codexSandbox}.` : '.'}`
+        ? 'Whole-computer operator mode is active for Telegram and Spawner.'
         : 'Spark needs to reload Telegram and Spawner before whole-computer operator mode becomes active.',
+      sandboxProofLine,
       nextLine(payload),
     ].filter(Boolean).join('\n');
   }

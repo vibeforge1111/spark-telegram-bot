@@ -102,6 +102,8 @@ void (async () => {
           level5: {
             service_enabled: true,
             activation_state: 'active_for_services',
+            service_codex_sandbox: 'danger-full-access',
+            effective_codex_sandbox: 'danger-full-access',
             configured_codex_sandbox: 'danger-full-access',
           },
           state_machine: {
@@ -115,8 +117,29 @@ void (async () => {
     assert.equal(result.needsSparkRestart, false);
     assert.match(result.reply, /Level 5 guardrails were configured/);
     assert.match(result.reply, /whole-computer operator mode is active/i);
-    assert.match(result.reply, /danger-full-access/);
+    assert.match(result.reply, /Effective Codex sandbox: danger-full-access/);
     assert.doesNotMatch(result.reply, /needs to reload/i);
+  });
+
+  await test('does not present Level 5 as full access when effective sandbox is read-only', () => {
+    const reply = formatSparkAccessActionReply('level5_enable', {
+      ok: true,
+      effective_access_level: 5,
+      level5: {
+        service_enabled: true,
+        activation_state: 'active_for_services',
+        service_codex_sandbox: 'danger-full-access',
+        effective_codex_sandbox: 'read-only',
+        configured_codex_sandbox: 'danger-full-access',
+      },
+      state_machine: {
+        service_can_operate_whole_computer: true,
+      },
+    });
+
+    assert.match(reply, /Whole-computer operator mode is active/);
+    assert.match(reply, /Attention: effective Codex sandbox is read-only/);
+    assert.doesNotMatch(reply, /Effective Codex sandbox: danger-full-access/);
   });
 
   await test('returns a useful Telegram-safe message when CLI requires interactive access confirmation', async () => {
