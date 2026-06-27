@@ -327,6 +327,7 @@ function liveRouteLedgerDiagnosisLines(summary: ControlProofTraceJoinSummary): s
 function liveTraceCaptureGuideLines(): string[] {
   return [
     'Live route evidence incomplete; capture real SparkRecursive_bot Telegram text turns before claiming live trace-join proof.',
+    'Prompt guide: npm run control:proof:live-trace:prompts',
     'Safe SparkRecursive_bot prompts:',
     ...LIVE_TRACE_JOIN_SAFE_PROMPT_CASES.map((entry, index) => `${index + 1}. ${entry.prompt}`),
     'After Spark replies to all four, rerun: npm run control:proof:live-trace'
