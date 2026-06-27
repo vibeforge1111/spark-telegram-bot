@@ -1172,6 +1172,10 @@ test('observation summary requires pass verdicts and all requested capture evide
     /control:proof:live-trace:prompts/
   );
   assert.match(formatControlProofCanaryObservationSummary(staleLiveTraceShape), /Packet evidence invalid: live_trace_join/);
+  assert.match(
+    formatControlProofCanaryObservationSummary(staleLiveTraceShape),
+    /next safe action: Run npm run control:proof:live-trace:prompts/
+  );
 
   template.evidence.liveTraceJoin = CLEAN_LIVE_TRACE_JOIN;
   template.evidence.sparkOsCompile = null;
@@ -1201,6 +1205,10 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.match(
     formatControlProofCanaryObservationSummary(stalePacketEvidence),
     /- runtime_evidence_collected_at: runtime evidence collection timestamp is invalid, future-dated, or outside the allowed freshness window/
+  );
+  assert.match(
+    formatControlProofCanaryObservationSummary(stalePacketEvidence),
+    /next safe action: Rerun --refresh-runtime-evidence from the current committed source state\./
   );
 
   template.evidence.collectedAt = 'June 24, 2026 00:30 UTC';
@@ -2585,6 +2593,10 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.match(
     formatControlProofCanaryObservationSummary(staleSourceSnapshot),
     /Commit or revert source\/docs\/test changes, then rerun `--refresh-runtime-evidence`/
+  );
+  assert.match(
+    formatControlProofCanaryObservationSummary(staleSourceSnapshot),
+    /next safe action: Commit or revert source\/docs\/test changes, then rerun --refresh-runtime-evidence/
   );
 
   template.generatedAt = '2026-06-24T00:06:00.000Z';

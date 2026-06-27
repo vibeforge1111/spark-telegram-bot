@@ -3808,7 +3808,10 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
 }
 
 function formatPacketEvidenceDetailLines(details: ControlProofPacketEvidenceDetail[]): string[] {
-  return details.map((entry) => `- ${entry.key}: ${entry.reason}`);
+  return details.flatMap((entry) => [
+    `- ${entry.key}: ${entry.reason}`,
+    ...(entry.nextSafeAction ? [`  next safe action: ${entry.nextSafeAction}`] : [])
+  ]);
 }
 
 function summarizeMissingCaptureCounts(

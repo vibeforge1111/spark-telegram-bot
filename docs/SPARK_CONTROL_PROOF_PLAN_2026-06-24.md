@@ -451,7 +451,7 @@ Canary release validation also treats non-execution memory and voice planes as a
 
 When a canary summary reports invalid `source_snapshot` evidence, it prints a refresh hint to commit or revert source/docs/test changes before rerunning `--refresh-runtime-evidence`. Treat that as a hard release-proof boundary: a green packet from before the source change cannot prove the current tree.
 
-Machine-readable `packetEvidenceDetails` now carries `nextSafeAction` for actionable packet blockers such as `live_trace_join`, `source_snapshot`, and stale runtime evidence, so automation can guide recapture or refresh without scraping prose summaries.
+Machine-readable `packetEvidenceDetails` now carries `nextSafeAction` for actionable packet blockers such as `live_trace_join`, `source_snapshot`, and stale runtime evidence, and the human summary prints the same next-safe-action line beneath the packet evidence detail. Automation should read the JSON field; operators can use the summary line without scraping other prose.
 
 Use audit `--fresh-strict` when checking the current release-blocking state directly: it fails silent missing evidence, trace joins, proof capsules, source proof gaps, raw-ref leaks, robotic reason leaks, stack-like leaks, and any latest producer row that still carries a proof-gap marker, while allowing historical legacy proof-gap capsules to stay visible.
 
