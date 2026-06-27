@@ -107,6 +107,18 @@ function controlProofCanarySummaryJsonPayload(
   };
 }
 
+function packetEvidenceNextSafeActionLines(
+  summary: ReturnType<typeof summarizeControlProofCanaryObservations>
+): string[] {
+  return [
+    ...summary.packetEvidenceDetails.missing,
+    ...summary.packetEvidenceDetails.invalid,
+    ...summary.packetEvidenceDetails.stale
+  ]
+    .filter((entry) => entry.nextSafeAction)
+    .map((entry) => `Next safe action for ${entry.key}: ${entry.nextSafeAction}`);
+}
+
 function inferredBundleSummaryPaths(observationsPath: string): { summaryPath: string; summaryJsonPath: string } | null {
   if (basename(observationsPath) !== 'live-canary-observations.json') return null;
   const baseDir = dirname(observationsPath);
@@ -723,6 +735,7 @@ function main(): void {
           'Refused to write refreshed control-proof runtime evidence because packet evidence is not release-safe.',
           `Missing packet evidence: ${refreshedSummary.missingPacketEvidence.length ? refreshedSummary.missingPacketEvidence.join(', ') : 'none'}`,
           `Invalid packet evidence: ${refreshedSummary.invalidPacketEvidence.length ? refreshedSummary.invalidPacketEvidence.join(', ') : 'none'}`,
+          ...packetEvidenceNextSafeActionLines(refreshedSummary),
           ...(refreshedSummary.invalidPacketEvidence.includes('live_trace_join')
             ? ['Live trace prompt guide: npm run control:proof:live-trace:prompts']
             : []),

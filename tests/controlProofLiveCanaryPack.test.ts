@@ -4010,6 +4010,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.equal(refusedBundleRefresh.status, 1);
     assert.match(refusedBundleRefresh.stderr, /Refused to write refreshed control-proof runtime evidence/);
     assert.match(refusedBundleRefresh.stderr, /Invalid packet evidence: live_trace_join/);
+    assert.match(refusedBundleRefresh.stderr, /Next safe action for live_trace_join: Run npm run control:proof:live-trace:prompts, send the safe prompts to SparkRecursive_bot/);
     assert.match(refusedBundleRefresh.stderr, /Live trace prompt guide: npm run control:proof:live-trace:prompts/);
     assert.match(refusedBundleRefresh.stdout, /Packet evidence invalid: live_trace_join/);
     assert.match(readFileSync(bundleObservationsPath, 'utf8'), /old audit without current gap plane details/);
