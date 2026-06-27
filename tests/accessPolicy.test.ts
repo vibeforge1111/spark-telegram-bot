@@ -237,6 +237,7 @@ async function main(): Promise<void> {
 
   await test('slash access setter uses authoritative status and compact confirmation', async () => {
     const indexSource = await readFile(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
+    const accessPolicySource = await readFile(path.join(__dirname, '..', 'src', 'accessPolicy.ts'), 'utf8');
     const accessCommand = indexSource.match(/bot\.command\('access', async \(ctx\) => \{[\s\S]*?\n\}\);/);
     assert.ok(accessCommand, 'expected /access command handler to exist');
     assert.match(accessCommand[0], /renderAuthoritativeSparkAccessStatus\(ctx\.chat\.id\)/);
@@ -249,7 +250,14 @@ async function main(): Promise<void> {
     assert.match(indexSource, /renderSparkAccessLevel5ConfirmationPrompt\(\), buildSparkAccessLevel5ConfirmKeyboard\(\)/);
     assert.match(indexSource, /bot\.action\(\/\^spark_access_level:operator:confirm/);
     assert.match(indexSource, /Access Level 5 guardrails were prepared\./);
-    assert.match(indexSource, /effective_codex_sandbox !== 'danger-full-access'/);
+    assert.match(indexSource, /sparkLevel5PayloadProvesFullAccess/);
+    assert.match(accessPolicySource, /function sparkLevel5PayloadProvesFullAccess/);
+    assert.match(indexSource, /await readLevel5FullAccessProof\(\)/);
+    assert.match(indexSource, /I did not switch this chat to Access Level 5 yet/);
+    assert.match(accessPolicySource, /effectiveAccess === 5/);
+    assert.match(accessPolicySource, /serviceEnabled/);
+    assert.match(accessPolicySource, /canOperateWholeComputer/);
+    assert.match(accessPolicySource, /effective_codex_sandbox \|\| ''\) === 'danger-full-access'/);
     assert.match(indexSource, /Access Level 5 setup did not prove danger-full-access effective sandbox/);
     assert.match(indexSource, /const fullAccessSandbox = effectiveCodexSandbox === 'danger-full-access'/);
     assert.match(indexSource, /serviceEnabled && chatProfile === 'operator' && stateMachineWholeComputer && fullAccessSandbox/);

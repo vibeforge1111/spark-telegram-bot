@@ -142,6 +142,7 @@ import {
   setSparkAccessProfile,
   sparkAccessAllows,
   sparkAccessLevel,
+  sparkLevel5PayloadProvesFullAccess,
   sparkMissionNeedsOperatingSystemAccess,
   validateSparkAccessProfileForRuntime,
   type SparkAccessProfile,
@@ -418,6 +419,7 @@ export {
 export { isDomainChipPendingDirection } from './telegramPendingDomainChipEvidence';
 export { __setTelegramImageAnalyzerForTest } from './telegramImageAnalysis';
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
+const ACCESS_LEVEL_CHOICE_TEXT = 'Choose an access level: /access 1 chat/memory/diagnostics, /access 2 requested builds, /access 3 public research plus builds, /access 4 sandboxed local projects, or /access 5 whole-computer operator mode.';
 const execFileAsync = promisify(execFile);
 installConsoleRedaction();
 type BuilderBridgeRunner = typeof runBuilderTelegramBridge;
@@ -8169,53 +8171,36 @@ bot.command('access', async (ctx) => {
     return;
   }
 
-  const rawProfile = accessLevelChangeConfirmed(raw)
-    ? raw.replace(/\bconfirm\b/ig, ' ').replace(/\s+/g, ' ').trim()
-    : raw;
+  const rawProfile = accessLevelChangeConfirmed(raw) ? raw.replace(/\bconfirm\b/ig, ' ').replace(/\s+/g, ' ').trim() : raw;
   const next = normalizeSparkAccessProfile(rawProfile);
-  if (!next) {
-    await ctx.reply('Choose an access level: /access 1 chat/memory/diagnostics, /access 2 requested builds, /access 3 public research plus builds, /access 4 sandboxed local projects, or /access 5 whole-computer operator mode.');
-    return;
-  }
+  if (!next) { await ctx.reply(ACCESS_LEVEL_CHOICE_TEXT); return; }
 
   if (next === 'operator' && current === 'operator' && !accessLevelChangeConfirmed(raw)) {
     const runtimeGate = validateSparkAccessProfileForRuntime(next);
     if (runtimeGate.ok) {
       const reply = await renderLevel5ActivationAnswer(ctx.chat.id);
-      await ctx.reply(reply);
-      await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
-      return;
+      await ctx.reply(reply); await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {}); return;
     }
   }
 
   if (next === 'operator' && !accessLevelChangeConfirmed(raw)) {
-    await ctx.reply(renderSparkAccessLevel5ConfirmationPrompt(), buildSparkAccessLevel5ConfirmKeyboard());
-    return;
+    await ctx.reply(renderSparkAccessLevel5ConfirmationPrompt(), buildSparkAccessLevel5ConfirmKeyboard()); return;
   }
 
   const authorization = authorizeAccessChangeCommand(ctx, ctx.message.text);
   if (!authorization.allow) {
-    await replyTelegramCommandAuthorityBlocked(ctx);
-    return;
+    await replyTelegramCommandAuthorityBlocked(ctx); return;
   }
   const result = await applySparkAccessProfileChange(ctx, next);
-  recordTelegramHarnessCoreExecution(authorization, {
-    toolName: 'access.change',
-    status: result.status,
-    summary: result.summary
-  });
+  recordTelegramHarnessCoreExecution(authorization, { toolName: 'access.change', status: result.status, summary: result.summary });
 });
 
-function accessLevelChangeConfirmed(raw: string): boolean {
-  return /\bconfirm\b/i.test(raw);
-}
+function accessLevelChangeConfirmed(raw: string): boolean { return /\bconfirm\b/i.test(raw); }
 
 function extractTelegramCommandArgs(text: string, command: string): string {
   const escapedCommand = command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = text.match(new RegExp(`^\\s*/${escapedCommand}(?:@\\w+)?(?:\\s+([\\s\\S]*?))?\\s*$`, 'i'));
-  if (match) {
-    return (match[1] || '').trim();
-  }
+  if (match) return (match[1] || '').trim();
   return text.replace(new RegExp(`^\\s*/${escapedCommand}\\b`, 'i'), '').trim();
 }
 
@@ -8231,6 +8216,12 @@ async function isLevel5ServiceEnabled(): Promise<boolean> {
   }
 }
 
+async function readLevel5FullAccessProof(): Promise<Record<string, unknown>> {
+  const payload = JSON.parse(await runSparkCli(['access', 'status', '--level', '5', '--json'], 30_000)) as Record<string, unknown>;
+  if (!sparkLevel5PayloadProvesFullAccess(payload)) throw new Error('Level 5 status did not prove effective full-access sandbox.');
+  return payload;
+}
+
 async function applySparkAccessProfileChange(ctx: any, next: SparkAccessProfile): Promise<TelegramAuthorityExecutionResult> {
   const runtimeGate = validateSparkAccessProfileForRuntime(next);
   if (!runtimeGate.ok) {
@@ -8243,57 +8234,39 @@ async function applySparkAccessProfileChange(ctx: any, next: SparkAccessProfile)
 
   const current = await getSparkAccessProfile(ctx.chat.id);
   const level5ServiceStillEnabled = next !== 'operator' && (current === 'operator' || await isLevel5ServiceEnabled());
+  if (next === 'operator') {
+    try {
+      await readLevel5FullAccessProof();
+    } catch (error) {
+      const detail = redactText(error instanceof Error ? error.message : String(error));
+      await ctx.reply(['I did not switch this chat to Access Level 5 yet.', '', `Fresh Level 5 proof failed: ${detail}`, 'Run `/access 5` again so Spark can repair the guardrails and restart services if needed.'].join('\n'));
+      return { status: 'failure', summary: 'Access change to operator failed Level 5 full-access proof.' };
+    }
+  }
 
   await setSparkAccessProfile(ctx.chat.id, next);
   await conversation.learnAboutUser(ctx.from, `Spark access profile for this chat is ${next}. ${describeSparkAccessProfile(next)}`).catch(() => {});
   const baseReply = await renderSparkAccessChangeReply(next);
-  const reply = level5ServiceStillEnabled
-    ? [
-        baseReply,
-        '',
-        'I lowered this Telegram chat setting. The Level 5 service lane may still be enabled underneath until an interactive terminal runs `spark access disable-level5` and Spark Live restarts.'
-      ].filter(Boolean).join('\n')
-    : baseReply;
+  const reply = level5ServiceStillEnabled ? [
+    baseReply,
+    '',
+    'I lowered this Telegram chat setting. The Level 5 service lane may still be enabled underneath until an interactive terminal runs `spark access disable-level5` and Spark Live restarts.'
+  ].filter(Boolean).join('\n') : baseReply;
   await ctx.reply(reply, buildSparkAccessChangeKeyboard(next));
   await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
   return { status: 'success', summary: `Access profile changed to ${next}.` };
 }
 
 function authorizeAccessChangeCommand(ctx: any, text: string, action = 'access.change'): TelegramActionAuthorityResult {
-  return telegramCommandActionAuthorityDecision(ctx, {
-    commandName: 'access',
-    route: 'access.change',
-    text,
-    toolName: 'access.change',
-    ownerSystem: 'spark-telegram-bot',
-    mutationClass: 'writes_files',
-    action,
-    kind: 'access_help'
-  });
+  return telegramCommandActionAuthorityDecision(ctx, { commandName: 'access', route: 'access.change', text, toolName: 'access.change', ownerSystem: 'spark-telegram-bot', mutationClass: 'writes_files', action, kind: 'access_help' });
 }
 
 function accessActionMutationClass(actionId: SparkAccessActionId): 'read_only' | 'writes_files' {
   return actionId === 'docker_doctor' ? 'read_only' : 'writes_files';
 }
 
-function authorizeSparkAccessActionCommand(
-  ctx: any,
-  input: {
-    actionId: SparkAccessActionId;
-    text: string;
-    commandName: string;
-  }
-): TelegramActionAuthorityResult {
-  return telegramCommandActionAuthorityDecision(ctx, {
-    commandName: input.commandName,
-    route: 'operator.safe_action',
-    text: input.text,
-    toolName: 'operator.safe_action',
-    ownerSystem: 'spark-telegram-bot',
-    mutationClass: accessActionMutationClass(input.actionId),
-    action: `operator.safe_action.${input.actionId}`,
-    kind: 'runtime_truth_or_operator'
-  });
+function authorizeSparkAccessActionCommand(ctx: any, input: { actionId: SparkAccessActionId; text: string; commandName: string }): TelegramActionAuthorityResult {
+  return telegramCommandActionAuthorityDecision(ctx, { commandName: input.commandName, route: 'operator.safe_action', text: input.text, toolName: 'operator.safe_action', ownerSystem: 'spark-telegram-bot', mutationClass: accessActionMutationClass(input.actionId), action: `operator.safe_action.${input.actionId}`, kind: 'runtime_truth_or_operator' });
 }
 
 async function prepareLevel5AndApplyAccess(ctx: any): Promise<TelegramAuthorityExecutionResult> {
@@ -8317,7 +8290,7 @@ async function prepareLevel5AndApplyAccess(ctx: any): Promise<TelegramAuthorityE
       return { status: 'partial', summary: 'Access Level 5 guardrails were prepared and Spark restart was scheduled.' };
     }
     const level5 = objectRecord(result.payload?.level5);
-    if (level5.effective_codex_sandbox !== 'danger-full-access') {
+    if (!sparkLevel5PayloadProvesFullAccess(result.payload || {})) {
       await ctx.reply(result.reply);
       return { status: 'failure', summary: 'Access Level 5 setup did not prove danger-full-access effective sandbox.' };
     }
@@ -8446,38 +8419,27 @@ async function handleAccessChangeRequest(ctx: any, raw: string): Promise<boolean
   if (!requireAdmin(ctx)) return true;
 
   const next = normalizeSparkAccessProfile(raw);
-  if (!next) {
-    await ctx.reply('Choose an access level: /access 1 chat/memory/diagnostics, /access 2 requested builds, /access 3 public research plus builds, /access 4 sandboxed local projects, or /access 5 whole-computer operator mode.');
-    return true;
-  }
+  if (!next) { await ctx.reply(ACCESS_LEVEL_CHOICE_TEXT); return true; }
 
   const current = await getSparkAccessProfile(ctx.chat.id);
   if (next === 'operator' && current === 'operator' && !accessLevelChangeConfirmed(raw)) {
     const runtimeGate = validateSparkAccessProfileForRuntime(next);
     if (runtimeGate.ok) {
       const reply = await renderLevel5ActivationAnswer(ctx.chat.id);
-      await ctx.reply(reply);
-      await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
-      return true;
+      await ctx.reply(reply); await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {}); return true;
     }
   }
 
   if (next === 'operator' && !accessLevelChangeConfirmed(raw)) {
-    await ctx.reply(renderSparkAccessLevel5ConfirmationPrompt(), buildSparkAccessLevel5ConfirmKeyboard());
-    return true;
+    await ctx.reply(renderSparkAccessLevel5ConfirmationPrompt(), buildSparkAccessLevel5ConfirmKeyboard()); return true;
   }
 
   const authorization = authorizeAccessChangeCommand(ctx, raw);
   if (!authorization.allow) {
-    await replyTelegramCommandAuthorityBlocked(ctx);
-    return true;
+    await replyTelegramCommandAuthorityBlocked(ctx); return true;
   }
   const result = await applySparkAccessProfileChange(ctx, next);
-  recordTelegramHarnessCoreExecution(authorization, {
-    toolName: 'access.change',
-    status: result.status,
-    summary: result.summary
-  });
+  recordTelegramHarnessCoreExecution(authorization, { toolName: 'access.change', status: result.status, summary: result.summary });
   return true;
 }
 

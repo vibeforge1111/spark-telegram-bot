@@ -161,6 +161,28 @@ export function sparkLevel5RuntimeGuardrailsActive(env: NodeJS.ProcessEnv = proc
   );
 }
 
+function objectRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {};
+}
+
+export function sparkLevel5PayloadProvesFullAccess(payload: Record<string, unknown>): boolean {
+  const level5 = objectRecord(payload.level5);
+  const stateMachine = objectRecord(payload.state_machine);
+  const effectiveAccess = payload.effective_access_level ?? stateMachine.effective_access_level;
+  const serviceEnabled = level5.service_enabled === true || stateMachine.service_can_operate_whole_computer === true;
+  const canOperateWholeComputer = (
+    stateMachine.can_operate_whole_computer === true ||
+    stateMachine.service_can_operate_whole_computer === true ||
+    effectiveAccess === 5
+  );
+  return (
+    effectiveAccess === 5 &&
+    serviceEnabled &&
+    canOperateWholeComputer &&
+    String(level5.effective_codex_sandbox || '') === 'danger-full-access'
+  );
+}
+
 export function validateSparkAccessProfileForRuntime(
   profile: SparkAccessProfile,
   env: NodeJS.ProcessEnv = process.env
