@@ -229,6 +229,8 @@ For a standard bundle path named `live-canary-observations.json`, `--refresh-run
 
 Runtime evidence refresh is fail-closed. If refreshed packet evidence is missing or invalid, including stale or unjoined `live_trace_join` proof, the command exits nonzero before writing the observation packet or sibling summaries. When `live_trace_join` blocks the refresh, the refusal points to `npm run control:proof:live-trace:prompts` for the safe SparkRecursive_bot recapture sheet. Recapture the required live/runtime evidence first; do not overwrite a previously checked packet with a known invalid refresh.
 
+Live trace diagnostics now distinguish missing safe prompt evidence from stale safe prompt evidence. If `Stale safe prompt evidence` lists all four safe case ids, the route/action proof signatures were exercised and joined structurally, but the rows are too old for release proof; recapture those prompts instead of repairing join keys or widening the gate.
+
 Live recapture of `cp-builder-001` on 2026-06-24 cleared its stale legacy-gap count and confirmed the correct contract: route-confidence definitions are no-execution `plain_conversation` turns with a Builder-backed answer, not `builder_gateway.plain_chat` execution proof.
 
 Live recapture of `cp-proof-001` on 2026-06-24 cleared another stale proof-panel capture: `/proof` in SparkRecursive_bot showed a read-only, no-mutation Telegram proof panel with `Latest proof gaps: none`, reducing stale proof-panel blockers from 24 to 23.
