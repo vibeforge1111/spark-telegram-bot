@@ -113,6 +113,8 @@ The live gate also requires the safe prompt sample to be clean joined no-action/
 
 Safe-prompt evidence is split by state. `Safe prompt evidence` lists clean current matches. `Stale safe prompt evidence` lists matching safe routes that joined structurally but are outside the freshness window. `Missing safe prompt evidence` lists safe cases with no clean or stale matching route/action evidence in the sampled rows.
 
+When a fresh clean safe-prompt row exists for a case id, older stale duplicates for that same id are treated as superseded history. They remain visible in structural row counts if sampled, but they do not block release proof or appear as stale safe-prompt evidence.
+
 Legacy route rows that predate join refs should remain visible as gaps when inspected. Do not backfill them unless the backing evidence proves the exact request, trace, proof, action/no-action, and reply join.
 
 ## Relationship To The Ladder

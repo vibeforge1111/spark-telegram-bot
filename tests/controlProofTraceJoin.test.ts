@@ -638,6 +638,58 @@ test('live evidence mode reports stale safe prompt signatures separately from mi
   });
 });
 
+test('live evidence mode ignores stale duplicate safe prompt rows once fresh matches exist', () => {
+  withTempRoot((root) => {
+    const routeLedger = path.join(root, 'route-ledger.jsonl');
+    const finalAnswer = path.join(root, 'final-answer.jsonl');
+    const outbound = path.join(root, 'outbound.jsonl');
+    const staleRows = safePromptRows().map((row, index) => ({
+      ...row,
+      request_id: `turn:stale-safe-${index}`,
+      trace_ref: `trace:stale-safe-${index}`,
+      harness_proof_ref: `turn:sha256:stale${index}`,
+      recorded_at: '2026-06-26T00:00:00.000Z'
+    }));
+    const freshRows = safePromptRows().map((row, index) => ({
+      ...row,
+      request_id: `turn:fresh-safe-${index}`,
+      trace_ref: `trace:fresh-safe-${index}`,
+      harness_proof_ref: `turn:sha256:fresh${index}`,
+      recorded_at: '2026-06-26T02:20:00.000Z'
+    }));
+    writeJsonl(routeLedger, [...staleRows, ...freshRows]);
+    writeJsonl(finalAnswer, proofRowsFor([...staleRows, ...freshRows]));
+    writeJsonl(outbound, []);
+
+    const result = auditControlProofTraceJoins({
+      sparkHome: root,
+      naturalRouteLedger: routeLedger,
+      finalAnswerAudit: finalAnswer,
+      outboundAudit: outbound,
+      requireLiveEvidence: true,
+      minRouteRows: 4,
+      minNoActionRows: 4,
+      maxLiveEvidenceAgeMs: 60 * 60 * 1000,
+      generatedAt: '2026-06-26T02:30:00.000Z'
+    });
+    const report = formatControlProofTraceJoinReport(result);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.structurallyJoinedRows, 8);
+    assert.equal(result.joinedRows, 4);
+    assert.equal(result.gapRows, 0);
+    assert.equal(result.staleRouteRows, 0);
+    assert.equal(result.safePromptEvidenceRows, 4);
+    assert.equal(result.staleSafePromptEvidenceRows, 4);
+    assert.deepEqual(result.staleSafePromptEvidence, []);
+    assert.match(report, /Status: clean/);
+    assert.match(report, /Structurally joined rows: 8/);
+    assert.match(report, /Joined rows: 4/);
+    assert.doesNotMatch(report, /Stale safe prompt evidence:/);
+    assert.doesNotMatch(report, /Gap samples:/);
+  });
+});
+
 test('safe prompt guide keeps route expectations outside Telegram prompt blocks', () => {
   const guide = formatLiveTraceSafePromptGuide();
 

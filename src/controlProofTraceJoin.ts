@@ -155,18 +155,19 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
     generatedAt,
     maxLiveEvidenceAgeMs
   }));
-  const gapRows = rows.filter((row) => row.gaps.length > 0).length;
-  const structurallyJoinedRows = rows.filter((row) => row.gaps.every((gap) => gap === 'stale_live_route_evidence')).length;
-  const joinedRows = rows.length - gapRows;
-  const noActionEvidenceRows = rows.filter((row) => row.noActionEvidence && row.gaps.length === 0).length;
   const safePromptEvidence = safePromptEvidenceIds(rows);
   const staleSafePromptEvidence = staleSafePromptEvidenceIds(rows);
+  const releaseBlockingRows = rows.filter((row) => releaseBlockingGaps(row, safePromptEvidence).length > 0);
+  const gapRows = releaseBlockingRows.length;
+  const structurallyJoinedRows = rows.filter((row) => row.gaps.every((gap) => gap === 'stale_live_route_evidence')).length;
+  const joinedRows = rows.filter((row) => row.gaps.length === 0).length;
+  const noActionEvidenceRows = rows.filter((row) => row.noActionEvidence && row.gaps.length === 0).length;
   const safePromptEvidenceList = LIVE_TRACE_JOIN_SAFE_PROMPT_CASES
     .map((signature) => signature.id)
     .filter((id) => safePromptEvidence.has(id));
   const staleSafePromptEvidenceList = LIVE_TRACE_JOIN_SAFE_PROMPT_CASES
     .map((signature) => signature.id)
-    .filter((id) => staleSafePromptEvidence.has(id));
+    .filter((id) => staleSafePromptEvidence.has(id) && !safePromptEvidence.has(id));
   const missingSafePromptEvidence = LIVE_TRACE_JOIN_SAFE_PROMPT_CASES
     .map((signature) => signature.id)
     .filter((id) => !safePromptEvidence.has(id) && !staleSafePromptEvidence.has(id));
@@ -217,13 +218,13 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
     safePromptEvidence: safePromptEvidenceList,
     staleSafePromptEvidence: staleSafePromptEvidenceList,
     missingSafePromptEvidence,
-    staleRouteRows: rows.filter((row) => row.gaps.includes('stale_live_route_evidence')).length,
+    staleRouteRows: releaseBlockingRows.filter((row) => row.gaps.includes('stale_live_route_evidence')).length,
     gapRows,
-    missingJoinKeyRows: rows.filter((row) => row.gaps.includes('missing_join_keys')).length,
-    missingReplyJoinRows: rows.filter((row) => row.gaps.includes('missing_reply_join')).length,
-    missingProofJoinRows: rows.filter((row) => row.gaps.includes('missing_proof_join')).length,
-    missingActionEvidenceRows: rows.filter((row) => row.gaps.includes('missing_action_or_no_action_evidence')).length,
-    routeMismatchRows: rows.filter((row) => row.gaps.includes('route_mismatch')).length,
+    missingJoinKeyRows: releaseBlockingRows.filter((row) => row.gaps.includes('missing_join_keys')).length,
+    missingReplyJoinRows: releaseBlockingRows.filter((row) => row.gaps.includes('missing_reply_join')).length,
+    missingProofJoinRows: releaseBlockingRows.filter((row) => row.gaps.includes('missing_proof_join')).length,
+    missingActionEvidenceRows: releaseBlockingRows.filter((row) => row.gaps.includes('missing_action_or_no_action_evidence')).length,
+    routeMismatchRows: releaseBlockingRows.filter((row) => row.gaps.includes('route_mismatch')).length,
     rows
   };
 }
@@ -271,14 +272,16 @@ export function formatControlProofTraceJoinReport(summary: ControlProofTraceJoin
     `- route mismatches: ${summary.routeMismatchRows}`,
     `- stale live route evidence: ${summary.staleRouteRows}`
   ];
-  const gapRows = summary.rows.filter((row) => row.gaps.length > 0);
+  const cleanSafePromptEvidence = new Set(summary.safePromptEvidence);
+  const gapRows = summary.rows.filter((row) => releaseBlockingGaps(row, cleanSafePromptEvidence).length > 0);
   if (gapRows.length > 0) {
     lines.push('', 'Gap samples:');
     for (const row of gapRows.slice(0, 10)) {
+      const gaps = releaseBlockingGaps(row, cleanSafePromptEvidence);
       const staleAge = row.gaps.includes('stale_live_route_evidence')
         ? ` | age ${formatDuration(row.liveEvidenceAgeMs)} > max ${formatDuration(row.maxLiveEvidenceAgeMs)}`
         : '';
-      lines.push(`- ${row.executedRoute}: ${row.gaps.join(', ')} | delivery ${row.delivery} | outcome ${row.outcome}${staleAge}`);
+      lines.push(`- ${row.executedRoute}: ${gaps.join(', ')} | delivery ${row.delivery} | outcome ${row.outcome}${staleAge}`);
     }
   }
   return `${lines.join('\n')}\n`;
@@ -357,6 +360,14 @@ function safePromptEvidenceIds(rows: ControlProofTraceJoinRow[]): Set<string> {
   return ids;
 }
 
+function releaseBlockingGaps(row: ControlProofTraceJoinRow, cleanSafePromptEvidence: Set<string>): string[] {
+  if (row.gaps.length === 1 && row.gaps[0] === 'stale_live_route_evidence') {
+    const safeId = safePromptEvidenceId(row);
+    if (safeId && cleanSafePromptEvidence.has(safeId)) return [];
+  }
+  return row.gaps;
+}
+
 function staleSafePromptEvidenceIds(rows: ControlProofTraceJoinRow[]): Set<string> {
   const ids = new Set<string>();
   for (const row of rows) {
@@ -368,13 +379,18 @@ function staleSafePromptEvidenceIds(rows: ControlProofTraceJoinRow[]): Set<strin
 }
 
 function addSafePromptEvidenceId(ids: Set<string>, row: ControlProofTraceJoinRow): void {
-    const route = row.executedRoute.toLowerCase();
-    const action = row.executedAction.toLowerCase();
-    const signature = LIVE_TRACE_JOIN_SAFE_PROMPT_CASES.find((entry) => (
-      entry.route === route &&
-      entry.action === action
-    ));
-    if (signature) ids.add(signature.id);
+  const id = safePromptEvidenceId(row);
+  if (id) ids.add(id);
+}
+
+function safePromptEvidenceId(row: ControlProofTraceJoinRow): string | null {
+  const route = row.executedRoute.toLowerCase();
+  const action = row.executedAction.toLowerCase();
+  const signature = LIVE_TRACE_JOIN_SAFE_PROMPT_CASES.find((entry) => (
+    entry.route === route &&
+    entry.action === action
+  ));
+  return signature?.id || null;
 }
 
 function summarizeRouteJoin(
