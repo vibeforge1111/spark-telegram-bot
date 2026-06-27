@@ -27,14 +27,29 @@ Backed historical proof gaps remain visible in route-confidence, Builder gateway
 
 | Area | Status | Blocking class | Current evidence | Next safe action |
 | --- | --- | --- | --- | --- |
-| `domain-chip-memory` | owner-handoff | publish-blocking, release-non-blocking | Behind upstream by 6 commits. Runtime health is green. | Pull or merge upstream before publish claims. |
-| `spark-intelligence-builder` | owner-handoff | publish-blocking, release-non-blocking | Behind upstream by 12 commits. Runtime health is green. | Pull or merge upstream, then rerun Builder and Spark-wide proof. |
-| `spark-researcher` | owner-handoff | publish-blocking, release-non-blocking | Behind upstream by 61 commits. Runtime health is green. | Pull or merge upstream before publish claims. |
-| `spawner-ui` | owner-handoff | publish-blocking, release-non-blocking | Behind upstream by 29 commits. Live health is HTTP 200. | Pull or merge upstream, then rerun Spawner health and Spark-wide proof. |
-| `spark-installer-registry` | owner-handoff | publish-blocking warning | Installed `spark-telegram-bot` and `spawner-ui` sources are local runtime test artifacts for SparkRecursive proof. | Port/push owner commits and update registry or release metadata before registry readiness claims. |
-| Builder trace health | owner-handoff | publish-blocking warning | Current 1h and 24h trace windows are clean, but 1 unresolved historical high-severity integrity family remains; latest event 2026-06-02T09:03:25Z. | Audit the historical family and append owner-approved lifecycle resolution, or keep it explicit as a publish handoff. |
-| Voice surface | non-blocking evidence boundary | not publish-green | Voice/audio evidence boundary is covered, but system map reports `voice_surface_mode=disabled` with blockers. | Do not call voice fully green until blockers are removed and a fresh voice proof shows enabled runtime behavior. |
+| `domain-chip-memory` | owner-handoff | publish-blocking, release-non-blocking | Branch `codex/turnintent-memory-boundary-20260531` is behind upstream by 6 commits and has no local ahead commits. Runtime health is green. | Publishing owner can pull/fast-forward or merge upstream, then rerun memory health and Spark-wide proof before publish claims. |
+| `spark-intelligence-builder` | owner-handoff | publish-blocking, release-non-blocking | Branch `codex/turnintent-builder-boundary-20260531` is ahead 41 and behind upstream by 12 commits. Runtime health is green. | Publishing owner must reconcile local ahead work with upstream before publish; do not auto-merge from this machine. Rerun Builder and Spark-wide proof after reconciliation. |
+| `spark-researcher` | owner-handoff | publish-blocking, release-non-blocking | Branch `codex/researcher-self-edit-governor-20260602` is behind upstream by 61 commits and has no local ahead commits. Runtime health is green. | Publishing owner can pull/fast-forward or merge upstream, then rerun Researcher health and Spark-wide proof before publish claims. |
+| `spawner-ui` | owner-handoff | publish-blocking, release-non-blocking | Branch `release/stability-2026-06-02-spawner-authority` is ahead 8 and behind upstream by 29 commits. Live health is HTTP 200. | Publishing owner must reconcile local ahead work with upstream before publish; do not auto-merge from this machine. Rerun Spawner health and Spark-wide proof after reconciliation. |
+| `spark-installer-registry` | owner-handoff | publish-blocking warning | Installed `spark-telegram-bot` head is `856c504`, registry pin is `e5a1bd0`; installed `spawner-ui` head is `e9ba42e`, registry pin is `19b7d0b`. Both are intentionally marked `local_runtime_test_artifact` for SparkRecursive proof. | Port/push owner commits and update registry or release metadata before registry readiness claims. Keep installed sources for local proof only until then. |
+| Builder trace health | owner-handoff | publish-blocking warning | Current 1h and 24h trace windows are clean, but 1 unresolved historical high-severity integrity family remains; latest event 2026-06-02T09:03:25Z. Current unresolved high-severity count is 0. | Audit the historical family and append owner-approved lifecycle resolution, or keep it explicit as a publish handoff. |
+| Voice surface | non-blocking evidence boundary | not publish-green | Voice/audio evidence boundary is covered, but system map reports `voice_surface_mode=disabled` with 2 blockers: `spark-voice-comms repo not discovered` and `voice final-answer join evidence is not compiled`. | Do not call voice fully green until the repo discovery and final-answer join evidence blockers are resolved and fresh voice proof shows enabled runtime behavior. |
 | Line-count ratchet | maintenance | not publish-blocking | Gate passes, but 13 baselined large files remain. | Shrink one baselined file at a time after publish blockers are mapped. |
+
+## Handoff Classification
+
+Current classification after direct repo inspection:
+
+- Blocking owner handoffs that are safe for the publishing owner to reconcile:
+  - `domain-chip-memory`: behind-only, likely fast-forwardable after owner review.
+  - `spark-researcher`: behind-only, likely fast-forwardable after owner review.
+- Blocking owner handoffs that require merge/cherry-pick judgment because local work exists:
+  - `spark-intelligence-builder`: ahead 41 / behind 12.
+  - `spawner-ui`: ahead 8 / behind 29.
+- Registry/release metadata handoff:
+  - `spark-telegram-bot` and `spawner-ui` installed heads intentionally differ from registry pins for local SparkRecursive proof. Publish readiness requires owner repo commits and registry/release metadata to converge.
+- Evidence-boundary handoff:
+  - Voice remains boundary-covered but disabled/blockered; it is not a publish-green capability.
 
 ## Work Order
 
