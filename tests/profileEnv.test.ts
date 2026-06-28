@@ -104,3 +104,38 @@ test('Telegram profile env loads streaming defaults without overriding explicit 
     rmSync(home, { recursive: true, force: true });
   }
 });
+
+test('Telegram profile env refreshes Level 5 guardrails over stale read-only runtime env', () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'spark-profile-level5-env-'));
+  try {
+    const modulesDir = path.join(home, 'config', 'modules');
+    mkdirSync(modulesDir, { recursive: true });
+    writeFileSync(
+      path.join(modulesDir, 'spark-telegram-bot.recursive.env'),
+      [
+        'BOT_TOKEN=recursive:test',
+        'SPARK_ALLOW_HIGH_AGENCY_WORKERS=1',
+        'SPARK_ALLOW_EXTERNAL_PROJECT_PATHS=1',
+        'SPARK_CODEX_SANDBOX=danger-full-access'
+      ].join('\n')
+    );
+
+    const env = {
+      SPARK_HOME: home,
+      SPARK_TELEGRAM_PROFILE: 'recursive',
+      SPARK_ALLOW_HIGH_AGENCY_WORKERS: '0',
+      SPARK_ALLOW_EXTERNAL_PROJECT_PATHS: '0',
+      SPARK_CODEX_SANDBOX: 'read-only',
+      BOT_TOKEN: 'already-loaded:test'
+    } as NodeJS.ProcessEnv;
+    const profile = loadSparkTelegramProfileEnv([], env, { preserveExisting: true });
+
+    assert.equal(profile, 'recursive');
+    assert.equal(env.BOT_TOKEN, 'already-loaded:test');
+    assert.equal(env.SPARK_ALLOW_HIGH_AGENCY_WORKERS, '1');
+    assert.equal(env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS, '1');
+    assert.equal(env.SPARK_CODEX_SANDBOX, 'danger-full-access');
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});

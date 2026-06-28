@@ -18,6 +18,12 @@ interface LoadEnvFileOptions {
   preserveKeys?: Set<string>;
 }
 
+const LEVEL5_GUARDRAIL_KEYS = new Set([
+  'SPARK_ALLOW_HIGH_AGENCY_WORKERS',
+  'SPARK_ALLOW_EXTERNAL_PROJECT_PATHS',
+  'SPARK_CODEX_SANDBOX'
+]);
+
 export function loadEnvFileIntoProcess(
   file: string,
   env: NodeJS.ProcessEnv = process.env,
@@ -126,6 +132,9 @@ export function loadSparkTelegramProfileEnv(
   const profile = argValue(args, 'profile') || env.SPARK_TELEGRAM_PROFILE?.trim() || null;
   if (!profile) return null;
   const preserveKeys = options.preserveExisting ? new Set(Object.keys(env)) : undefined;
+  for (const key of LEVEL5_GUARDRAIL_KEYS) {
+    preserveKeys?.delete(key);
+  }
   const loadOptions = { preserveKeys };
 
   loadSparkAgentEnv('spark-telegram-bot', env, loadOptions);
