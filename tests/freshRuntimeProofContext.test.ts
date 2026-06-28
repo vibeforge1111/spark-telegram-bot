@@ -350,6 +350,33 @@ async function run(): Promise<void> {
     );
     restoreEnv();
   });
+
+  await test('protected plain-chat ideation writes matched natural route ledger proof', async () => {
+    restoreEnv();
+    prepareEnv();
+    const replies: string[] = [];
+    const replyExtras: any[] = [];
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-natural-route-proof-'));
+    const ledgerPath = withNaturalRouteLedger(tempRoot);
+    try {
+      const indexModule: any = await import('../src/index');
+      await indexModule.handleTextMessage(fakeCtx(
+        'should we add the domain chip on top of R29?',
+        replies,
+        replyExtras
+      ));
+      assert.ok(replies.length > 0);
+      const rows = await readNaturalRouteRows(ledgerPath);
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].shadow_route, 'conversation.ideation');
+      assert.equal(rows[0].executed_route, 'conversation.ideation');
+      assert.equal(rows[0].executed_action, 'plain_chat.ideation');
+      assert.equal(rows[0].outcome, 'matched');
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+      restoreEnv();
+    }
+  });
 }
 
 run().catch((error) => {

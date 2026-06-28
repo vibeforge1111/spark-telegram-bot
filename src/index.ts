@@ -9385,7 +9385,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       deletePendingBuildClarification(telegramPendingBuildKey(ctx.chat.id, ctx.from.id));
     }
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.ideation', 'spark-intelligence-builder', 'plain_chat.ideation');
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, { route: 'conversation.ideation', owner: 'spark-intelligence-builder', action: 'plain_chat.ideation', signal: 'conversational_ideation' }), 'conversation.ideation', 'spark-intelligence-builder', 'plain_chat.ideation');
     if (isNoExecutionBoundary(text)) {
       const response = buildNoExecutionIdeationReply(text);
       await ctx.reply(response);
