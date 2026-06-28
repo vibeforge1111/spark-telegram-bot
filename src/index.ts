@@ -9741,6 +9741,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           await ctx.reply(runtimeGate.message);
           return;
         }
+        if (normalizedAccessPreference === 'operator') { const proofError = sparkLevel5TelegramPermissionProofError(await readLevel5FullAccessProof(), await probeTelegramRunnerWritability()); if (proofError) { await ctx.reply(['I did not switch this chat to Access Level 5 yet.', '', `Fresh Telegram permission proof failed: ${proofError}`].join('\n')); return; } }
         await setSparkAccessProfile(ctx.chat.id, normalizedAccessPreference);
       }
       const buildPreference = parseMissionUpdatePreferenceIntent(text, { allowExecutionLanguage: true });

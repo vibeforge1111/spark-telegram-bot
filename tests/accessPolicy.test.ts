@@ -472,6 +472,8 @@ async function main(): Promise<void> {
     assert.ok(buildIntentRoute, 'expected main build intent route to exist');
     assert.match(buildIntentRoute[0], /validateSparkAccessProfileForRuntime\(normalizedAccessPreference\)/);
     assert.match(buildIntentRoute[0], /normalizedAccessPreference === 'operator' && await level5FullAccessProofAvailable\(\)/);
+    assert.match(buildIntentRoute[0], /sparkLevel5TelegramPermissionProofError\(await readLevel5FullAccessProof\(\), await probeTelegramRunnerWritability\(\)\)/);
+    assert.match(buildIntentRoute[0], /Fresh Telegram permission proof failed/);
     assert.match(buildIntentRoute[0], /await ctx\.reply\(runtimeGate\.message\)/);
     assert.match(buildIntentRoute[0], /await setSparkAccessProfile\(ctx\.chat\.id, normalizedAccessPreference\)/);
   });
