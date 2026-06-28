@@ -8179,6 +8179,10 @@ bot.command('access', async (ctx) => {
 
 function accessLevelChangeConfirmed(raw: string): boolean { return /\bconfirm\b/i.test(raw); }
 
+function confirmedAccessChangeValue(value: string, originalText: string): string {
+  return accessLevelChangeConfirmed(originalText) ? `${value} confirm` : value;
+}
+
 function extractTelegramCommandArgs(text: string, command: string): string {
   const escapedCommand = command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = text.match(new RegExp(`^\\s*/${escapedCommand}(?:@\\w+)?(?:\\s+([\\s\\S]*?))?\\s*$`, 'i'));
@@ -8411,7 +8415,8 @@ bot.action(/^spark_access_level:operator:confirm$/, async (ctx) => {
 async function handleAccessChangeRequest(ctx: any, raw: string): Promise<boolean> {
   if (!requireAdmin(ctx)) return true;
 
-  const next = normalizeSparkAccessProfile(raw);
+  const rawProfile = accessLevelChangeConfirmed(raw) ? raw.replace(/\bconfirm\b/ig, ' ').replace(/\s+/g, ' ').trim() : raw;
+  const next = normalizeSparkAccessProfile(rawProfile);
   if (!next) { await ctx.reply(ACCESS_LEVEL_CHOICE_TEXT); return true; }
 
   const current = await getSparkAccessProfile(ctx.chat.id);
@@ -8827,7 +8832,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     kind: 'runtime_truth_or_operator'
   })) {
     await conversation.remember(user, text).catch(() => {});
-    await handleAccessChangeRequest(ctx, naturalAccessChange);
+    await handleAccessChangeRequest(ctx, confirmedAccessChangeValue(naturalAccessChange, text));
     return;
   }
 
@@ -8853,7 +8858,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     kind: 'runtime_truth_or_operator'
   })) {
     await conversation.remember(user, text).catch(() => {});
-    await handleAccessChangeRequest(ctx, frameAccessChange);
+    await handleAccessChangeRequest(ctx, confirmedAccessChangeValue(frameAccessChange, text));
     return;
 	  }
 
@@ -8879,7 +8884,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	    kind: 'runtime_truth_or_operator'
 	  })) {
     await conversation.remember(user, text).catch(() => {});
-    await handleAccessChangeRequest(ctx, contextualAccessChange);
+    await handleAccessChangeRequest(ctx, confirmedAccessChangeValue(contextualAccessChange, text));
     return;
   }
 
