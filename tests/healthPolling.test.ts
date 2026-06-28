@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describeTelegramTokenError } from '../src/healthPolling';
+import { readFileSync } from 'node:fs';
 import { relayHealthUrl, validateRelayRuntime } from '../src/healthRuntime';
 
 function test(name: string, fn: () => void): void {
@@ -70,6 +71,15 @@ test('rejects stale relay runtime without Telegram polling status', async () => 
   await assert.rejects(
     () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
     /Telegram relay runtime is not reachable at http:\/\/127\.0\.0\.1:8789\/health: Telegram polling status is missing/
+  );
+});
+
+test('health runtime preserves loaded env token while profile secrets are unavailable', () => {
+  const source = readFileSync('src/healthRuntime.ts', 'utf8');
+
+  assert.match(
+    source,
+    /loadSparkTelegramProfileEnv\(process\.argv\.slice\(2\), process\.env, \{ preserveExisting: true \}\)/
   );
 });
 

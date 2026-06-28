@@ -51,7 +51,7 @@ export async function validateRelayRuntime(
 }
 
 async function main(): Promise<void> {
-  loadSparkTelegramProfileEnv(process.argv.slice(2));
+  loadSparkTelegramProfileEnv(process.argv.slice(2), process.env, { preserveExisting: true });
   const missingProfileToken = process.env.SPARK_PROFILE_TOKEN_MISSING?.trim();
   if (missingProfileToken && !process.env.BOT_TOKEN?.trim()) {
     throw new Error(
