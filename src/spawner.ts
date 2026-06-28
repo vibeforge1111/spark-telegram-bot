@@ -9,6 +9,7 @@ import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
 import { DEFAULT_LOCAL_SERVICE_TIMEOUT_MS, localServiceDefaultTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
 import type { SkillTier } from './userTier';
+import { creatorMissionClosureProof } from './creatorMissionClosureProof';
 
 const SPAWNER_UI_URL = resolveSpawnerUiUrl();
 const PROJECT_PREVIEW_URL = resolveProjectPreviewBaseUrl();
@@ -95,6 +96,7 @@ interface CreatorMissionResult {
   requestId?: string;
   taskCount?: number;
   canvasUrl?: string;
+  tracePath?: string;
   trace?: CreatorMissionTrace;
   error?: string;
 }
@@ -901,7 +903,6 @@ function formatCreatorArtifactSummary(artifacts: string[] | undefined): string {
   if (usable.length === 0) return 'artifact plan pending';
   return usable.slice(0, 6).map(formatCreatorArtifactLabel).join(', ');
 }
-
 function creatorEvidenceStandardLine(): string {
   return 'creator intent, adapter map, artifact manifest, domain chip, manifest/hook contract, triggers/non-triggers, playbook, examples, benchmark pack, score dimensions, allowed mutations, watchtower, specialization path, autoloop policy, evidence ladder, privacy boundary, rollback, review packet, activation notes, creator mission status, swarm/contribution_packet.json';
 }
@@ -959,17 +960,18 @@ export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUr
 
   const trace = result.trace || {};
   const intent = trace.intent_packet || {};
-  const missionId = result.missionId || trace.mission_id || 'unknown';
-  const readOnly = trace.execution_policy === 'read_only';
+  const provenMissionId = result.missionId || trace.mission_id;
+  const missionId = provenMissionId || 'staged-review';
+  const explicitReadOnly = trace.execution_policy === 'read_only';
+  const readOnly = explicitReadOnly || !provenMissionId;
+  const canvasProof = result.canvasUrl || trace.links?.canvas;
   const kanbanUrl = readOnly
     ? creatorWorkspaceUrl('kanban', baseUrl)
-    : trace.links?.kanban || (missionId !== 'unknown' ? creatorMissionKanbanUrl(missionId, baseUrl) : `${baseUrl}/kanban`);
-  const taskCount = typeof result.taskCount === 'number'
-    ? result.taskCount
-    : Array.isArray(trace.tasks)
-      ? trace.tasks.length
-      : null;
-  const canvasUrl = readOnly ? creatorWorkspaceUrl('canvas', baseUrl) : absoluteSpawnerUrl(result.canvasUrl || trace.links?.canvas, baseUrl);
+    : trace.links?.kanban || creatorMissionKanbanUrl(missionId, baseUrl);
+  const taskCount = typeof result.taskCount === 'number' ? result.taskCount : Array.isArray(trace.tasks) ? trace.tasks.length : null;
+  const canvasUrl = explicitReadOnly
+    ? creatorWorkspaceUrl('canvas', baseUrl)
+    : !provenMissionId ? absoluteSpawnerUrl(canvasProof, baseUrl) || creatorWorkspaceUrl('canvas', baseUrl) : absoluteSpawnerUrl(canvasProof, baseUrl);
   const domain = formatCreatorDomainLabel(intent.target_domain);
   const artifacts = formatCreatorArtifactSummary(trace.artifacts);
   const evidenceTier = formatEvidenceTier(trace.canonical?.evidence_tier);
@@ -1208,19 +1210,17 @@ export const spawner = {
         localServiceTimeoutMs('SPARK_CREATOR_MISSION_TIMEOUT_MS')
       );
 
-      if (res.data?.ok === false) {
-        return {
-          success: false,
-          error: res.data?.error || 'Creator mission was rejected.'
-        };
-      }
+      if (res.data?.ok === false) return { success: false, error: res.data?.error || 'Creator mission was rejected.' };
+      const proof = creatorMissionClosureProof(res.data);
+      if (res.data?.ok && !proof.missionId && !proof.stagedPath) return { success: false, error: 'Creator mission bridge returned ok but missing mission id or staged artifact proof.' };
 
       return {
         success: Boolean(res.data?.ok),
-        missionId: res.data?.missionId,
+        missionId: proof.missionId,
         requestId: res.data?.requestId,
         taskCount: typeof res.data?.taskCount === 'number' ? res.data.taskCount : undefined,
         canvasUrl: typeof res.data?.canvasUrl === 'string' ? res.data.canvasUrl : undefined,
+        tracePath: typeof res.data?.tracePath === 'string' ? res.data.tracePath : undefined,
         trace: res.data?.trace
       };
     } catch (err: any) {

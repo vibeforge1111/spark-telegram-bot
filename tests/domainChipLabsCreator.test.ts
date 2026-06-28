@@ -2,6 +2,11 @@ import assert from 'node:assert/strict';
 import axios from 'axios';
 import { parseNaturalCreatorMissionIntent } from '../src/conversationIntent';
 import { decideNaturalRoute } from '../src/naturalRouteDecision';
+import {
+  deletePendingCreatorMission,
+  getPendingCreatorMission,
+  telegramPendingCreatorMissionKey
+} from '../src/telegramPendingCreatorMissionEvidence';
 
 type CapturedCall = { url: string; body: any };
 
@@ -30,6 +35,7 @@ function makeCtx(replies: string[]) {
 
 const DCL_PROMPT =
   'create a domain chip according to the Spark Domain Chip Labs framework with self-improving loops, benchmark pack, watchtower, and verifiable loop engineering for founder objection handling';
+const PENDING_KEY = telegramPendingCreatorMissionKey(8319079055, 8319079055);
 
 function assertDclContract(text: string): void {
   assert.match(text, /Domain Chip Labs artifact contract/);
@@ -100,6 +106,49 @@ await test('DCL framework Telegram turn stages full creator mission through Spaw
     assert.match(replies.join('\n'), /Creator-run contract: creator intent, adapter map, artifact manifest, domain chip, manifest\/hook contract/);
     assert.doesNotMatch(replies.join('\n'), /I can build this as domain-chip/i);
   } finally {
+    deletePendingCreatorMission(PENDING_KEY);
+    (axios as any).post = originalPost;
+    (axios as any).get = originalGet;
+    for (const key of Object.keys(process.env)) {
+      if (!(key in originalEnv)) delete process.env[key];
+    }
+    Object.assign(process.env, originalEnv);
+  }
+});
+
+await test('DCL framework Telegram turn fails closed when Spawner omits mission proof', async () => {
+  const originalPost = axios.post;
+  const originalGet = axios.get;
+  const originalEnv = { ...process.env };
+  deletePendingCreatorMission(PENDING_KEY);
+  try {
+    process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+    process.env.BOT_DEFAULT_TIER = 'base';
+    process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+    process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+    process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+    process.env.SPARK_BOT_TEST_MODE = '1';
+
+    (axios as any).post = async (url: string) => {
+      if (url.includes('/api/creator/mission')) {
+        return { data: { ok: true, taskCount: 5 } };
+      }
+      return { data: { success: true } };
+    };
+    (axios as any).get = async () => ({ data: { pending: false } });
+
+    const replies: string[] = [];
+    const indexModule = await import('../src/index');
+    await indexModule.handleTextMessage(makeCtx(replies));
+
+    const replyText = replies.join('\n');
+    assert.match(replyText, /stage the full creator system privately first/i);
+    assert.match(replyText, /Creator mission failed/i);
+    assert.match(replyText, /missing mission id or staged artifact proof/i);
+    assert.doesNotMatch(replyText, /Creator plan ready|Private path staged|Creator plan is staged/i);
+    assert.equal(getPendingCreatorMission(PENDING_KEY), null);
+  } finally {
+    deletePendingCreatorMission(PENDING_KEY);
     (axios as any).post = originalPost;
     (axios as any).get = originalGet;
     for (const key of Object.keys(process.env)) {
