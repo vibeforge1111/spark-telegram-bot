@@ -1800,7 +1800,8 @@ async function run(): Promise<void> {
 
 		assert.match(reply, /I can build this as domain-chip-creates-surreal-product-names-from/);
 		assert.match(reply, /Recommended path: Advanced PRD -> tasks/);
-		assert.match(reply, /Before I start:/);
+		assert.match(reply, /Before I start: should v1 focus on ideation only, shot\/prompt packets, or the full campaign workflow\?/);
+		assert.match(reply, /private DCL scaffold, prompt packets, evals, watchtower, and no external API calls/);
 		assert.match(reply, /Reply "go"/);
 		assert.doesNotMatch(reply, /Mission:/);
 		assert.doesNotMatch(reply, /Canvas:/);
@@ -1824,15 +1825,14 @@ async function run(): Promise<void> {
 
 		const replies: string[] = [];
 		const ctx = makeFakeCtx(8319079055, 8319079055, 562, replies);
-		ctx.message.text = 'build a domain-chip for Telegram memory routing';
+		ctx.message.text = 'shall we build a domain chip together for crafting trendy video skits using Higgsfield and Seedance 2';
 		const indexModule: any = await import('../src/index');
 
 		await indexModule.handleTextMessage(ctx);
 
-		assert.match(replies.join('\n'), /I can build this as domain-chip-telegram-memory-routing/);
-		assert.match(replies.join('\n'), /Reply "go"/);
-		assert.ok(!captured.some((c) => c.url.includes('/api/creator-mission')), 'domain chip creation should not start a creator mission');
-		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'domain chip creation should wait for confirmation before PRD write');
+		assert.match(replies.join('\n'), /domain-chip-crafting-trendy-video-skits-using[\s\S]*shot\/prompt packets[\s\S]*watchtower[\s\S]*Reply "go"/);
+		assert.doesNotMatch(replies.join('\n'), /names only|Here it should stay as documentation talk/);
+		assert.ok(!captured.some((c) => c.url.includes('/api/creator-mission') || c.url.includes('/api/prd-bridge/write')), 'domain chip creation should wait for confirmation before staging work');
 
 		restoreAxios();
 		restoreEnv();

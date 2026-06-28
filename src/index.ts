@@ -5785,6 +5785,8 @@ export function buildDomainChipPrd(brief: string): string {
     '- Scaffold or update the chip under the active Spark chip runtime location.',
     '- Include a valid spark-chip.json manifest with router metadata, precise intent keywords, and no generic keyword hijacking.',
     '- Implement hook entrypoints that can be invoked through the Spark attachments/chips runtime.',
+    '- Include the Domain Chip Labs scaffold contract: purpose, triggers, non-triggers, playbook, examples, evals, evidence ladder, privacy boundary, review packet, and rollback path.',
+    '- Include loop-engineering assets that can improve output quality over time: benchmark scenarios, score dimensions, allowed mutations, held-out checks, and watchtower signals.',
     '- Add focused tests or smoke checks that prove the chip is router-invokable.',
     '- Register or document the runtime activation step if the scaffolder does not activate it automatically.',
     '- Avoid deterministic slash-command handoffs in Telegram-facing text; the chip should work from natural language.',
@@ -5811,8 +5813,8 @@ export function formatDomainChipBuildPreview(brief: string): string {
   return [
     `I can build this as ${projectName}.`,
     `Recommended path: ${mode.buildMode === 'advanced_prd' ? 'Advanced PRD -> tasks' : 'Direct build'} because ${mode.reason}`,
-    'Before I start: should outputs be names only, or names with rationale + usage angle? Any vibe to prefer, like luxury, absurd, consumer, or sci-fi?',
-    'Reply "go" to use my default: surreal-but-usable names, short rationale, router-safe tests.'
+    'Before I start: should v1 focus on ideation only, shot/prompt packets, or the full campaign workflow?',
+    'Reply "go" to use my default: private DCL scaffold, prompt packets, evals, watchtower, and no external API calls.'
   ].join('\n');
 }
 

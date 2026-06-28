@@ -178,6 +178,16 @@ test('routes explicit domain-chip creation before creator or build routes', () =
   assert.equal(route.requires_confirmation, true);
 });
 
+test('routes video skit domain-chip creation from fresh intent without generic creator hijack', () => {
+  const route = decideNaturalRoute('shall we build a domain chip together for crafting trendy video skits using Higgsfield and Seedance 2');
+
+  assert.equal(route.route, 'domain_chip.create');
+  assert.equal(route.owner_system, 'domain-chip');
+  assert.equal(route.context_source, 'latest_message');
+  assert.match(String(route.payload.brief), /crafting trendy video skits using Higgsfield and Seedance 2/);
+  assert.equal(route.requires_confirmation, true);
+});
+
 test('routes contextual access changes only after access-focused turns', () => {
   const recentMessages = [
     'User: Change my access level to three please',

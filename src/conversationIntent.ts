@@ -480,7 +480,7 @@ export function parseNaturalChipCreateIntent(text: string): string | null {
   for (let i = 0; i < 6; i += 1) {
     const before = brief;
     brief = brief.replace(
-      /^\s*(?:let'?s\s+|please\s+|hey\s+|ok\s+|okay\s+|can\s+you\s+|could\s+you\s+|would\s+you\s+)+/i,
+      /^\s*(?:let'?s\s+|shall\s+we\s+|please\s+|hey\s+|ok\s+|okay\s+|can\s+you\s+|could\s+you\s+|would\s+you\s+)+/i,
       ''
     );
     brief = brief.replace(
@@ -489,7 +489,7 @@ export function parseNaturalChipCreateIntent(text: string): string | null {
     );
     brief = brief.replace(/^\s*i\s+(?:need|want|could\s+use|would\s+like)\s+/i, '');
     brief = brief.replace(/^\s*(?:a|an|another|new)\s+/i, '');
-    brief = brief.replace(/^\s*(?:domain[-\s]*)?chip\s+(?:called\s+|named\s+)?/i, '');
+    brief = brief.replace(/^\s*(?:domain[-\s]*)?chip\s+(?:(?:together\s+)?(?:for|to|around|about)\s+|called\s+|named\s+)?/i, '');
     brief = brief.replace(/^\s*domain-chip-[\w-]+\s*[:,-]?\s*/i, '');
     brief = brief.replace(/^\s*(?:for|that|which|to|about)\s+/i, '');
     if (brief === before) break;
