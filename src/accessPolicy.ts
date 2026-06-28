@@ -180,6 +180,25 @@ export function sparkLevel5PayloadProvesFullAccess(payload: Record<string, unkno
   );
 }
 
+export function sparkLevel5TelegramTransitionProvesFullPermission(
+  payload: Record<string, unknown>,
+  runner?: SparkAccessRunnerCapability
+): boolean {
+  return sparkLevel5PayloadProvesFullAccess(payload) && runner?.runnerWritable === 'yes';
+}
+
+export function sparkLevel5TelegramPermissionProofError(
+  payload: Record<string, unknown>,
+  runner?: SparkAccessRunnerCapability
+): string | null {
+  if (sparkLevel5TelegramTransitionProvesFullPermission(payload, runner)) return null;
+  if (runner?.runnerWritable !== 'yes') {
+    const detail = runner?.failureReason ? ` (${runner.failureReason})` : '';
+    return `Telegram runner is read-only${detail}.`;
+  }
+  return 'Level 5 status did not prove effective full-access sandbox.';
+}
+
 export function validateSparkAccessProfileForRuntime(
   profile: SparkAccessProfile,
   env: NodeJS.ProcessEnv = process.env

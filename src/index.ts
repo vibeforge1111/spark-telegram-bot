@@ -125,7 +125,7 @@ import {
 } from './localWorkspace';
 import { createSchedule, deleteSchedule, listSchedules, formatScheduleList, humanizeCron, formatNextFireLocal } from './schedule';
 import { probeTelegramRunnerWritability } from './runnerPreflight';
-import { describeSparkAccessProfile, getConfiguredSparkAccessProfile, getSparkAccessProfile, normalizeSparkAccessProfile, renderSparkAccessBriefStatus, renderSparkAccessChangeSummary, renderSparkAccessCapabilityStatus, renderSparkAccessChangeConfirmation, renderSparkAccessLevel5ConfirmationPrompt, renderSparkAccessConversationHelp, renderSparkAccessDenial, renderSparkAccessOnboarding, renderSparkAccessRuntimeHint, renderSparkAccessStatus, setSparkAccessProfile, sparkAccessAllows, sparkAccessLevel, sparkLevel5PayloadProvesFullAccess, sparkMissionNeedsOperatingSystemAccess, validateSparkAccessProfileForRuntime, type SparkAccessProfile, type SparkAccessRequirement } from './accessPolicy';
+import { describeSparkAccessProfile, getConfiguredSparkAccessProfile, getSparkAccessProfile, normalizeSparkAccessProfile, renderSparkAccessBriefStatus, renderSparkAccessChangeSummary, renderSparkAccessCapabilityStatus, renderSparkAccessChangeConfirmation, renderSparkAccessLevel5ConfirmationPrompt, renderSparkAccessConversationHelp, renderSparkAccessDenial, renderSparkAccessOnboarding, renderSparkAccessRuntimeHint, renderSparkAccessStatus, setSparkAccessProfile, sparkAccessAllows, sparkAccessLevel, sparkLevel5PayloadProvesFullAccess, sparkLevel5TelegramPermissionProofError, sparkMissionNeedsOperatingSystemAccess, validateSparkAccessProfileForRuntime, type SparkAccessProfile, type SparkAccessRequirement } from './accessPolicy';
 import {
   parseSparkLiveSummary,
   renderSparkLiveSummary,
@@ -1117,9 +1117,7 @@ function boolText(value: unknown): string {
 }
 
 function sparkAccessStatusArgsForProfile(profile: SparkAccessProfile): string[] {
-  return profile === 'operator'
-    ? ['access', 'status', '--level', '5', '--json']
-    : ['access', 'status', '--json'];
+  return profile === 'operator' ? ['access', 'status', '--level', '5', '--json'] : ['access', 'status', '--json'];
 }
 
 async function renderAuthoritativeSparkAccessStatus(chatId: string | number): Promise<string> {
@@ -8206,22 +8204,10 @@ async function readLevel5FullAccessProof(): Promise<Record<string, unknown>> {
   return payload;
 }
 
-async function level5FullAccessProofAvailable(): Promise<boolean> {
-  try {
-    await readLevel5FullAccessProof();
-    return true;
-  } catch {
-    return false;
-  }
-}
+async function level5FullAccessProofAvailable(): Promise<boolean> { try { await readLevel5FullAccessProof(); return true; } catch { return false; } }
 
 async function level5FullAccessProofError(): Promise<string | null> {
-  try {
-    await readLevel5FullAccessProof();
-    return null;
-  } catch (error) {
-    return redactText(error instanceof Error ? error.message : String(error));
-  }
+  try { await readLevel5FullAccessProof(); return null; } catch (error) { return redactText(error instanceof Error ? error.message : String(error)); }
 }
 
 async function applySparkAccessProfileChange(ctx: any, next: SparkAccessProfile): Promise<TelegramAuthorityExecutionResult> {
@@ -8238,7 +8224,9 @@ async function applySparkAccessProfileChange(ctx: any, next: SparkAccessProfile)
   const current = await getSparkAccessProfile(ctx.chat.id);
   const level5ServiceStillEnabled = next !== 'operator' && (current === 'operator' || await isLevel5ServiceEnabled());
   if (next === 'operator') {
-    const proofError = level5ProofReady ? null : await level5FullAccessProofError();
+    const proofError = level5ProofReady
+      ? sparkLevel5TelegramPermissionProofError(await readLevel5FullAccessProof(), await probeTelegramRunnerWritability())
+      : await level5FullAccessProofError();
     if (proofError) {
       await ctx.reply(['I did not switch this chat to Access Level 5 yet.', '', `Fresh Level 5 proof failed: ${proofError}`, 'Run `/access 5` again so Spark can repair the guardrails and restart services if needed.'].join('\n'));
       return { status: 'failure', summary: 'Access change to operator failed Level 5 full-access proof.' };
@@ -8290,10 +8278,14 @@ async function prepareLevel5AndApplyAccess(ctx: any): Promise<TelegramAuthorityE
       scheduleSparkRestartAfterAccessChange();
       return { status: 'partial', summary: 'Access Level 5 guardrails were prepared and Spark restart was scheduled.' };
     }
-    const level5 = objectRecord(result.payload?.level5);
     if (!sparkLevel5PayloadProvesFullAccess(result.payload || {})) {
       await ctx.reply(result.reply);
       return { status: 'failure', summary: 'Access Level 5 setup did not prove danger-full-access effective sandbox.' };
+    }
+    const permissionProofError = sparkLevel5TelegramPermissionProofError(result.payload || {}, await probeTelegramRunnerWritability());
+    if (permissionProofError) {
+      await ctx.reply([result.reply, '', 'I did not switch this chat to Access Level 5 yet.', `Fresh Telegram permission proof failed: ${permissionProofError}`, 'Restart Spark and run `/access 5` again from this trusted local Telegram chat.'].join('\n'));
+      return { status: 'failure', summary: 'Access change to operator failed Telegram runner full-permission proof.' };
     }
 
     await setSparkAccessProfile(ctx.chat.id, 'operator');

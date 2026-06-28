@@ -29,7 +29,9 @@ import {
   sparkAccessAllowsWorkspaceBuilds,
   sparkHostedFullAccessAllowed,
   sparkHighAgencyWorkersAllowed,
+  sparkLevel5TelegramPermissionProofError,
   sparkLevel5RuntimeGuardrailsActive,
+  sparkLevel5TelegramTransitionProvesFullPermission,
   sparkIsHostedRuntime,
   validateSparkAccessProfileForRuntime
 } from '../src/accessPolicy';
@@ -235,6 +237,50 @@ async function main(): Promise<void> {
     assert.doesNotMatch(level5Prompt, /Restart Spark/);
   });
 
+  await test('Level 5 Telegram transition requires full sandbox proof and writable runner', () => {
+    const fullPayload = {
+      effective_access_level: 5,
+      level5: {
+        service_enabled: true,
+        effective_codex_sandbox: 'danger-full-access'
+      },
+      state_machine: {
+        service_can_operate_whole_computer: true,
+        can_operate_whole_computer: true
+      }
+    };
+
+    assert.equal(
+      sparkLevel5TelegramTransitionProvesFullPermission(fullPayload, { runnerWritable: 'yes' }),
+      true
+    );
+    for (const runnerWritable of ['no', 'unknown'] as const) {
+      assert.equal(
+        sparkLevel5TelegramTransitionProvesFullPermission(fullPayload, {
+          runnerWritable,
+          failureReason: runnerWritable === 'no' ? 'EROFS' : undefined
+        }),
+        false,
+        `runner ${runnerWritable} must not become Telegram Level 5 full permission`
+      );
+    }
+    assert.equal(
+      sparkLevel5TelegramTransitionProvesFullPermission({
+        ...fullPayload,
+        level5: {
+          service_enabled: true,
+          effective_codex_sandbox: 'read-only'
+        }
+      }, { runnerWritable: 'yes' }),
+      false
+    );
+    assert.equal(sparkLevel5TelegramPermissionProofError(fullPayload, { runnerWritable: 'yes' }), null);
+    assert.match(
+      sparkLevel5TelegramPermissionProofError(fullPayload, { runnerWritable: 'no', failureReason: 'EROFS' }) || '',
+      /read-only \(EROFS\)/
+    );
+  });
+
   await test('slash access setter uses authoritative status and compact confirmation', async () => {
     const indexSource = await readFile(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
     const accessPolicySource = await readFile(path.join(__dirname, '..', 'src', 'accessPolicy.ts'), 'utf8');
@@ -251,8 +297,10 @@ async function main(): Promise<void> {
     assert.match(indexSource, /bot\.action\(\/\^spark_access_level:operator:confirm/);
     assert.match(indexSource, /Access Level 5 guardrails were prepared\./);
     assert.match(indexSource, /sparkLevel5PayloadProvesFullAccess/);
+    assert.match(indexSource, /sparkLevel5TelegramPermissionProofError/);
     assert.match(indexSource, /level5FullAccessProofAvailable/);
     assert.match(accessPolicySource, /function sparkLevel5PayloadProvesFullAccess/);
+    assert.match(accessPolicySource, /function sparkLevel5TelegramPermissionProofError/);
     assert.match(indexSource, /await readLevel5FullAccessProof\(\)/);
     assert.match(indexSource, /const level5ProofReady = next === 'operator' \? await level5FullAccessProofAvailable\(\) : false/);
     assert.match(indexSource, /level5ProofReady \? \{ ok: true as const \} : validateSparkAccessProfileForRuntime\(next\)/);
