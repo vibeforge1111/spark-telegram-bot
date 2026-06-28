@@ -86,6 +86,71 @@ void (async () => {
     }
   });
 
+  await test('default action runner promotes stale read-only env from the active Telegram profile guardrails', async () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-level5-action-profile-env-'));
+    const binDir = path.join(tempRoot, 'bin');
+    const sparkHome = path.join(tempRoot, 'spark-home');
+    const modulesDir = path.join(sparkHome, 'config', 'modules');
+    const envCapturePath = path.join(tempRoot, 'child-env.json');
+    const oldPath = process.env.PATH;
+    const oldSparkHome = process.env.SPARK_HOME;
+    const oldProfile = process.env.SPARK_TELEGRAM_PROFILE;
+    const oldSandbox = process.env.SPARK_CODEX_SANDBOX;
+    const oldHighAgency = process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS;
+    const oldExternalPaths = process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+    try {
+      await import('node:fs/promises').then(({ mkdir }) => mkdir(modulesDir, { recursive: true }));
+      await import('node:fs/promises').then(({ mkdir }) => mkdir(binDir, { recursive: true }));
+      writeFileSync(
+        path.join(modulesDir, 'spark-telegram-bot.recursive.env'),
+        [
+          'BOT_NAME=recursive',
+          'BOT_TOKEN=fake-recursive-token',
+          'SPARK_ALLOW_HIGH_AGENCY_WORKERS=1',
+          'SPARK_ALLOW_EXTERNAL_PROJECT_PATHS=1',
+          'SPARK_CODEX_SANDBOX=danger-full-access',
+          '',
+        ].join('\n'),
+        'utf8'
+      );
+      writeFileSync(
+        path.join(binDir, 'spark'),
+        [
+          '#!/bin/sh',
+          `printf '{"sandbox":"%s","highAgency":"%s","externalPaths":"%s","profile":"%s"}\\n' "$SPARK_CODEX_SANDBOX" "$SPARK_ALLOW_HIGH_AGENCY_WORKERS" "$SPARK_ALLOW_EXTERNAL_PROJECT_PATHS" "$SPARK_TELEGRAM_PROFILE" > "${envCapturePath.replace(/"/g, '\\"')}"`,
+          'printf \'{"ok":true,"effective_access_level":5,"level5":{"service_enabled":true,"activation_state":"active_for_services","effective_codex_sandbox":"danger-full-access"},"state_machine":{"service_can_operate_whole_computer":true}}\\n\'',
+          ''
+        ].join('\n'),
+        'utf8'
+      );
+      chmodSync(path.join(binDir, 'spark'), 0o755);
+      process.env.PATH = `${binDir}${path.delimiter}${oldPath || ''}`;
+      process.env.SPARK_HOME = sparkHome;
+      process.env.SPARK_TELEGRAM_PROFILE = 'recursive';
+      process.env.SPARK_CODEX_SANDBOX = 'read-only';
+      delete process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS;
+      delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+
+      const result = await runSparkAccessActionDetailed('level5_enable');
+      const childEnv = JSON.parse(readFileSync(envCapturePath, 'utf8')) as Record<string, string>;
+
+      assert.equal(result.payload?.ok, true);
+      assert.equal(childEnv.profile, 'recursive');
+      assert.equal(childEnv.sandbox, 'danger-full-access');
+      assert.equal(childEnv.highAgency, '1');
+      assert.equal(childEnv.externalPaths, '1');
+      assert.match(result.reply, /whole-computer operator mode is active/i);
+    } finally {
+      if (oldPath === undefined) delete process.env.PATH; else process.env.PATH = oldPath;
+      if (oldSparkHome === undefined) delete process.env.SPARK_HOME; else process.env.SPARK_HOME = oldSparkHome;
+      if (oldProfile === undefined) delete process.env.SPARK_TELEGRAM_PROFILE; else process.env.SPARK_TELEGRAM_PROFILE = oldProfile;
+      if (oldSandbox === undefined) delete process.env.SPARK_CODEX_SANDBOX; else process.env.SPARK_CODEX_SANDBOX = oldSandbox;
+      if (oldHighAgency === undefined) delete process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS; else process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS = oldHighAgency;
+      if (oldExternalPaths === undefined) delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS; else process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS = oldExternalPaths;
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   await test('runs workspace setup through the Spark CLI JSON action', async () => {
     const reply = await runSparkAccessAction('workspace_setup', async (args, timeoutMs) => {
       assert.deepEqual(args, ['access', 'setup', '--json']);
