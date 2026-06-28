@@ -165,7 +165,6 @@ function objectRecord(value: unknown): Record<string, unknown> {
 export function sparkLevel5PayloadProvesFullAccess(payload: Record<string, unknown>): boolean {
   const level5 = objectRecord(payload.level5);
   const proof = objectRecord(level5.full_permission_proof);
-  if (Object.keys(proof).length > 0) return proof.ok === true;
   const stateMachine = objectRecord(payload.state_machine);
   const effectiveAccess = payload.effective_access_level ?? stateMachine.effective_access_level;
   const serviceEnabled = level5.service_enabled === true || stateMachine.service_can_operate_whole_computer === true;
@@ -174,12 +173,14 @@ export function sparkLevel5PayloadProvesFullAccess(payload: Record<string, unkno
     stateMachine.service_can_operate_whole_computer === true ||
     effectiveAccess === 5
   );
-  return (
+  const currentPayloadMatchesFullAccess = (
     effectiveAccess === 5 &&
     serviceEnabled &&
     canOperateWholeComputer &&
     String(level5.effective_codex_sandbox || '') === 'danger-full-access'
   );
+  if (Object.keys(proof).length > 0) return proof.ok === true && currentPayloadMatchesFullAccess;
+  return currentPayloadMatchesFullAccess;
 }
 
 export function sparkLevel5TelegramTransitionProvesFullPermission(

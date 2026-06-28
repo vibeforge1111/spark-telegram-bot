@@ -615,7 +615,7 @@ async function main(): Promise<void> {
     }
   });
 
-  await test('prefers the CLI Level 5 full-permission proof when present', () => {
+  await test('requires CLI Level 5 full-permission proof to agree with current payload', () => {
     assert.equal(
       sparkLevel5PayloadProvesFullAccess({
         effective_access_level: 4,
@@ -625,6 +625,22 @@ async function main(): Promise<void> {
           full_permission_proof: { ok: true }
         },
         state_machine: { can_operate_whole_computer: false }
+      }),
+      false
+    );
+
+    assert.equal(
+      sparkLevel5PayloadProvesFullAccess({
+        effective_access_level: 5,
+        level5: {
+          service_enabled: true,
+          effective_codex_sandbox: 'danger-full-access',
+          full_permission_proof: { ok: true, missing: [] }
+        },
+        state_machine: {
+          can_operate_whole_computer: true,
+          service_can_operate_whole_computer: true
+        }
       }),
       true
     );
