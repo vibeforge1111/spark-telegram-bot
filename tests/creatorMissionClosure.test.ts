@@ -31,6 +31,51 @@ async function run(): Promise<void> {
       assert.doesNotMatch(message, /Creator plan ready|Private path staged|Creator plan is staged/);
       assert.doesNotMatch(message, /Board: .*\/kanban$/m);
     });
+
+    await test('creatorMission treats staged artifact proof without mission id as review-only', async () => {
+      (axios as any).post = async () => ({
+        data: {
+          ok: true,
+          requestId: 'tg-creator-review-only',
+          taskCount: 4,
+          reviewPath: '/creator/review/tg-creator-review-only',
+          trace: {
+            execution_policy: 'manual_run',
+            artifacts: ['domain_chip', 'benchmark_pack'],
+            intent_packet: { target_domain: 'Research Notes', privacy_mode: 'local_only', risk_level: 'medium' }
+          }
+        }
+      });
+      const result = await spawner.creatorMission({
+        brief: 'Create a DCL creator system for research notes.',
+        requestId: 'tg-creator-review-only',
+        privacyMode: 'local_only',
+        riskLevel: 'medium'
+      });
+      const message = formatCreatorMissionSummary(result, 'http://spawner.test/');
+
+      assert.equal(result.success, true);
+      assert.equal(result.missionId, undefined);
+      assert.equal(result.tracePath, '/creator/review/tg-creator-review-only');
+      assert.match(message, /4 tasks staged/);
+      assert.match(message, /Review: http:\/\/spawner\.test\/creator\/review\/tg-creator-review-only/);
+      assert.doesNotMatch(message, /say: run it/);
+      assert.doesNotMatch(message, /Board: http:\/\/spawner\.test\/kanban$/m);
+      assert.doesNotMatch(message, /kanban\?mission=staged-review/);
+    });
+
+    await test('creatorMission rejects local filesystem paths as closure proof', async () => {
+      (axios as any).post = async () => ({ data: { ok: true, artifactPath: '/Users/alchemistab/.spark/private/creator-plan.json' } });
+      const result = await spawner.creatorMission({
+        brief: 'Create a private DCL creator system.',
+        requestId: 'tg-creator-local-path',
+        privacyMode: 'local_only',
+        riskLevel: 'medium'
+      });
+
+      assert.equal(result.success, false);
+      assert.match(result.error || '', /missing mission id or staged artifact proof/i);
+    });
   } finally {
     (axios as any).post = originalPost;
   }

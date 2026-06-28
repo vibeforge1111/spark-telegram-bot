@@ -84,10 +84,7 @@ interface CreatorMissionTrace {
   intent_packet?: CreatorIntentPacket;
   canonical?: CreatorCanonicalStatus;
   publication?: CreatorPublicationStatus;
-  links?: {
-    canvas?: string;
-    kanban?: string;
-  };
+  links?: { canvas?: string; kanban?: string; review?: string; artifact?: string };
 }
 
 interface CreatorMissionResult {
@@ -965,13 +962,14 @@ export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUr
   const explicitReadOnly = trace.execution_policy === 'read_only';
   const readOnly = explicitReadOnly || !provenMissionId;
   const canvasProof = result.canvasUrl || trace.links?.canvas;
-  const kanbanUrl = readOnly
-    ? creatorWorkspaceUrl('kanban', baseUrl)
-    : trace.links?.kanban || creatorMissionKanbanUrl(missionId, baseUrl);
+  const reviewUrl = absoluteSpawnerUrl(result.tracePath || trace.links?.review || trace.links?.artifact, baseUrl);
+  const kanbanUrl = provenMissionId
+    ? (explicitReadOnly ? creatorWorkspaceUrl('kanban', baseUrl) : trace.links?.kanban || creatorMissionKanbanUrl(missionId, baseUrl))
+    : undefined;
   const taskCount = typeof result.taskCount === 'number' ? result.taskCount : Array.isArray(trace.tasks) ? trace.tasks.length : null;
   const canvasUrl = explicitReadOnly
     ? creatorWorkspaceUrl('canvas', baseUrl)
-    : !provenMissionId ? absoluteSpawnerUrl(canvasProof, baseUrl) || creatorWorkspaceUrl('canvas', baseUrl) : absoluteSpawnerUrl(canvasProof, baseUrl);
+    : absoluteSpawnerUrl(canvasProof, baseUrl);
   const domain = formatCreatorDomainLabel(intent.target_domain);
   const artifacts = formatCreatorArtifactSummary(trace.artifacts);
   const evidenceTier = formatEvidenceTier(trace.canonical?.evidence_tier);
@@ -993,7 +991,8 @@ export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUr
     '',
     'Workspace',
     ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
-    `Board: ${kanbanUrl}`,
+    ...(reviewUrl ? [`Review: ${reviewUrl}`] : []),
+    ...(kanbanUrl ? [`Board: ${kanbanUrl}`] : []),
     '',
     'Next',
     ...(readOnly
@@ -1220,7 +1219,7 @@ export const spawner = {
         requestId: res.data?.requestId,
         taskCount: typeof res.data?.taskCount === 'number' ? res.data.taskCount : undefined,
         canvasUrl: typeof res.data?.canvasUrl === 'string' ? res.data.canvasUrl : undefined,
-        tracePath: typeof res.data?.tracePath === 'string' ? res.data.tracePath : undefined,
+        tracePath: proof.stagedPath,
         trace: res.data?.trace
       };
     } catch (err: any) {

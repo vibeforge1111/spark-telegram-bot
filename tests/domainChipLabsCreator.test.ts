@@ -157,6 +157,107 @@ await test('DCL framework Telegram turn fails closed when Spawner omits mission 
     Object.assign(process.env, originalEnv);
   }
 });
+
+await test('DCL framework Telegram turn remembers pending state from trace mission proof', async () => {
+  const originalPost = axios.post;
+  const originalGet = axios.get;
+  const originalEnv = { ...process.env };
+  deletePendingCreatorMission(PENDING_KEY);
+  try {
+    process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+    process.env.BOT_DEFAULT_TIER = 'base';
+    process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+    process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+    process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+    process.env.SPARK_BOT_TEST_MODE = '1';
+
+    (axios as any).post = async (url: string) => {
+      if (url.includes('/api/creator/mission')) {
+        return {
+          data: {
+            ok: true,
+            taskCount: 5,
+            trace: {
+              mission_id: 'mission-creator-trace-only',
+              execution_policy: 'manual_run',
+              artifacts: ['domain_chip', 'benchmark_pack']
+            }
+          }
+        };
+      }
+      return { data: { success: true } };
+    };
+    (axios as any).get = async () => ({ data: { pending: false } });
+
+    const replies: string[] = [];
+    const indexModule = await import('../src/index');
+    await indexModule.handleTextMessage(makeCtx(replies));
+
+    assert.match(replies.join('\n'), /5 tasks queued/);
+    assert.match(replies.join('\n'), /say: run it/);
+    assert.equal(getPendingCreatorMission(PENDING_KEY)?.missionId, 'mission-creator-trace-only');
+  } finally {
+    deletePendingCreatorMission(PENDING_KEY);
+    (axios as any).post = originalPost;
+    (axios as any).get = originalGet;
+    for (const key of Object.keys(process.env)) {
+      if (!(key in originalEnv)) delete process.env[key];
+    }
+    Object.assign(process.env, originalEnv);
+  }
+});
+
+await test('DCL framework Telegram turn keeps staged artifact proof review-only', async () => {
+  const originalPost = axios.post;
+  const originalGet = axios.get;
+  const originalEnv = { ...process.env };
+  deletePendingCreatorMission(PENDING_KEY);
+  try {
+    process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+    process.env.BOT_DEFAULT_TIER = 'base';
+    process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+    process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+    process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+    process.env.SPARK_BOT_TEST_MODE = '1';
+
+    (axios as any).post = async (url: string) => {
+      if (url.includes('/api/creator/mission')) {
+        return {
+          data: {
+            ok: true,
+            taskCount: 4,
+            reviewPath: '/creator/review/tg-creator-review-only',
+            trace: {
+              execution_policy: 'manual_run',
+              artifacts: ['domain_chip', 'benchmark_pack']
+            }
+          }
+        };
+      }
+      return { data: { success: true } };
+    };
+    (axios as any).get = async () => ({ data: { pending: false } });
+
+    const replies: string[] = [];
+    const indexModule = await import('../src/index');
+    await indexModule.handleTextMessage(makeCtx(replies));
+
+    const replyText = replies.join('\n');
+    assert.match(replyText, /4 tasks staged/);
+    assert.match(replyText, /Review: http:\/\/stub-spawner\.test\/creator\/review\/tg-creator-review-only/);
+    assert.doesNotMatch(replyText, /say: run it/);
+    assert.doesNotMatch(replyText, /kanban\?mission=staged-review/);
+    assert.equal(getPendingCreatorMission(PENDING_KEY), null);
+  } finally {
+    deletePendingCreatorMission(PENDING_KEY);
+    (axios as any).post = originalPost;
+    (axios as any).get = originalGet;
+    for (const key of Object.keys(process.env)) {
+      if (!(key in originalEnv)) delete process.env[key];
+    }
+    Object.assign(process.env, originalEnv);
+  }
+});
 }
 
 run().catch((error) => {
