@@ -1800,7 +1800,7 @@ async function run(): Promise<void> {
 
 		assert.match(reply, /I can build this as domain-chip-creates-surreal-product-names-from/);
 		assert.match(reply, /Recommended path: Advanced PRD -> tasks/);
-		assert.match(reply, /Before I start: should v1 focus on ideation only, shot\/prompt packets, or the full campaign workflow\?/);
+		assert.match(reply, /Before I start: should v1 focus on ideation only, shot\/prompt packets, watchtower checks, or the full campaign workflow\?/);
 		assert.match(reply, /private DCL scaffold, prompt packets, evals, watchtower, and no external API calls/);
 		assert.match(reply, /Reply "go"/);
 		assert.doesNotMatch(reply, /Mission:/);

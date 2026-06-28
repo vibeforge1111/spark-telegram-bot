@@ -16,6 +16,7 @@ loadSparkTelegramProfileEnv(process.argv.slice(2), process.env, { preserveExisti
 loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });
 import { message } from 'telegraf/filters';
 import { conversation, isPendingTaskRecoveryQuestion, renderPendingTaskRecoveryReply } from './conversation';
+import { domainChipLabsCreatorContractLines, FULL_CREATOR_SYSTEM_ARTIFACT_PATTERN } from './domainChipLabsCreatorContract';
 import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
   getBuilderBridgeStatus,
@@ -5631,7 +5632,7 @@ export function parseNaturalCreatorMissionIntent(text: string, recentMessages: s
   if (!hasCreateVerb) return null;
 
   const artifactPatterns: Array<{ label: string; pattern: RegExp }> = [
-    { label: 'full creator system', pattern: /\b(?:creator system|creator mission|creator run|full path|domain chip.*benchmark.*(?:specialization|path|autoloop)|specialization.*benchmark.*autoloop)\b/ },
+    { label: 'full creator system', pattern: FULL_CREATOR_SYSTEM_ARTIFACT_PATTERN },
     { label: 'specialization path', pattern: /\b(?:specialization path|specialisation path|learning path|mastery path)\b/ },
     { label: 'autoloop', pattern: /\b(?:autoloop|auto loop|recursive loop|self-improvement loop)\b/ },
     { label: 'benchmark pack', pattern: /\b(?:benchmark pack|eval pack|evaluation pack|test suite)\b/ },
@@ -5640,11 +5641,8 @@ export function parseNaturalCreatorMissionIntent(text: string, recentMessages: s
     { label: 'reusable template', pattern: /\b(?:reusable template|loop template|specialization template)\b/ },
     { label: 'domain chip', pattern: /\b(?:domain chip|domain-chip)\b/ }
   ];
-  const artifact = artifactPatterns.find((entry) => entry.pattern.test(normalized));
-  if (!artifact) return null;
-
-  const brief = text.trim().replace(/\s+/g, ' ');
-  if (brief.length < 8) return null;
+  const artifact = artifactPatterns.find((entry) => entry.pattern.test(normalized)); if (!artifact) return null;
+  const brief = text.trim().replace(/\s+/g, ' '); if (brief.length < 8) return null;
   const targetLabel = inferNaturalCreatorTargetLabel(text, recentMessages);
   const benchmarkLevelMatch = normalized.match(/\blevel\s*(10|[1-9])\b/);
   const isSparkQaBenchmarkPack = artifact.label === 'benchmark pack' && /\b(?:spark\s+qa\s+operator|qa\s+operator)\b/.test(normalized);
@@ -5675,6 +5673,7 @@ export function parseNaturalCreatorMissionIntent(text: string, recentMessages: s
       brief,
       '',
       'Treat higher-intelligence, tool-usage, reasoning, or ability-gain claims as unproven until benchmark validation records a before/after gain.',
+      ...domainChipLabsCreatorContractLines(),
       'Require explicit evidence for creator-intent.json, adapter-map.json, created-artifact-manifest.json, domain-chip/, benchmark/, specialization-path/, autoloop/policy.json, reports/evidence_ladder.md, reports/creator-mission-status.json, and swarm/contribution_packet.json before any publish or share step.',
       'Keep publication.network_absorbable=false unless future promotion gates and explicit operator approval allow it.',
       'Use Spark creator-system standards: creator intent packet, adapter map, artifact manifests, benchmark gates, evidence ladder, local/private boundary, rollback note, and review bundle only when gates allow it.',
@@ -5813,7 +5812,7 @@ export function formatDomainChipBuildPreview(brief: string): string {
   return [
     `I can build this as ${projectName}.`,
     `Recommended path: ${mode.buildMode === 'advanced_prd' ? 'Advanced PRD -> tasks' : 'Direct build'} because ${mode.reason}`,
-    'Before I start: should v1 focus on ideation only, shot/prompt packets, or the full campaign workflow?',
+    'Before I start: should v1 focus on ideation only, shot/prompt packets, watchtower checks, or the full campaign workflow?',
     'Reply "go" to use my default: private DCL scaffold, prompt packets, evals, watchtower, and no external API calls.'
   ].join('\n');
 }
@@ -9343,7 +9342,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       /\b(?:create|update|attach|add|link)\b.{0,24}\b(?:domain[-\s]*chip|chip)\b/i.test(text)
     );
   const earlyNaturalChipBrief = conversation.isAdmin(ctx.from) ? parseNaturalChipCreateIntent(text) : null;
-  const naturalCreatorAuthorization = naturalCreatorIntent && (!earlyNaturalChipBrief || creatorLoopDomainChipFollowup)
+  const naturalCreatorAuthorization = naturalCreatorIntent && (!earlyNaturalChipBrief || creatorLoopDomainChipFollowup || naturalCreatorIntent.artifactLabel === 'full creator system')
     ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
         route: 'creator.mission',
         text,
@@ -9354,7 +9353,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         kind: 'creator_or_domain_chip'
       })
     : null;
-  if (naturalCreatorIntent && (!earlyNaturalChipBrief || creatorLoopDomainChipFollowup) && naturalCreatorAuthorization?.allow) {
+  if (naturalCreatorIntent && (!earlyNaturalChipBrief || creatorLoopDomainChipFollowup || naturalCreatorIntent.artifactLabel === 'full creator system') && naturalCreatorAuthorization?.allow) {
     await conversation.remember(user, text).catch(() => {});
     await ctx.reply(`I will stage the ${naturalCreatorIntent.artifactLabel} privately first. No run or publishing yet.`);
     await handleCreatorMissionPlan(ctx, naturalCreatorIntent, naturalCreatorAuthorization);

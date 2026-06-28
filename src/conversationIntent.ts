@@ -1,4 +1,5 @@
 import { parseBuildIntent } from './buildIntent';
+import { domainChipLabsCreatorContractLines } from './domainChipLabsCreatorContract';
 import { isRouteConfidenceDefinitionQuestion } from './routeConfidenceQuestion';
 import type { ShippedProjectContext } from './shippedProjectContext';
 
@@ -694,10 +695,9 @@ function normalizeCreatorMissionBrief(text: string, contextText = ''): string {
   if (isQaOperatorCreatorMission(combined)) {
     return qaOperatorCreatorBrief(combined);
   }
-  const briefParts = [
-    normalized,
-    contextText ? `Recent working context: ${contextText}` : '',
+  const briefParts = [normalized, contextText ? `Recent working context: ${contextText}` : '',
     'Treat higher-intelligence, tool-usage, reasoning, or ability-gain claims as unproven until benchmark validation records a before/after gain.',
+    ...domainChipLabsCreatorContractLines(),
     'Require explicit evidence for creator-intent.json, adapter-map.json, created-artifact-manifest.json, domain-chip/, benchmark/, specialization-path/, autoloop/policy.json, reports/evidence_ladder.md, reports/creator-mission-status.json, and swarm/contribution_packet.json before any publish or share step.',
     'Keep publication.network_absorbable=false unless future promotion gates and explicit operator approval allow it.',
     'Use Spark creator-system standards: creator intent packet, artifact manifests, benchmark gates, evidence ladder, local/private boundary, rollback note, and review bundle only when gates allow it.'

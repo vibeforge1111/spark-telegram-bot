@@ -312,7 +312,7 @@ async function run(): Promise<void> {
     assert.match(message, /No execution or publishing happened from staging/);
     assert.match(message, /Labs verdict: prototype; evidence tier: local only; network_absorbable=false/);
     assert.match(message, /domain chip, benchmark pack, autoloop policy/);
-    assert.match(message, /Creator-run contract: creator intent, adapter map, artifact manifest, domain chip, benchmark pack, specialization path, autoloop policy, evidence ladder, creator mission status, swarm\/contribution_packet\.json/);
+    assert.match(message, /Creator-run contract: creator intent, adapter map, artifact manifest, domain chip, manifest\/hook contract, triggers\/non-triggers, playbook, examples, benchmark pack, score dimensions, allowed mutations, watchtower[\s\S]*privacy boundary, rollback, review packet, activation notes, creator mission status, swarm\/contribution_packet\.json/);
     assert.match(message, /baseline, candidate, held-out or trap evidence/);
     assert.match(message, /2 tasks queued/);
     assert.match(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);

@@ -903,7 +903,7 @@ function formatCreatorArtifactSummary(artifacts: string[] | undefined): string {
 }
 
 function creatorEvidenceStandardLine(): string {
-  return 'creator intent, adapter map, artifact manifest, domain chip, benchmark pack, specialization path, autoloop policy, evidence ladder, creator mission status, swarm/contribution_packet.json';
+  return 'creator intent, adapter map, artifact manifest, domain chip, manifest/hook contract, triggers/non-triggers, playbook, examples, benchmark pack, score dimensions, allowed mutations, watchtower, specialization path, autoloop policy, evidence ladder, privacy boundary, rollback, review packet, activation notes, creator mission status, swarm/contribution_packet.json';
 }
 
 function formatEvidenceTier(value: string | undefined): string {
