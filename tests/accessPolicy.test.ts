@@ -29,6 +29,7 @@ import {
   sparkAccessAllowsWorkspaceBuilds,
   sparkHostedFullAccessAllowed,
   sparkHighAgencyWorkersAllowed,
+  sparkLevel5PayloadProvesFullAccess,
   sparkLevel5TelegramPermissionProofError,
   sparkLevel5RuntimeGuardrailsActive,
   sparkLevel5TelegramTransitionProvesFullPermission,
@@ -612,6 +613,46 @@ async function main(): Promise<void> {
       assert.match(denied.message, /\/access 3/);
       assert.match(denied.message, /SPARK_ALLOW_HOSTED_FULL_ACCESS=1/);
     }
+  });
+
+  await test('prefers the CLI Level 5 full-permission proof when present', () => {
+    assert.equal(
+      sparkLevel5PayloadProvesFullAccess({
+        effective_access_level: 4,
+        level5: {
+          service_enabled: false,
+          effective_codex_sandbox: 'read-only',
+          full_permission_proof: { ok: true }
+        },
+        state_machine: { can_operate_whole_computer: false }
+      }),
+      true
+    );
+
+    assert.equal(
+      sparkLevel5PayloadProvesFullAccess({
+        effective_access_level: 5,
+        level5: {
+          service_enabled: true,
+          effective_codex_sandbox: 'danger-full-access',
+          full_permission_proof: { ok: false, missing: ['restart_not_required'] }
+        },
+        state_machine: { can_operate_whole_computer: true }
+      }),
+      false
+    );
+
+    assert.equal(
+      sparkLevel5PayloadProvesFullAccess({
+        effective_access_level: 5,
+        level5: {
+          service_enabled: true,
+          effective_codex_sandbox: 'danger-full-access'
+        },
+        state_machine: { can_operate_whole_computer: true }
+      }),
+      true
+    );
   });
 }
 
