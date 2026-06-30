@@ -53,7 +53,11 @@ export function loadSparkAgentEnv(agentName: string, env: NodeJS.ProcessEnv = pr
     path.join(agentsDir, `${safeName}.env`)
   ];
   for (const file of files) {
-    if (!fs.existsSync(file)) continue;
+    try {
+        if (!fs.existsSync(file)) continue;
+    } catch (e) {
+        // silent catch
+    }
     loadEnvFileIntoProcess(file, env);
     loaded.push(file);
   }
