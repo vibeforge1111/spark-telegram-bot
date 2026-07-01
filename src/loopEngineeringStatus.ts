@@ -59,6 +59,7 @@ const STATUS_WORD_PATTERN = new RegExp(`\\b(?:${STATUS_LOOKUP_WORD_PATTERN.sourc
 const DAILY_ALIAS_PATTERN = /\b(?:daily\s+schedule|schedule\s+reliability|daily\s+reminder|reminder\s+reliability)\b/i;
 const PRD_ALIAS_PATTERN = /\b(?:prd\s+writing|product\s+requirements?\s+doc(?:ument)?|prd\s+chip)\b/i;
 const FRESHNESS_WINDOW_MS = 10_000;
+const RECENT_FRESHNESS_WINDOW_MS = 15 * 60_000;
 
 function normalizeText(text: string): string {
   return text.replace(/[‘’]/g, "'").replace(/\s+/g, ' ').trim();
@@ -191,6 +192,31 @@ function renderLatestEventLine(event: LoopEngineeringResultEvent | null): string
   return `Latest result: ${event.label} ${event.status}${details.length ? ` (${details.join(', ')})` : ''}.`;
 }
 
+function readableBlockedCheck(check: LoopEngineeringStatusCheck): string {
+  if (check.id === 'hard_blockers') {
+    const detail = check.detail.trim().replace(/_/g, ' ');
+    return detail || 'operator approval missing';
+  }
+  if (check.id === 'live_telegram_proof') return 'live Telegram proof missing';
+  if (check.id === 'local_telegram_handler') return 'local Telegram fast-path proof missing';
+  return check.label;
+}
+
+function readableActionText(value: string): string {
+  return value.replace(/operator_publication_approval_missing/g, 'operator publication approval missing');
+}
+
+function renderActivationProofLine(packet: Pick<LoopEngineeringStatusPacket, 'blockedChecks' | 'liveTelegramProven'>): string {
+  const blockers = packet.blockedChecks.map(readableBlockedCheck).filter(Boolean);
+  if (packet.liveTelegramProven && blockers.length === 0) {
+    return 'Activation proof: live Telegram proof is present and I do not see readiness blockers in Spawner.';
+  }
+  if (blockers.length) {
+    return `Activation proof: not live-approved yet; blockers I can prove are ${blockers.join(', ')}.`;
+  }
+  return 'Activation proof: no readiness blocker is listed in Spawner, but activation still needs scoped approval.';
+}
+
 function timestampMs(value: unknown): number {
   if (typeof value !== 'string' || !value.trim()) return 0;
   const parsed = Date.parse(value);
@@ -218,6 +244,9 @@ function freshnessLabelFromTimestamp(latestTimestamp: string, nowMs: number): st
   }
   if (ageMs < 0) {
     return `read from Spawner now; latest Spawner event timestamp is ${latestTimestamp}; freshness: clock-skew/future timestamp.`;
+  }
+  if (ageMs <= RECENT_FRESHNESS_WINDOW_MS) {
+    return `read from Spawner now; latest Spawner event timestamp is ${latestTimestamp}; freshness: recent (${formatAge(ageMs)}).`;
   }
   return `read from Spawner now; latest Spawner event timestamp is ${latestTimestamp}; freshness: stale (${formatAge(ageMs)}).`;
 }
@@ -288,6 +317,8 @@ function renderCompactReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>):
   const lines = [
     `${packet.domain} is ${packet.readinessLabel.toLowerCase()} (${packet.passCount}/${packet.totalCount} checks pass); ${packet.freshnessLabel}`,
     renderLatestEventLine(packet.latestResultEvent),
+    renderEventLine(packet.topResultEvents),
+    renderActivationProofLine(packet),
     ...(packet.currentScheduleLine ? [packet.currentScheduleLine] : []),
     'I only read Spawner here; nothing was queued or changed.'
   ];
@@ -304,18 +335,19 @@ function renderReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>, text = 
     return lines.join('\n');
   }
   const blockedLine = packet.blockedChecks.length
-    ? `The blockers I can prove are ${packet.blockedChecks.map((check) => check.label).join(', ')}.`
+    ? `The blockers I can prove are ${packet.blockedChecks.map(readableBlockedCheck).join(', ')}.`
     : 'I do not see a blocker in the current readiness packet.';
   return [
     `${packet.domain} is ${packet.readinessLabel.toLowerCase()}: ${packet.passCount}/${packet.totalCount} checks pass. ${blockedLine}`,
     `Freshness: ${packet.freshnessLabel}`,
     renderLatestEventLine(packet.latestResultEvent),
+    renderActivationProofLine(packet),
     ...(packet.currentScheduleLine ? [packet.currentScheduleLine] : []),
     ...(wantsDistilledLearningLine(text) ? [packet.distilledLearningLine || 'Distilled reuse: I do not see a reusable distilled lesson in Spawner yet.'] : []),
     renderEventLine(packet.topResultEvents),
     'I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued.',
     '',
-    `Next safe step: ${packet.nextAction}`,
+    `Next safe step: ${readableActionText(packet.nextAction)}`,
     `Details: ${packet.detailUrl}`
   ].join('\n');
 }
