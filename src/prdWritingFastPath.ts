@@ -206,7 +206,7 @@ function draftReply(text: string, tokenMode: PrdTokenMode): string {
     (dependency || tokenMode === 'review_packet') ? 'upstream owners + rollback' : ''
   ].filter(Boolean).join(', ');
   const lines = [
-    `Fast PRD path: ${area}`,
+    `PRD draft: ${area}`,
     'Private + approval-gated. No tickets, roadmap changes, publishing, launch claims, or external messages from this draft.',
     '',
     `Problem: ${problem}.`,
@@ -254,8 +254,7 @@ function appendEvidenceProof(reply: string, evidence: PrdFastPathEvidence | null
     reply,
     '',
     `Loop lesson reused: ${evidence.distilledLearningLine}`,
-    'No benchmark or self-improvement loop was started for this PRD turn.',
-    `Evidence: ${evidence.detailUrl}`
+    `I did not start a benchmark or self-improvement loop for this PRD turn. Evidence: ${evidence.detailUrl}`
   ].join('\n');
 }
 

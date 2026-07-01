@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import {
   applyPlainWordsSurfaceRequest,
-  isPlainWordsSurfaceRequest
+  assertLoopEngineeringTelegramReadability,
+  isPlainWordsSurfaceRequest,
+  scoreLoopEngineeringTelegramReadability
 } from '../src/telegramSurface';
 
 function test(name: string, fn: () => void): void {
@@ -61,4 +63,47 @@ test('keeps plain paragraphs and removes numbered plan tail for explicit no-list
 test('does not rewrite normal detailed answers when the user did not ask for plain words', () => {
   const reply = ['Plan:', '1. Inspect route.', '2. Patch test.'].join('\n');
   assert.equal(applyPlainWordsSurfaceRequest('Give me the detailed plan', reply), reply);
+});
+
+test('scores readable Loop Engineering Telegram replies above release bar', () => {
+  const reply = [
+    'I ran the private starter check for Pull Request Risk Review. It stayed private and did not activate, publish, or send anything.',
+    '',
+    'Starter result: 14 practice checks ran; the safety gate stayed closed.',
+    '',
+    'That proves the scaffold can run. Next useful step: run separated judges against real before/after work before any activation.'
+  ].join('\n');
+
+  const result = assertLoopEngineeringTelegramReadability(reply, 8);
+  assert.ok(result.score >= 8);
+  assert.deepEqual(result.issues, []);
+});
+
+test('penalizes dense packet-like Loop Engineering replies', () => {
+  const reply = [
+    'Fast PRD path: domain-chip-daily-schedule-reliability-preview-only',
+    'Problem: Users need scheduled tasks with approval boundaries and source truth. Users: operators. Metric: activation. Draft: create flow. Acceptance: pass checks. Checks: benchmark, watchtower, autoloop, evidence, safety. Loop lesson reused: yes.',
+    'Status: queued'
+  ].join('\n');
+
+  const result = scoreLoopEngineeringTelegramReadability(reply);
+  assert.ok(result.score < 8);
+  assert.ok(result.issues.includes('raw_identifier_visible'));
+  assert.ok(result.issues.includes('single_newline_blob'));
+});
+
+test('allows the single created-chip receipt key needed for follow-up routing', () => {
+  const reply = [
+    'Domain Chip created: domain-chip-pull-request-risk-review',
+    '',
+    'Private starter kit is ready. It includes the trigger, playbook, examples, local starter checks, independent review packets, safety monitoring notes, and rollback notes.',
+    '',
+    'Next: say "run the private check" or ask for the proof checklist.',
+    '',
+    'Privacy: private/local only.'
+  ].join('\n\n');
+
+  const result = assertLoopEngineeringTelegramReadability(reply, 8);
+  assert.ok(result.score >= 8);
+  assert.doesNotMatch(result.issues.join(','), /raw_identifier_visible/);
 });

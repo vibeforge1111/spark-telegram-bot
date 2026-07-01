@@ -3,6 +3,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:f
 import os from 'node:os';
 import path from 'node:path';
 import { handleNaturalDomainChipBenchmarkAutoloopFollowup } from '../src/domainChipBenchmarkFollowup';
+import { assertLoopEngineeringTelegramReadability } from '../src/telegramSurface';
 
 async function test(name: string, fn: () => Promise<void> | void): Promise<void> {
   try {
@@ -67,6 +68,7 @@ await test('benchmark follow-up queues Spawner benchmark through command-result 
   assert.match(reply, /Spawner: http:\/\/127\.0\.0\.1:3334\/loop-engineering\/domain-chip-prd-writing-proof-loop/i);
   assert.doesNotMatch(reply, /completed locally|starter check/i);
   assert.doesNotMatch(reply, /approved|activated/i);
+  assertLoopEngineeringTelegramReadability(reply, 8);
   assert.match(harnessSummaries.join('\n'), /Spawner Loop Engineering benchmark queued/);
 });
 
@@ -115,6 +117,7 @@ await test('loop follow-up queues capped Spawner loop through command-result pay
   assert.match(reply, /capped private loop mission/i);
   assert.match(reply, /generator and evaluator still have to stay separated/i);
   assert.doesNotMatch(reply, /accepted improvement|activated/i);
+  assertLoopEngineeringTelegramReadability(reply, 8);
 });
 
 await test('private starter check runs local hooks even when Spawner bridge is available', async () => {
@@ -180,7 +183,9 @@ await test('private starter check runs local hooks even when Spawner bridge is a
     assert.match(reply, /private starter check for Vendor Compliance Intake/i);
     assert.match(reply, /14 practice checks ran/i);
     assert.match(reply, /nothing was promoted, published, activated, sent, or absorbed/i);
+    assert.match(reply, /absorbed\.\n\nStarter result:/i);
     assert.doesNotMatch(reply, /Spawner did not accept|Queued a private benchmark/i);
+    assertLoopEngineeringTelegramReadability(reply, 8);
   } finally {
     for (const key of Object.keys(process.env)) {
       if (!(key in originalEnv)) delete process.env[key];
@@ -236,6 +241,7 @@ await test('benchmark follow-up failure reply hides local runner internals', asy
     assert.match(reply, /local runner is blocked/i);
     assert.match(reply, /kept the chip private/i);
     assert.doesNotMatch(reply, /Command failed|\/usr\/local|spark_intelligence|--chip|reports\//i);
+    assertLoopEngineeringTelegramReadability(reply, 8);
   } finally {
     for (const key of Object.keys(process.env)) {
       if (!(key in originalEnv)) delete process.env[key];
@@ -325,6 +331,7 @@ await test('benchmark follow-up honors nested generated commands and attaches pr
     assert.match(reply, /safety gate stayed closed/i);
     assert.match(reply, /nothing was promoted, published, activated, sent, or absorbed/i);
     assert.match(reply, /does not prove this chip improves real work yet/i);
+    assertLoopEngineeringTelegramReadability(reply, 8);
     assert.equal(extras[0]?.__sparkTraceContext?.proofCapsule?.execution?.tool, 'recursive.loop');
     assert.equal(extras[0]?.__sparkTraceContext?.proofCapsule?.execution?.mutationClass, 'launches_mission');
     assert.equal(extras[0]?.__sparkTraceContext?.proofCapsule?.reply?.rawReasonsHidden, true);

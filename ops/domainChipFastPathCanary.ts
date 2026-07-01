@@ -64,7 +64,7 @@ const CASES: CanaryCase[] = [
     domain: 'prd_writing',
     prompt: 'Write a PRD for improving onboarding activation after new users drop before creating their first project.',
     expectation: {
-      replyIncludes: [/fast PRD path/i, /Acceptance:/i, /Private \+ approval-gated/i],
+      replyIncludes: [/PRD draft:/i, /Acceptance:/i, /Private \+ approval-gated/i],
       replyExcludes: [/Daily Schedule private fast path/i, /ticket created|roadmap changed|published/i],
       logIncludes: [/\[PrdWritingFastPath\]/],
       logExcludes: [/\[DailyScheduleFastPath\]/, /\[BuilderBridge\]/, /\[Bridge\]/],
@@ -77,7 +77,7 @@ const CASES: CanaryCase[] = [
     prompt: "The user in Dubai says move tomorrow's reminder to 9 while the owner is in New York.",
     expectation: {
       replyIncludes: [/keep this read-only/i, /explicit approval/i, /No reminder was created, moved, sent, completed, or marked recovered/i],
-      replyExcludes: [/fast PRD path/i, /\bI (?:created|moved|recovered)\b/i],
+      replyExcludes: [/PRD draft:/i, /\bI (?:created|moved|recovered)\b/i],
       logIncludes: [/\[DailyScheduleFastPath\]/],
       logExcludes: [/\[PrdWritingFastPath\]/, /\[BuilderBridge\]/, /\[Bridge\]/],
       noForbiddenClaims: true
@@ -89,7 +89,7 @@ const CASES: CanaryCase[] = [
     prompt: 'Remind me tomorrow at 9am Dubai time to review invoices.',
     expectation: {
       replyIncludes: [/keep this read-only/i, /explicit approval/i, /No reminder was created, moved, sent, completed, or marked recovered/i],
-      replyExcludes: [/fast PRD path/i, /\bI (?:created|moved|recovered)\b/i],
+      replyExcludes: [/PRD draft:/i, /\bI (?:created|moved|recovered)\b/i],
       logIncludes: [/\[DailyScheduleFastPath\]/],
       logExcludes: [/\[PrdWritingFastPath\]/, /\[BuilderBridge\]/, /\[Bridge\]/],
       noForbiddenClaims: true
@@ -112,7 +112,7 @@ const CASES: CanaryCase[] = [
     domain: 'boundary',
     prompt: 'Write a PRD for a calendar reminder product used by finance admins.',
     expectation: {
-      replyIncludes: [/fast PRD path/i],
+      replyIncludes: [/PRD draft:/i],
       replyExcludes: [/Daily Schedule private fast path|No reminder was created/i],
       logIncludes: [/\[PrdWritingFastPath\]/],
       logExcludes: [/\[DailyScheduleFastPath\]/, /\[Bridge\]/],

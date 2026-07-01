@@ -258,13 +258,12 @@ function renderNaturalDomainChipLoopSmoke(result: GeneratedLoopSmokeResult, chip
         : `the safety gate reported ${result.gateStatus}`
     );
   }
-  const detailLine = details.length
-    ? ` Starter result: ${details.join('; ')}.`
-    : '';
-  return [
-    `I ran the private starter check for ${label}. It completed locally and stayed private; nothing was promoted, published, activated, sent, or absorbed.${detailLine}`,
+  const paragraphs = [
+    `I ran the private starter check for ${label}. It completed locally and stayed private; nothing was promoted, published, activated, sent, or absorbed.`,
+    ...(details.length ? [`Starter result: ${details.join('; ')}.`] : []),
     'That proves the scaffold can run. It does not prove this chip improves real work yet. Next useful step: run separated judges against real before/after work before any activation.'
-  ].join('\n\n');
+  ];
+  return paragraphs.join('\n\n');
 }
 
 function loopEngineeringRunKind(text: string): 'benchmark' | 'loop' {
@@ -284,16 +283,19 @@ function renderSpawnerLoopEngineeringRunReply(
 ): string {
   const label = labelForTelegram(chipKey);
   if (!result.success) {
-    return `I tried to queue the private ${kind} for ${label}, but Spawner did not accept it yet. I kept the chip private and did not activate anything.`;
+    return [
+      `I tried to queue the private ${kind} for ${label}, but Spawner did not accept it yet.`,
+      'I kept the chip private and did not activate anything. Next safe step: open Spawner and retry once the control plane is reachable.'
+    ].join('\n\n');
   }
-  const base = result.message || (
+  const base = (
     kind === 'loop'
       ? `Queued a capped private loop mission for ${label}.`
       : `Queued a private benchmark mission for ${label}.`
   );
   const proofLine = kind === 'loop'
-    ? 'The generator and evaluator still have to stay separated before any lesson counts.'
-    : 'The evaluator result still decides whether anything counts as improvement.';
+    ? 'The generator and evaluator still have to stay separated before any lesson counts; this is not activation.'
+    : 'The evaluator result still decides whether anything counts as improvement; this is not activation.';
   return [base, proofLine, result.inspectUrl ? `Spawner: ${result.inspectUrl}` : '']
     .filter(Boolean)
     .join('\n\n');

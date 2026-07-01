@@ -134,7 +134,7 @@ test('Telegram handler leaves PRD prompts on the PRD fast path', async () => {
   await indexModule.handleTextMessage(fakeCtx('Write a PRD for a calendar reminder product used by finance admins.', replies, [], { chat: 8319079055, user: 8319079055, message: 7462 }));
 
   assert.equal(replies.length, 1);
-  assert.match(replies[0], /fast PRD path/i);
+  assert.match(replies[0], /PRD draft:/i);
   assert.doesNotMatch(replies[0], /Daily Schedule private fast path|keep this read-only/i);
 });
 

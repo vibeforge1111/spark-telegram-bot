@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { renderDistilledPrdFastPathReplyWithEvidence } from '../src/prdWritingFastPath';
+import { sanitizeOutbound } from '../src/outboundSanitize';
 import type { LoopEngineeringFetchLike } from '../src/loopEngineeringStatus';
 
 type AsyncTest = () => Promise<void>;
@@ -74,11 +75,13 @@ async function main(): Promise<void> {
     assert.ok(reply);
     assert.equal(hits.length, 1);
     assert.match(hits[0], /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop/);
-    assert.match(reply, /Fast PRD path: Invoice Export/i);
+    assert.match(reply, /PRD draft: Invoice Export/i);
     assert.match(reply, /Loop lesson reused: Start with owner, affected user, success metric, acceptance criteria, rollout risk, rollback, and evidence refs/i);
     assert.match(reply, /without rerunning the full loop/i);
-    assert.match(reply, /No benchmark or self-improvement loop was started for this PRD turn\./);
+    assert.match(reply, /I did not start a benchmark or self-improvement loop for this PRD turn\./);
     assert.doesNotMatch(reply, /I only read Spawner here/);
+    assert.doesNotMatch(sanitizeOutbound(reply), /\*\*/);
+    assert.match(sanitizeOutbound(reply), /PRD draft: Invoice Export/i);
   });
 
   await test('harmful PRD requests refuse without spending a Spawner status fetch', async () => {

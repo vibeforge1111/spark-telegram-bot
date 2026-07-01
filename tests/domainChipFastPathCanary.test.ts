@@ -24,7 +24,7 @@ test('R30 fast-path canary proves local handler replay without live sends', asyn
   assert.equal(report.reran_full_loop, false);
   assert.equal(report.cases.length, 8);
   assert.ok(report.cases.every((entry) => entry.status === 'pass'));
-  assert.ok(report.cases.some((entry) => entry.id === 'r30-prd-fast-001' && /fast PRD path/i.test(entry.reply)));
+  assert.ok(report.cases.some((entry) => entry.id === 'r30-prd-fast-001' && /PRD draft:/i.test(entry.reply)));
   assert.ok(report.cases.some((entry) => entry.id === 'r30-daily-fast-001' && /keep this read-only/i.test(entry.reply)));
   assert.ok(report.cases.some((entry) => entry.id === 'r30-boundary-meta-timezone-001' && !/Daily Schedule private fast path/i.test(entry.reply)));
   assert.ok(report.summary.disallowed_claims.some((claim) => /Live Telegram deployment readiness is proven/i.test(claim)));

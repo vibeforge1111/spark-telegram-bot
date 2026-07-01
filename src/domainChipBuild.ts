@@ -216,7 +216,7 @@ export function formatDomainChipBuildPreview(brief: string): string {
   return [
     `I can turn this into a private Domain Chip: ${projectName}.`,
     'A Domain Chip is a reusable Spark playbook for one kind of work. I will make the trigger, checklist, examples, local starter checks, and rollback notes so it stays private until the proof is stronger.',
-    'Reply "go" and I will make the private starter kit. Or tell me the first real workflow it should handle in your own words.'
+    'Next: Reply "go" and I will make the private starter kit. Or tell me the first real workflow it should handle in your own words.'
   ].join('\n\n');
 }
 

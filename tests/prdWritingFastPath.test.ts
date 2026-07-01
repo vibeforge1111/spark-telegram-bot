@@ -28,8 +28,8 @@ test('drafts a compact private PRD for concrete safe asks', () => {
   assert.ok(result);
   assert.equal(result.mode, 'draft_prd');
   assert.equal(result.tokenMode, 'quick_draft');
-  assert.match(result.reply, /fast PRD path/i);
-  assert.match(result.reply, /Fast PRD path: Onboarding Activation/i);
+  assert.match(result.reply, /PRD draft/i);
+  assert.match(result.reply, /PRD draft: Onboarding Activation/i);
   assert.match(result.reply, /Users: new users\./);
   assert.match(result.reply, /Private \+ approval-gated/i);
   assert.match(result.reply, /Acceptance:/);
@@ -40,7 +40,7 @@ test('keeps canary markers and goal phrases out of user-facing PRD fields', () =
   const result = evaluatePrdFastPath('Write a PRD for reducing invoice export failures for finance admins. FASTPATH-CANARY-307.');
   assert.ok(result);
   assert.equal(result.mode, 'draft_prd');
-  assert.match(result.reply, /Fast PRD path: Invoice Export/i);
+  assert.match(result.reply, /PRD draft: Invoice Export/i);
   assert.match(result.reply, /Users: finance admins\./);
   assert.doesNotMatch(result.reply, /FASTPATH-CANARY-307/);
   assert.doesNotMatch(result.reply, /Users: reducing invoice export failures/i);
@@ -51,7 +51,7 @@ test('handles PRD prompts about apps without swallowing the product into the use
   const result = evaluatePrdFastPath('Create a PRD for a dashboard app used by finance admins to export invoices.');
   assert.ok(result);
   assert.equal(result.mode, 'draft_prd');
-  assert.match(result.reply, /Fast PRD path: Dashboard App/i);
+  assert.match(result.reply, /PRD draft: Dashboard App/i);
   assert.match(result.reply, /Users: finance admins\./);
   assert.doesNotMatch(result.reply, /Users: a dashboard app/i);
 });
@@ -106,7 +106,7 @@ test('does not treat no-rerun safety wording as a request for loop mode', () => 
 
   assert.ok(result);
   assert.equal(result.mode, 'draft_prd');
-  assert.match(result.reply, /Fast PRD path: Invoice Export/i);
+  assert.match(result.reply, /PRD draft: Invoice Export/i);
   assert.doesNotMatch(result.reply, /should use loop mode/i);
 });
 

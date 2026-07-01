@@ -349,19 +349,18 @@ function renderReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>, text = 
   const blockedLine = packet.blockedChecks.length
     ? `The blockers I can prove are ${packet.blockedChecks.map(readableBlockedCheck).join(', ')}.`
     : 'I do not see a blocker in the current readiness packet.';
+  const freshnessLine = `Freshness check: ${packet.freshnessLabel}`;
+  const scheduleAndDistillation = [
+    packet.currentScheduleLine,
+    wantsDistilledLearningLine(text) ? packet.distilledLearningLine || 'Distilled reuse: I do not see a reusable distilled lesson in Spawner yet.' : ''
+  ].filter(Boolean).join(' ');
   return [
     `${packet.domain} is ${packet.readinessLabel.toLowerCase()}: ${packet.passCount}/${packet.totalCount} checks pass. ${blockedLine}`,
-    `Freshness: ${packet.freshnessLabel}`,
-    renderLatestEventLine(packet.latestResultEvent),
-    renderActivationProofLine(packet),
-    ...(packet.currentScheduleLine ? [packet.currentScheduleLine] : []),
-    ...(wantsDistilledLearningLine(text) ? [packet.distilledLearningLine || 'Distilled reuse: I do not see a reusable distilled lesson in Spawner yet.'] : []),
-    renderEventLine(packet.topResultEvents),
-    'I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued.',
-    '',
-    `Next safe step: ${readableActionText(packet.nextAction)}`,
-    `Details: ${packet.detailUrl}`
-  ].join('\n');
+    `${freshnessLine} ${renderLatestEventLine(packet.latestResultEvent)}`,
+    [renderActivationProofLine(packet), scheduleAndDistillation].filter(Boolean).join(' '),
+    `${renderEventLine(packet.topResultEvents)} I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued.`,
+    `Next safe step: ${readableActionText(packet.nextAction)} Details: ${packet.detailUrl}`
+  ].join('\n\n');
 }
 
 function unavailablePacket(input: {
@@ -412,7 +411,7 @@ function unavailablePacket(input: {
       '',
       `Next safe step: ${nextAction}`,
       `Details: ${detailUrl}`
-    ].join('\n')
+    ].join('\n\n')
   };
 }
 
@@ -445,9 +444,10 @@ export async function fetchLoopEngineeringStatusPacket(
       liveTelegramProven: false,
       reply: [
         'I can check Loop Engineering status, but I need the specific chip first.',
+        'I only read Spawner evidence here; nothing will be queued, activated, or published.',
         '',
         `Open the board: ${detailUrl}`
-      ].join('\n')
+      ].join('\n\n')
     };
   }
 

@@ -2417,6 +2417,7 @@ function telegramBranchActionAuthorityDecision(
     action?: string;
     kind?: TelegramIntentDecisionV2['kind'];
     confidence?: TelegramIntentDecisionV2['confidence'];
+    confirmationState?: 'not_required' | 'confirmed' | 'missing';
   }
 ): TelegramActionAuthorityResult {
   const canonicalAuthorization = telegramActionAuthorityDecision(baseEnvelope, input);
@@ -5951,7 +5952,8 @@ async function handlePendingDomainChipBuild(ctx: any, text: string, envelope?: T
         mutationClass: 'creates_chip',
         action: 'domain_chip.create',
         kind: 'creator_or_domain_chip',
-        confidence: 'contextual'
+        confidence: 'contextual',
+        confirmationState: 'confirmed'
       })
     : authorizeDomainChipBuilderCreate(
         ctx,

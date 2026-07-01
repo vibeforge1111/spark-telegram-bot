@@ -8,6 +8,7 @@ import {
   isLoopEngineeringStatusRequest,
   resolveLoopEngineeringChipId
 } from '../src/loopEngineeringStatus';
+import { assertLoopEngineeringTelegramReadability } from '../src/telegramSurface';
 
 type AsyncTest = () => Promise<void> | void;
 const tests: { name: string; fn: AsyncTest }[] = [];
@@ -369,12 +370,13 @@ test('renders read-only packet from Spawner evidence without activation claims',
   assert.equal(packet.blockedChecks.map((check) => check.id).join(','), 'live_telegram_proof,hard_blockers');
   assert.match(packet.reply, /10\/12 checks pass/);
   assert.match(packet.reply, /live Telegram proof missing, operator approval missing/);
-  assert.match(packet.reply, /Freshness: read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:13:00\.303Z; freshness: fresh within 10s\./);
+  assert.match(packet.reply, /Freshness check: read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:13:00\.303Z; freshness: fresh within 10s\./);
   assert.match(packet.reply, /Latest result: Self-improvement loop passed \(\+12\.5, 5 rounds, separated evaluator, 2026-07-01T09:13:00\.303Z\)\./);
   assert.match(packet.reply, /Loop results: Benchmark A\/B passed \(\+12\.5, 17 cases, separated evaluator\); Self-improvement loop passed \(\+12\.5, 5 rounds, separated evaluator\); Activation gate blocked \(separated evaluator\)\./);
   assert.match(packet.reply, /I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued\./);
   assert.match(packet.reply, /Next safe step: Resolve blocker: operator publication approval missing/);
   assert.doesNotMatch(packet.reply, /\b(?:I (?:activated|published|registered|scheduled|started|created)|was (?:activated|published|registered|scheduled|started)|has been (?:activated|published|registered|scheduled|started))\b/i);
+  assertLoopEngineeringTelegramReadability(packet.reply, 8);
 });
 
 test('PRD Writing no-action state prompt reads the proof-loop chip and reports latest scheduled-loop result', async () => {
@@ -498,6 +500,7 @@ test('renders a readable missing-evidence reply instead of command usage on Spaw
   assert.match(packet.reply, /I did not queue any loop, benchmark, schedule, activation, or publication/i);
   assert.doesNotMatch(packet.reply, /Usage: \/loop/i);
   assert.doesNotMatch(packet.reply, /\b(?:activated|published|registered|scheduled|started)\b/i);
+  assertLoopEngineeringTelegramReadability(packet.reply, 8);
 });
 
 test('renders a readable unreachable-Spawner reply instead of command usage', async () => {
@@ -516,6 +519,7 @@ test('renders a readable unreachable-Spawner reply instead of command usage', as
   assert.doesNotMatch(packet.reply, /register the private chip evidence/i);
   assert.doesNotMatch(packet.reply, /Usage: \/loop/i);
   assert.doesNotMatch(packet.reply, /\b(?:activated|published|registered|scheduled|started)\b/i);
+  assertLoopEngineeringTelegramReadability(packet.reply, 8);
 });
 
 test('Telegram handler answers loop status through Spawner evidence API and starts no work', async () => {
@@ -539,6 +543,7 @@ test('Telegram handler answers loop status through Spawner evidence API and star
     assert.match(replies[0], /Loop results: Benchmark A\/B passed \(\+12\.5, 17 cases, separated evaluator\); Self-improvement loop passed \(\+12\.5, 5 rounds, separated evaluator\); Activation gate blocked/i);
     assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-daily-schedule-reliability-r30-persisted-context-qa/i);
     assert.doesNotMatch(replies[0], /Daily Schedule private fast path|reminder was created|I created|I started|mission/i);
+    assertLoopEngineeringTelegramReadability(replies[0], 8);
     assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-daily-schedule-reliability-r30-persisted-context-qa']);
   });
 });
@@ -715,10 +720,10 @@ test('Telegram handler drafts future PRDs with Spawner distilled lesson and no l
       ));
 
       assert.equal(replies.length, 1);
-      assert.match(replies[0], /Fast PRD path: Invoice Export/i);
+      assert.match(replies[0], /PRD draft: Invoice Export/i);
       assert.match(replies[0], /Loop lesson reused: PRDs improved when acceptance criteria were tied to observable evidence, rollout risk, and owner decisions\./i);
       assert.match(replies[0], /reuse this staged lesson without rerunning the full loop/i);
-      assert.match(replies[0], /No benchmark or self-improvement loop was started for this PRD turn\./i);
+      assert.match(replies[0], /I did not start a benchmark or self-improvement loop for this PRD turn\./i);
       assert.match(replies[0], /Evidence: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-prd-writing-proof-loop/i);
       assert.doesNotMatch(replies[0], /should use loop mode before a normal PRD draft/i);
       assert.doesNotMatch(replies[0], /\b(?:I (?:activated|published|registered|scheduled|started|created)|mission)\b/i);
