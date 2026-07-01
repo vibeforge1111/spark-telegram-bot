@@ -344,6 +344,7 @@ import {
   type HarnessProofCapsuleV1,
   type HarnessProofExecutionStatus,
   type HarnessProofGovernorDecision,
+  type HarnessProofJoinSummary,
   type HarnessProofReplyShape
 } from './harnessProofCapsule';
 import { buildTelegramDeliveryProofCapsule } from './telegramDeliveryProof';
@@ -2741,7 +2742,15 @@ function attachBuilderHarnessProofRef(
 
 export function buildTurnOutboundTraceContext(
   envelope: TurnIntentEnvelopeV1,
-  overrides: { route?: string; intentKind?: string; command?: string; replyKind?: string; reasonSummary?: string } = {}
+  overrides: {
+    route?: string;
+    intentKind?: string;
+    command?: string;
+    replyKind?: string;
+    reasonSummary?: string;
+    tool?: string;
+    joins?: Partial<HarnessProofJoinSummary>;
+  } = {}
 ): NodeOutboundTraceContext {
   const route = overrides.route || envelope.selectedIntent.action || envelope.selectedIntent.kind;
   const proofCapsule = buildHarnessProofCapsule({
@@ -2767,7 +2776,7 @@ export function buildTurnOutboundTraceContext(
     },
     execution: {
       status: 'completed',
-      tool: 'answer.compose',
+      tool: overrides.tool || 'answer.compose',
       mutationClass: 'read_only'
     },
     reply: {
@@ -2781,7 +2790,8 @@ export function buildTurnOutboundTraceContext(
       spawner: 'not_applicable',
       provider: 'not_applicable',
       memory: 'not_applicable',
-      voice: 'not_applicable'
+      voice: 'not_applicable',
+      ...(overrides.joins || {})
     }
   });
   return {
@@ -9264,14 +9274,37 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   if (loopEngineeringStatus) {
     await conversation.remember(user, text).catch(() => {});
     console.log(`[LoopEngineeringStatus] route user=${userRef(ctx.from?.id)} chip=${loopEngineeringStatus.chipId || 'unselected'} textLen=${text.length}`);
+    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, {
+      route: 'loop_engineering.status',
+      intentKind: 'loop_engineering.status',
+      command: 'telegram_loop_engineering_status',
+      reasonSummary: 'Telegram read the current Loop Engineering state from Spawner; no loop, schedule, activation, publication, or mutation was authorized.',
+      tool: 'spawner.loop_engineering.status',
+      joins: { spawner: 'joined' }
+    });
+    setTurnOutboundTraceContext(ctx, traceContext);
     recordNaturalRouteExecution(
       ctx,
-      naturalRouteShadow,
+      finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+        route: 'loop_engineering.status',
+        owner: 'spark-telegram-bot',
+        action: 'loop_engineering.read_only_status',
+        signal: 'loop_engineering_status_request'
+      }),
       'loop_engineering.status',
       'spark-telegram-bot',
       'loop_engineering.read_only_status'
     );
-    await ctx.reply(loopEngineeringStatus.reply);
+    await ctx.reply(loopEngineeringStatus.reply, outboundTraceExtra(traceContext));
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_loop_engineering_status', [
+      {
+        source: 'spawner-ui',
+        role: 'loop_engineering_state_authority',
+        freshness: 'live_probed',
+        sourceRef: loopEngineeringStatus.detailUrl,
+        summary: `Telegram read ${loopEngineeringStatus.chipId || 'Loop Engineering'} state from Spawner without mutating it.`
+      }
+    ]);
     await conversation.rememberAssistantReply(user, loopEngineeringStatus.reply).catch(() => {});
     return;
   }

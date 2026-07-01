@@ -40,6 +40,7 @@ import {
   parseSpawnerBoardNaturalIntent,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
+import { isLoopEngineeringStatusRequest, resolveLoopEngineeringChipId } from './loopEngineeringStatus';
 import type {
   NaturalRecursiveCommandTarget
 } from './conversationIntent';
@@ -702,6 +703,23 @@ export function decideNaturalRoute(
       payload: {},
       context_source: 'latest_message',
       matched_signals: ['spark_chip_status_overclaim_question'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isLoopEngineeringStatusRequest(normalized)) {
+    return decision({
+      route: 'loop_engineering.status',
+      owner_system: 'spark-telegram-bot',
+      confidence: resolveLoopEngineeringChipId(normalized) ? 'explicit' : 'contextual',
+      action: 'loop_engineering.read_only_status',
+      payload: {
+        chipId: resolveLoopEngineeringChipId(normalized) || null,
+        readOnly: true
+      },
+      context_source: 'latest_message',
+      matched_signals: ['loop_engineering_status_request'],
       blocked_by: [],
       requires_confirmation: false
     });

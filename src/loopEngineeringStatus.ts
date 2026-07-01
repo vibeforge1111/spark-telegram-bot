@@ -169,7 +169,29 @@ function renderLatestEventLine(event: LoopEngineeringResultEvent | null): string
   return `Latest result: ${event.label} ${event.status}${details.length ? ` (${details.join(', ')})` : ''}.`;
 }
 
-function renderReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>): string {
+function wantsCompactLatestReply(text: string): boolean {
+  const normalized = normalizeText(text).toLowerCase();
+  return (
+    /\blink\s+only\b/.test(normalized) ||
+    (
+      /\blatest\b/.test(normalized) &&
+      /\b(?:schedule|loop|result|state)\b/.test(normalized) &&
+      /\b(?:fresh|stale|freshness)\b/.test(normalized)
+    )
+  );
+}
+
+function renderCompactReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>): string {
+  return [
+    `${packet.domain} is ${packet.readinessLabel.toLowerCase()} (${packet.passCount}/${packet.totalCount} checks pass); ${packet.freshnessLabel}`,
+    renderLatestEventLine(packet.latestResultEvent),
+    'I only read Spawner here; nothing was queued or changed.',
+    `Details: ${packet.detailUrl}`
+  ].join('\n');
+}
+
+function renderReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>, text = ''): string {
+  if (wantsCompactLatestReply(text)) return renderCompactReply(packet);
   const blockedLine = packet.blockedChecks.length
     ? `The blockers I can prove are ${packet.blockedChecks.map((check) => check.label).join(', ')}.`
     : 'I do not see a blocker in the current readiness packet.';
@@ -309,7 +331,7 @@ export async function fetchLoopEngineeringStatusPacket(
     };
     return {
       ...packetBase,
-      reply: renderReply(packetBase)
+      reply: renderReply(packetBase, text)
     };
   } catch {
     return unavailablePacket({

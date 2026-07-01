@@ -96,6 +96,17 @@ test('routes recursive proof questions to status packets instead of reports', ()
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes PRD loop-engineering state questions to read-only Loop Engineering status', () => {
+  const route = decideNaturalRoute('For QA: what is the latest PRD Writing loop-engineering state from Spawner/control-plane right now? Do not run, mutate, publish, activate, schedule, or start anything.');
+
+  assert.equal(route.route, 'loop_engineering.status');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'loop_engineering.read_only_status');
+  assert.equal(route.payload.chipId, 'domain-chip-prd-writing-proof-loop');
+  assert.equal(route.requires_confirmation, false);
+  assert.deepEqual(route.matched_signals, ['loop_engineering_status_request']);
+});
+
 test('marks recursive starts as confirmation-worthy protected actions', () => {
   const route = decideNaturalRoute('run another round', {
     recentMessages: [

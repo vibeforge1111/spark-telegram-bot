@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
 import {
   fetchLoopEngineeringStatusPacket,
   isLoopEngineeringStatusRequest,
@@ -8,12 +11,29 @@ import {
 
 type AsyncTest = () => Promise<void> | void;
 const tests: { name: string; fn: AsyncTest }[] = [];
+const originalEnv = {
+  ADMIN_TELEGRAM_IDS: process.env.ADMIN_TELEGRAM_IDS,
+  SPARK_AGENT_ACCESS_PROFILE: process.env.SPARK_AGENT_ACCESS_PROFILE,
+  SPARK_BOT_TEST_MODE: process.env.SPARK_BOT_TEST_MODE,
+  SPARK_HOME: process.env.SPARK_HOME,
+  SPARK_NATURAL_ROUTE_LEDGER: process.env.SPARK_NATURAL_ROUTE_LEDGER,
+  SPARK_NATURAL_ROUTE_LEDGER_PATH: process.env.SPARK_NATURAL_ROUTE_LEDGER_PATH,
+  SPAWNER_UI_PUBLIC_URL: process.env.SPAWNER_UI_PUBLIC_URL,
+  SPAWNER_UI_URL: process.env.SPAWNER_UI_URL
+};
 
 function test(name: string, fn: AsyncTest): void {
   tests.push({ name, fn });
 }
 
-function fakeCtx(text: string, replies: string[], ids = { chat: 8319079055, user: 8319079055, message: 8461 }) {
+function restoreEnv(): void {
+  for (const [key, value] of Object.entries(originalEnv)) {
+    if (value === undefined) delete (process.env as Record<string, string | undefined>)[key];
+    else (process.env as Record<string, string>)[key] = value;
+  }
+}
+
+function fakeCtx(text: string, replies: string[], ids = { chat: 8319079055, user: 8319079055, message: 8461 }, replyExtras: any[] = []) {
   const chat = { id: ids.chat, type: 'private' };
   const from = { id: ids.user, username: 'qa' };
   const message = { message_id: ids.message, text, chat, from };
@@ -23,8 +43,9 @@ function fakeCtx(text: string, replies: string[], ids = { chat: 8319079055, user
     message,
     update: { update_id: ids.message, message },
     sendChatAction: async (_action: string) => {},
-    reply: async (reply: string) => {
+    reply: async (reply: string, extra?: any) => {
       replies.push(reply);
+      replyExtras.push(extra);
     }
   };
 }
@@ -228,9 +249,10 @@ test('PRD Writing no-action state prompt reads the proof-loop chip and reports l
   assert.equal(packet.readinessLabel, 'Local fast path supported');
   assert.equal(packet.latestResultEvent?.label, 'Private scheduled loop completed');
   assert.equal(packet.latestResultEvent?.updatedAt, '2026-07-01T09:59:49.934Z');
-  assert.match(packet.reply, /PRD Writing is local fast path supported: 12\/12 checks pass/i);
-  assert.match(packet.reply, /Freshness: read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:59:49\.934Z\./);
+  assert.match(packet.reply, /PRD Writing is local fast path supported .*12\/12 checks pass/i);
+  assert.match(packet.reply, /read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:59:49\.934Z\./);
   assert.match(packet.reply, /Latest result: Private scheduled loop completed passed \(4\.5 -> 9\.7, 3 rounds, separated evaluator, 2026-07-01T09:59:49\.934Z\)\./);
+  assert.match(packet.reply, /I only read Spawner here; nothing was queued or changed\./);
   assert.match(packet.reply, /Details: .*\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
   assert.doesNotMatch(packet.reply, /\b(?:I (?:activated|published|registered|scheduled|started|created)|was (?:activated|published|registered|scheduled|started)|has been (?:activated|published|registered|scheduled|started))\b/i);
 });
@@ -291,24 +313,64 @@ test('Telegram handler answers loop status through Spawner evidence API and star
 
 test('Telegram handler answers PRD Writing no-action state query through Spawner and starts no work', async () => {
   await withServer(async (baseUrl, hits) => {
-    process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-    process.env.ADMIN_TELEGRAM_IDS = '8319079055';
-    process.env.SPARK_BOT_TEST_MODE = '1';
-    process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
-    process.env.SPAWNER_UI_URL = baseUrl;
-    process.env.SPAWNER_UI_PUBLIC_URL = baseUrl;
+    const tempHome = mkdtempSync(path.join(os.tmpdir(), 'spark-loop-status-ledger-'));
+    const ledgerPath = path.join(tempHome, 'natural-route-execution.jsonl');
+    try {
+      process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+      process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+      process.env.SPARK_BOT_TEST_MODE = '1';
+      process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+      process.env.SPAWNER_UI_URL = baseUrl;
+      process.env.SPAWNER_UI_PUBLIC_URL = baseUrl;
+      process.env.SPARK_HOME = tempHome;
+      process.env.SPARK_NATURAL_ROUTE_LEDGER = '1';
+      process.env.SPARK_NATURAL_ROUTE_LEDGER_PATH = ledgerPath;
 
-    const indexModule: any = await import('../src/index');
-    const replies: string[] = [];
-    await indexModule.handleTextMessage(fakeCtx('For QA: what is the latest PRD Writing loop-engineering state from Spawner/control-plane right now? Do not run, mutate, publish, activate, schedule, or start anything. Reply with the latest schedule/loop result, whether it is fresh or stale, and the Spawner link only.', replies));
+      const indexModule: any = await import('../src/index');
+      const replies: string[] = [];
+      const replyExtras: any[] = [];
+      await indexModule.handleTextMessage(fakeCtx(
+        'For QA: what is the latest PRD Writing loop-engineering state from Spawner/control-plane right now? Do not run, mutate, publish, activate, schedule, or start anything. Reply with the latest schedule/loop result, whether it is fresh or stale, and the Spawner link only.',
+        replies,
+        { chat: 8319079055, user: 8319079055, message: 8462 },
+        replyExtras
+      ));
 
-    assert.equal(replies.length, 1);
-    assert.match(replies[0], /PRD Writing is local fast path supported: 12\/12 checks pass/i);
-    assert.match(replies[0], /Private scheduled loop completed passed \(4\.5 -> 9\.7, 3 rounds, separated evaluator, 2026-07-01T09:59:49\.934Z\)/);
-    assert.match(replies[0], /I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued\./);
-    assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-prd-writing-proof-loop/i);
-    assert.doesNotMatch(replies[0], /\b(?:I (?:activated|published|registered|scheduled|started|created)|was (?:activated|published|registered|scheduled|started)|has been (?:activated|published|registered|scheduled|started)|mission)\b/i);
-    assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-prd-writing-proof-loop']);
+      assert.equal(replies.length, 1);
+      assert.match(replies[0], /PRD Writing is local fast path supported/i);
+      assert.match(replies[0], /read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:59:49\.934Z\./);
+      assert.match(replies[0], /Private scheduled loop completed passed \(4\.5 -> 9\.7, 3 rounds, separated evaluator, 2026-07-01T09:59:49\.934Z\)/);
+      assert.match(replies[0], /I only read Spawner here; nothing was queued or changed\./);
+      assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-prd-writing-proof-loop/i);
+      assert.doesNotMatch(replies[0], /\b(?:I (?:activated|published|registered|scheduled|started|created)|was (?:activated|published|registered|scheduled|started)|has been (?:activated|published|registered|scheduled|started)|mission)\b/i);
+      assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-prd-writing-proof-loop']);
+
+      const trace = replyExtras[0]?.__sparkTraceContext;
+      assert.equal(trace?.route, 'loop_engineering.status');
+      assert.equal(trace?.command, 'telegram_loop_engineering_status');
+      assert.equal(trace?.proofCapsule?.schema, 'spark.harness_proof.v1');
+      assert.equal(trace?.proofCapsule?.route, 'loop_engineering.status');
+      assert.equal(trace?.proofCapsule?.intent?.kind, 'loop_engineering.status');
+      assert.equal(trace?.proofCapsule?.execution?.tool, 'spawner.loop_engineering.status');
+      assert.equal(trace?.proofCapsule?.execution?.mutationClass, 'read_only');
+      assert.equal(trace?.proofCapsule?.joins?.telegram, 'joined');
+      assert.equal(trace?.proofCapsule?.joins?.spawner, 'joined');
+
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      const rows = readFileSync(ledgerPath, 'utf8')
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].shadow_route, 'loop_engineering.status');
+      assert.equal(rows[0].executed_route, 'loop_engineering.status');
+      assert.equal(rows[0].executed_action, 'loop_engineering.read_only_status');
+      assert.equal(rows[0].outcome, 'matched');
+      assert.equal(rows[0].harness_proof_ref, trace.proofCapsule.turnRef);
+    } finally {
+      rmSync(tempHome, { recursive: true, force: true });
+      restoreEnv();
+    }
   });
 });
 
