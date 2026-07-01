@@ -12,9 +12,11 @@ export interface LoopEngineeringStatusPacket {
   chipId: string;
   domain: string;
   readinessLabel: string;
+  freshnessLabel: string;
   passCount: number;
   totalCount: number;
   resultEventCount: number;
+  latestResultEvent: LoopEngineeringResultEvent | null;
   topResultEvents: LoopEngineeringResultEvent[];
   blockedChecks: LoopEngineeringStatusCheck[];
   nextAction: string;
@@ -33,6 +35,7 @@ export interface LoopEngineeringResultEvent {
   roundsObserved: number | null;
   evaluatorSeparated: boolean;
   nextAction: string;
+  updatedAt: string | null;
 }
 
 type FetchLike = (url: string, init?: { signal?: AbortSignal }) => Promise<{
@@ -42,9 +45,13 @@ type FetchLike = (url: string, init?: { signal?: AbortSignal }) => Promise<{
 }>;
 
 const EXACT_CHIP_ID_PATTERN = /\bdomain-chip-[a-z0-9][a-z0-9-]{2,}\b/i;
-const LOOP_STATUS_PATTERN = /\b(?:loop\s+engineering|domain[-\s]?chip|domain\s+chip|chip)\b[\s\S]{0,120}\b(?:status|readiness|evidence|proof|gate|blocked|details?|dashboard|management|can\s+(?:use|activate)|why\s+(?:blocked|not))\b|\b(?:status|readiness|evidence|proof|gate|blocked|details?|dashboard|management|can\s+(?:use|activate)|why\s+(?:blocked|not))\b[\s\S]{0,120}\b(?:loop\s+engineering|domain[-\s]?chip|domain\s+chip|chip)\b/i;
+const STATUS_LOOKUP_WORD_PATTERN = /(?:status|state|readiness|evidence|proof|gate|blocked|details?|dashboard|management|results?|latest|current|fresh|stale|can\s+(?:use|activate)|why\s+(?:blocked|not))/;
+const LOOP_STATUS_PATTERN = new RegExp(
+  `\\b(?:loop[-\\s]+engineering|domain[-\\s]?chip|domain\\s+chip|chip)\\b[\\s\\S]{0,140}\\b${STATUS_LOOKUP_WORD_PATTERN.source}\\b|\\b${STATUS_LOOKUP_WORD_PATTERN.source}\\b[\\s\\S]{0,140}\\b(?:loop[-\\s]+engineering|domain[-\\s]?chip|domain\\s+chip|chip)\\b`,
+  'i'
+);
 const MUTATING_ACTION_PATTERN = /\b(?:activate|publish|register|schedule|run|start|continue|rerun|auto[-\s]?loop|autoloop|create|build|scaffold|deploy|send|move|mutate)\b/i;
-const STATUS_WORD_PATTERN = /\b(?:status|readiness|evidence|proof|gate|blocked|details?|dashboard|management|why|can\s+(?:use|activate))\b/i;
+const STATUS_WORD_PATTERN = new RegExp(`\\b(?:${STATUS_LOOKUP_WORD_PATTERN.source}|why)\\b`, 'i');
 const DAILY_ALIAS_PATTERN = /\b(?:daily\s+schedule|schedule\s+reliability|daily\s+reminder|reminder\s+reliability)\b/i;
 const PRD_ALIAS_PATTERN = /\b(?:prd\s+writing|product\s+requirements?\s+doc(?:ument)?|prd\s+chip)\b/i;
 
@@ -66,7 +73,7 @@ export function resolveLoopEngineeringChipId(text: string): string | null {
   const exact = normalized.match(EXACT_CHIP_ID_PATTERN)?.[0]?.toLowerCase();
   if (exact) return exact;
   if (DAILY_ALIAS_PATTERN.test(normalized)) return 'domain-chip-daily-schedule-reliability-r30-persisted-context-qa';
-  if (PRD_ALIAS_PATTERN.test(normalized)) return 'domain-chip-prd-writing';
+  if (PRD_ALIAS_PATTERN.test(normalized)) return 'domain-chip-prd-writing-proof-loop';
   return null;
 }
 
@@ -94,7 +101,8 @@ function resultEventFromValue(value: any): LoopEngineeringResultEvent | null {
     utilityDelta: numberOrNull(value.utilityDelta),
     roundsObserved: numberOrNull(value.roundsObserved),
     evaluatorSeparated: value.evaluatorSeparated === true,
-    nextAction: typeof value.nextAction === 'string' && value.nextAction.trim() ? value.nextAction.trim() : 'Inspect the event evidence.'
+    nextAction: typeof value.nextAction === 'string' && value.nextAction.trim() ? value.nextAction.trim() : 'Inspect the event evidence.',
+    updatedAt: typeof value.updatedAt === 'string' && value.updatedAt.trim() ? value.updatedAt.trim() : null
   };
 }
 
@@ -112,6 +120,20 @@ function topResultEvents(events: LoopEngineeringResultEvent[]): LoopEngineeringR
     .filter((event) => event.status === 'passed' || event.status === 'blocked' || event.status === 'failed')
     .sort((a, b) => (rank[a.eventType] ?? 99) - (rank[b.eventType] ?? 99) || a.label.localeCompare(b.label))
     .slice(0, 4);
+}
+
+function eventTimestampMs(event: LoopEngineeringResultEvent): number {
+  if (!event.updatedAt) return 0;
+  const parsed = Date.parse(event.updatedAt);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function latestResultEvent(events: LoopEngineeringResultEvent[]): LoopEngineeringResultEvent | null {
+  const relevant = events.filter((event) =>
+    ['benchmark_run', 'loop_batch', 'evaluator_review', 'watchtower_check', 'rollback_check', 'activation_gate', 'schedule_contract', 'schedule_created'].includes(event.eventType)
+  );
+  const sorted = relevant.sort((a, b) => eventTimestampMs(b) - eventTimestampMs(a));
+  return sorted[0] || null;
 }
 
 function formatDelta(value: number | null): string {
@@ -132,13 +154,31 @@ function renderEventLine(events: LoopEngineeringResultEvent[]): string {
   return `Loop results: ${parts.join('; ')}.`;
 }
 
+function renderLatestEventLine(event: LoopEngineeringResultEvent | null): string {
+  if (!event) return 'Latest result: I do not see a completed loop or benchmark event in the current Spawner packet yet.';
+  const delta = formatDelta(event.utilityDelta);
+  const details: string[] = [];
+  if (typeof event.previousScore === 'number' && typeof event.candidateScore === 'number') {
+    details.push(`${event.previousScore.toFixed(1)} -> ${event.candidateScore.toFixed(1)}`);
+  } else if (delta) {
+    details.push(delta);
+  }
+  if (typeof event.roundsObserved === 'number') details.push(`${event.roundsObserved} rounds`);
+  if (event.evaluatorSeparated) details.push('separated evaluator');
+  if (event.updatedAt) details.push(event.updatedAt);
+  return `Latest result: ${event.label} ${event.status}${details.length ? ` (${details.join(', ')})` : ''}.`;
+}
+
 function renderReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>): string {
   const blockedLine = packet.blockedChecks.length
     ? `The blockers I can prove are ${packet.blockedChecks.map((check) => check.label).join(', ')}.`
     : 'I do not see a blocker in the current readiness packet.';
   return [
     `${packet.domain} is ${packet.readinessLabel.toLowerCase()}: ${packet.passCount}/${packet.totalCount} checks pass. ${blockedLine}`,
+    `Freshness: ${packet.freshnessLabel}`,
+    renderLatestEventLine(packet.latestResultEvent),
     renderEventLine(packet.topResultEvents),
+    'I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued.',
     '',
     `Next safe step: ${packet.nextAction}`,
     `Details: ${packet.detailUrl}`
@@ -156,9 +196,11 @@ function unavailablePacket(input: {
     chipId: input.chipId,
     domain: input.chipId.replace(/^domain-chip-/, '').replace(/-/g, ' '),
     readinessLabel: 'Evidence unavailable',
+    freshnessLabel: 'Spawner evidence was not readable from Telegram.',
     passCount: 0,
     totalCount: 1,
     resultEventCount: 0,
+    latestResultEvent: null,
     topResultEvents: [],
     blockedChecks: [
       {
@@ -195,9 +237,11 @@ export async function fetchLoopEngineeringStatusPacket(
       chipId: '',
       domain: 'Loop Engineering',
       readinessLabel: 'Needs chip selection',
+      freshnessLabel: 'No chip was selected, so no Spawner evidence was read.',
       passCount: 0,
       totalCount: 0,
       resultEventCount: 0,
+      latestResultEvent: null,
       topResultEvents: [],
       blockedChecks: [],
       nextAction: 'Name a specific domain chip, such as Daily Schedule Reliability, so I can read its evidence packet.',
@@ -243,14 +287,20 @@ export async function fetchLoopEngineeringStatusPacket(
     const events = Array.isArray(chip?.events)
       ? chip.events.map(resultEventFromValue).filter((event: LoopEngineeringResultEvent | null): event is LoopEngineeringResultEvent => Boolean(event))
       : [];
+    const latestEvent = latestResultEvent(events);
+    const latestTimestamp = latestEvent?.updatedAt || (typeof summary.updatedAt === 'string' ? summary.updatedAt : '');
     const packetBase = {
       route: 'loop_engineering.status' as const,
       chipId,
       domain: String(summary.domain || chipId),
       readinessLabel: String(readiness.label || 'Unknown readiness'),
+      freshnessLabel: latestTimestamp
+        ? `read from Spawner now; latest Spawner event timestamp is ${latestTimestamp}.`
+        : 'read from Spawner now; no event timestamp was present.',
       passCount: Number(readiness.passCount || 0),
       totalCount: Number(readiness.totalCount || 0),
       resultEventCount: events.length,
+      latestResultEvent: latestEvent,
       topResultEvents: topResultEvents(events),
       blockedChecks: topBlockedChecks(checks),
       nextAction: String(readiness.nextAction || summary.nextAction || 'Inspect the chip evidence before taking action.'),
