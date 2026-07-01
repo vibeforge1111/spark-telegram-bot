@@ -301,6 +301,128 @@ async function run(): Promise<void> {
     assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.loop.run');
   });
 
+  await test('recordLoopEngineeringEvaluatorReview posts separated evaluator evidence to Spawner', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          event: { id: 'lee-eval', eventType: 'evaluator_review', status: 'passed' },
+          commandResult: {
+            action: 'evaluator_review_recorded',
+            eventId: 'lee-eval',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Recorded separated evaluator evidence.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.recordLoopEngineeringEvaluatorReview({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      previousScore: 6,
+      candidateScore: 8.4,
+      roundsObserved: 3,
+      evidenceRefs: ['reports/prd-eval.json'],
+      requestId: 'tg-loop-eval'
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'evaluator_review_recorded');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/evaluator-review$/);
+    assert.equal(capturedBody.evaluatorSeparated, true);
+    assert.equal(capturedBody.previousScore, 6);
+    assert.equal(capturedBody.candidateScore, 8.4);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.evaluator_review.record');
+  });
+
+  await test('distillLoopEngineeringLessons posts evaluator-backed lessons to Spawner', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          distillation: { id: 'distill-1', status: 'staged' },
+          event: { id: 'lee-distill', eventType: 'distillation', status: 'passed' },
+          commandResult: {
+            action: 'distillation_staged',
+            eventId: 'lee-distill',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Distilled evaluator-backed lessons.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.distillLoopEngineeringLessons({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      sourceEvaluatorEventId: 'lee-eval',
+      lessons: ['Resolve user, owner, success metric, and acceptance criteria first.'],
+      runtimeNotes: 'Use as staged PRD Writing guidance.',
+      tokenBudgetHint: 'Try distilled checklist before a full loop.',
+      requestId: 'tg-loop-distill'
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'distillation_staged');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/distill$/);
+    assert.equal(capturedBody.sourceEvaluatorEventId, 'lee-eval');
+    assert.deepEqual(capturedBody.lessons, ['Resolve user, owner, success metric, and acceptance criteria first.']);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.distill.stage');
+  });
+
+  await test('stageLoopEngineeringActivation posts staged activation rules to Spawner', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          activationRule: { id: 'activation-1', status: 'staged' },
+          event: { id: 'lee-activation', eventType: 'activation_requested', status: 'passed' },
+          commandResult: {
+            action: 'activation_requested',
+            eventId: 'lee-activation',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Staged suggested activation.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.stageLoopEngineeringActivation({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      useCase: 'PRD Writing requests',
+      surfaces: ['telegram', 'spawner'],
+      mode: 'suggested',
+      triggerPatterns: ['write a PRD'],
+      riskPolicy: 'review_packet',
+      rollbackRef: 'reports/prd-writing-rollback.json',
+      requestId: 'tg-loop-activation'
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'activation_requested');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/activation$/);
+    assert.equal(capturedBody.useCase, 'PRD Writing requests');
+    assert.deepEqual(capturedBody.surfaces, ['telegram', 'spawner']);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.activation.stage');
+  });
+
   await test('creatorMission posts creator planning input to Spawner', async () => {
     restoreAxios();
 

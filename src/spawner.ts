@@ -62,6 +62,44 @@ interface LoopEngineeringRunResult {
   error?: string;
 }
 
+interface LoopEngineeringEvaluatorReviewInput {
+  chipKey: string;
+  previousScore: number;
+  candidateScore: number;
+  roundsObserved?: number;
+  evidenceRefs: string[];
+  label?: string;
+  sourceSurface?: 'telegram' | 'spawner';
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
+interface LoopEngineeringDistillationInput {
+  chipKey: string;
+  sourceEvaluatorEventId: string;
+  lessons: string[];
+  runtimeNotes?: string;
+  tokenBudgetHint?: string;
+  evidenceRefs?: string[];
+  sourceSurface?: 'telegram' | 'spawner';
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
+interface LoopEngineeringActivationInput {
+  chipKey: string;
+  useCase: string;
+  surfaces?: Array<'telegram' | 'spawner' | 'builder' | 'codex' | 'scheduler'>;
+  mode?: 'manual' | 'suggested' | 'local_fast_path';
+  triggerPatterns?: string[];
+  nonTriggerPatterns?: string[];
+  riskPolicy?: 'low_only' | 'review_packet' | 'loop_mode_required';
+  approvalRequired?: boolean;
+  rollbackRef?: string;
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
 interface CreatorMissionInput {
   brief: string;
   requestId?: string;
@@ -1217,6 +1255,55 @@ async function runLoopEngineeringSpawnerAction(
   }
 }
 
+async function postLoopEngineeringCommandResult(input: {
+  chipKey: string;
+  endpoint: string;
+  toolName: string;
+  body: Record<string, unknown>;
+  requestId?: string;
+  target?: string;
+}): Promise<LoopEngineeringRunResult> {
+  const chipKey = safeDomainChipKey(input.chipKey);
+  if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+  try {
+    const res = await postLocalServiceWithRetry(
+      `${SPAWNER_UI_URL}${input.endpoint}`,
+      {
+        ...input.body,
+        executionAuthority: input.body.executionAuthority ?? governorDecisionAuthority({
+          source: 'telegram_loop_engineering_bridge',
+          reason: `Telegram requested ${input.toolName} through Spawner.`,
+          toolName: input.toolName,
+          mutationClass: 'writes_files',
+          requestId: input.requestId,
+          target: input.target || chipKey
+        })
+      },
+      localServiceTimeoutMs('SPARK_LOOP_ENGINEERING_RUN_TIMEOUT_MS')
+    );
+    const commandResult = res.data?.commandResult && typeof res.data.commandResult === 'object'
+      ? res.data.commandResult
+      : {};
+    return {
+      success: Boolean(res.data?.ok),
+      action: typeof commandResult.action === 'string' ? commandResult.action : undefined,
+      missionId: typeof commandResult.missionId === 'string' ? commandResult.missionId : undefined,
+      eventId: typeof commandResult.eventId === 'string' ? commandResult.eventId : undefined,
+      inspectUrl: typeof commandResult.inspectUrl === 'string' ? absoluteSpawnerUrl(commandResult.inspectUrl) : undefined,
+      message: typeof commandResult.userMessage === 'string' ? commandResult.userMessage : undefined,
+      event: res.data?.event && typeof res.data.event === 'object' ? res.data.event : undefined,
+      mission: res.data?.mission && typeof res.data.mission === 'object' ? res.data.mission : undefined,
+      commandResult,
+      ...(res.data?.ok ? {} : { error: res.data?.error || 'Loop-engineering command failed' })
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.response?.data?.error || err?.message || 'Loop-engineering command failed'
+    };
+  }
+}
+
 export const spawner = {
   async isAvailable(): Promise<boolean> {
     try {
@@ -1277,6 +1364,75 @@ export const spawner = {
 
   async runLoopEngineeringLoop(input: LoopEngineeringRunInput): Promise<LoopEngineeringRunResult> {
     return runLoopEngineeringSpawnerAction('loop', input);
+  },
+
+  async recordLoopEngineeringEvaluatorReview(input: LoopEngineeringEvaluatorReviewInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/evaluator-review`,
+      toolName: 'spawner.loop_engineering.evaluator_review.record',
+      requestId: input.requestId,
+      target: chipKey,
+      body: {
+        previousScore: input.previousScore,
+        candidateScore: input.candidateScore,
+        ...(typeof input.roundsObserved === 'number' ? { roundsObserved: input.roundsObserved } : {}),
+        evaluatorSeparated: true,
+        evidenceRefs: input.evidenceRefs,
+        sourceSurface: input.sourceSurface || 'telegram',
+        ...(input.label?.trim() ? { label: input.label.trim() } : {}),
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
+  },
+
+  async distillLoopEngineeringLessons(input: LoopEngineeringDistillationInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/distill`,
+      toolName: 'spawner.loop_engineering.distill.stage',
+      requestId: input.requestId,
+      target: chipKey,
+      body: {
+        sourceEvaluatorEventId: input.sourceEvaluatorEventId,
+        lessons: input.lessons,
+        ...(input.runtimeNotes?.trim() ? { runtimeNotes: input.runtimeNotes.trim() } : {}),
+        ...(input.tokenBudgetHint?.trim() ? { tokenBudgetHint: input.tokenBudgetHint.trim() } : {}),
+        ...(input.evidenceRefs?.length ? { evidenceRefs: input.evidenceRefs } : {}),
+        sourceSurface: input.sourceSurface || 'telegram',
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
+  },
+
+  async stageLoopEngineeringActivation(input: LoopEngineeringActivationInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/activation`,
+      toolName: 'spawner.loop_engineering.activation.stage',
+      requestId: input.requestId,
+      target: input.useCase,
+      body: {
+        useCase: input.useCase,
+        ...(input.surfaces?.length ? { surfaces: input.surfaces } : {}),
+        ...(input.mode ? { mode: input.mode } : {}),
+        ...(input.triggerPatterns?.length ? { triggerPatterns: input.triggerPatterns } : {}),
+        ...(input.nonTriggerPatterns?.length ? { nonTriggerPatterns: input.nonTriggerPatterns } : {}),
+        ...(input.riskPolicy ? { riskPolicy: input.riskPolicy } : {}),
+        ...(typeof input.approvalRequired === 'boolean' ? { approvalRequired: input.approvalRequired } : {}),
+        ...(input.rollbackRef?.trim() ? { rollbackRef: input.rollbackRef.trim() } : {}),
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
   },
 
   async creatorMission(input: CreatorMissionInput): Promise<CreatorMissionResult> {
