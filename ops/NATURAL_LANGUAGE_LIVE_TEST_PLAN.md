@@ -72,6 +72,19 @@ Print the worksheet instead of writing a report file:
 npx ts-node ops/liveNlVerdictReport.ts --suite memory --stdout
 ```
 
+Create a blank observation JSON file before a live Telegram run:
+
+```powershell
+npm run nl:verdict -- --catalog genesis100 --cases genesis-002,genesis-003 --observation-template --out outputs/genesis-observations.json
+```
+
+Fill in the observed replies, side effects, screenshots, ledgers, and verdicts,
+then turn that observation file into the structured evidence packet:
+
+```powershell
+npm run nl:verdict -- --catalog genesis100 --cases genesis-002,genesis-003 --observations outputs/genesis-observations.json --json
+```
+
 Verdicts are human-scored and separate from the redacted route ledger. Use the ledger for route-selection evidence; use the worksheet for whether the actual Telegram reply was conversational, contextual, and safe.
 
 ## Session Log

@@ -26,6 +26,10 @@ const JSON_SECRET_FIELD =
 const AUTH_HEADER = /\b(Authorization\s*:\s*Bearer\s+)([A-Za-z0-9._~+/=-]{12,})/gi;
 const DATABASE_URL = /\b((?:postgres|postgresql|mysql|mongodb|redis):\/\/)([^@\s]+)@/gi;
 
+// File path patterns – prevent leaking internal server/user paths to Telegram users
+const UNIX_ABSOLUTE_PATH = /\/(?:home|Users|root|tmp|var|opt|etc|srv|mnt|proc)\/[^\s"',;)}\]]+/g;
+const WINDOWS_ABSOLUTE_PATH = /[A-Za-z]:\\(?:Users|Windows|Temp|Program Files(?:\s*\(x86\))?|ProgramData|AppData)\\[^\s"',;)}\]]+/gi;
+
 let consoleRedactionInstalled = false;
 
 export function maskSecret(secret: string): string {
@@ -50,6 +54,8 @@ export function redactText(input: string): string {
   });
   out = out.replace(AUTH_HEADER, (_match, prefix: string, secret: string) => `${prefix}${maskSecret(secret)}`);
   out = out.replace(DATABASE_URL, (_match, prefix: string) => `${prefix}***@`);
+  out = out.replace(UNIX_ABSOLUTE_PATH, '[REDACTED_PATH]');
+  out = out.replace(WINDOWS_ABSOLUTE_PATH, '[REDACTED_PATH]');
   return out;
 }
 

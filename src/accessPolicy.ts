@@ -70,7 +70,7 @@ function defaultSparkAccessProfile(): SparkAccessProfile {
   const configured = normalizeSparkAccessProfile(process.env.SPARK_AGENT_ACCESS_PROFILE);
   if (configured) return configured;
   if (sparkIsHostedRuntime() && !sparkHostedFullAccessAllowed()) return 'agent';
-  return 'developer';
+  return 'chat';
 }
 
 async function readPreferences(): Promise<SparkAccessPreferences> {
@@ -428,7 +428,7 @@ export function renderSparkAccessLevel5ConfirmationPrompt(): string {
 }
 
 export function renderSparkAccessChangeConfirmation(profile: SparkAccessProfile): string {
-  return `Done - I changed this chat to ${sparkAccessLabel(profile)}.`;
+  return `Done - I changed this chat setting to ${sparkAccessLabel(profile)}.`;
 }
 
 export function renderSparkAccessConversationHelp(profile: SparkAccessProfile): string {

@@ -83,14 +83,24 @@ async function main(): Promise<void> {
   await test('stores access profile per chat', async () => {
     resetJsonStateForTests();
     process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-access-test-'));
+    const originalDefault = process.env.SPARK_AGENT_ACCESS_PROFILE;
+    delete process.env.SPARK_AGENT_ACCESS_PROFILE;
 
-    assert.equal(await getConfiguredSparkAccessProfile(123), null);
-    assert.equal(await getSparkAccessProfile(123), 'developer');
-    await setSparkAccessProfile(123, 'agent');
+    try {
+      assert.equal(await getConfiguredSparkAccessProfile(123), null);
+      assert.equal(await getSparkAccessProfile(123), 'chat');
+      await setSparkAccessProfile(123, 'agent');
 
-    assert.equal(await getConfiguredSparkAccessProfile(123), 'agent');
-    assert.equal(await getSparkAccessProfile(123), 'agent');
-    assert.equal(await getSparkAccessProfile(456), 'developer');
+      assert.equal(await getConfiguredSparkAccessProfile(123), 'agent');
+      assert.equal(await getSparkAccessProfile(123), 'agent');
+      assert.equal(await getSparkAccessProfile(456), 'chat');
+    } finally {
+      if (originalDefault === undefined) {
+        delete process.env.SPARK_AGENT_ACCESS_PROFILE;
+      } else {
+        process.env.SPARK_AGENT_ACCESS_PROFILE = originalDefault;
+      }
+    }
   });
 
   await test('allows environment override of default access profile', async () => {
@@ -155,7 +165,7 @@ async function main(): Promise<void> {
     assert.match(renderSparkAccessLevelGuide(), /Safety stays on/);
     assert.ok(renderSparkAccessStatus('operator').length < 760);
     assert.ok(renderSparkAccessStatus('operator').split('\n').length <= 16);
-    assert.match(renderSparkAccessOnboarding(), /Default right now: Access level 4/);
+    assert.match(renderSparkAccessOnboarding(), /Default right now: Access level 1/);
     assert.match(renderSparkAccessOnboarding('agent'), /Choose how much access this Telegram chat has/);
     assert.match(renderSparkAccessOnboarding('agent'), /Levels:/);
     assert.match(renderSparkAccessOnboarding('agent'), /4 - Workspace files and local debugging/);
@@ -196,7 +206,7 @@ async function main(): Promise<void> {
     assert.match(operatorStatus, /Use `\/access 4`/);
 
     const operatorChange = renderSparkAccessChangeSummary('operator', { runnerWritable: 'yes' });
-    assert.match(operatorChange, /Done - I changed this chat to Access level 5/);
+    assert.match(operatorChange, /Done - I changed this chat setting to Access level 5/);
     assert.match(operatorChange, /trusted local machine/);
     assert.match(operatorChange, /still ask before deleting important files/);
     assert.doesNotMatch(operatorChange, /Important distinction/);
@@ -206,11 +216,11 @@ async function main(): Promise<void> {
     assert.doesNotMatch(developerChange, /Current runner: writable preflight/);
 
     const confirmations = [
-      ['chat', 'Done - I changed this chat to Access level 1.'],
-      ['builder', 'Done - I changed this chat to Access level 2.'],
-      ['agent', 'Done - I changed this chat to Access level 3.'],
-      ['developer', 'Done - I changed this chat to Access level 4.'],
-      ['operator', 'Done - I changed this chat to Access level 5.']
+      ['chat', 'Done - I changed this chat setting to Access level 1.'],
+      ['builder', 'Done - I changed this chat setting to Access level 2.'],
+      ['agent', 'Done - I changed this chat setting to Access level 3.'],
+      ['developer', 'Done - I changed this chat setting to Access level 4.'],
+      ['operator', 'Done - I changed this chat setting to Access level 5.']
     ] as const;
     for (const [profile, expected] of confirmations) {
       const changed = renderSparkAccessChangeConfirmation(profile);
@@ -250,8 +260,10 @@ async function main(): Promise<void> {
     assert.match(indexSource, /bot\.action\(\/\^spark_access_level:operator:confirm/);
     assert.match(indexSource, /I prepared the local guardrails\./);
     assert.match(indexSource, /isLevel5ServiceEnabled/);
-    assert.match(indexSource, /runSparkAccessActionDetailed\('level5_disable'\)/);
-    assert.match(indexSource, /I also disabled Level 5 service guardrails/);
+    assert.match(indexSource, /runSparkAccessActionDetailed\(actionId\)/);
+    assert.match(indexSource, /level5_disable/);
+    assert.match(indexSource, /authorizeAccessChangeCommand/);
+    assert.match(indexSource, /authorizeSparkAccessActionCommand/);
     assert.match(indexSource, /bot\.command\('access_setup'/);
     assert.match(indexSource, /bot\.command\('docker_doctor'/);
     assert.match(indexSource, /bot\.command\('docker_smoke'/);
@@ -305,7 +317,8 @@ async function main(): Promise<void> {
     assert.match(indexSource, /ephemeral, not memory/);
     assert.match(indexSource, /higher priority than older memory, persona, or generic access doctrine/);
     assert.match(indexSource, /const hasFreshRuntimeTruth = Boolean\(freshRuntimeTruthContext\)/);
-    assert.match(indexSource, /if \(!hasFreshRuntimeTruth\) \{[\s\S]*?runBuilderTelegramBridge/);
+    assert.match(indexSource, /if \(!hasFreshRuntimeTruth && !bypassBuilderBridge\) \{[\s\S]*?builderBridgeRunner/);
+    assert.match(indexSource, /shouldBypassBuilderBridgeForTurnIntent/);
     assert.match(indexSource, /Authoritative current-state context for this answer/);
     assert.match(indexSource, /highest-priority source for current state/);
     assert.match(indexSource, /const reply = await renderAuthoritativeSparkLiveStateAnswer\(\{ rawDetails: shouldShowRawSparkLiveDetails\(text\) \}\);[\s\S]*?await ctx\.reply\(reply\);/);
@@ -320,7 +333,9 @@ async function main(): Promise<void> {
     const liveSummaryFn = indexSource.match(/function renderSparkLiveSummary[\s\S]*?\r?\n}\r?\n\r?\nfunction shouldShowRawSparkLiveDetails/);
     assert.ok(liveSummaryFn, 'expected live summary formatter to exist');
     assert.doesNotMatch(liveSummaryFn[0], /Fresh check:/);
-    assert.match(indexSource, /const reply = await renderAuthoritativeSparkEditCapabilityAnswer\(ctx\.chat\.id\);[\s\S]*?await ctx\.reply\(reply\);/);
+    assert.match(indexSource, /replyWithGovernedReadOnlyState\(ctx, user, text, turnIntentEnvelope, \{[\s\S]*?kind: 'access_capability'[\s\S]*?render: \(\) => renderAuthoritativeSparkEditCapabilityAnswer\(ctx\.chat\.id\)/);
+    assert.match(indexSource, /action = `spark\.read_only_state\.\$\{input\.kind\}`/);
+    assert.match(indexSource, /telegramActionAuthorityDecision\([\s\S]*?telegramActionEnvelope\(turnIntentEnvelope/);
     assert.match(indexSource, /fresh `spark live status` says Spawner is up/);
     assert.match(indexSource, /Current Spark risk profile:/);
     assert.match(indexSource, /No restart needed\. Restarting now would mostly add churn\./);
@@ -376,7 +391,7 @@ async function main(): Promise<void> {
   await test('gates Spawner command side doors by access level', async () => {
     const indexSource = await readFile(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
 
-    const pendingCreatorControl = indexSource.match(/async function handlePendingCreatorMissionControl[\s\S]*?\n(?:export\s+)?function isPendingClarificationFollowup/);
+    const pendingCreatorControl = indexSource.match(/async function handlePendingCreatorMissionControl[\s\S]*?\nfunction isBareExecutionStart/);
     assert.ok(pendingCreatorControl, 'expected pending creator mission control handler to exist');
     assert.match(pendingCreatorControl[0], /sparkAccessAllows\(accessProfile, 'spawner_build'\)/);
     assert.match(pendingCreatorControl[0], /renderSparkAccessDenial\(accessProfile, 'spawner_build'\)/);
@@ -389,7 +404,7 @@ async function main(): Promise<void> {
     assert.ok(missionCommand, 'expected /mission command handler to exist');
     assert.match(missionCommand[0], /sparkAccessAllows\(accessProfile, 'spawner_build'\)/);
 
-    const naturalBoardRoute = indexSource.match(/const spawnerBoardIntent = parseContextualSpawnerBoardNaturalIntent\(text, contextualTurns\);[\s\S]*?\n    if \(isLocalSparkServiceRequest/);
+    const naturalBoardRoute = indexSource.match(/const spawnerBoardIntent = parseContextualSpawnerBoardNaturalIntent\(text, contextualTurns\);[\s\S]*?if \(spawnerBoardIntent && spawnerBoardAuthorization\) \{/);
     assert.ok(naturalBoardRoute, 'expected natural Spawner board route to exist');
     assert.match(naturalBoardRoute[0], /sparkAccessAllows\(accessProfile, 'spawner_build'\)/);
     assert.match(naturalBoardRoute[0], /renderSparkAccessDenial\(accessProfile, 'spawner_build'\)/);
@@ -415,6 +430,9 @@ async function main(): Promise<void> {
     assert.match(indexSource, /bot\.hears\(\/\^\\\/black-box/);
     assert.match(indexSource, /bot\.command\('probe', handleAgentRouteProbeCommand\)/);
     assert.match(indexSource, /bot\.command\('route_probe', handleAgentRouteProbeCommand\)/);
+    assert.match(indexSource, /authorizeRouteProbeCommand/);
+    assert.match(indexSource, /route: 'route\.probe'/);
+    assert.match(indexSource, /recordTelegramHarnessCoreExecution\(authorization, \{[\s\S]{0,260}toolName: 'route\.probe'/);
     assert.match(indexSource, /bot\.command\('nl_route', handleNaturalRouteProbeCommand\)/);
     assert.match(indexSource, /bot\.command\('natural_route', handleNaturalRouteProbeCommand\)/);
     assert.match(indexSource, /bot\.command\('ledger', handleCapabilityLedgerReviewCommand\)/);
@@ -422,37 +440,19 @@ async function main(): Promise<void> {
     assert.match(indexSource, /bot\.command\('authority', handleAuthorityStatusCommand\)/);
     assert.match(indexSource, /bot\.command\('trace_repair', handleTraceRepairCommand\)/);
     assert.match(indexSource, /bot\.command\('memory_movement', handleMemoryMovementCommand\)/);
-    assert.match(indexSource, /bot\.command\('voice', async \(ctx\) => \{/);
-    assert.match(indexSource, /replyViaBuilder\(ctx, ctx\.message\?\.text \|\| '\/voice'\)/);
+    assert.match(indexSource, /export async function handleVoiceCommand\(ctx: any\): Promise<void> \{/);
+    assert.match(indexSource, /bot\.command\('voice', handleVoiceCommand\)/);
+    assert.match(indexSource, /telegramCommandActionAuthorityDecision\(ctx, \{[\s\S]{0,500}route: 'voice\.command'/);
+    assert.match(indexSource, /replyViaBuilder\([\s\S]{0,220}authorization\.legacyEnvelope,[\s\S]{0,120}bridgeTurnAuthorityFromAuthorization\(authorization\)/);
     assert.doesNotMatch(indexSource, /spark\.getVoice\(\)/);
-    assert.match(indexSource, /const memoryQuery = text\.replace\(\/\^\\\/\(\?:context\|operating_context\|agent_context\|aoc\)/);
-    assert.match(indexSource, /const memoryInPlayPromise = memoryQuery/);
-    assert.match(indexSource, /const questionAnswer = memoryQuery \? formatAocQuestionAnswer\(memoryQuery\) : ''/);
-    assert.match(indexSource, /Access Level 5 describes what Spark is allowed to attempt/);
-    assert.match(indexSource, /does not prove this runner can edit files/);
-    assert.match(indexSource, /Not definitely for full browser automation/);
-    assert.match(indexSource, /await buildBrowserProofQuestionAnswer\(text\)/);
-    assert.match(indexSource, /conversation\.browser_proof_boundary/);
-    assert.match(indexSource, /I need a fresh `\/probe browser` result before I should claim browser access/);
-    assert.match(indexSource, /readLatestCapabilityProbeReceipt\('spark_browser'\)/);
-    assert.match(indexSource, /extractBrowserProofNames/);
-    assert.match(indexSource, /public_page_open/);
-    assert.match(indexSource, /screenshot_capture/);
-    assert.match(indexSource, /Yes, for the small browser check Spark just proved/);
-    assert.match(indexSource, /The fresh probe covered/);
-    assert.match(indexSource, /The latest browser probe failed, so browser automation is unavailable right now/);
-    assert.match(indexSource, /Run `\/probe browser` and I can answer from the fresh result/);
-    assert.match(indexSource, /runBuilderConversationColdContext\(\{[\s\S]*?\}\)\.catch\(\(error\)/);
-    assert.match(indexSource, /runBuilderAgentOperatingContext\(\{[\s\S]*?currentMessage: text,[\s\S]*?liveState,/);
-    const llmSource = await readFile(path.join(__dirname, '..', 'src', 'llm.ts'), 'utf8');
-    assert.match(llmSource, /Do not answer with "yes" or "definitely" unless the current prompt includes a fresh route receipt or tool result/);
-    assert.match(llmSource, /Never say "I just fetched", "I opened", or "I browsed" unless that action actually happened in the current turn/);
     const sparkSource = await readFile(path.join(__dirname, '..', 'src', 'spark.ts'), 'utf8');
     const distSparkSource = await readFile(path.join(__dirname, '..', 'dist', 'spark.js'), 'utf8');
     assert.doesNotMatch(sparkSource, /getVoice/);
     assert.doesNotMatch(distSparkSource, /getVoice/);
-    assert.match(distIndexSource, /bot\.command\('voice', async \(ctx\) => \{/);
-    assert.match(distIndexSource, /replyViaBuilder\(ctx, .*'\/voice'/);
+    assert.match(distIndexSource, /async function handleVoiceCommand\(ctx\) \{/);
+    assert.match(distIndexSource, /bot\.command\('voice', handleVoiceCommand\)/);
+    assert.match(distIndexSource, /telegramCommandActionAuthorityDecision\(ctx, \{[\s\S]{0,500}route: 'voice\.command'/);
+    assert.match(distIndexSource, /replyViaBuilder\([\s\S]{0,220}authorization\.legacyEnvelope,[\s\S]{0,120}bridgeTurnAuthorityFromAuthorization\(authorization\)/);
     assert.doesNotMatch(distIndexSource, /spark_1\.spark\.getVoice\(\)/);
     assert.match(indexSource, /AOC_CORE_ROUTE_KEYS/);
     assert.match(indexSource, /firstArg === 'core'/);

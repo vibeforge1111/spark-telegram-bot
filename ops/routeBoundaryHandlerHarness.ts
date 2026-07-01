@@ -84,6 +84,7 @@ function replyText(turn: Pick<HarnessTurn, 'replies'>): string {
 }
 
 function expectedExecutedRoutes(expectedRoute: string): string[] {
+  if (expectedRoute.startsWith('chat_')) return [expectedRoute];
   const aliases: Record<string, string[]> = {
     global_doctrine_blocked: ['agent_doctrine.global_blocked'],
     conversation_ideation: ['conversation.ideation'],

@@ -1,19 +1,23 @@
 import assert from 'node:assert/strict';
 import {
+  buildDiagnosePingExecutionAuthority,
   describeAccessDiagnostics,
   describeBuilderBridgeHealth,
   describeChatProviderHealth,
+  describeRouteDivergence,
   describeRelayHealth,
   describeProviderStatus,
   describeSpawnerPublicLinkHealth,
   getRelayIdentityFromEnv,
   inferDiagnoseLikelyIssue,
   readableLocalServiceUrl,
+  renderDiagnoseReportHtml,
   resolveDiagnoseRouteProviders,
   selectPingProviderIds,
   type DiagnoseSubject,
   type ProviderStatus
 } from '../src/diagnose';
+import type { NaturalRouteExecutionRecord } from '../src/naturalRouteLedger';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -23,6 +27,34 @@ function test(name: string, fn: () => void): void {
     console.error(`not ok - ${name}`);
     throw error;
   }
+}
+
+function routeRecord(
+  shadowRoute: string,
+  executedRoute: string,
+  outcome: NaturalRouteExecutionRecord['outcome'] = shadowRoute === executedRoute ? 'matched' : 'mismatch'
+): NaturalRouteExecutionRecord {
+  return {
+    schema_version: 'spark.nlp.route_execution.v1',
+    recorded_at: '2026-06-10T00:00:00.000Z',
+    profile: 'test',
+    user_id: 'user_redacted',
+    chat_id: 'chat_redacted',
+    chat_type: 'private',
+    admin: true,
+    shadow_route: shadowRoute,
+    shadow_owner: shadowRoute === 'spawner.build' ? 'spawner-ui' : 'none',
+    shadow_confidence: 'explicit',
+    shadow_context_source: 'latest_message',
+    shadow_requires_confirmation: false,
+    shadow_signals: [],
+    shadow_blocked_by: [],
+    executed_route: executedRoute,
+    executed_owner: executedRoute === 'spawner.build' ? 'spawner-ui' : 'spark-telegram-bot',
+    executed_action: executedRoute,
+    outcome,
+    delivery: 'selected'
+  };
 }
 
 test('reports terminal CLI providers as ready without API keys', () => {
@@ -111,6 +143,23 @@ test('pings selected Spawner route providers only', () => {
   assert.deepEqual(selectPingProviderIds(providers, ['zai']), ['zai']);
 });
 
+test('diagnostic provider pings carry Harness Core Spawner run authority', () => {
+  const authority = buildDiagnosePingExecutionAuthority({
+    providerId: 'codex',
+    requestId: 'diag-codex-123'
+  }) as any;
+
+  assert.equal(authority.schema_version, 'governor-decision-v1');
+  assert.equal(authority.execution_boundary.action_authorized, true);
+  assert.equal(authority.authorizations[0].verdict, 'allow');
+  assert.equal(authority.authorizations[0].capability_id, 'capability:spawner-ui:spawner.run');
+  assert.equal(authority.authorizations[0].restrictions.publish_allowed, false);
+  assert.equal(authority.envelope.actor.kind, 'human');
+  assert.equal(authority.envelope.proposed_actions[0].action_type, 'launch_mission');
+  assert.equal(authority.envelope.proposed_actions[0].args_ref.path_or_uri, 'telegram://actions/spawner.run/diag-codex-123');
+  assert.match(authority.turn_id, /diagnose-command:diag-codex-123$/);
+});
+
 test('diagnostics keep OpenAI-compatible chat separate from Codex mission routing', () => {
   const routes = resolveDiagnoseRouteProviders({
     BOT_DEFAULT_PROVIDER: 'codex',
@@ -123,6 +172,45 @@ test('diagnostics keep OpenAI-compatible chat separate from Codex mission routin
   assert.equal(routes.chatProvider, 'openai');
   assert.equal(routes.telegramRunProvider, 'codex');
   assert.equal(routes.spawnerDefaultProvider, 'codex');
+});
+
+test('renders diagnose reports as safe Telegram HTML with readable sections', () => {
+  const html = renderDiagnoseReportHtml([
+    '🟢 Spark diagnostics look healthy.',
+    '',
+    'Health',
+    '🟢 Relay ready',
+    '',
+    'Routes',
+    'Chat: codex (gpt-5.5)',
+    'Builds: zai <unsafe>',
+    'Spawner UI: http://127.0.0.1:3333'
+  ].join('\n'));
+
+  assert.match(html, /^<b>🟢 Spark diagnostics look healthy\.<\/b>/);
+  assert.match(html, /<b>Health<\/b>/);
+  assert.match(html, /<b>Routes<\/b>/);
+  assert.match(html, /<b>Chat:<\/b> <code>codex \(gpt-5\.5\)<\/code>/);
+  assert.match(html, /<b>Builds:<\/b> <code>zai &lt;unsafe&gt;<\/code>/);
+  assert.match(html, /<b>Spawner UI:<\/b> <a href="http:\/\/127\.0\.0\.1:3333">open<\/a>/);
+});
+
+test('summarizes route divergence and build misroutes for diagnose', () => {
+  assert.deepEqual(describeRouteDivergence([]), ['Route divergence: no route ledger records yet']);
+  assert.deepEqual(
+    describeRouteDivergence([routeRecord('spawner.build', 'spawner.build')]),
+    ['Route divergence: ok (1 records, 0 mismatches)']
+  );
+
+  const lines = describeRouteDivergence([
+    routeRecord('spawner.build', 'plain_chat'),
+    routeRecord('spawner.build', 'spark.read_only_state.live_status'),
+    routeRecord('memory.write', 'plain_chat')
+  ]);
+
+  assert.equal(lines[0], 'Route divergence: 3/3 mismatched; build misroutes 2');
+  assert.match(lines[1], /spawner\.build->plain_chat x1/);
+  assert.match(lines[1], /spawner\.build->spark\.read_only_state\.live_status x1/);
 });
 
 test('uses the active Telegram relay profile and port for diagnostics', () => {
@@ -314,5 +402,35 @@ test('infers likely diagnose issue from user-facing failure class', () => {
       }
     }),
     /Builder bridge is required/
+  );
+});
+
+test('missionPingOk=null (not checked) shows degraded, not "no obvious fault"', () => {
+  // This is the core bug: before the fix, missionPingOk !== false treated
+  // undefined/null as healthy. After fix, only === true shows ready.
+  const base = {
+    subject: { userId: 123, chatId: 456, isAdmin: true, isAllowed: true },
+    botRelayOk: true,
+    spawnerOk: true,
+    builder: { mode: 'auto' as const, available: true, builderRepo: 'repo', builderHome: 'home' },
+    chatProviderOk: true,
+  };
+
+  // null (not checked) should show degraded
+  assert.match(
+    inferDiagnoseLikelyIssue({ ...base, missionPingOk: null }),
+    /mission provider ping failed or not reached/
+  );
+
+  // true should show no obvious fault
+  assert.match(
+    inferDiagnoseLikelyIssue({ ...base, missionPingOk: true }),
+    /no obvious fault/
+  );
+
+  // false should show degraded
+  assert.match(
+    inferDiagnoseLikelyIssue({ ...base, missionPingOk: false }),
+    /mission provider ping failed/
   );
 });

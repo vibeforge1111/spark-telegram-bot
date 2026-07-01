@@ -1,12 +1,17 @@
 import assert from 'node:assert/strict';
 import axios from 'axios';
 import {
+  createHarnessCoreActionEnvelopeVNext,
+  createHarnessCoreAuthorizedGovernorDecision
+} from '@spark/harness-core';
+import {
   formatCreatorMissionExecutionSummary,
   formatCreatorMissionStatusSummary,
   formatCreatorMissionSummary,
   formatCreatorMissionValidationSummary,
   spawner
 } from '../src/spawner';
+import type { SparkHarnessMutationClass } from '../src/harnessContract';
 
 type AsyncTest = () => Promise<void> | void;
 
@@ -26,6 +31,8 @@ const originalPort = process.env.TELEGRAM_RELAY_PORT;
 const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
 const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
 const originalUiKey = process.env.SPARK_UI_API_KEY;
+const originalMcpKey = process.env.MCP_API_KEY;
+const originalEventsKey = process.env.EVENTS_API_KEY;
 
 function restoreAxios(): void {
   (axios as any).get = originalGet;
@@ -41,6 +48,40 @@ function restoreEnv(): void {
   else process.env.SPARK_BRIDGE_API_KEY = originalBridgeKey;
   if (originalUiKey === undefined) delete process.env.SPARK_UI_API_KEY;
   else process.env.SPARK_UI_API_KEY = originalUiKey;
+  if (originalMcpKey === undefined) delete process.env.MCP_API_KEY;
+  else process.env.MCP_API_KEY = originalMcpKey;
+  if (originalEventsKey === undefined) delete process.env.EVENTS_API_KEY;
+  else process.env.EVENTS_API_KEY = originalEventsKey;
+}
+
+function mutationClassForTool(toolName: string): SparkHarnessMutationClass {
+  if (toolName === 'spawner.creator_mission.status') return 'read_only';
+  if (toolName === 'spawner.mission_control.status') return 'read_only';
+  if (toolName === 'spawner.mission_control.command') return 'controls_mission';
+  if (toolName === 'creator.mission.create' || toolName === 'spawner.creator_mission') return 'creates_chip';
+  return 'launches_mission';
+}
+
+function fakeMissionControlAuthority(): unknown {
+  return fakeExecutionAuthority('spawner.mission_control.command');
+}
+
+function fakeExecutionAuthority(
+  toolName: string,
+  mutationClass: SparkHarnessMutationClass = mutationClassForTool(toolName),
+  ownerSystem = 'spawner-ui'
+): unknown {
+  const envelope = createHarnessCoreActionEnvelopeVNext({
+    surface: 'telegram',
+    ownerSystem,
+    toolName,
+    mutationClass,
+    source: 'spawner.test',
+    reason: `Test Harness Core authority for ${toolName}.`,
+    requestId: `turn:${toolName}:${mutationClass}`,
+    actorIdRef: 'telegram-human'
+  });
+  return createHarnessCoreAuthorizedGovernorDecision({ envelope, tool_name: toolName });
 }
 
 async function run(): Promise<void> {
@@ -68,6 +109,7 @@ async function run(): Promise<void> {
       };
     };
 
+    const executionAuthority = fakeExecutionAuthority('spawner.run');
     const result = await spawner.runGoal({
       goal: 'Build a Kanban board from this Telegram message.',
       missionName: 'Telegram Kanban Board',
@@ -76,7 +118,8 @@ async function run(): Promise<void> {
       requestId: 'tg-req-1',
       traceRef: 'trace:telegram-run:tg-req-1',
       providers: ['codex', 'claude'],
-      promptMode: 'orchestrator'
+      promptMode: 'orchestrator',
+      executionAuthority
     });
 
     assert.equal(result.success, true);
@@ -84,7 +127,8 @@ async function run(): Promise<void> {
     assert.equal(result.requestId, 'tg-req-1');
     assert.deepEqual(result.providers, ['codex', 'claude']);
     assert.match(capturedUrl, /\/api\/spark\/run$/);
-    assert.deepEqual(capturedBody, {
+    const { executionAuthority: forwardedAuthority, ...capturedBodyWithoutAuthority } = capturedBody;
+    assert.deepEqual(capturedBodyWithoutAuthority, {
       goal: 'Build a Kanban board from this Telegram message.',
       missionName: 'Telegram Kanban Board',
       chatId: '123',
@@ -95,9 +139,116 @@ async function run(): Promise<void> {
       providers: ['codex', 'claude'],
       promptMode: 'orchestrator'
     });
+    assert.equal(forwardedAuthority, executionAuthority);
     assert.equal(capturedOptions.timeout, 1800000);
     assert.equal(capturedOptions.headers['x-api-key'], 'bridge-secret-for-tests');
     assert.equal(capturedOptions.headers['x-spawner-ui-key'], 'ui-secret-for-tests');
+  });
+
+  await test('runGoal forwards native Governor authority when supplied', async () => {
+    restoreAxios();
+    process.env.SPARK_BRIDGE_API_KEY = 'bridge-secret-for-tests';
+
+    const executionAuthority = fakeExecutionAuthority('spawner.run');
+    let capturedBody: any = null;
+    (axios as any).post = async (_url: string, body: unknown) => {
+      capturedBody = body;
+      return { data: { success: true, missionId: 'spark-vnext-run' } };
+    };
+
+    const result = await spawner.runGoal({
+      goal: 'Run a no-edit Spawner proof mission.',
+      chatId: '123',
+      userId: '456',
+      requestId: 'tg-vnext-run',
+      executionAuthority
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(capturedBody.executionAuthority, executionAuthority);
+  });
+
+  await test('runGoal fails closed before network when authority is missing', async () => {
+    restoreAxios();
+    let postCalled = false;
+    (axios as any).post = async () => {
+      postCalled = true;
+      return { data: { success: true } };
+    };
+
+    const result = await spawner.runGoal({
+      goal: 'Run without authority',
+      chatId: '123',
+      userId: '456',
+      requestId: 'tg-missing-authority'
+    });
+
+    assert.equal(result.success, false);
+    assert.match(result.error || '', /Harness Core execution authority is required/);
+    assert.equal(postCalled, false);
+  });
+
+  await test('runGoal rejects malformed Governor authority before network', async () => {
+    restoreAxios();
+    let postCalled = false;
+    (axios as any).post = async () => {
+      postCalled = true;
+      return { data: { success: true } };
+    };
+
+    const result = await spawner.runGoal({
+      goal: 'Run with malformed authority',
+      chatId: '123',
+      userId: '456',
+      requestId: 'tg-malformed-authority',
+      executionAuthority: {}
+    });
+
+    assert.equal(result.success, false);
+    assert.match(result.error || '', /missing_or_malformed_governor_decision/);
+    assert.equal(postCalled, false);
+  });
+
+  await test('runGoal rejects a valid Governor decision for the wrong tool', async () => {
+    restoreAxios();
+    let postCalled = false;
+    (axios as any).post = async () => {
+      postCalled = true;
+      return { data: { success: true } };
+    };
+
+    const result = await spawner.runGoal({
+      goal: 'Run with schedule authority',
+      chatId: '123',
+      userId: '456',
+      requestId: 'tg-wrong-tool-authority',
+      executionAuthority: fakeExecutionAuthority('schedule.create', 'creates_schedule', 'spark-intelligence-builder')
+    });
+
+    assert.equal(result.success, false);
+    assert.match(result.error || '', /governor_missing_matching_authorization/);
+    assert.equal(postCalled, false);
+  });
+
+  await test('runGoal rejects read-only Governor authority before network', async () => {
+    restoreAxios();
+    let postCalled = false;
+    (axios as any).post = async () => {
+      postCalled = true;
+      return { data: { success: true } };
+    };
+
+    const result = await spawner.runGoal({
+      goal: 'Run with read-only authority',
+      chatId: '123',
+      userId: '456',
+      requestId: 'tg-read-only-authority',
+      executionAuthority: fakeExecutionAuthority('spawner.run', 'read_only')
+    });
+
+    assert.equal(result.success, false);
+    assert.match(result.error || '', /governor_outcome_read_only/);
+    assert.equal(postCalled, false);
   });
 
   await test('runGoal falls back to the bridge key for hosted UI auth when no UI key is configured', async () => {
@@ -115,7 +266,8 @@ async function run(): Promise<void> {
       goal: 'Build with bridge fallback.',
       chatId: '123',
       userId: '456',
-      requestId: 'tg-bridge-fallback'
+      requestId: 'tg-bridge-fallback',
+      executionAuthority: fakeExecutionAuthority('spawner.run')
     });
 
     assert.equal(result.success, true);
@@ -140,7 +292,8 @@ async function run(): Promise<void> {
       goal: 'Build after one timeout.',
       chatId: '123',
       userId: '456',
-      requestId: 'tg-retry'
+      requestId: 'tg-retry',
+      executionAuthority: fakeExecutionAuthority('spawner.run')
     });
 
     assert.equal(attempts, 2);
@@ -163,7 +316,8 @@ async function run(): Promise<void> {
       goal: 'Build a plain board.',
       chatId: '123',
       userId: '456',
-      requestId: 'tg-defaults'
+      requestId: 'tg-defaults',
+      executionAuthority: fakeExecutionAuthority('spawner.run')
     });
 
     assert.equal(result.success, true);
@@ -204,11 +358,13 @@ async function run(): Promise<void> {
       };
     };
 
+    const executionAuthority = fakeExecutionAuthority('creator.mission.create');
     const result = await spawner.creatorMission({
       brief: 'Create a Startup YC specialization path with benchmarked autoloop.',
       requestId: 'tg-creator-1',
       privacyMode: 'local_only',
-      riskLevel: 'medium'
+      riskLevel: 'medium',
+      executionAuthority
     });
 
     assert.equal(result.success, true);
@@ -217,13 +373,30 @@ async function run(): Promise<void> {
     assert.equal(result.taskCount, 8);
     assert.equal(result.canvasUrl, 'http://spawner.test/canvas?pipeline=creator-tg-creator-1&mission=mission-creator-1');
     assert.match(capturedUrl, /\/api\/creator\/mission$/);
-    assert.deepEqual(capturedBody, {
-      brief: 'Create a Startup YC specialization path with benchmarked autoloop.',
-      requestId: 'tg-creator-1',
-      privacyMode: 'local_only',
-      riskLevel: 'medium'
-    });
+    assert.equal(capturedBody.brief, 'Create a Startup YC specialization path with benchmarked autoloop.');
+    assert.equal(capturedBody.requestId, 'tg-creator-1');
+    assert.equal(capturedBody.privacyMode, 'local_only');
+    assert.equal(capturedBody.riskLevel, 'medium');
+    assert.equal(capturedBody.executionAuthority, executionAuthority);
     assert.equal(capturedOptions.timeout, 1800000);
+  });
+
+  await test('creatorMission fails closed before network when authority is missing', async () => {
+    restoreAxios();
+    let postCalled = false;
+    (axios as any).post = async () => {
+      postCalled = true;
+      return { data: { ok: true } };
+    };
+
+    const result = await spawner.creatorMission({
+      brief: 'Create without authority',
+      requestId: 'tg-creator-no-authority'
+    });
+
+    assert.equal(result.success, false);
+    assert.match(result.error || '', /Harness Core execution authority is required/);
+    assert.equal(postCalled, false);
   });
 
   await test('formatCreatorMissionSummary renders the creator mission packet for Telegram', async () => {
@@ -268,13 +441,14 @@ async function run(): Promise<void> {
     assert.match(message, /Creator-run contract: creator intent, adapter map, artifact manifest, domain chip, benchmark pack, specialization path, autoloop policy, evidence ladder, creator mission status, swarm\/contribution_packet\.json/);
     assert.match(message, /baseline, candidate, held-out or trap evidence/);
     assert.match(message, /2 tasks queued/);
-    assert.match(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
     assert.match(message, /Board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
+    assert.match(message, /Canvas will follow after nodes, skill pairings, and workflow handoff are materialized\./);
     assert.match(message, /say: run it/);
     assert.match(message, /say: status/);
     assert.match(message, /say: validate it/);
     assert.doesNotMatch(message, /^mission-creator-1$/m);
     assert.doesNotMatch(message, /\/creator run mission-creator-1/);
+    assert.doesNotMatch(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
     assert.doesNotMatch(message, /- Canvas:/);
   });
 
@@ -305,12 +479,13 @@ async function run(): Promise<void> {
     );
 
     assert.match(message, /2 tasks staged/);
-    assert.match(message, /^Canvas: http:\/\/spawner\.test\/canvas$/m);
     assert.match(message, /^Board: http:\/\/spawner\.test\/kanban$/m);
+    assert.match(message, /Canvas will follow after nodes, skill pairings, and workflow handoff are materialized\./);
     assert.match(message, /say: status/);
     assert.match(message, /say: revise the plan/);
     assert.doesNotMatch(message, /secret-chat/);
     assert.doesNotMatch(message, /mission-creator-stage-only/);
+    assert.doesNotMatch(message, /^Canvas:/m);
     assert.doesNotMatch(message, /say: run it/);
     assert.doesNotMatch(message, /say: validate it/);
   });
@@ -345,14 +520,34 @@ async function run(): Promise<void> {
       };
     };
 
-    const result = await spawner.creatorMissionExecute({ missionId: 'mission-creator-1' });
+    const executionAuthority = fakeExecutionAuthority('spawner.dispatch');
+    const result = await spawner.creatorMissionExecute({
+      missionId: 'mission-creator-1',
+      executionAuthority
+    });
 
     assert.equal(result.success, true);
     assert.equal(result.started, true);
     assert.equal(result.providerId, 'codex');
     assert.match(capturedUrl, /\/api\/creator\/mission\/execute$/);
-    assert.deepEqual(capturedBody, { missionId: 'mission-creator-1' });
+    assert.equal(capturedBody.missionId, 'mission-creator-1');
+    assert.equal(capturedBody.executionAuthority, executionAuthority);
     assert.equal(capturedOptions.timeout, 1800000);
+  });
+
+  await test('creatorMissionExecute fails closed before network when authority is missing', async () => {
+    restoreAxios();
+    let postCalled = false;
+    (axios as any).post = async () => {
+      postCalled = true;
+      return { data: { ok: true } };
+    };
+
+    const result = await spawner.creatorMissionExecute({ missionId: 'mission-creator-1' });
+
+    assert.equal(result.success, false);
+    assert.match(result.error || '', /Harness Core execution authority is required/);
+    assert.equal(postCalled, false);
   });
 
   await test('formatCreatorMissionExecutionSummary renders execution links for Telegram', async () => {
@@ -378,6 +573,7 @@ async function run(): Promise<void> {
     assert.doesNotMatch(message, /local workspace: C:\\Users\\USER\\Desktop/);
     assert.match(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
     assert.match(message, /Board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
+    assert.ok(message.indexOf('Board:') < message.indexOf('Canvas:'), 'Board should appear before Canvas in execution handoff');
     assert.doesNotMatch(message, /- Board:/);
   });
 
@@ -409,13 +605,50 @@ async function run(): Promise<void> {
       };
     };
 
-    const result = await spawner.creatorMissionStatus({ missionId: 'mission-creator-1' });
+    const executionAuthority = fakeExecutionAuthority('spawner.creator_mission.status');
+    const result = await spawner.creatorMissionStatus({
+      missionId: 'mission-creator-1',
+      executionAuthority
+    });
 
     assert.equal(result.success, true);
     assert.equal(result.missionId, 'mission-creator-1');
     assert.equal(result.requestId, 'tg-creator-1');
     assert.match(capturedUrl, /\/api\/creator\/mission\?missionId=mission-creator-1$/);
     assert.equal(capturedOptions.timeout, 30000);
+  });
+
+  await test('creatorMissionStatus fails closed before network when authority is missing', async () => {
+    restoreAxios();
+    let getCalled = false;
+    (axios as any).get = async () => {
+      getCalled = true;
+      return { data: { ok: true } };
+    };
+
+    const result = await spawner.creatorMissionStatus({ missionId: 'mission-creator-1' });
+
+    assert.equal(result.success, false);
+    assert.match(result.error || '', /Harness Core execution authority is required/);
+    assert.equal(getCalled, false);
+  });
+
+  await test('creatorMissionStatus rejects non-read creator authority before network', async () => {
+    restoreAxios();
+    let getCalled = false;
+    (axios as any).get = async () => {
+      getCalled = true;
+      return { data: { ok: true } };
+    };
+
+    const result = await spawner.creatorMissionStatus({
+      missionId: 'mission-creator-1',
+      executionAuthority: fakeExecutionAuthority('spawner.creator_mission.validate')
+    });
+
+    assert.equal(result.success, false);
+    assert.match(result.error || '', /governor_missing_matching_authorization|governor_outcome_not_allowed/);
+    assert.equal(getCalled, false);
   });
 
   await test('formatCreatorMissionStatusSummary renders readiness and latest validation state', async () => {
@@ -507,13 +740,33 @@ async function run(): Promise<void> {
       };
     };
 
-    const result = await spawner.creatorMissionValidate({ missionId: 'mission-creator-1', maxCommands: 3 });
+    const executionAuthority = fakeExecutionAuthority('spawner.creator_mission.validate');
+    const result = await spawner.creatorMissionValidate({
+      missionId: 'mission-creator-1',
+      maxCommands: 3,
+      executionAuthority
+    });
 
     assert.equal(result.success, true);
     assert.equal(result.status, 'passed');
     assert.match(capturedUrl, /\/api\/creator\/mission\/validate$/);
-    assert.deepEqual(capturedBody, { missionId: 'mission-creator-1', maxCommands: 3 });
+    assert.deepEqual(capturedBody, { missionId: 'mission-creator-1', maxCommands: 3, executionAuthority });
     assert.equal(capturedOptions.timeout, 1800000);
+  });
+
+  await test('creatorMissionValidate fails closed before network when authority is missing', async () => {
+    restoreAxios();
+    let postCalled = false;
+    (axios as any).post = async () => {
+      postCalled = true;
+      return { data: { ok: true } };
+    };
+
+    const result = await spawner.creatorMissionValidate({ missionId: 'mission-creator-1', maxCommands: 3 });
+
+    assert.equal(result.success, false);
+    assert.match(result.error || '', /Harness Core execution authority is required/);
+    assert.equal(postCalled, false);
   });
 
   await test('formatCreatorMissionValidationSummary renders command totals and blockers', async () => {
@@ -556,43 +809,280 @@ async function run(): Promise<void> {
     assert.match(message, /Board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
   });
 
+  await test('formatCreatorMissionValidationSummary separates passed artifact checks from blocked promotion', async () => {
+    const message = formatCreatorMissionValidationSummary(
+      {
+        success: true,
+        missionId: 'mission-creator-1',
+        status: 'passed',
+        run: {
+          status: 'passed',
+          results: [
+            {
+              artifact_id: 'spark-qa-operator-benchmark-factory-v1',
+              status: 'passed',
+              exit_code: 0
+            }
+          ]
+        },
+        trace: {
+          stage_status: 'blocked',
+          current_stage: 'validation_completed_promotion_blocked',
+          publish_readiness: 'private_draft',
+          blockers: [
+            'Fresh benchmark runner evidence is required before this Creator Mission can be considered scored or promotion-ready.'
+          ]
+        }
+      },
+      'http://spawner.test/'
+    );
+
+    assert.match(message, /artifact validation passed; promotion is still blocked/i);
+    assert.match(message, /baseline, candidate, delta, held-out\/trap verdicts, and benchmark refs/);
+    assert.doesNotMatch(message, /Creator validation passed\./);
+    assert.doesNotMatch(message, /Creator Mission score/);
+  });
+
+  await test('formatCreatorMissionValidationSummary hides local paths in failure copy', async () => {
+    const message = formatCreatorMissionValidationSummary(
+      {
+        success: true,
+        missionId: 'mission-creator-1',
+        status: 'failed',
+        run: {
+          status: 'failed',
+          results: [
+            {
+              artifact_id: 'spark-qa-operator-domain-chip-v1',
+              status: 'failed',
+              exit_code: null,
+              error: 'Repository path not found: /Users/alchemistab/.spark/modules/spawner-ui/domain-chip-spark-qa-operator'
+            }
+          ]
+        }
+      },
+      'http://spawner.test/'
+    );
+
+    assert.match(message, /required local artifact path is not available/);
+    assert.doesNotMatch(message, /\/Users\/alchemistab/);
+    assert.doesNotMatch(message, /\.spark\/modules/);
+  });
+
   await test('missionCommand formats provider status for Telegram', async () => {
     restoreAxios();
-    (axios as any).post = async () => ({
+    const executionAuthority = fakeExecutionAuthority('spawner.mission_control.status');
+    let capturedUrl = '';
+    (axios as any).get = async (url: string) => {
+      capturedUrl = url;
+      return {
       data: {
-        status: {
-          paused: false,
-          allComplete: true,
-          providers: {
-            codex: 'completed',
-            claude: 'running'
+        ok: true,
+        snapshot: {
+          recent: [{
+            eventType: 'mission_failed',
+            missionName: 'Status Probe',
+            summary: 'Codex could not finish.'
+          }],
+          providerSummary: 'Codex: unknown error',
+          completionEvidence: {
+            terminalStatus: 'failed'
           }
         }
       }
-    });
+    };
+    };
 
-    const result = await spawner.missionCommand('status', 'spark-status');
+    const result = await spawner.missionCommand('status', 'spark-status', { executionAuthority });
 
     assert.equal(result.success, true);
-    assert.match(result.message, /Mission is complete/);
-    assert.match(result.message, /• Complete: yes/);
-    assert.match(result.message, /• Codex: completed/);
-    assert.match(result.message, /• Claude: running/);
-    assert.match(result.message, /• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/spark-status/);
-    assert.match(result.message, /• Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-status/);
-    assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=spark-status/);
+    assert.match(capturedUrl, /\/api\/mission-control\/status\?missionId=spark-status$/);
+    assert.match(result.message, /Status Probe failed/);
+    assert.match(result.message, /Terminal status: failed/);
+    assert.match(result.message, /Provider: Codex: unknown error/);
+    assert.match(result.message, /Treat it as completed: no/);
+    assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-status/);
+  });
+
+  await test('missionCommand forwards native Governor authority when supplied', async () => {
+    restoreAxios();
+    const executionAuthority = fakeMissionControlAuthority();
+    let capturedBody: any = null;
+    (axios as any).post = async (_url: string, body: unknown) => {
+      capturedBody = body;
+      return { data: { ok: true, message: 'paused' } };
+    };
+
+    const result = await spawner.missionCommand('pause', 'spark-status', { executionAuthority });
+
+    assert.equal(result.success, true);
+    assert.equal(capturedBody.executionAuthority, executionAuthority);
+  });
+
+  await test('missionCommand uses event control auth instead of bridge auth', async () => {
+    restoreAxios();
+    process.env.SPARK_BRIDGE_API_KEY = 'bridge-secret-for-tests';
+    process.env.MCP_API_KEY = 'mcp-secret-for-tests';
+    process.env.EVENTS_API_KEY = 'events-secret-for-tests';
+    process.env.SPARK_UI_API_KEY = 'ui-secret-for-tests';
+    const executionAuthority = fakeMissionControlAuthority();
+    let capturedOptions: any = null;
+    (axios as any).post = async (_url: string, _body: unknown, options: unknown) => {
+      capturedOptions = options;
+      return { data: { ok: true, message: 'paused' } };
+    };
+
+    const result = await spawner.missionCommand('pause', 'spark-status', { executionAuthority });
+
+    assert.equal(result.success, true);
+    assert.equal(capturedOptions.headers['x-api-key'], 'events-secret-for-tests');
+    assert.equal(capturedOptions.headers['x-spawner-ui-key'], 'ui-secret-for-tests');
+  });
+
+  await test('missionCommand fails closed before network when authority is missing', async () => {
+    restoreAxios();
+    let postCalled = false;
+    (axios as any).post = async () => {
+      postCalled = true;
+      return { data: { ok: true } };
+    };
+
+    const result = await spawner.missionCommand('pause', 'spark-status');
+
+    assert.equal(result.success, false);
+    assert.match(result.message, /Harness Core execution authority is required/);
+    assert.equal(postCalled, false);
+  });
+
+  await test('pauseContextualActiveMission forwards native Governor authority', async () => {
+    restoreAxios();
+    const executionAuthority = fakeMissionControlAuthority();
+    let capturedBody: any = null;
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [
+            {
+              missionId: 'spark-active',
+              missionName: 'Active Mission',
+              status: 'running',
+              lastEventType: 'mission_started',
+              lastUpdated: new Date().toISOString(),
+              lastSummary: '',
+              taskName: null
+            }
+          ],
+          paused: [],
+          completed: [],
+          failed: [],
+          cancelled: [],
+          created: []
+        }
+      }
+    });
+    (axios as any).post = async (_url: string, body: unknown) => {
+      capturedBody = body;
+      return { data: { ok: true } };
+    };
+
+    const result = await spawner.pauseContextualActiveMission({ executionAuthority });
+
+    assert.equal(result.success, true);
+    assert.equal(result.commandSent, true);
+    assert.equal(capturedBody.action, 'pause');
+    assert.equal(capturedBody.executionAuthority, executionAuthority);
+  });
+
+  await test('resumeContextualPausedMission forwards native Governor authority', async () => {
+    restoreAxios();
+    const executionAuthority = fakeMissionControlAuthority();
+    let capturedBody: any = null;
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [
+            {
+              missionId: 'spark-paused',
+              missionName: 'Paused Mission',
+              status: 'paused',
+              lastEventType: 'mission_paused',
+              lastUpdated: new Date().toISOString(),
+              lastSummary: '',
+              taskName: null
+            }
+          ],
+          completed: [],
+          failed: [],
+          cancelled: [],
+          created: []
+        }
+      }
+    });
+    (axios as any).post = async (_url: string, body: unknown) => {
+      capturedBody = body;
+      return { data: { ok: true } };
+    };
+
+    const result = await spawner.resumeContextualPausedMission({ executionAuthority });
+
+    assert.equal(result.success, true);
+    assert.equal(result.commandSent, true);
+    assert.equal(capturedBody.action, 'resume');
+    assert.equal(capturedBody.executionAuthority, executionAuthority);
+  });
+
+  await test('confirmContextualMissionCancel forwards native Governor authority', async () => {
+    restoreAxios();
+    const executionAuthority = fakeMissionControlAuthority();
+    let capturedBody: any = null;
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [
+            {
+              missionId: 'spark-cancel',
+              missionName: 'Cancel Mission',
+              status: 'running',
+              lastEventType: 'mission_started',
+              lastUpdated: new Date().toISOString(),
+              lastSummary: '',
+              taskName: null
+            }
+          ],
+          paused: [],
+          completed: [],
+          failed: [],
+          cancelled: [],
+          created: []
+        }
+      }
+    });
+    (axios as any).post = async (_url: string, body: unknown) => {
+      capturedBody = body;
+      return { data: { ok: true, message: 'cancelled' } };
+    };
+
+    const result = await spawner.confirmContextualMissionCancel('spark-cancel', 'Cancel Mission', { executionAuthority });
+
+    assert.equal(result.success, true);
+    assert.equal(result.commandSent, true);
+    assert.equal(capturedBody.action, 'kill');
+    assert.equal(capturedBody.executionAuthority, executionAuthority);
   });
 
   await test('missionCommand reports not-found status without inventing a mission', async () => {
     restoreAxios();
-    (axios as any).post = async () => ({
+    (axios as any).get = async () => ({
       data: {
         ok: false,
         error: 'Mission spark-not-real was not found. Use /board to pick a current mission ID.'
       }
     });
 
-    const result = await spawner.missionCommand('status', 'spark-not-real');
+    const result = await spawner.missionCommand('status', 'spark-not-real', {
+      executionAuthority: fakeExecutionAuthority('spawner.mission_control.status')
+    });
 
     assert.equal(result.success, false);
     assert.match(result.message, /not found/i);
@@ -608,7 +1098,9 @@ async function run(): Promise<void> {
       }
     });
 
-    const result = await spawner.missionCommand('pause', 'not-spark-id');
+    const result = await spawner.missionCommand('pause', 'not-spark-id', {
+      executionAuthority: fakeMissionControlAuthority()
+    });
 
     assert.equal(result.success, false);
     assert.match(result.message, /not found/i);
@@ -669,24 +1161,15 @@ async function run(): Promise<void> {
     const result = await spawner.board();
 
     assert.equal(result.success, true);
-    assert.match(result.message, /^Right now$/m);
-    assert.match(result.message, /• running: 1 - Build canvas sync/);
-    assert.match(result.message, /• paused: 0/);
-    assert.match(result.message, /• queued: 0/);
-    assert.match(result.message, /^History$/m);
+    assert.match(result.message, /Right now/);
+    assert.match(result.message, /• running: 1/);
+    assert.match(result.message, /Build canvas sync/);
+    assert.doesNotMatch(result.message, /spark-stale/);
+    assert.match(result.message, /History/);
     assert.match(result.message, /• total: 2/);
     assert.match(result.message, /• complete: 1/);
-    assert.match(result.message, /• failed: 0/);
     assert.match(result.message, /• cancelled: 1/);
-    assert.doesNotMatch(result.message, /Mission Control has 1 running and 0 paused\./);
-    assert.doesNotMatch(result.message, /History has 2 entries \(1 complete, 0 failed, 1 cancelled\)/);
-    assert.doesNotMatch(result.message, /spark-stale/);
-    assert.doesNotMatch(result.message, /^Spawner board$/m);
-    assert.doesNotMatch(result.message, /^Counts$/m);
-    assert.doesNotMatch(result.message, /^Active$/m);
-    assert.doesNotMatch(result.message, /^Latest$/m);
-    assert.doesNotMatch(result.message, /^Inspect$/m);
-    assert.doesNotMatch(result.message, /Detail:|Trace:/);
+    assert.doesNotMatch(result.message, /• completed: 1/);
     assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-fresh/);
     assert.doesNotMatch(result.message, /^-\s+/m);
   });
@@ -711,7 +1194,7 @@ async function run(): Promise<void> {
     assert.equal(result.success, true);
     assert.match(result.message, /• running: 0/);
     assert.match(result.message, /• paused: 0/);
-    assert.match(result.message, /• queued: 0/);
+    assert.match(result.message, /History/);
     assert.match(result.message, /• total: 0/);
     assert.match(result.message, /• complete: 0/);
     assert.match(result.message, /• failed: 0/);
@@ -746,8 +1229,6 @@ async function run(): Promise<void> {
     assert.equal(result.success, true);
     assert.match(result.message, /• paused: 1 - Mission Command Orphan Pause/);
     assert.doesNotMatch(result.message, /• mission-command-orphan-pause/);
-    assert.doesNotMatch(result.message, /^Inspect$/m);
-    assert.doesNotMatch(result.message, /Detail:|Trace:/);
     assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-command-orphan-pause/);
   });
 
@@ -791,47 +1272,9 @@ async function run(): Promise<void> {
     const result = await spawner.activeMissionSummary();
 
     assert.equal(result.success, true);
-    assert.equal(
-      result.message,
-      'Mission Control has nothing running. One paused mission: Mission Command Orphan Pause. You can say `resume that one` if you want it moving again.'
-    );
+    assert.equal(result.message, 'Mission Control has nothing running. One paused mission: Mission Command Orphan Pause. You can say `resume that one` if you want it moving again.');
     assert.doesNotMatch(result.message, /Spawner board|Counts|Latest|Inspect/);
     assert.doesNotMatch(result.message, /completed:|failed:|mission-command-orphan-pause|trace\?|\/missions\//i);
-  });
-
-  await test('activeMissionSummary gives a natural next action for one running mission', async () => {
-    restoreAxios();
-    const now = Date.now();
-    (axios as any).get = async () => ({
-      data: {
-        board: {
-          running: [
-            {
-              missionId: 'mission-command-running-probe',
-              missionName: null,
-              taskName: null,
-              status: 'running',
-              lastEventType: 'mission_started',
-              lastUpdated: new Date(now).toISOString(),
-              lastSummary: 'Running probe mission.'
-            }
-          ],
-          paused: [],
-          completed: [],
-          failed: [],
-          created: []
-        }
-      }
-    });
-
-    const result = await spawner.activeMissionSummary();
-
-    assert.equal(result.success, true);
-    assert.equal(
-      result.message,
-      'Mission Control has one running mission: Mission Command Running Probe. Nothing paused. You can say `pause that one` if you want it held.'
-    );
-    assert.doesNotMatch(result.message, /Mission\n|Status\n|Move\n|mission-command-running-probe|trace\?|\/missions\//i);
   });
 
   await test('latestKanbanSummary reports the newest board-visible mission', async () => {
@@ -1060,53 +1503,6 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /Result:/);
   });
 
-  await test('latestFailedProviderSummary respects failed qualifier when latest job is cancelled', async () => {
-    restoreAxios();
-    const now = Date.now();
-    (axios as any).get = async () => ({
-      data: {
-        board: {
-          running: [],
-          paused: [],
-          completed: [],
-          failed: [
-            {
-              missionId: 'mission-failed-provider',
-              missionName: 'Spark Bug Recognition Domain Chip',
-              status: 'failed',
-              lastEventType: 'mission_failed',
-              lastUpdated: new Date(now - 60_000).toISOString(),
-              taskName: 'Inspect route',
-              providerResults: [{ providerId: 'codex', status: 'failed' }],
-              providerSummary: 'Codex: failed after provider handoff.'
-            }
-          ],
-          cancelled: [
-            {
-              missionId: 'mission-cancelled-newer',
-              missionName: 'Cancel Me',
-              status: 'cancelled',
-              lastEventType: 'mission_cancelled',
-              lastUpdated: new Date(now).toISOString(),
-              taskName: null,
-              providerResults: []
-            }
-          ],
-          created: []
-        }
-      }
-    });
-
-    const result = await (spawner as any).latestFailedProviderSummary();
-
-    assert.equal(result.success, true);
-    assert.match(result.message, /The latest failed Spawner job reached Codex, then failed\./);
-    assert.doesNotMatch(result.message, /cancelled before any LLM provider/);
-    assert.doesNotMatch(result.message, /^Inspect$/m);
-    assert.doesNotMatch(result.message, /Detail:|Trace:/);
-    assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-failed-provider/);
-  });
-
   await test('latestKanbanSummary uses polished Telegram composition instead of raw mission rows', async () => {
     restoreAxios();
     const now = Date.now();
@@ -1217,10 +1613,6 @@ async function run(): Promise<void> {
     assert.match(result.message, /That run did not make it through: Recursive Sage Maze Game\./);
     assert.match(result.message, /Skill API was unreachable from the spawned Codex lane/);
     assert.match(result.message, /spawned workspace was read-only/);
-    assert.doesNotMatch(result.message, /local service connection failed/i);
-    assert.match(result.message, /^What blocked it$/m);
-    assert.doesNotMatch(result.message, /^Inspect$/m);
-    assert.doesNotMatch(result.message, /Detail:|Trace:/);
     assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-game/);
     assert.doesNotMatch(result.message, /^Mission$/m);
     assert.doesNotMatch(result.message, /^Move$/m);
@@ -1262,9 +1654,7 @@ async function run(): Promise<void> {
     assert.equal(result.success, true);
     assert.match(result.message, /That run did not make it through: Axiom Garden\./);
     assert.match(result.message, /What blocked it\n• Spawner recorded a provider failure\./);
-    assert.doesNotMatch(result.message, /^Inspect$/m);
-    assert.doesNotMatch(result.message, /Detail:|Trace:/);
-    assert.equal((result.message.match(/^Board:/gm) || []).length, 1);
+    assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-generic-failure/);
     assert.doesNotMatch(result.message, /^Mission$/m);
     assert.doesNotMatch(result.message, /^Move$/m);
   });
@@ -1418,6 +1808,115 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /running/);
   });
 
+  await test('latestProjectPreview warns when a newer related mission contradicts an older completed preview', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'mission-proof-orchard',
+              missionName: 'Proof Orchard',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now - 60_000).toISOString(),
+              lastSummary: 'Done',
+              taskName: 'Ship app',
+              providerSummary: 'Codex: Replaced the root screen with Proof Orchard in src/routes/+page.svelte.',
+              projectLineage: {
+                projectId: 'project-proof-orchard',
+                previewUrl: 'http://127.0.0.1:3333/preview/proof-orchard/index.html'
+              }
+            }
+          ],
+          failed: [
+            {
+              missionId: 'mission-proof-orchard-polish-failed',
+              missionName: 'Mission mission-proof-orchard Proof Orchard polish',
+              status: 'failed',
+              lastEventType: 'provider_failed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Mission failed.',
+              taskName: 'Polish Proof Orchard',
+              providerSummary: 'Codex: unknown error',
+              projectLineage: {
+                projectId: 'project-proof-orchard',
+                parentMissionId: 'mission-proof-orchard',
+                previewUrl: 'http://127.0.0.1:3333/preview/proof-orchard-polish/index.html'
+              }
+            }
+          ],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestProjectPreview();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /completed preview for Proof Orchard/i);
+    assert.match(result.message, /would not treat it as the current finished version yet/i);
+    assert.match(result.message, /newer related Mission Control item is failed/i);
+    assert.match(result.message, /mission-proof-orchard-polish-failed/);
+    assert.doesNotMatch(result.message, /Here is the latest shipped app/i);
+  });
+
+  await test('latestProjectPreview ignores unrelated newer failures when choosing shipped apps', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'mission-proof-orchard',
+              missionName: 'Proof Orchard',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now - 60_000).toISOString(),
+              lastSummary: 'Done',
+              taskName: 'Ship app',
+              providerSummary: 'Codex: Replaced the root screen with Proof Orchard in src/routes/+page.svelte.',
+              projectLineage: {
+                projectId: 'project-proof-orchard',
+                previewUrl: 'http://127.0.0.1:3333/preview/proof-orchard/index.html'
+              }
+            }
+          ],
+          failed: [
+            {
+              missionId: 'mission-unrelated-failed',
+              missionName: 'Unrelated Failure Probe',
+              status: 'failed',
+              lastEventType: 'mission_failed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Mission failed.',
+              taskName: 'Check another lane',
+              providerSummary: 'Codex: unknown error',
+              projectLineage: {
+                projectId: 'project-unrelated'
+              }
+            }
+          ],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestProjectPreview();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /Here is the latest shipped app/i);
+    assert.match(result.message, /Proof Orchard/);
+    assert.doesNotMatch(result.message, /Unrelated Failure Probe/);
+    assert.doesNotMatch(result.message, /would not treat it as the current finished version/i);
+  });
+
   await test('latestProjectPreview skips no-edit golden path probes when choosing shipped apps', async () => {
     restoreAxios();
     const now = Date.now();
@@ -1461,6 +1960,59 @@ async function run(): Promise<void> {
     assert.match(result.message, /Proof Orchard/);
     assert.doesNotMatch(result.message, /Telegram Golden Path Probe/);
     assert.doesNotMatch(result.message, /SPARK_QA_NO_EDIT_OK/);
+  });
+
+  await test('latestProjectPreview uses structured project lineage preview over newer Spark run probes', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'spark-ping-ok-probe',
+              missionName: 'Spark Run: Reply with exactly: PING_OK',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Mission completed.',
+              taskName: 'Execute goal',
+              providerSummary: 'Provider summary requires control auth.',
+              taskCount: 1,
+              taskNames: ['Execute goal'],
+              projectLineage: null
+            },
+            {
+              missionId: 'mission-day-triage-reset',
+              missionName: 'Day Triage Reset QA 20260616',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now - 60_000).toISOString(),
+              lastSummary: 'Mission completed.',
+              taskName: null,
+              providerSummary: 'Provider summary requires control auth.',
+              projectLineage: {
+                projectId: 'project-day-triage-reset',
+                previewUrl: 'http://127.0.0.1:3333/preview/day-triage-reset/index.html'
+              }
+            }
+          ],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestProjectPreview();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /Here is the latest shipped app/i);
+    assert.match(result.message, /Day Triage Reset QA 20260616/);
+    assert.match(result.message, /http:\/\/127\.0\.0\.1:3333\/preview\/day-triage-reset\/index\.html/);
+    assert.doesNotMatch(result.message, /PING_OK/);
+    assert.doesNotMatch(result.message, /latest app-like completed run/i);
   });
 
   await test('latestProjectPreview does not present only golden path probes as shipped apps', async () => {

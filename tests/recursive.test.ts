@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -38,6 +38,7 @@ import {
 } from '../src/recursive';
 import {
   buildSpecializationPathAutoloopBridgeArgs,
+  buildSpecializationPathEvidenceBenchmarkArgs,
   buildSpecializationPathPackageBridgeArgs,
   buildSpecializationPathStatusBridgeArgs,
   classifyBuilderAttachmentTargetFromSnapshot,
@@ -74,6 +75,10 @@ test('parses recursive review decisions with rationale', () => {
     action: 'status',
     id: 'startup-yc'
   });
+  assert.deepEqual(parseRecursiveCommand('benchmark spark-qa-operator'), {
+    action: 'benchmark',
+    id: 'spark-qa-operator'
+  });
   assert.deepEqual(parseRecursiveCommand('package startup-yc'), {
     action: 'package',
     id: 'startup-yc'
@@ -98,6 +103,27 @@ test('parses recursive review decisions with rationale', () => {
     id: 'C:\\crypto\\.spark-swarm\\collective-sync.json',
     proposeArgs: ['submit']
   });
+});
+
+test('builds specialization path evidence benchmark args', () => {
+  assert.deepEqual(
+    buildSpecializationPathEvidenceBenchmarkArgs({
+      casesPath: '/repo/benchmarks/evidence/mac_lab_cases.json',
+      evidenceRoot: '/repo/benchmarks/evidence/runs/latest',
+      outputPath: '/repo/.spark-swarm/evidence-benchmark/latest-from-telegram.json'
+    }),
+    [
+      '-m',
+      'specialization_path_spark_qa_operator.cli',
+      'evidence-benchmark',
+      '--cases',
+      '/repo/benchmarks/evidence/mac_lab_cases.json',
+      '--evidence-root',
+      '/repo/benchmarks/evidence/runs/latest',
+      '--output',
+      '/repo/.spark-swarm/evidence-benchmark/latest-from-telegram.json'
+    ]
+  );
 });
 
 test('renders recursive network proposal gates without overclaiming', () => {
@@ -152,6 +178,45 @@ test('resolves human proposal keys to local collective payloads', () => {
     if (oldRoots === undefined) delete process.env.SPARK_RECURSIVE_PROPOSAL_ROOTS;
     else process.env.SPARK_RECURSIVE_PROPOSAL_ROOTS = oldRoots;
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('refreshes ad-hoc natural proposal payloads for each Telegram request', () => {
+  const target = `recursive-test-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const payloadPath = resolveRecursiveProposalPayloadPath(`ad-hoc:${target}`);
+  try {
+    const stalePayload = {
+      workspaceId: 'telegram-natural-recursive-proposal',
+      agentId: 'agent:spark-telegram-bot',
+      runtimeSource: {
+        kind: 'spark_telegram_natural_proposal',
+        version: 'telegram-recursive-proposal.v1',
+        sourceInstanceId: 'agent:spark-telegram-bot',
+        sourceRunId: 'spark-telegram:natural-recursive-proposal:stale:2000-01-01T00:00:00.000Z',
+        chipKey: target,
+        chipLabel: 'Stale Proposal'
+      },
+      runtimePulse: {
+        lastUpdatedAt: '2000-01-01T00:00:00.000Z'
+      },
+      evolutionPaths: [],
+      outcomes: [],
+      artifactRefs: [],
+      emittedAt: '2000-01-01T00:00:00.000Z'
+    };
+    writeFileSync(payloadPath, JSON.stringify(stalePayload, null, 2), 'utf-8');
+
+    const refreshedPath = resolveRecursiveProposalPayloadPath(`ad-hoc:${target}`);
+    const refreshed = JSON.parse(readFileSync(refreshedPath, 'utf-8'));
+
+    assert.equal(refreshedPath, payloadPath);
+    assert.notEqual(refreshed.emittedAt, stalePayload.emittedAt);
+    assert.equal(refreshed.runtimePulse.lastUpdatedAt, refreshed.emittedAt);
+    assert.match(refreshed.runtimeSource.sourceRunId, /^spark-telegram:natural-recursive-proposal:/);
+    assert.match(refreshed.runtimeSource.sourceRunId, new RegExp(`${refreshed.emittedAt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
+    assert.equal(refreshed.outcomes[0].context.sourceLane, 'fresh_telegram_turn');
+  } finally {
+    rmSync(path.dirname(payloadPath), { recursive: true, force: true });
   }
 });
 
@@ -800,6 +865,52 @@ test('renders specialization loop insights from the latest path session', () => 
   assert.match(reply, /Make something people want/);
   assert.match(reply, /One great cofounder is worth ten good employees/);
   assert.match(reply, /held-out\/trap checks/);
+  assert.doesNotMatch(reply, /summary\.json/);
+  assert.doesNotMatch(reply, /C:\\paths/);
+});
+
+test('renders specialization loop report from canonical status when no autoloop session exists', () => {
+  const reply = renderSpecializationLoopInsights({
+    ok: false,
+    pathKey: 'spark-qa-operator',
+    pathLabel: 'Spark QA Operator',
+    error: 'No specialization loop session summary found yet.',
+    status: {
+      ok: true,
+      pathKey: 'spark-qa-operator',
+      pathLabel: 'Spark QA Operator',
+      stage: 'baseline_complete',
+      evidenceState: 'complete',
+      decision: 'held_steady',
+      heldOutStatus: 'passed',
+      trapStatus: 'passed',
+      claimBoundary: 'Standalone benchmark completed, but no candidate comparison has been recorded yet.',
+      nextMove: 'Try a narrower candidate or inspect weak benchmark lanes.',
+      rounds: {
+        completed: 1,
+        requested: 1,
+        kept: 0,
+        reverted: 0
+      },
+      comparison: {
+        scoreMetric: 'overall_score',
+        baselineScore: 1,
+        candidateScore: 1,
+        delta: 0,
+        decision: 'held_steady'
+      },
+      rawArtifactRefs: {
+        summaryPath: 'C:\\paths\\specialization-path-spark-qa-operator\\.spark-swarm\\spark-qa-benchmark\\summary.json'
+      }
+    }
+  });
+
+  assert.match(reply, /⚪ Spark QA Operator held steady\./);
+  assert.match(reply, /State\n• Baseline Complete\n• evidence: Complete\n• rounds: 1\/1/);
+  assert.match(reply, /Score\n• current run 1 → 1/);
+  assert.match(reply, /Proof checks\n• held-out: Passed\n• trap: Passed/);
+  assert.match(reply, /Standalone benchmark completed/);
+  assert.doesNotMatch(reply, /No specialization loop session summary found yet/);
   assert.doesNotMatch(reply, /summary\.json/);
   assert.doesNotMatch(reply, /C:\\paths/);
 });

@@ -29,7 +29,12 @@ export async function validateRelayRuntime(
     const payload = await response.json() as {
       relay?: { profile?: string; port?: number };
       pid?: number;
-      runtime?: { telegramPolling?: string; pollingActive?: boolean };
+      runtime?: {
+        telegramPolling?: string;
+        pollingActive?: boolean;
+        pollingLastGetUpdatesAttemptAt?: string | null;
+        pollingLastError?: string | null;
+      };
     };
     const pollingState = payload.runtime?.telegramPolling;
     if (!pollingState) {
@@ -37,6 +42,17 @@ export async function validateRelayRuntime(
     }
     if (pollingState !== 'active' && pollingState !== 'disabled_smoke') {
       throw new Error(`Telegram polling is ${pollingState}`);
+    }
+    if (pollingState === 'active') {
+      const lastAttempt = payload.runtime?.pollingLastGetUpdatesAttemptAt;
+      if (!lastAttempt) {
+        throw new Error('Telegram polling is active locally but no Bot API getUpdates attempt is recorded');
+      }
+      const ageMs = Date.now() - Date.parse(lastAttempt);
+      if (!Number.isFinite(ageMs) || ageMs > 120_000) {
+        const error = payload.runtime?.pollingLastError ? ` last_error=${payload.runtime.pollingLastError}` : '';
+        throw new Error(`Telegram polling getUpdates attempt is stale${error}`);
+      }
     }
     const profile = payload.relay?.profile || telegramRelayIdentityFromEnv(env).profile;
     const port = payload.relay?.port || new URL(url).port;

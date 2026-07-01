@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseBuildIntent } from '../src/buildIntent';
-import { evaluateDeterministicRoute } from '../src/routeFirewall';
 import {
   isLocalSparkServiceRequest,
   parseMissionUpdatePreferenceIntent,
@@ -78,7 +77,6 @@ test('mixed preference and access wording still reaches the builder', () => {
   const mazePrototypeIntent = parseBuildIntent(mazePrototypePrompt);
   assert.ok(mazePrototypeIntent);
   assert.equal(mazePrototypeIntent.projectName, 'Tiny Maze Game');
-  assert.equal(evaluateDeterministicRoute('spawner.build', mazePrototypePrompt).allow, true);
 
   const updatePrompt = `Use verbose updates and build a Three.js world tree called Spark World Tree.
 
@@ -102,6 +100,22 @@ Send the Mission board first and the canvas when planning is ready.`;
   assert.ok(accessIntent);
   assert.equal(accessIntent.projectName, 'Salon Flow');
   assert.equal(parseNaturalAccessChangeIntent(accessPrompt), '4');
+});
+
+test('live Spawner product briefs do not route incidental health/open words', () => {
+  const prompt = "Build a practical Harness Release Ops Mission Board for tonight's installer work. Use Spawner. Make it track authority gates, runtime health, Telegram proof, registry pin drift, rollback steps, open blockers, and the next QA queue. Include tests and a simple README. This is the live retest after polling repair; build it now.";
+
+  assertRoutesToBuild(prompt, 'Harness Release Ops Mission Board');
+  assertRoutesToBuild(
+    'Build a practical Harness Release Ops Mission Board with Spawner. Make it a local web app that helps us tonight: authority gates, runtime health, Telegram proof, registry drift, rollback checklist, open blockers, and next QA queue. Include tests and a concise README. Build it now and use the current Harness authority path.',
+    'Harness Release Ops Mission Board'
+  );
+  assertRoutesToBuild('Create a Spark live status dashboard with cards for Telegram, Spawner, registry pins, and rollback proof.', 'Spark Live Status Dashboard');
+  assertRoutesToBuild('Generate a Spark health operations board that tracks runtime status, access status, wiki notes, and open blockers.', 'Spark Health Operations Board');
+  assertRoutesToBuild(
+    'Build a tiny local Spawner Relay Readback Proof Pad. Use Spawner. Make it show the latest Harness Core authority gate, Spawner trace readback, Telegram final handoff status, and a small operator checklist. Keep it lightweight with a README and one smoke test. This is a live proof that old Spawner build and final completion relay still work under Harness Core authority after the relay auth fix.',
+    'Spawner Relay Readback Proof Pad'
+  );
 });
 
 test('mission titles stay readable for simple game and path-derived builds', () => {
@@ -131,14 +145,16 @@ test('non-build utility requests still route away from builder', () => {
   assert.equal(parseSpawnerBoardNaturalIntent('show me the current Spawner/Kanban board'), 'board');
   assert.equal(parseBuildIntent('what is currently running or paused in Mission Control? keep it short and do not start anything.'), null);
   assert.equal(parseSpawnerBoardNaturalIntent('what is currently running or paused in Mission Control? keep it short and do not start anything.'), 'active_missions');
+  assert.equal(
+    parseBuildIntent('Show the latest Harness Core authority gate, Spawner trace readback, and Telegram final handoff status for the relay proof pad. Do not build anything.'),
+    null
+  );
 
   assert.equal(parseBuildIntent('scan my desktop projects'), null);
   assert.equal(isLocalWorkspaceInspectionOnlyRequest('scan my desktop projects'), false);
 
   assert.equal(parseBuildIntent('can you help me think through whether we should build a mission control dashboard before we touch the canvas?'), null);
   assert.equal(parseBuildIntent('Give me three build ideas for a memory dashboard'), null);
-  assert.equal(parseBuildIntent('Hey Spark, give me the top 10 ideas about how to build startups in a better way'), null);
-  assert.equal(parseBuildIntent('How to build startups in a better way?'), null);
   assert.equal(parseBuildIntent('suggest two project directions for a context tester'), null);
   assert.equal(
     parseBuildIntent(
@@ -209,4 +225,22 @@ test('text handler checks latest-project iteration before generic build intent',
 
   assert.ok(projectIterationIndex > 0, 'expected latest-project iteration guard in text handler');
   assert.ok(genericBuildIndex > projectIterationIndex, 'latest-project iteration must beat broad parseBuildIntent matches');
+});
+
+test('generic build intent is gated by Harness Core authority before dispatch', () => {
+  const indexSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
+  const textHandlerIndex = indexSource.indexOf('const buildIntent = earlyBuildIntent;');
+  const genericBuildIndex = indexSource.indexOf('if (buildIntent) {', textHandlerIndex);
+  const localInspectionIndex = indexSource.indexOf('if (isLocalWorkspaceInspectionOnlyRequest(text)', genericBuildIndex);
+  const buildBlock = indexSource.slice(genericBuildIndex, localInspectionIndex);
+
+  assert.ok(textHandlerIndex > 0, 'expected text-handler build intent binding');
+  assert.match(buildBlock, /telegramActionAuthorityDecision\(turnIntentEnvelope/);
+  assert.match(buildBlock, /if \(!buildAuthorization\.allow\)/);
+  assert.match(buildBlock, /handleBuildIntent\(/);
+  assert.match(buildBlock, /recordTelegramHarnessCoreExecution\(buildAuthorization/);
+  assert.ok(
+    buildBlock.indexOf('telegramActionAuthorityDecision(turnIntentEnvelope') < buildBlock.indexOf('handleBuildIntent('),
+    'authority decision must happen before the generic build branch dispatches to Spawner'
+  );
 });

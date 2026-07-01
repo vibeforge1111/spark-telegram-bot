@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
-  assertTelegramIntegerId,
   buildBuilderAocPreflightCommands,
   compactColdMemoryQuery,
-  extractLatestCapabilityProbeReceiptFromBlackBoxPayload,
   formatAgentBlackBoxReply,
+  formatBuilderTelegramMemoryCapsuleRecall,
+  formatBuilderTelegramMemoryRecall,
   formatConversationColdMemoryContext,
   formatDiagnosticsScanReply,
   formatMemoryInPlaySummary,
@@ -78,6 +78,181 @@ test('compacts large cold memory queries before invoking Builder memory', () => 
   assert.doesNotMatch(query, /\n/);
 });
 
+test('formats Builder-backed Telegram memory recall from current-state records', () => {
+  const formatted = formatBuilderTelegramMemoryRecall({
+    current_state: {
+      records: [
+        {
+          value: 'I think your tiny desk plant is named Sol',
+          timestamp: '2026-06-16T19:17:41.629109+00:00',
+          predicate: 'belief.telegram.evidence_your_tiny_desk',
+        },
+        {
+          value: 'I prefer concise answers',
+          timestamp: '2026-06-19T07:26:33.523521+00:00',
+          predicate: 'evidence.telegram.telegram_runtime',
+        },
+      ],
+    },
+  }, 'what do you remember about me?', 2);
+
+  assert.equal(formatted.recordCount, 2);
+  assert.match(formatted.responseText, /From Builder\/domain-chip memory/);
+  assert.ok(
+    formatted.responseText.indexOf('- I prefer concise answers') <
+      formatted.responseText.indexOf('- your tiny desk plant is named Sol'),
+    'broad recall should prefer the newest current-state evidence'
+  );
+  assert.match(formatted.responseText, /Source: current-state memory read through Builder/);
+});
+
+test('formats Builder-backed source-aware memory capsule recall from evidence lanes', () => {
+  const formatted = formatBuilderTelegramMemoryCapsuleRecall({
+    context_packet: {
+      sections: [
+        {
+          section: 'recent_conversation',
+          items: [
+            {
+              lane: 'evidence',
+              score: 66,
+              predicate: 'raw_turn',
+              value: 'Small context for tonight: I am sketching a Quartz Lantern garden timer, and I prefer the next step to stay under 20 minutes.',
+            },
+          ],
+        },
+        {
+          section: 'relevant_events',
+          items: [
+            {
+              lane: 'events',
+              score: 72,
+              predicate: 'profile.current_constraint',
+              value: 'focus window starts after 12:05am; I need the next step to stay small enough to finish',
+            },
+          ],
+        },
+      ],
+    },
+  }, 'what was the little project I said I was sketching tonight, and what constraint did I put on the next step?', 3);
+
+  assert.equal(formatted.recordCount, 2);
+  assert.ok(
+    formatted.responseText.indexOf('Quartz Lantern garden timer') <
+      formatted.responseText.indexOf('focus window starts after 12:05am'),
+    'capsule section order should keep direct recent evidence ahead of older related events'
+  );
+  assert.match(formatted.responseText, /supporting evidence/);
+  assert.match(formatted.responseText, /Source: source-aware memory capsule through Builder/);
+});
+
+test('does not present support-only warned memory capsule packets as saved memory', () => {
+  const formatted = formatBuilderTelegramMemoryCapsuleRecall({
+    answer_explanation: {
+      context_packet_promotion_gates: {
+        status: 'warn',
+        gates: {
+          source_swamp_resistance: {
+            status: 'warn',
+            evidence: {
+              authority_count: 0,
+              supporting_count: 3,
+            },
+          },
+        },
+      },
+    },
+    context_packet: {
+      sections: [
+        {
+          section: 'relevant_events',
+          items: [
+            {
+              lane: 'events',
+              score: 64,
+              predicate: 'profile.current_mission',
+              value: 'building a pantry label printer this week',
+            },
+          ],
+        },
+      ],
+    },
+  }, 'what do you remember about my update style?', 3);
+
+  assert.equal(formatted.recordCount, 0);
+  assert.equal(formatted.responseText, '');
+});
+
+test('does not present explicitly support-only memory capsule packets as saved memory', () => {
+  const formatted = formatBuilderTelegramMemoryCapsuleRecall({
+    promotion_gates: {
+      status: 'pass',
+    },
+    context_packet: {
+      sections: [
+        {
+          section: 'compiled_project_knowledge',
+          authority: 'supporting',
+          items: [
+            {
+              lane: 'wiki_packets',
+              score: 52,
+              authority: 'supporting',
+              predicate: 'knowledge.packet',
+              value: 'Evidence Index',
+            },
+          ],
+        },
+      ],
+    },
+  }, 'what do you remember about my update style?', 3);
+
+  assert.equal(formatted.recordCount, 0);
+  assert.equal(formatted.responseText, '');
+});
+
+test('formats source-aware memory capsule recall from authority items without support residue', () => {
+  const formatted = formatBuilderTelegramMemoryCapsuleRecall({
+    context_packet: {
+      sections: [
+        {
+          section: 'active_current_state',
+          authority: 'authority',
+          items: [
+            {
+              lane: 'current_state_scan',
+              source_class: 'current_state',
+              authority: 'authority',
+              score: 106,
+              predicate: 'profile.current_low_stakes_test_fact',
+              value: 'Pocket phrase Blue Cedar belongs to the Garden Loom demo.',
+            },
+          ],
+        },
+        {
+          section: 'relevant_events',
+          authority: 'supporting',
+          items: [
+            {
+              lane: 'events',
+              source_class: 'event',
+              authority: 'supporting',
+              score: 63,
+              predicate: 'profile.current_project',
+              value: 'a Blue Dock scheduler with boat slips and tide windows',
+            },
+          ],
+        },
+      ],
+    },
+  }, 'what do you remember about Blue Cedar?', 5);
+
+  assert.equal(formatted.recordCount, 1);
+  assert.match(formatted.responseText, /Pocket phrase Blue Cedar belongs to the Garden Loom demo/);
+  assert.doesNotMatch(formatted.responseText, /Blue Dock scheduler/);
+  assert.match(formatted.responseText, /\(current state\)/);
+});
+
 test('formats route probe replies with evidence boundary', () => {
   const reply = formatRouteProbeReply({
     event_id: 'evt-123',
@@ -134,20 +309,25 @@ test('formats route confidence gate missing evidence as a proof refusal', () => 
   assert.match(reply, /Refresh Spawner evidence, then ask again\./);
 });
 
-test('Builder bridge exposes metadata-only RouteConfidenceGateV1 action preflight', () => {
+test('Builder route-confidence probe is advisory and cannot veto build dispatch', () => {
   const bridgeSource = readFileSync(path.join(__dirname, '..', 'src', 'builderBridge.ts'), 'utf8');
   const indexSource = readFileSync(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
-  const gateBlock = indexSource.match(/async function buildDispatchRouteConfidenceAllows[\s\S]*?\n}\n\ninterface RunCommandOptions/)?.[0] || '';
+  const buildDispatchBlock = indexSource.match(/export async function handleBuildIntent[\s\S]*?const polishedProjectName/)?.[0] || '';
+  const clarificationBlock = indexSource.match(/export async function handleClarificationAnswers[\s\S]*?const projectName/)?.[0] || '';
+  const pendingDomainChipBlock = indexSource.match(/async function handlePendingDomainChipBuild[\s\S]*?\r?\n}\r?\n\r?\nasync function handleCreatorMissionPlan/)?.[0] || '';
 
   assert.match(bridgeSource, /routeContext\?: Record<string, unknown>/);
   assert.match(bridgeSource, /--route-context-json/);
-  assert.match(indexSource, /async function buildDispatchRouteConfidenceAllows/);
-  assert.match(indexSource, /candidateRoute: 'spawner\.build'/);
-  assert.match(indexSource, /builder_route_confidence_gate/);
-  assert.match(indexSource, /exports_raw_prompt: false/);
-  assert.match(indexSource, /exports_chat_id: false/);
-  assert.match(indexSource, /exports_memory_body: false/);
-  assert.doesNotMatch(gateBlock, /currentMessage|user_message|raw_provider_output|raw_memory_body/);
+  assert.doesNotMatch(indexSource, /buildDispatchRouteConfidenceAllows|recordRouteConfidenceDispatchOutcome|route-confidence-gate|RouteConfidenceGate/);
+  assert.match(buildDispatchBlock, /buildDispatchAuthorityFailureReason\(options\.executionAuthority\)/);
+  assert.ok(
+    buildDispatchBlock.indexOf('buildDispatchAuthorityFailureReason(options.executionAuthority)') <
+      buildDispatchBlock.indexOf('recordBuilderAocPreflightForRun'),
+    'Harness authority must be verified before Builder AOC evidence recording'
+  );
+  assert.doesNotMatch(buildDispatchBlock, /buildDispatchRouteConfidenceAllows|runBuilderRouteConfidenceGate|route-confidence-gate/);
+  assert.doesNotMatch(clarificationBlock, /buildDispatchRouteConfidenceAllows|runBuilderRouteConfidenceGate|route-confidence-gate/);
+  assert.match(pendingDomainChipBlock, /confirmationState: 'confirmed'/);
 });
 
 test('route confidence route context sanitizer keeps only allowlisted metadata', () => {
@@ -558,39 +738,9 @@ test('agent operating context bridge uses the shared AOC panel route', () => {
   assert.doesNotMatch(source, /'self',\s*'context'/);
 });
 
-test('Telegram bridge accepts only integer-shaped Telegram ids before Builder argv use', () => {
-  assert.equal(assertTelegramIntegerId(' 8319079055 ', 'userId'), '8319079055');
-  assert.equal(assertTelegramIntegerId(-1001234567890, 'chatId'), '-1001234567890');
-
-  assert.throws(() => assertTelegramIntegerId('123;--json', 'userId'), /userId must be a Telegram integer id/);
-  assert.throws(() => assertTelegramIntegerId('human:telegram:123', 'userId'), /userId must be a Telegram integer id/);
-  assert.throws(() => assertTelegramIntegerId('123456789012345678901', 'chatId'), /chatId must be a Telegram integer id/);
-});
-
-test('Builder bridge validates Telegram ids on identity-bearing Builder calls', () => {
-  const source = readFileSync(path.join(__dirname, '..', 'src', 'builderBridge.ts'), 'utf8');
-
-  for (const functionName of [
-    'runBuilderSelfAwarenessStatus',
-    'runBuilderSelfImprovementPlan',
-    'runBuilderAgentOperatingContext',
-    'runBuilderWikiAnswer',
-    'runBuilderConversationColdContext',
-  ]) {
-    const start = source.indexOf(`export async function ${functionName}`);
-    assert.notEqual(start, -1, `${functionName} exists`);
-    const nextExport = source.indexOf('\nexport ', start + 1);
-    const block = source.slice(start, nextExport === -1 ? undefined : nextExport);
-    assert.match(block, /assertTelegramIntegerId/);
-  }
-
-  assert.doesNotMatch(source, /human:telegram:\$\{String\(input\.userId\)\.trim\(\)\}/);
-  assert.doesNotMatch(source, /session:telegram:\$\{String\(input\.chatId\)\.trim\(\)\}:\$\{String\(input\.userId\)\.trim\(\)\}/);
-});
-
-test('builder repo resolver prefers release-installed Builder when Telegram runs from installed source', () => {
+test('builder repo resolver prefers active installed Builder when Telegram runs from installed source', () => {
   const homeDir = path.resolve('C:/Users/USER');
-  const installedBuilderRepo = path.join(homeDir, '.spark', 'modules', 'spark-intelligence-builder-release', 'source');
+  const installedBuilderRepo = path.join(homeDir, '.spark', 'modules', 'spark-intelligence-builder', 'source');
   const resolved = resolveBuilderRepoPath({
     cwd: path.join(homeDir, '.spark', 'modules', 'spark-telegram-bot', 'source'),
     homeDir,
@@ -600,16 +750,16 @@ test('builder repo resolver prefers release-installed Builder when Telegram runs
   assert.equal(resolved, installedBuilderRepo);
 });
 
-test('builder repo resolver keeps legacy installed Builder as fallback', () => {
+test('builder repo resolver keeps checkout Builder as fallback', () => {
   const homeDir = path.resolve('C:/Users/USER');
-  const legacyBuilderRepo = path.join(homeDir, '.spark', 'modules', 'spark-intelligence-builder', 'source');
+  const checkoutBuilderRepo = path.join(homeDir, '.spark', 'modules', 'spark-telegram-bot', 'spark-intelligence-builder');
   const resolved = resolveBuilderRepoPath({
     cwd: path.join(homeDir, '.spark', 'modules', 'spark-telegram-bot', 'source'),
     homeDir,
-    exists: (targetPath) => targetPath === path.join(legacyBuilderRepo, 'src', 'spark_intelligence', 'cli.py')
+    exists: (targetPath) => targetPath === path.join(checkoutBuilderRepo, 'src', 'spark_intelligence', 'cli.py')
   });
 
-  assert.equal(resolved, legacyBuilderRepo);
+  assert.equal(resolved, checkoutBuilderRepo);
 });
 
 test('builder repo resolver preserves explicit operator override', () => {
@@ -622,6 +772,17 @@ test('builder repo resolver preserves explicit operator override', () => {
   });
 
   assert.equal(resolved, explicitRepo);
+});
+
+test('Telegram Builder bridge prefers warm stdio worker with one-shot CLI fallback', () => {
+  const source = readFileSync(path.join(__dirname, '..', 'src', 'builderBridge.ts'), 'utf8');
+
+  assert.match(source, /SPARK_BUILDER_WARM_BRIDGE_MODE/);
+  assert.match(source, /'serve-stdio'/);
+  assert.match(source, /runBuilderTelegramBridgeWarm/);
+  assert.match(source, /runBuilderTelegramBridgeOneShot/);
+  assert.match(source, /Warm bridge unavailable; using one-shot CLI/);
+  assert.match(source, /'simulate-telegram-update'/);
 });
 
 test('formats black-box payload as compact event evidence', () => {
@@ -667,54 +828,6 @@ test('black-box bridge invokes Builder self black-box json route', () => {
 
   assert.match(source, /'self',\s*'black-box'/);
   assert.match(source, /'--json'/);
-});
-
-test('browser proof guard reads latest capability probe receipts from Builder black box', () => {
-  const bridgeSource = readFileSync(path.join(__dirname, '..', 'src', 'builderBridge.ts'), 'utf8');
-  const indexSource = readFileSync(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
-
-  assert.match(bridgeSource, /CAPABILITY_PROBE_RECEIPT_BLACK_BOX_LIMIT = 200/);
-  assert.match(bridgeSource, /readLatestCapabilityProbeReceipt/);
-  assert.match(bridgeSource, /String\(entry\.event_type \|\| ''\) !== 'capability_probed'/);
-  assert.match(bridgeSource, /String\(entry\.route_chosen \|\| ''\) !== routeKey/);
-  assert.match(indexSource, /readLatestCapabilityProbeReceipt\('spark_browser'\)/);
-  assert.match(indexSource, /The latest browser probe failed/);
-  assert.match(indexSource, /browser automation is unavailable right now/);
-});
-
-test('extracts browser probe receipt beyond noisy black-box head entries', () => {
-  const entries: Record<string, unknown>[] = Array.from({ length: 41 }, (_, index) => ({
-    event_id: `evt-noise-${index}`,
-    event_type: 'route_selected',
-    route_chosen: 'spark_memory',
-    blockers: [],
-    changed: ['spark_memory:last_probe=success'],
-  }));
-  entries.push({
-    event_id: 'evt-browser-fail',
-    event_type: 'capability_probed',
-    route_chosen: 'spark_browser',
-    blockers: ['browser-use adapter status source is not ready.'],
-    changed: ['spark_browser:last_probe=failure'],
-    sources_used: [
-      {
-        summary: 'browser-use adapter status=missing_status package_available=False cli_available=False',
-      },
-    ],
-    created_at: '2026-05-24T15:30:00Z',
-  });
-
-  const receipt = extractLatestCapabilityProbeReceiptFromBlackBoxPayload({ entries }, 'spark_browser');
-
-  assert.deepEqual(receipt, {
-    capabilityKey: 'spark_browser',
-    status: 'failure',
-    failureReason: 'browser-use adapter status source is not ready.',
-    probeSummary: 'browser-use adapter status=missing_status package_available=False cli_available=False',
-    routeLatencyMs: null,
-    eventId: 'evt-browser-fail',
-    createdAt: '2026-05-24T15:30:00Z',
-  });
 });
 
 test('AOC preflight commands carry trace metadata without raw prompt or chat ids', () => {
@@ -775,7 +888,10 @@ test('formats self-improvement plan as probe-first actions', () => {
   assert.match(reply, /Priority actions/);
   assert.match(reply, /Registry visibility is not proof a route worked this turn/);
   assert.match(reply, /Say this next/);
-  assert.match(reply, /diagnostics\/self-awareness-gaps\.md/);
+  // Wiki support renders the source TITLE only; the source_path is redacted so
+  // internal filesystem paths never leak to Telegram users (security: #815).
+  assert.match(reply, /Self-Awareness Gaps/);
+  assert.doesNotMatch(reply, /diagnostics\/self-awareness-gaps\.md/);
   assert.match(reply, /not autonomous self-modification/);
 });
 
@@ -886,7 +1002,7 @@ test('compacts oversized wiki inventory replies for Telegram launch probes', () 
   assert.equal(reply.length < 1800, true);
 });
 
-test('formats wiki query hits with source paths and authority boundary', () => {
+test('formats wiki query hits with redacted source paths and authority boundary', () => {
   const reply = formatWikiQueryReply({
     query: 'recursive self-improvement loops',
     wiki_retrieval_status: 'supported',
@@ -905,7 +1021,10 @@ test('formats wiki query hits with source paths and authority boundary', () => {
 
   assert.match(reply, /Spark LLM wiki query/);
   assert.match(reply, /Retrieval: supported \(1 hits\)/);
-  assert.match(reply, /system\/recursive-self-improvement-loops\.md/);
+  // Packets render the hit TITLE only; the source_path is redacted so internal
+  // filesystem paths never leak to Telegram users (security: #815).
+  assert.match(reply, /Recursive Self-Improvement Loops/);
+  assert.doesNotMatch(reply, /system\/recursive-self-improvement-loops\.md/);
   assert.match(reply, /supporting packets, not live truth/);
 });
 
@@ -944,7 +1063,10 @@ test('formats wiki answer with sources and live verification boundary', () => {
   assert.match(reply, /Live self snapshot/);
   assert.match(reply, /Builder: ready/);
   assert.match(reply, /Registry visibility is not proof a route worked this turn/);
-  assert.match(reply, /system\/tracing-and-observability-map\.md/);
+  // Sources render the TITLE only; the source_path is redacted so internal
+  // filesystem paths never leak to Telegram users (security: #815).
+  assert.match(reply, /Tracing and Observability Map/);
+  assert.doesNotMatch(reply, /system\/tracing-and-observability-map\.md/);
   assert.match(reply, /Still needs live verification/);
 });
 
