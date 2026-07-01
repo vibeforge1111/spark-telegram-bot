@@ -160,6 +160,16 @@ function prdChipResponse() {
           updatedAt: '2026-07-01T09:59:49.934Z'
         }
       ],
+      schedules: [
+        {
+          id: 'loopsched-prd-1',
+          status: 'staged',
+          active: false,
+          createdAt: '2026-07-01T09:56:01.555Z',
+          updatedAt: '2026-07-01T09:59:49.934Z',
+          lastRunAt: '2026-07-01T09:59:49.934Z'
+        }
+      ],
       distillations: [
         {
           id: 'distill-prd-1',
@@ -268,6 +278,7 @@ test('PRD Writing no-action state prompt reads the proof-loop chip and reports l
   assert.match(packet.reply, /PRD Writing is local fast path supported .*12\/12 checks pass/i);
   assert.match(packet.reply, /read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:59:49\.934Z\./);
   assert.match(packet.reply, /Latest result: Private scheduled loop completed passed \(4\.5 -> 9\.7, 3 rounds, separated evaluator, 2026-07-01T09:59:49\.934Z\)\./);
+  assert.match(packet.reply, /Current schedule: staged, inactive \(last changed 2026-07-01T09:59:49\.934Z\)\./);
   assert.match(packet.reply, /I only read Spawner here; nothing was queued or changed\./);
   assert.match(packet.reply, /Details: .*\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
   assert.doesNotMatch(packet.reply, /\b(?:I (?:activated|published|registered|scheduled|started|created)|was (?:activated|published|registered|scheduled|started)|has been (?:activated|published|registered|scheduled|started))\b/i);
@@ -287,6 +298,14 @@ test('PRD Writing status treats schedule lifecycle events as latest Spawner trut
     nextAction: 'Schedule is terminal; create a new schedule for the next loop.',
     updatedAt: '2026-07-01T11:32:16.030Z'
   });
+  response.chip.schedules.push({
+    id: 'loopsched-prd-2',
+    status: 'cancelled',
+    active: false,
+    createdAt: '2026-07-01T11:31:36.966Z',
+    updatedAt: '2026-07-01T11:32:16.030Z',
+    lastRunAt: null
+  });
   const fetchImpl = async () => Response.json(response) as any;
   const packet = await fetchLoopEngineeringStatusPacket(
     'Loop QA read-only check: latest PRD Writing loop state from Spawner? Include schedule status, fresh/stale, what improved, distilled reuse without rerun, and link. Do not mutate anything.',
@@ -297,8 +316,32 @@ test('PRD Writing status treats schedule lifecycle events as latest Spawner trut
   assert.equal(packet.latestResultEvent?.eventType, 'schedule_lifecycle');
   assert.equal(packet.latestResultEvent?.label, 'Private loop schedule cancelled');
   assert.match(packet.reply, /Latest result: Private loop schedule cancelled passed \(separated evaluator, 2026-07-01T11:32:16\.030Z\)\./);
+  assert.match(packet.reply, /Current schedule: cancelled, inactive \(last changed 2026-07-01T11:32:16\.030Z\)\./);
   assert.match(packet.reply, /Distilled reuse: PRDs improved/i);
   assert.match(packet.reply, /nothing was queued or changed/);
+});
+
+test('PRD Writing status uses newer schedules array when event summaries lag', async () => {
+  const response: any = prdChipResponse();
+  response.chip.schedules.push({
+    id: 'loopsched-prd-3',
+    status: 'paused',
+    active: false,
+    createdAt: '2026-07-01T12:00:00.000Z',
+    updatedAt: '2026-07-01T12:04:05.123Z',
+    lastRunAt: '2026-07-01T12:01:00.000Z'
+  });
+  const fetchImpl = async () => Response.json(response) as any;
+  const packet = await fetchLoopEngineeringStatusPacket(
+    'What is the current PRD Writing schedule status from Spawner? Do not mutate anything.',
+    { fetchImpl }
+  );
+
+  assert.ok(packet);
+  assert.equal(packet.currentScheduleUpdatedAt, '2026-07-01T12:04:05.123Z');
+  assert.match(packet.freshnessLabel, /latest Spawner event timestamp is 2026-07-01T12:04:05\.123Z/);
+  assert.match(packet.reply, /Current schedule: paused, inactive \(last changed 2026-07-01T12:04:05\.123Z; last run 2026-07-01T12:01:00\.000Z\)\./);
+  assert.match(packet.reply, /I only read Spawner here/);
 });
 
 test('renders a readable missing-evidence reply instead of command usage on Spawner 404', async () => {

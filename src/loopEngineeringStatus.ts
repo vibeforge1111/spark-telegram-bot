@@ -19,6 +19,8 @@ export interface LoopEngineeringStatusPacket {
   latestResultEvent: LoopEngineeringResultEvent | null;
   topResultEvents: LoopEngineeringResultEvent[];
   blockedChecks: LoopEngineeringStatusCheck[];
+  currentScheduleLine: string | null;
+  currentScheduleUpdatedAt: string | null;
   distilledLearningLine: string | null;
   nextAction: string;
   detailUrl: string;
@@ -174,6 +176,40 @@ function renderLatestEventLine(event: LoopEngineeringResultEvent | null): string
   return `Latest result: ${event.label} ${event.status}${details.length ? ` (${details.join(', ')})` : ''}.`;
 }
 
+function timestampMs(value: unknown): number {
+  if (typeof value !== 'string' || !value.trim()) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function currentScheduleFromChip(chip: any): { line: string | null; updatedAt: string | null } {
+  const schedules = Array.isArray(chip?.schedules) ? chip.schedules : [];
+  const latest = [...schedules]
+    .filter((item) => item && typeof item === 'object')
+    .sort((a, b) => {
+      const bTime = Math.max(timestampMs(b.updatedAt), timestampMs(b.lastRunAt), timestampMs(b.createdAt));
+      const aTime = Math.max(timestampMs(a.updatedAt), timestampMs(a.lastRunAt), timestampMs(a.createdAt));
+      return bTime - aTime;
+    })[0];
+  if (!latest) return { line: null, updatedAt: null };
+
+  const rawStatus = typeof latest.status === 'string' && latest.status.trim() ? latest.status.trim() : 'unknown';
+  const status = rawStatus.replace(/_/g, ' ');
+  const active = latest.active === true ? 'active' : 'inactive';
+  const updatedAt = typeof latest.updatedAt === 'string' && latest.updatedAt.trim()
+    ? latest.updatedAt.trim()
+    : (typeof latest.lastRunAt === 'string' && latest.lastRunAt.trim() ? latest.lastRunAt.trim() : null);
+  const lastRun = typeof latest.lastRunAt === 'string' && latest.lastRunAt.trim() ? latest.lastRunAt.trim() : null;
+  const timing = [
+    updatedAt ? `last changed ${updatedAt}` : '',
+    lastRun && lastRun !== updatedAt ? `last run ${lastRun}` : ''
+  ].filter(Boolean).join('; ');
+  return {
+    line: `Current schedule: ${status}, ${active}${timing ? ` (${timing})` : ''}.`,
+    updatedAt
+  };
+}
+
 function distilledLearningLineFromChip(chip: any): string | null {
   const distillations = Array.isArray(chip?.distillations) ? chip.distillations : [];
   const latest = [...distillations]
@@ -212,6 +248,7 @@ function renderCompactReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>):
   const lines = [
     `${packet.domain} is ${packet.readinessLabel.toLowerCase()} (${packet.passCount}/${packet.totalCount} checks pass); ${packet.freshnessLabel}`,
     renderLatestEventLine(packet.latestResultEvent),
+    ...(packet.currentScheduleLine ? [packet.currentScheduleLine] : []),
     'I only read Spawner here; nothing was queued or changed.'
   ];
   lines.push(`Details: ${packet.detailUrl}`);
@@ -233,6 +270,7 @@ function renderReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>, text = 
     `${packet.domain} is ${packet.readinessLabel.toLowerCase()}: ${packet.passCount}/${packet.totalCount} checks pass. ${blockedLine}`,
     `Freshness: ${packet.freshnessLabel}`,
     renderLatestEventLine(packet.latestResultEvent),
+    ...(packet.currentScheduleLine ? [packet.currentScheduleLine] : []),
     ...(wantsDistilledLearningLine(text) ? [packet.distilledLearningLine || 'Distilled reuse: I do not see a reusable distilled lesson in Spawner yet.'] : []),
     renderEventLine(packet.topResultEvents),
     'I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued.',
@@ -267,6 +305,8 @@ function unavailablePacket(input: {
         detail: input.reason
       }
     ],
+    currentScheduleLine: null,
+    currentScheduleUpdatedAt: null,
     distilledLearningLine: null,
     nextAction: 'Open Spawner or register the private chip evidence, then ask for status again.',
     detailUrl,
@@ -302,6 +342,8 @@ export async function fetchLoopEngineeringStatusPacket(
       latestResultEvent: null,
       topResultEvents: [],
       blockedChecks: [],
+      currentScheduleLine: null,
+      currentScheduleUpdatedAt: null,
       distilledLearningLine: null,
       nextAction: 'Name a specific domain chip, such as Daily Schedule Reliability, so I can read its evidence packet.',
       detailUrl,
@@ -347,7 +389,10 @@ export async function fetchLoopEngineeringStatusPacket(
       ? chip.events.map(resultEventFromValue).filter((event: LoopEngineeringResultEvent | null): event is LoopEngineeringResultEvent => Boolean(event))
       : [];
     const latestEvent = latestResultEvent(events);
-    const latestTimestamp = latestEvent?.updatedAt || (typeof summary.updatedAt === 'string' ? summary.updatedAt : '');
+    const scheduleState = currentScheduleFromChip(chip);
+    const latestTimestamp = [latestEvent?.updatedAt, scheduleState.updatedAt, typeof summary.updatedAt === 'string' ? summary.updatedAt : '']
+      .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
+      .sort((a, b) => timestampMs(b) - timestampMs(a))[0] || '';
     const packetBase = {
       route: 'loop_engineering.status' as const,
       chipId,
@@ -362,6 +407,8 @@ export async function fetchLoopEngineeringStatusPacket(
       latestResultEvent: latestEvent,
       topResultEvents: topResultEvents(events),
       blockedChecks: topBlockedChecks(checks),
+      currentScheduleLine: scheduleState.line,
+      currentScheduleUpdatedAt: scheduleState.updatedAt,
       distilledLearningLine: distilledLearningLineFromChip(chip),
       nextAction: String(readiness.nextAction || summary.nextAction || 'Inspect the chip evidence before taking action.'),
       detailUrl: `${publicBaseUrl}/loop-engineering/${encodeURIComponent(chipId)}`,
