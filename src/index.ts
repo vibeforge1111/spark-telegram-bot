@@ -7912,7 +7912,8 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         chipKey: parsedLoopEngineering.chipKey,
         objective: `Run a private benchmark for ${labelForTelegram(parsedLoopEngineering.chipKey)} with separated evaluator evidence.`,
         sourceSurface: 'telegram',
-        requestId
+        requestId,
+        executionAuthority: authorization.governorDecision
       });
     } else if (parsedLoopEngineering.kind === 'run') {
       actionLabel = 'queue the capped private loop';
@@ -7921,7 +7922,8 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         objective: `Run a capped private self-improvement loop for ${labelForTelegram(parsedLoopEngineering.chipKey)}.`,
         roundLimit: parsedLoopEngineering.rounds,
         sourceSurface: 'telegram',
-        requestId
+        requestId,
+        executionAuthority: authorization.governorDecision
       });
     } else if (parsedLoopEngineering.kind === 'complete') {
       actionLabel = 'bind the evaluator-backed completion';
@@ -7936,7 +7938,8 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         evidenceRefs: parsedLoopEngineering.evidenceRefs,
         sourceRef: parsedLoopEngineering.sourceRef,
         evaluatorVerdictRef: parsedLoopEngineering.evaluatorVerdictRef,
-        requestId
+        requestId,
+        executionAuthority: authorization.governorDecision
       });
     } else if (parsedLoopEngineering.kind === 'eval') {
       actionLabel = 'record the separated evaluator review';
@@ -7947,7 +7950,8 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         roundsObserved: parsedLoopEngineering.roundsObserved,
         evidenceRefs: parsedLoopEngineering.evidenceRefs,
         sourceSurface: 'telegram',
-        requestId
+        requestId,
+        executionAuthority: authorization.governorDecision
       });
     } else if (parsedLoopEngineering.kind === 'distill') {
       actionLabel = 'stage the evaluator-backed distillation';
@@ -7958,7 +7962,8 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         runtimeNotes: 'Use these lessons as staged guidance only after activation review.',
         tokenBudgetHint: 'Try distilled guidance before rerunning the full loop.',
         sourceSurface: 'telegram',
-        requestId
+        requestId,
+        executionAuthority: authorization.governorDecision
       });
     } else if (parsedLoopEngineering.kind === 'case') {
       actionLabel = 'stage the benchmark case';
@@ -7969,7 +7974,8 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         expectedBehavior: parsedLoopEngineering.expectedBehavior,
         scoringRubricRef: parsedLoopEngineering.scoringRubricRef,
         evidenceRefs: parsedLoopEngineering.evidenceRefs,
-        requestId
+        requestId,
+        executionAuthority: authorization.governorDecision
       });
     } else if (parsedLoopEngineering.kind === 'schedule') {
       actionLabel = 'stage the private loop schedule';
@@ -7982,7 +7988,8 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         timezone: parsedLoopEngineering.timezone,
         roundLimit: parsedLoopEngineering.rounds,
         stopConditions: parsedLoopEngineering.stopConditions,
-        requestId
+        requestId,
+        executionAuthority: authorization.governorDecision
       });
     } else if (parsedLoopEngineering.kind === 'fire-schedule') {
       actionLabel = 'fire the private loop schedule';
@@ -7990,7 +7997,8 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         chipKey: parsedLoopEngineering.chipKey,
         scheduleId: parsedLoopEngineering.scheduleId,
         sourceSurface: 'telegram',
-        requestId
+        requestId,
+        executionAuthority: authorization.governorDecision
       });
     } else {
       actionLabel = 'stage activation';
@@ -8003,7 +8011,8 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         riskPolicy: 'review_packet',
         approvalRequired: true,
         rollbackRef: parsedLoopEngineering.rollbackRef,
-        requestId
+        requestId,
+        executionAuthority: authorization.governorDecision
       });
     }
     recordTelegramHarnessCoreExecution(authorization, {

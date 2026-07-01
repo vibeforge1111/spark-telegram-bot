@@ -63,6 +63,7 @@ test('allows explicit project build only when route and envelope both authorize 
   assert.equal(result.allow, true);
   assert.equal(result.routeVerdict.allow, true);
   assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.governorDecision?.tool_ledgers[0]?.authorization.restrictions.write_allowed, true);
 });
 
 test('keeps local-only publication bans as build constraints', () => {

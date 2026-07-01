@@ -317,7 +317,7 @@ export function authorizeHarnessCoreAction(
     },
     restrictions: {
       network_allowed: Boolean(input.externalNetwork) && verdict === 'allow',
-      write_allowed: ['writes_files', 'writes_memory', 'creates_chip', 'creates_schedule', 'deletes_schedule'].includes(input.mutationClass) && verdict === 'allow',
+      write_allowed: ['writes_files', 'writes_memory', 'creates_chip', 'creates_schedule', 'deletes_schedule', 'launches_mission'].includes(input.mutationClass) && verdict === 'allow',
       publish_allowed: Boolean(input.publishes) && verdict === 'allow'
     },
     trace: traceRef(envelope.trace.id, 'Harness Core authorization decision for Telegram action.')
