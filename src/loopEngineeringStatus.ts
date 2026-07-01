@@ -371,6 +371,24 @@ function renderScheduleForTelegram(line: string | null): string | null {
   return `Schedule: ${status} and ${active}${timing ? ` (${timing})` : ''}.`;
 }
 
+function privateReadOnlyLine(): string {
+  return 'Still private: I only read Spawner here; nothing was queued or changed.';
+}
+
+function noMutationLine(): string {
+  return 'Still private: I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued.';
+}
+
+function bulletLine(value: string | null | undefined): string | null {
+  const clean = String(value || '').trim();
+  return clean ? `• ${clean}` : null;
+}
+
+function renderProofBlock(lines: Array<string | null | undefined>): string | null {
+  const bullets = lines.map(bulletLine).filter((line): line is string => Boolean(line));
+  return bullets.length ? ['Proof:', ...bullets].join('\n') : null;
+}
+
 function distilledLearningLineFromChip(chip: any): string | null {
   const distillations = Array.isArray(chip?.distillations) ? chip.distillations : [];
   const latest = [...distillations]
@@ -407,19 +425,23 @@ function wantsDistilledLearningLine(text: string): boolean {
 
 function renderCompactReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>, text = ''): string {
   const wantsDistillation = wantsDistilledLearningLine(text);
-  const stateLine = [
-    renderActivationForTelegram(packet),
-    renderScheduleForTelegram(packet.currentScheduleLine)
-  ].filter(Boolean).join(' ');
+  const activationLine = renderActivationForTelegram(packet);
+  const scheduleLine = renderScheduleForTelegram(packet.currentScheduleLine);
   const learningOrEvidence = wantsDistillation
     ? packet.distilledLearningLine || 'I do not see a reusable distilled lesson in Spawner yet.'
     : renderEvidenceBrief(packet.topResultEvents, packet.latestResultEvent);
   const paragraphs = [
     `${packet.domain} is ${packet.readinessLabel.toLowerCase()}: ${packet.passCount}/${packet.totalCount} checks pass.`,
-    `${renderFreshnessForTelegram(packet.freshnessLabel)} ${renderLatestEventForTelegram(packet.latestResultEvent)}`,
-    stateLine,
-    learningOrEvidence,
-    'I only read Spawner here; nothing was queued or changed.',
+    renderProofBlock([
+      renderFreshnessForTelegram(packet.freshnessLabel),
+      renderLatestEventForTelegram(packet.latestResultEvent),
+      scheduleLine,
+      wantsDistillation ? learningOrEvidence : null,
+      !wantsDistillation ? learningOrEvidence : null,
+      activationLine
+    ]),
+    privateReadOnlyLine(),
+    `Next: ${readableActionText(packet.nextAction)}`,
     `Spawner: ${packet.detailUrl}`
   ];
   return paragraphs.filter(Boolean).join('\n\n');
@@ -437,12 +459,20 @@ function renderReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>, text = 
     renderScheduleForTelegram(packet.currentScheduleLine),
     wantsDistilledLearningLine(text) ? packet.distilledLearningLine || 'Distilled reuse: I do not see a reusable distilled lesson in Spawner yet.' : ''
   ].filter(Boolean).join(' ');
+  const activationLine = renderActivationForTelegram(packet);
+  const evidenceLine = renderEvidenceBrief(packet.topResultEvents, packet.latestResultEvent);
   return [
     `${packet.domain} is ${packet.readinessLabel.toLowerCase()}: ${packet.passCount}/${packet.totalCount} checks pass. ${blockedLine}`,
-    `${freshnessLine} ${renderLatestEventForTelegram(packet.latestResultEvent)}`,
-    [renderActivationForTelegram(packet), scheduleAndDistillation, renderEvidenceBrief(packet.topResultEvents, packet.latestResultEvent)].filter(Boolean).join(' '),
-    'I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued.',
-    `Next safe step: ${readableActionText(packet.nextAction)}\n\nSpawner: ${packet.detailUrl}`
+    renderProofBlock([
+      freshnessLine,
+      renderLatestEventForTelegram(packet.latestResultEvent),
+      activationLine,
+      scheduleAndDistillation,
+      evidenceLine
+    ]),
+    noMutationLine(),
+    `Next: ${readableActionText(packet.nextAction)}`,
+    `Spawner: ${packet.detailUrl}`
   ].join('\n\n');
 }
 
