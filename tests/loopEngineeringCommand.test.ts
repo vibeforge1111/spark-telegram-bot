@@ -94,6 +94,25 @@ function stubSpawner(calls: Array<{ url: string; body: any }>): void {
   (axios as any).post = async (url: string, body: unknown) => {
     calls.push({ url, body });
     if (url.includes('/benchmarks/run')) {
+      if ((body as any)?.executeNow === true) {
+        return {
+          data: {
+            ok: true,
+            commandResult: {
+              action: 'benchmark_run_executed',
+              missionId: 'spark-loop-benchmark',
+              eventId: 'lee-benchmark-prd',
+              benchmarkRunId: 'benchrun-lee-benchmark-prd',
+              previousScore: 5.8,
+              candidateScore: 8.3,
+              utilityDelta: 2.5,
+              caseCount: 2,
+              inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+              userMessage: 'Ran 2 private benchmark cases for domain-chip-prd-writing-proof-loop: 5.8 -> 8.3. This is evaluator evidence for review, not activation.'
+            }
+          }
+        };
+      }
       return {
         data: {
           ok: true,
@@ -379,6 +398,27 @@ async function run(): Promise<void> {
     assert.match(replies[0], /Queued a private benchmark mission/);
     assert.match(replies[0], /Spawner: http:\/\/127\.0\.0\.1:3333\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
     assert.doesNotMatch(replies[0], /approved|activated|published/i);
+  });
+
+  await test('/loop benchmark now executes staged private benchmark through Spawner', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleLoopCommand(fakeCtx('/loop benchmark domain-chip-prd-writing-proof-loop now', replies, { chat: 8319079055, user: 8319079055, message: 9072 }));
+
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/benchmarks\/run$/);
+    assert.equal(calls[0].body.executeNow, true);
+    assert.equal(calls[0].body.sourceSurface, 'telegram');
+    assert.match(calls[0].body.objective, /Execute staged benchmark cases/);
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.benchmark.run');
+    assert.match(replies[0], /Ran 2 private benchmark cases/);
+    assert.match(replies[0], /evaluator evidence for review, not activation/i);
+    assert.match(replies[0], /Spawner: http:\/\/127\.0\.0\.1:3333\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
+    assert.doesNotMatch(replies[0], /approved|published/i);
   });
 
   await test('/loop run queues capped private loop rounds through Spawner command-result payload', async () => {

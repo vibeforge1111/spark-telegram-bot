@@ -7610,7 +7610,7 @@ type LoopEngineeringCompletionStatus = 'passed' | 'failed' | 'blocked';
 type LoopEngineeringCommand =
   | { kind: 'list' }
   | { kind: 'status'; chipQuery: string }
-  | { kind: 'benchmark'; chipKey: string }
+  | { kind: 'benchmark'; chipKey: string; executeNow?: boolean }
   | { kind: 'run'; chipKey: string; rounds: number }
   | { kind: 'complete'; chipKey: string; eventId: string; status: LoopEngineeringCompletionStatus; previousScore?: number; candidateScore?: number; roundsObserved?: number; evidenceRefs: string[]; sourceRef?: string; evaluatorVerdictRef?: string }
   | { kind: 'eval'; chipKey: string; previousScore: number; candidateScore: number; roundsObserved?: number; evidenceRefs: string[] }
@@ -7626,7 +7626,7 @@ function loopEngineeringUsage(): string {
     'Spawner loop-engineering:',
     '/loop list',
     '/loop status <domain-chip-key or chip name>',
-    '/loop benchmark <domain-chip-key>',
+    '/loop benchmark <domain-chip-key> [now]',
     '/loop run <domain-chip-key> [rounds]',
     '/loop complete <domain-chip-key> event <eventId> <passed|failed|blocked> previous <score> candidate <score> evidence <ref[,ref]>',
     '/loop case <domain-chip-key> <visible|held_out|trap|no_op|regression> prompt <prompt> expected <expected>',
@@ -7690,8 +7690,10 @@ function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null
     return { kind: 'status', chipQuery: text.replace(/^(?:status|evidence)\s*/i, '').trim() };
   }
   if (verb === 'benchmark' || verb === 'bench') {
-    const chipKey = text.split(/\s+/)[1];
-    return chipKey ? { kind: 'benchmark', chipKey } : null;
+    const parts = text.split(/\s+/);
+    const chipKey = parts[1];
+    const executeNow = parts.slice(2).some((part) => /^(?:now|execute|run|score)$/i.test(part));
+    return chipKey ? { kind: 'benchmark', chipKey, ...(executeNow ? { executeNow } : {}) } : null;
   }
   if (verb === 'run') {
     const parts = text.split(/\s+/);
@@ -7917,10 +7919,13 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
     let result: Awaited<ReturnType<typeof spawner.runLoopEngineeringBenchmark>>;
     let actionLabel = 'run loop-engineering action';
     if (parsedLoopEngineering.kind === 'benchmark') {
-      actionLabel = 'queue the private benchmark';
+      actionLabel = parsedLoopEngineering.executeNow ? 'run the private benchmark' : 'queue the private benchmark';
       result = await spawner.runLoopEngineeringBenchmark({
         chipKey: parsedLoopEngineering.chipKey,
-        objective: `Run a private benchmark for ${labelForTelegram(parsedLoopEngineering.chipKey)} with separated evaluator evidence.`,
+        objective: parsedLoopEngineering.executeNow
+          ? `Execute staged benchmark cases for ${labelForTelegram(parsedLoopEngineering.chipKey)} with separated evaluator evidence.`
+          : `Run a private benchmark for ${labelForTelegram(parsedLoopEngineering.chipKey)} with separated evaluator evidence.`,
+        executeNow: parsedLoopEngineering.executeNow === true,
         sourceSurface: 'telegram',
         requestId,
         executionAuthority: authorization.governorDecision
