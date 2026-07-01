@@ -57,6 +57,7 @@ const MUTATING_ACTION_PATTERN = /\b(?:activate|publish|register|schedule|run|sta
 const STATUS_WORD_PATTERN = new RegExp(`\\b(?:${STATUS_LOOKUP_WORD_PATTERN.source}|why)\\b`, 'i');
 const DAILY_ALIAS_PATTERN = /\b(?:daily\s+schedule|schedule\s+reliability|daily\s+reminder|reminder\s+reliability)\b/i;
 const PRD_ALIAS_PATTERN = /\b(?:prd\s+writing|product\s+requirements?\s+doc(?:ument)?|prd\s+chip)\b/i;
+const FRESHNESS_WINDOW_MS = 10_000;
 
 function normalizeText(text: string): string {
   return text.replace(/[‘’]/g, "'").replace(/\s+/g, ' ').trim();
@@ -180,6 +181,31 @@ function timestampMs(value: unknown): number {
   if (typeof value !== 'string' || !value.trim()) return 0;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatAge(ms: number): string {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  if (seconds < 60) return `${seconds}s old`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m old`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h old`;
+  const days = Math.round(hours / 24);
+  return `${days}d old`;
+}
+
+function freshnessLabelFromTimestamp(latestTimestamp: string, nowMs: number): string {
+  if (!latestTimestamp) return 'read from Spawner now; no event timestamp was present.';
+  const parsed = timestampMs(latestTimestamp);
+  if (!parsed) return `read from Spawner now; latest Spawner event timestamp is ${latestTimestamp}; freshness: unknown.`;
+  const ageMs = nowMs - parsed;
+  if (Math.abs(ageMs) <= FRESHNESS_WINDOW_MS) {
+    return `read from Spawner now; latest Spawner event timestamp is ${latestTimestamp}; freshness: fresh within 10s.`;
+  }
+  if (ageMs < 0) {
+    return `read from Spawner now; latest Spawner event timestamp is ${latestTimestamp}; freshness: clock-skew/future timestamp.`;
+  }
+  return `read from Spawner now; latest Spawner event timestamp is ${latestTimestamp}; freshness: stale (${formatAge(ageMs)}).`;
 }
 
 function currentScheduleFromChip(chip: any): { line: string | null; updatedAt: string | null } {
@@ -323,7 +349,7 @@ function unavailablePacket(input: {
 
 export async function fetchLoopEngineeringStatusPacket(
   text: string,
-  options: { fetchImpl?: LoopEngineeringFetchLike; timeoutMs?: number } = {}
+  options: { fetchImpl?: LoopEngineeringFetchLike; timeoutMs?: number; nowMs?: number } = {}
 ): Promise<LoopEngineeringStatusPacket | null> {
   if (!isLoopEngineeringStatusRequest(text)) return null;
   const chipId = resolveLoopEngineeringChipId(text);
@@ -393,14 +419,13 @@ export async function fetchLoopEngineeringStatusPacket(
     const latestTimestamp = [latestEvent?.updatedAt, scheduleState.updatedAt, typeof summary.updatedAt === 'string' ? summary.updatedAt : '']
       .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
       .sort((a, b) => timestampMs(b) - timestampMs(a))[0] || '';
+    const nowMs = typeof options.nowMs === 'number' && Number.isFinite(options.nowMs) ? options.nowMs : Date.now();
     const packetBase = {
       route: 'loop_engineering.status' as const,
       chipId,
       domain: String(summary.domain || chipId),
       readinessLabel: String(readiness.label || 'Unknown readiness'),
-      freshnessLabel: latestTimestamp
-        ? `read from Spawner now; latest Spawner event timestamp is ${latestTimestamp}.`
-        : 'read from Spawner now; no event timestamp was present.',
+      freshnessLabel: freshnessLabelFromTimestamp(latestTimestamp, nowMs),
       passCount: Number(readiness.passCount || 0),
       totalCount: Number(readiness.totalCount || 0),
       resultEventCount: events.length,

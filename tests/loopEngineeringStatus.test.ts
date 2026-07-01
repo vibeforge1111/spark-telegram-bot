@@ -242,20 +242,23 @@ test('resolves Daily Schedule alias and exact chip ids', () => {
 
 test('renders read-only packet from Spawner evidence without activation claims', async () => {
   const fetchImpl = async () => Response.json(chipResponse()) as any;
-  const packet = await fetchLoopEngineeringStatusPacket('What is the Loop Engineering readiness for the Daily Schedule chip?', { fetchImpl });
+  const packet = await fetchLoopEngineeringStatusPacket('What is the Loop Engineering readiness for the Daily Schedule chip?', {
+    fetchImpl,
+    nowMs: Date.parse('2026-07-01T09:13:05.000Z')
+  });
   assert.ok(packet);
   assert.equal(packet.route, 'loop_engineering.status');
   assert.equal(packet.readinessLabel, 'Telegram activation blocked');
   assert.equal(packet.passCount, 10);
   assert.equal(packet.totalCount, 12);
   assert.equal(packet.resultEventCount, 3);
-  assert.equal(packet.freshnessLabel, 'read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:13:00.303Z.');
+  assert.equal(packet.freshnessLabel, 'read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:13:00.303Z; freshness: fresh within 10s.');
   assert.equal(packet.latestResultEvent?.eventType, 'loop_batch');
   assert.deepEqual(packet.topResultEvents.map((event) => event.eventType), ['benchmark_run', 'loop_batch', 'activation_gate']);
   assert.equal(packet.blockedChecks.map((check) => check.id).join(','), 'live_telegram_proof,hard_blockers');
   assert.match(packet.reply, /10\/12 checks pass/);
   assert.match(packet.reply, /Live Telegram proof, Hard blockers/);
-  assert.match(packet.reply, /Freshness: read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:13:00\.303Z\./);
+  assert.match(packet.reply, /Freshness: read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:13:00\.303Z; freshness: fresh within 10s\./);
   assert.match(packet.reply, /Latest result: Self-improvement loop passed \(\+12\.5, 5 rounds, separated evaluator, 2026-07-01T09:13:00\.303Z\)\./);
   assert.match(packet.reply, /Loop results: Benchmark A\/B passed \(\+12\.5, separated evaluator\); Self-improvement loop passed \(\+12\.5, 5 rounds, separated evaluator\); Activation gate blocked \(separated evaluator\)\./);
   assert.match(packet.reply, /I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued\./);
@@ -267,7 +270,7 @@ test('PRD Writing no-action state prompt reads the proof-loop chip and reports l
   const fetchImpl = async () => Response.json(prdChipResponse()) as any;
   const packet = await fetchLoopEngineeringStatusPacket(
     'For QA: what is the latest PRD Writing loop-engineering state from Spawner/control-plane right now? Do not run, mutate, publish, activate, schedule, or start anything. Reply with the latest schedule/loop result, whether it is fresh or stale, and the Spawner link only.',
-    { fetchImpl }
+    { fetchImpl, nowMs: Date.parse('2026-07-01T09:59:55.000Z') }
   );
 
   assert.ok(packet);
@@ -276,12 +279,25 @@ test('PRD Writing no-action state prompt reads the proof-loop chip and reports l
   assert.equal(packet.latestResultEvent?.label, 'Private scheduled loop completed');
   assert.equal(packet.latestResultEvent?.updatedAt, '2026-07-01T09:59:49.934Z');
   assert.match(packet.reply, /PRD Writing is local fast path supported .*12\/12 checks pass/i);
-  assert.match(packet.reply, /read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:59:49\.934Z\./);
+  assert.match(packet.reply, /read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:59:49\.934Z; freshness: fresh within 10s\./);
   assert.match(packet.reply, /Latest result: Private scheduled loop completed passed \(4\.5 -> 9\.7, 3 rounds, separated evaluator, 2026-07-01T09:59:49\.934Z\)\./);
   assert.match(packet.reply, /Current schedule: staged, inactive \(last changed 2026-07-01T09:59:49\.934Z\)\./);
   assert.match(packet.reply, /I only read Spawner here; nothing was queued or changed\./);
   assert.match(packet.reply, /Details: .*\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
   assert.doesNotMatch(packet.reply, /\b(?:I (?:activated|published|registered|scheduled|started|created)|was (?:activated|published|registered|scheduled|started)|has been (?:activated|published|registered|scheduled|started))\b/i);
+});
+
+test('PRD Writing status labels old Spawner evidence as stale after ten seconds', async () => {
+  const fetchImpl = async () => Response.json(prdChipResponse()) as any;
+  const packet = await fetchLoopEngineeringStatusPacket(
+    'Loop QA read-only check: latest PRD Writing loop state from Spawner? Include schedule status, fresh/stale, what improved, distilled reuse without rerun, and link. Do not mutate anything.',
+    { fetchImpl, nowMs: Date.parse('2026-07-01T10:00:05.000Z') }
+  );
+
+  assert.ok(packet);
+  assert.match(packet.freshnessLabel, /freshness: stale \(15s old\)/);
+  assert.match(packet.reply, /freshness: stale \(15s old\)/);
+  assert.match(packet.reply, /I only read Spawner here; nothing was queued or changed\./);
 });
 
 test('PRD Writing status treats schedule lifecycle events as latest Spawner truth', async () => {
@@ -425,7 +441,7 @@ test('Telegram handler answers PRD Writing no-action state query through Spawner
 
       assert.equal(replies.length, 1);
       assert.match(replies[0], /PRD Writing is local fast path supported/i);
-      assert.match(replies[0], /read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:59:49\.934Z\./);
+      assert.match(replies[0], /read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:59:49\.934Z; freshness: stale \(/);
       assert.match(replies[0], /Private scheduled loop completed passed \(4\.5 -> 9\.7, 3 rounds, separated evaluator, 2026-07-01T09:59:49\.934Z\)/);
       assert.match(replies[0], /I only read Spawner here; nothing was queued or changed\./);
       assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-prd-writing-proof-loop/i);
