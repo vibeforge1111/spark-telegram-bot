@@ -435,6 +435,55 @@ Behavior:
   assert.match(intent.prd, /Countdown updates every second/);
 });
 
+test('build intent skips negated command words before the real project command', () => {
+  const previousExternal = process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+  process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS = '1';
+  try {
+    const intent = parseBuildIntent(`Continue mission-1780080376626, but do not make another dashboard-only prototype.
+
+Build the real backend for the Telegram group health scoring bot.
+
+Use the existing dashboard files as the frontend starting point:
+C:\\lose state, score or progress feedback
+
+Create a full local project at:
+C:\\Dev\\projects\\telegram-health-bot
+
+Required stack:
+- Node.js + TypeScript
+- Telegraf Telegram bot
+- Express local API
+- SQLite local database
+- OpenAI Responses API for behavior scoring
+- dashboard served from /dashboard and reading API data, not localStorage
+
+Required backend features:
+- .env.example with TELEGRAM_BOT_TOKEN, OPENAI_API_KEY, CREATOR_TELEGRAM_ID
+- creator-only access
+- no public commands
+- Telegram group listener
+- store Telegram message metadata locally
+- separate users, messages, evaluations, scores tables
+- behavior-only 0-100 score per user
+- local dashboard API endpoints
+- README with BotFather setup, privacy mode disabled, run/test commands
+
+Use Spark Pro skills for telegram-mastery, backend, sqlite/local database, openai integration, security, and dashboard integration.
+
+Do not use placeholder-only implementation. Include runnable code and tests or smoke scripts.`);
+
+    assert.ok(intent);
+    assert.equal(intent.projectPath, 'C:\\Dev\\projects\\telegram-health-bot');
+    assert.equal(intent.projectName, 'Telegram Health Bot');
+    assert.equal(intent.buildMode, 'advanced_prd');
+    assert.match(intent.prd, /real backend for the Telegram group health scoring bot/);
+    assert.doesNotMatch(intent.prd, /C:\\Dev\\projects\\telegram-health-bot/);
+  } finally {
+    if (previousExternal === undefined) delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+    else process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS = previousExternal;
+  }
+});
+
 test('UI feature words pause/stop/reset do not veto an explicit build request', () => {
   const intent = parseBuildIntent(
     'Build me a small focus timer web app called harness-genesis-timer-20260609. It needs a 25-minute countdown, start, pause, and reset buttons, and a session counter. Please start the build now.'
