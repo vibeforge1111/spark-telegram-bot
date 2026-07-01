@@ -285,6 +285,37 @@ async function run(): Promise<void> {
     }
   });
 
+  await test('access status answer writes joined natural route ledger proof', async () => {
+    restoreEnv();
+    prepareEnv();
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-access-status-proof-'));
+    try {
+      installSparkAccessShim(tempRoot);
+      await assertTraceRouteLedgerJoin(
+        'What is my access level?',
+        'access.status',
+        /Spark Access Status/i
+      );
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+      restoreEnv();
+    }
+  });
+
+  await test('no-execution chat confirmation writes joined natural route ledger proof', async () => {
+    restoreEnv();
+    prepareEnv();
+    try {
+      await assertTraceRouteLedgerJoin(
+        'Stay in chat and just explain the boundary. Do not start anything.',
+        'conversation.no_execution_explanation',
+        /not as permission to act|answer the question in chat/i
+      );
+    } finally {
+      restoreEnv();
+    }
+  });
+
   await test('model switch boundary explanation proof uses model route', async () => {
     restoreEnv();
     prepareEnv();

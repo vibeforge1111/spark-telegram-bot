@@ -145,7 +145,13 @@ export function loadSparkTelegramProfileEnv(
   loadEnvFileIntoProcess(path.join(configDir, `spark-telegram-bot.${profile}.env`), env, loadOptions);
 
   const profileSecretId = `telegram.profiles.${profile}.bot_token`;
-  const preserveBotToken = Boolean(options.preserveExisting && preserveKeys?.has('BOT_TOKEN') && env.BOT_TOKEN?.trim());
+  const nonPrimaryNamedProfile = profile !== 'default' && profile !== 'primary';
+  const preserveBotToken = Boolean(
+    !nonPrimaryNamedProfile &&
+    options.preserveExisting &&
+    preserveKeys?.has('BOT_TOKEN') &&
+    env.BOT_TOKEN?.trim()
+  );
   const profileToken = readSparkSecret(profileSecretId) || (profile === 'default' ? readSparkSecret('telegram.bot_token') : null);
   if (preserveBotToken) {
     delete env.SPARK_PROFILE_TOKEN_MISSING;

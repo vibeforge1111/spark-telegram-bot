@@ -113,7 +113,8 @@ Spawner owns execution. Treat every launch/mutation path as high-agency unless p
 
 - `/api/dispatch` requires envelope or machine-origin policy.
 - PRD auto-dispatch requires envelope import or documented machine-origin policy.
-- Creator mission create/execute must preserve execution policy and mutation class.
+- Loop Engineering create/execute through the legacy `creator mission` API must
+  preserve execution policy and mutation class.
 - Canvas auto-run/imported loads cannot execute from stored state alone.
 - Provider dispatch must record source policy, trace, owner, and mutation class.
 - No-edit requests can launch no-edit work while blocking file mutation.
@@ -124,7 +125,7 @@ Required proof:
 - `src/lib/server/intent-boundary.test.ts`
 - `src/routes/api/dispatch/dispatch.authority.test.ts`
 - `src/lib/server/prd-auto-dispatch.test.ts`
-- creator mission create/execute tests
+- Loop Engineering create/execute tests for the legacy `creator mission` API
 - `src/lib/services/mission-board-cards.test.ts`
 - `npm run check`
 - `npm run build`

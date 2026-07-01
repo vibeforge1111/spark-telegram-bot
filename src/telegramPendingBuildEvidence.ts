@@ -107,9 +107,9 @@ export function shouldUsePendingClarificationForMessage(
 export function pendingBuildClarificationForMessage(key: string, text: string): PendingBuildClarification | null {
   const entry = getPendingBuildClarification(key);
   if (!entry) return null;
-  if (!shouldUsePendingClarificationForMessage(entry, text)) {
+  if (isPendingBuildClarificationExpired(entry)) {
     deletePendingBuildClarification(key);
     return null;
   }
-  return entry;
+  return isPendingClarificationFollowup(text) ? entry : null;
 }

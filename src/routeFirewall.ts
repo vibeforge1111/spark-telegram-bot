@@ -17,6 +17,7 @@ export type DeterministicRouteId =
   | 'spawner.mission_control'
   | 'diagnostics.scan'
   | 'diagnostics.followup_test'
+  | 'domain_chip.preview'
   | 'domain_chip.create'
   | 'creator.mission'
   | 'recursive.command'
@@ -66,6 +67,7 @@ const INTERRUPTIVE_ROUTES = new Set<DeterministicRouteId>([
   'spawner.mission_control',
   'diagnostics.scan',
   'diagnostics.followup_test',
+  'domain_chip.preview',
   'domain_chip.create',
   'creator.mission',
   'recursive.proposal',
@@ -98,6 +100,7 @@ const MISSION_OR_BUILD_ROUTES = new Set<DeterministicRouteId>([
   'spawner.contextual_mission',
   'spawner.contextual_improvement',
   'spawner.project_iteration',
+  'domain_chip.preview',
   'domain_chip.create',
   'creator.mission',
   'recursive.proposal',
@@ -222,8 +225,14 @@ function isExplicitDefaultBuildChoice(normalized: string): boolean {
 
 function isPendingDomainChipDirection(normalized: string): boolean {
   if (/^(?:yes|yeah|yep|yup|ok|okay|sure)$/.test(normalized)) return false;
-  return /^(?:go|go ahead|start|run it|start it|use defaults?|defaults?|use your defaults?|recommended defaults?)\b/.test(normalized) ||
-    /\b(?:names?|rationale|usage angle|vibe|tone|luxury|absurd|consumer|sci[-\s]*fi|router[-\s]*safe|defaults?)\b/.test(normalized);
+  if (/\b(?:unit\s+test|qa|bug\s+hunter|bug\s+hunt|spawner|mission\s+control|prs?|publish|merge|ship)\b/.test(normalized)) return false;
+  return /^(?:go|go ahead|start|run it|start it|use defaults?|defaults?|use your defaults?|recommended defaults?|doesn'?t matter|dont care|whatever|your call)\b/.test(normalized) ||
+    /\b(?:names?|rationale|usage angle|vibe|tone|workflow|checklist|benchmark|benchmarks|evals?|edge cases?|held[-\s]*out|trap|watchtower|rollback|loop|autoloop|improvement|consumer|safety|privacy|router[-\s]*safe|defaults?|luxury|absurd|sci[-\s]*fi)\b/.test(normalized);
+}
+
+function isPendingCreatorMissionConfirmation(normalized: string): boolean {
+  if (/^(?:yes|yeah|yep|yup|ok|okay|sure)$/.test(normalized)) return false;
+  return /^(?:go|go ahead|run|start|execute|kick off|do it|run it|start it|execute it|kick it off|use defaults?|use your defaults?|defaults?|recommended defaults?|doesn'?t matter|dont care|whatever|your call)(?:\s+(?:the\s+)?(?:(?:creator\s+)?mission|private\s+path|specialization\s+path|path|autoloop))?$/.test(normalized);
 }
 
 function isExplicitDomainChipCreate(normalized: string): boolean {
@@ -448,6 +457,9 @@ export function evaluateDeterministicRoute(route: DeterministicRouteId, text: st
   if (route === 'creator.mission' && isExplicitCreatorMissionArtifactRequest(normalized)) {
     return { allow: true, reason: 'explicit_creator_artifact', confidence: 'explicit' };
   }
+  if (route === 'creator.mission' && isPendingCreatorMissionConfirmation(normalized)) {
+    return { allow: true, reason: 'short_pending_confirmation', confidence: 'contextual' };
+  }
 
   if (route === 'spark.self_improvement' && isNoExecutionBoundary(normalized) && isLocalSelfImprovementCanary(normalized)) {
     return { allow: true, reason: 'self_improvement_canary_local_only', confidence: 'explicit' };
@@ -471,8 +483,8 @@ export function evaluateDeterministicRoute(route: DeterministicRouteId, text: st
   if (route === 'schedule.delete' && isExplicitScheduleDelete(normalized)) {
     return { allow: true, reason: 'explicit_schedule_delete', confidence: 'explicit' };
   }
-  if (route === 'domain_chip.create' && isExplicitDomainChipCreate(normalized)) {
-    return { allow: true, reason: 'explicit_domain_chip_create', confidence: 'explicit' };
+  if ((route === 'domain_chip.create' || route === 'domain_chip.preview') && isExplicitDomainChipCreate(normalized)) {
+    return { allow: true, reason: route === 'domain_chip.preview' ? 'explicit_domain_chip_preview' : 'explicit_domain_chip_create', confidence: 'explicit' };
   }
   if (route === 'domain_chip.pending' && isPendingDomainChipDirection(normalized)) {
     return { allow: true, reason: 'pending_domain_chip_direction', confidence: 'contextual' };

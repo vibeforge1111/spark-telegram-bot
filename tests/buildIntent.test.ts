@@ -286,6 +286,9 @@ test('does not turn exploratory conversation into an accidental build', () => {
     parseBuildIntent('Check whether C:\\Users\\USER\\Desktop exists. If it exists, list only the first 5 top-level folder names. Do not open files or read file contents.'),
     null
   );
+  assert.equal(parseBuildIntent('Write a PRD for improving onboarding activation after new users drop before creating their first project.'), null);
+  assert.equal(parseBuildIntent('Draft a better PRD for support impersonation controls with privacy review.'), null);
+  assert.equal(parseBuildIntent('Create a PRD for a dashboard app used by finance admins to export invoices.'), null);
   assert.equal(parseBuildIntent('we were gonna build something do you remember what it was'), null);
   assert.equal(parseBuildIntent('what were we going to build?'), null);
   assert.equal(

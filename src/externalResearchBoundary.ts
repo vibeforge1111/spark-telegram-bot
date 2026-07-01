@@ -1,5 +1,6 @@
 export function renderExternalResearchBoundaryReply(text: string): string {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (isExplicitDomainChipCreationRequest(normalized)) return '';
   const asksResearch = /\b(?:research|look\s+up|search|browse|web|docs?|documentation|current|latest)\b/.test(normalized);
   const blocksNow = /\b(?:do\s+not|don't|dont|without|not)\s+(?:browse|search|research|use|open|call|run)\b/.test(normalized) || /\bdo\s+not\s+browse\s+yet\b/.test(normalized);
   const blocksMission = externalResearchNoMissionClarification(text);
@@ -17,6 +18,15 @@ export function renderExternalResearchBoundaryReply(text: string): string {
     '',
     'For current docs, fresh web research needs a clear browse/research request and should use the current public source directly, not memory. Since you said not to browse yet, this turn stays read-only: no external network call, no provider switch, and no stored claim that I checked the docs.'
   ].join('\n');
+}
+
+function isExplicitDomainChipCreationRequest(normalized: string): boolean {
+  const mentionsDomainChip = /\bdomain[-\s]*chip\b/.test(normalized);
+  const asksCreate = /\b(?:build|create|make|scaffold|generate)\b/.test(normalized);
+  const negatesCreation =
+    /\b(?:do\s+not|don't|dont|no)\s+(?:build|create|make|scaffold|generate)\b.{0,40}\bdomain[-\s]*chip\b/.test(normalized) ||
+    /\bdomain[-\s]*chip\b.{0,40}\b(?:do\s+not|don't|dont|no)\s+(?:build|create|make|scaffold|generate)\b/.test(normalized);
+  return mentionsDomainChip && asksCreate && !negatesCreation;
 }
 
 export function externalResearchNoMissionClarification(text: string): boolean {

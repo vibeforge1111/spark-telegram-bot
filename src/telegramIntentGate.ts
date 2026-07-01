@@ -39,6 +39,13 @@ function emptyConstraints(): TelegramIntentConstraintsV2 {
   };
 }
 
+function isDomainChipPreviewOnlyRequest(normalized: string): boolean {
+  return (
+    /\b(?:preview\s+only|starter\s+preview|show\s+(?:me\s+)?(?:the\s+)?(?:private\s+)?(?:starter\s+)?preview)\b/.test(normalized) ||
+    /\bask\s+(?:me\s+)?(?:for\s+)?go\b.{0,80}\bbefore\s+(?:creating|create|writing|making)\s+(?:files?|artifacts?)\b/.test(normalized)
+  );
+}
+
 function isAccessSetupOnlyBoundary(normalized: string): boolean {
   const stopsAccessChange =
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:change|set|switch|raise|lower|enable|disable)\b.{0,40}\baccess\b/.test(normalized) ||
@@ -71,6 +78,29 @@ function isLoopEngineeringScheduleLifecycleRequest(normalized: string): boolean 
     /\b(?:schedule|scheduled|timer|recurring|loop|loopsched-[a-z0-9_-]+)\b.{0,80}\b(?:pause|hold|resume|reactivate|activate|deactivate|disable|turn\s+off|turn\s+on|cancel|delete|remove|kill)\b/.test(normalized)
   );
   return hasLoopEngineeringContext && hasScheduleContext && hasLifecycleAction;
+}
+
+function isPrivateDomainChipCreateWithSideEffectBoundary(normalized: string): boolean {
+  const asksForDomainChipCreate =
+    /\b(?:build|create|make|scaffold|generate)\b.{0,120}\bdomain[-\s]*chip\b/.test(normalized) ||
+    /\bdomain[-\s]*chip\b.{0,120}\b(?:for|that|which|named|called|to)\b/.test(normalized);
+  if (!asksForDomainChipCreate) return false;
+
+  const forbidsLocalCreation =
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate)\b/.test(normalized) ||
+    /\b(?:no|without)\s+(?:build|create|creating|creation|chip|domain[-\s]*chip)\b/.test(normalized);
+  if (forbidsLocalCreation) return false;
+
+  const forbidsRunOrExecution =
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|dispatch|kick\s+off)\b/.test(normalized) ||
+    /\b(?:no|without)\s+(?:execution|running|launching|mission|build)\b/.test(normalized);
+  if (forbidsRunOrExecution) return false;
+
+  return (
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|share|deploy|ship|push|activate)\b/.test(normalized) ||
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+send\b.{0,80}\b(?:real|actual|live|external|customer|reminder|message|email|sms)\b/.test(normalized) ||
+    /\bno\s+real\s+(?:sends?|reminders?|messages?|emails?|sms)\b/.test(normalized)
+  );
 }
 
 export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentConstraintsV2 {
@@ -108,13 +138,18 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   if (constraints.noExecution && isMissionProviderSwitchPreservingChatProvider(normalized)) {
     constraints.noExecution = false;
   }
+  if (constraints.noExecution && isPrivateDomainChipCreateWithSideEffectBoundary(normalized)) {
+    constraints.noExecution = false;
+  }
   if (constraints.noExecution && isLoopEngineeringScheduleLifecycleRequest(normalized)) {
     constraints.noExecution = false;
   }
 
   constraints.noPublish = [
-    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|share|deploy|ship|push)\b/,
-    /\bno\s+(?:publish|publication|sharing|deployment|shipping|push)\b/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|publishing|share|sharing|deploy|deploying|ship|shipping|push|pushing|activate|activation)\b/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+send\b.{0,80}\b(?:real|actual|live|external|customer|reminder|message|email|sms)\b/,
+    /\bno\s+(?:publish|publishing|publication|share|sharing|deploy|deployment|ship|shipping|push|pushing|activate|activation)\b/,
+    /\bno\s+real\s+(?:sends?|reminders?|messages?|emails?|sms)\b/,
     /\bpublish\s+nothing\b/,
     /\bprivate(?:ly)?\s+first\b/
   ].some((pattern) => pattern.test(normalized));
@@ -454,15 +489,16 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
   }
 
   if (isDomainChipCreateRequest(normalized)) {
+    const previewOnly = isDomainChipPreviewOnlyRequest(normalized);
     return makeDecision({
       kind: 'creator_or_domain_chip',
-      route: 'domain_chip.create',
-      owner_system: 'domain-chip',
-      action: 'domain_chip.create',
-      confidence: constraints.noExecution ? 'blocked' : 'explicit',
-      constraints,
+      route: previewOnly ? 'domain_chip.preview' : 'domain_chip.create',
+      owner_system: previewOnly ? 'spark-telegram-bot' : 'domain-chip',
+      action: previewOnly ? 'domain_chip.preview' : 'domain_chip.create',
+      confidence: previewOnly || !constraints.noExecution ? 'explicit' : 'blocked',
+      constraints: previewOnly ? { ...constraints, noExecution: false } : constraints,
       payload: basePayload(naturalRoute),
-      matched_signals: ['explicit_domain_chip_create'],
+      matched_signals: [previewOnly ? 'explicit_domain_chip_preview' : 'explicit_domain_chip_create'],
       blocked_candidates: [],
       supporting_routes: supportingRoutes(naturalRoute),
       enforcement: 'observe',

@@ -319,6 +319,27 @@ test('uses the firewall as a broad route-arbitration smoke matrix', () => {
       allow: true
     },
     {
+      name: 'pending domain chip defaults wording still works',
+      route: 'domain_chip.pending',
+      prompt: "doesn't matter",
+      allow: true,
+      reason: 'pending_domain_chip_direction'
+    },
+    {
+      name: 'pending domain chip accepts workflow benchmark steering',
+      route: 'domain_chip.pending',
+      prompt: 'focus on the reviewer workflow, benchmark cases, held-out traps, and rollback',
+      allow: true,
+      reason: 'pending_domain_chip_direction'
+    },
+    {
+      name: 'pending creator mission defaults wording still works',
+      route: 'creator.mission',
+      prompt: 'use defaults',
+      allow: true,
+      reason: 'short_pending_confirmation'
+    },
+    {
       name: 'explicit provider run still works',
       route: 'natural_run',
       prompt: 'ask claude to review this plan',

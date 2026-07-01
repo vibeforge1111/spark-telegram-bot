@@ -347,7 +347,7 @@ function renderSparkAccessCurrentSummary(profile: SparkAccessProfile): string {
       rows.push('Setup helper: `/access_setup`.');
       break;
     case 'operator':
-      rows.push('Whole-computer operator work is on for this trusted local install.');
+      rows.push('Whole-computer operator work is authorized only after live guardrail and effective-sandbox proof.');
       rows.push('Use this only when Spark truly needs files outside Spark workspaces.');
       break;
   }

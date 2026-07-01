@@ -9515,6 +9515,22 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
+  if (!earlyBuildIntent && isSparkWorkflowBugHuntRequest(text)) {
+    const reply = renderSparkWorkflowBugHuntReply(text);
+    await conversation.remember(user, text).catch(() => {});
+    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, { route: 'conversation.qa_planning', intentKind: 'conversation.qa_planning', command: 'telegram_qa_planning', reasonSummary: 'Telegram answered QA planning in chat; no mission launch or owner execution was authorized.' });
+    setTurnOutboundTraceContext(ctx, traceContext);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'conversation.qa_planning',
+      owner: 'spark-telegram-bot',
+      action: 'plain_chat.qa_plan',
+      signal: 'qa_planning_no_execution'
+    }), 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply, outboundTraceExtra(traceContext));
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
   const loopEngineeringStatus = !earlyBuildIntent ? await fetchLoopEngineeringStatusPacket(text) : null;
   if (loopEngineeringStatus) {
     await conversation.remember(user, text).catch(() => {});
@@ -10185,22 +10201,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.remember(user, text).catch(() => {});
     await ctx.reply('I will stage the level 10 Benchmark Creator PRD privately first. It should cover Canvas, Kanban, Spark Swarm review, research evidence, and Auto Loop improvement; scoring stays blocked until fresh artifacts exist.');
     await handleCreatorMissionPlan(ctx, explicitBenchmarkCreatorIntent, explicitBenchmarkCreatorAuthorization);
-    return;
-  }
-
-  if (!earlyBuildIntent && isSparkWorkflowBugHuntRequest(text)) {
-    const reply = renderSparkWorkflowBugHuntReply(text);
-    await conversation.remember(user, text).catch(() => {});
-    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, { route: 'conversation.qa_planning', intentKind: 'conversation.qa_planning', command: 'telegram_qa_planning', reasonSummary: 'Telegram answered QA planning in chat; no mission launch or owner execution was authorized.' });
-    setTurnOutboundTraceContext(ctx, traceContext);
-    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
-      route: 'conversation.qa_planning',
-      owner: 'spark-telegram-bot',
-      action: 'plain_chat.qa_plan',
-      signal: 'qa_planning_no_execution'
-    }), 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
-    await ctx.reply(reply, outboundTraceExtra(traceContext));
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
 

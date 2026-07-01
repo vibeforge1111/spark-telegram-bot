@@ -92,8 +92,20 @@ function countText(counts: Record<string, number>, preferred: string[]): string 
   const parts = preferred
     .map((key) => [key, numberValue(counts[key])] as const)
     .filter(([, count]) => count > 0)
-    .map(([key, count]) => `${key}=${count}`);
+    .map(([key, count]) => `${capabilitySurfaceLabel(key)}=${count}`);
   return parts.length ? parts.join(', ') : 'none yet';
+}
+
+function capabilitySurfaceLabel(value: string): string {
+  if (value === 'creator-system') return 'Loop Engineering';
+  if (value === 'specialization-path') return 'specialization path';
+  return value || 'unknown';
+}
+
+function capabilityCardLabel(id: string, ownerRepo: string): string {
+  if (id.startsWith('creator-system:')) return `Loop Engineering: ${id.slice('creator-system:'.length) || ownerRepo}`;
+  if (id.startsWith('specialization-path:')) return `specialization path: ${id.slice('specialization-path:'.length) || ownerRepo}`;
+  return id || ownerRepo;
 }
 
 export function renderCapabilityGardenSummary(summary: CapabilityGardenSummary): string {
@@ -128,7 +140,7 @@ export function renderCapabilityGardenSummary(summary: CapabilityGardenSummary):
   if (summary.cards.length) {
     lines.push('', 'Top cards');
     for (const card of summary.cards.slice(0, 3)) {
-      lines.push(`• ${card.id || card.ownerRepo}: ${card.status}${card.blockerCount ? ` (${card.blockerCount} blockers)` : ''}`);
+      lines.push(`• ${capabilityCardLabel(card.id, card.ownerRepo)}: ${card.status}${card.blockerCount ? ` (${card.blockerCount} blockers)` : ''}`);
     }
   }
 

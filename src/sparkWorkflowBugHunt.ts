@@ -15,6 +15,8 @@ export function isSparkWorkflowBugHuntRequest(text: string): boolean {
   if (isLoopEngineeringNoActionProofQuestion(normalized)) return true;
   if (isLoopEngineeringStatusRequest(normalized)) return false;
   if (parseBuildIntent(normalized)) return false;
+  if (/\b(?:create|build|make|stage|generate)\b.{0,80}\bbenchmark\s+pack\b/.test(normalized)) return false;
+  if (/\b(?:fresh\s+mission\s+history|create[sd]?\s+(?:a\s+)?spawner\s+mission|created\s+(?:a\s+)?mission)\b/.test(normalized)) return false;
   if (isProductMemoryMissionBoundaryQuestion(normalized)) return false;
   const qaLanguage = /\b(?:unit\s+tests?|qa|bug\s+hunt(?:er|ing)?|edge\s+cases?|regressions?|smoke\s+tests?|test\s+suite|comprehensive\s+tests?|trigger\s+bugs?|bug\s+hunter)\b/.test(normalized);
   const sparkSurface = /\b(?:spawner|mission\s+control|mission\s+loop|telegram|relay|workflow|canvas|kanban|builder|route|routing)\b/.test(normalized);

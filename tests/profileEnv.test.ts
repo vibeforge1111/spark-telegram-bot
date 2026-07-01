@@ -51,12 +51,36 @@ test('runtime health wrapper forwards profile arguments', () => {
 
 test('main Telegram runtime loads profile env before override env', () => {
   const source = readFileSync('src/index.ts', 'utf-8');
-  const profileLoad = source.indexOf('loadSparkTelegramProfileEnv(process.argv.slice(2), process.env, { preserveExisting: true });');
-  const overrideLoad = source.indexOf("loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });");
+  const bootstrap = readFileSync('src/bootstrapEnv.ts', 'utf-8');
+  const bootstrapImport = source.indexOf("import './bootstrapEnv';");
+  const firstRuntimeImport = source.indexOf("import { execFile }");
+  const profileLoad = bootstrap.indexOf('loadSparkTelegramProfileEnv(process.argv.slice(2), process.env, {');
+  const overrideLoad = bootstrap.indexOf("loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });");
 
+  assert.equal(source.includes("import 'dotenv/config';"), false);
+  assert.equal(bootstrapImport, 0);
+  assert.ok(firstRuntimeImport > bootstrapImport);
   assert.notEqual(profileLoad, -1);
   assert.notEqual(overrideLoad, -1);
   assert.ok(profileLoad < overrideLoad);
+});
+
+test('named Telegram profiles do not load default source env fallback', () => {
+  const bootstrap = readFileSync('src/bootstrapEnv.ts', 'utf-8');
+
+  assert.match(bootstrap, /if \(!loadedTelegramProfile \|\| loadedTelegramProfile === 'default'\)/);
+  assert.match(bootstrap, /path\.join\(__dirname, '\.\.', '\.env'\)/);
+  assert.match(bootstrap, /override: false/);
+});
+
+test('main Telegram runtime exits before polling when profile token is missing', () => {
+  const source = readFileSync('src/index.ts', 'utf-8');
+  const missingProfileGuard = source.indexOf('const missingProfileToken = process.env.SPARK_PROFILE_TOKEN_MISSING?.trim();');
+  const telegrafLaunch = source.indexOf('const bot = new Telegraf');
+
+  assert.notEqual(missingProfileGuard, -1);
+  assert.notEqual(telegrafLaunch, -1);
+  assert.ok(missingProfileGuard < telegrafLaunch);
 });
 
 test('Telegram profile env loads streaming defaults without overriding explicit runtime env', () => {
@@ -105,7 +129,7 @@ test('Telegram profile env loads streaming defaults without overriding explicit 
   }
 });
 
-test('Telegram profile env refreshes Level 5 guardrails over stale read-only runtime env', () => {
+test('Telegram profile env refreshes Level 5 guardrails without preserving generic non-primary bot token', () => {
   const home = mkdtempSync(path.join(tmpdir(), 'spark-profile-level5-env-'));
   try {
     const modulesDir = path.join(home, 'config', 'modules');
@@ -131,7 +155,8 @@ test('Telegram profile env refreshes Level 5 guardrails over stale read-only run
     const profile = loadSparkTelegramProfileEnv([], env, { preserveExisting: true });
 
     assert.equal(profile, 'recursive');
-    assert.equal(env.BOT_TOKEN, 'already-loaded:test');
+    assert.equal(env.BOT_TOKEN, undefined);
+    assert.equal(env.SPARK_PROFILE_TOKEN_MISSING, 'telegram.profiles.recursive.bot_token');
     assert.equal(env.SPARK_ALLOW_HIGH_AGENCY_WORKERS, '1');
     assert.equal(env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS, '1');
     assert.equal(env.SPARK_CODEX_SANDBOX, 'danger-full-access');

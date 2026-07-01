@@ -842,6 +842,18 @@ function extractBuildDescription(text: string): string | null {
   return null;
 }
 
+function isPrdWritingOnlyRequest(text: string): boolean {
+  if (!/\bPRD\b|\bproduct\s+requirements?\s+doc(?:ument)?\b/i.test(text)) return false;
+  if (/\badvanced\s+prd\s+mode\b/i.test(text) && /\b(?:build|spawner|mission)\b/i.test(text)) return false;
+  if (/\bdomain[-\s]?chip\b/i.test(text) && /\b(?:build|create|scaffold)\b/i.test(text)) return false;
+  const directPrdDocumentAsk =
+    /\b(?:write|draft|improve|review|outline|turn|convert|distill)\b.{0,80}\b(?:PRD|product\s+requirements?\s+doc(?:ument)?)\b/i.test(text) ||
+    /\b(?:create|make)\s+(?:a\s+|an\s+|the\s+)?(?:better\s+|safer\s+|first[-\s]?pass\s+)?(?:PRD|product\s+requirements?\s+doc(?:ument)?)\b/i.test(text) ||
+    /\b(?:PRD|product\s+requirements?\s+doc(?:ument)?)\s+(?:for|about|on)\b/i.test(text);
+  if (!directPrdDocumentAsk) return false;
+  return !/\b(?:then|and\s+then|after(?:wards)?|next)\b.{0,80}\b(?:build|ship|implement|launch|run\s+(?:it|this|spawner|mission))\b/i.test(text);
+}
+
 export function parseBuildIntent(text: string): BuildIntent | null {
   const original = text.trim().replace(/[‘’]/g, "'");
   if (isExactReplyNoFileProbe(original)) return null;
@@ -850,6 +862,7 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (isBuildRouteMetaDiscussion(original)) return null;
   const trimmed = normalizeBuildCommandText(original);
   if (!trimmed) return null;
+  if (isPrdWritingOnlyRequest(trimmed)) return null;
   if (isBuildIdeationRequest(trimmed)) return null;
   if (isBuildContextRecallProbe(trimmed)) return null;
   if (isPreBuildShapingRequest(trimmed)) return null;

@@ -379,6 +379,16 @@ export class ConversationMemory {
     return null;
   }
 
+  async clearUserStateForTests(user: TelegramUser): Promise<void> {
+    await this.ensureLoaded();
+    const key = this.userKey(user);
+    this.recentByUser.delete(key);
+    this.notesByUser.delete(key);
+    this.interruptedByUser.delete(key);
+    this.frameStateByUser.delete(key);
+    await this.persist();
+  }
+
   private async updateRollingFrame(user: TelegramUser, role: 'user' | 'assistant', text: string): Promise<void> {
     await this.ensureLoaded();
     const key = this.userKey(user);

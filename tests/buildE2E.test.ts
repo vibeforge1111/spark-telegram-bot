@@ -1,17 +1,7 @@
 /**
- * buildE2E.test.ts — full Telegram → spawner-ui contract test.
- *
- * Exercises handleBuildIntent (the same function the build-message
- * handler calls) against a fake Telegraf context, with axios.post
- * intercepted. Asserts that the bot:
- *
- *   - POSTs to /api/prd-bridge/write
- *   - includes chatId, userId, telegramRelay, tier, options
- *   - resolves tier via getTierForUser (admin / pro list / default)
- *   - replies to the user with the expected acknowledgment
- *
- * This is the "production wiring" test the user asked for: it verifies
- * the whole bot → spawner-ui contract, not just one piece in isolation.
+ * buildE2E.test.ts — full Telegram route contract tests.
+ * Verifies production wiring across build, Domain Chip, access, proof, and
+ * conversation safety paths with fake Telegraf contexts and intercepted I/O.
  */
 
 import assert from 'node:assert/strict';
@@ -233,8 +223,7 @@ async function run(): Promise<void> {
 		};
 		(axios as any).get = async () => ({ data: { pending: false } });
 
-		const replies: string[] = [];
-		const replyExtras: any[] = [];
+		const replies: string[] = [], replyExtras: any[] = [];
 		const ctx = makeFakeCtx(8319079055, 8319079055, 555, replies, replyExtras);
 
 		let caughtError: unknown = null;
@@ -1798,11 +1787,11 @@ async function run(): Promise<void> {
 		const indexModule: any = await import('../src/index');
 		const reply = indexModule.formatDomainChipBuildPreview('creates surreal product names from half-remembered dreams');
 
-		assert.match(reply, /I can build this as domain-chip-creates-surreal-product-names-from/);
-		assert.match(reply, /Recommended path: Advanced PRD -> tasks/);
-		assert.match(reply, /Before I start: should v1 focus on ideation only, shot\/prompt packets, watchtower checks, or the full campaign workflow\?/);
-		assert.match(reply, /private DCL scaffold, prompt packets, evals, watchtower, and no external API calls/);
+		assert.match(reply, /I can turn this into a private Domain Chip: domain-chip-creates-surreal-product-names-from/);
+		assert.match(reply, /A Domain Chip is a reusable Spark playbook for one kind of work/);
+		assert.match(reply, /trigger, checklist, examples, local starter checks, and rollback notes/);
 		assert.match(reply, /Reply "go"/);
+		assert.doesNotMatch(reply, /Advanced PRD|router boundaries|activation notes|DCL scaffold|external API|Recommended path/);
 		assert.doesNotMatch(reply, /Mission:/);
 		assert.doesNotMatch(reply, /Canvas:/);
 	});
@@ -1830,7 +1819,7 @@ async function run(): Promise<void> {
 
 		await indexModule.handleTextMessage(ctx);
 
-		assert.match(replies.join('\n'), /domain-chip-crafting-trendy-video-skits-using[\s\S]*shot\/prompt packets[\s\S]*watchtower[\s\S]*Reply "go"/);
+		assert.match(replies.join('\n'), /private Domain Chip: domain-chip-crafting-trendy-video-skits-using[\s\S]*reusable Spark playbook[\s\S]*local starter checks[\s\S]*Reply "go"/);
 		assert.doesNotMatch(replies.join('\n'), /names only|Here it should stay as documentation talk/);
 		assert.ok(!captured.some((c) => c.url.includes('/api/creator-mission') || c.url.includes('/api/prd-bridge/write')), 'domain chip creation should wait for confirmation before staging work');
 
@@ -1962,7 +1951,8 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 5632, replies);
+		const replyExtras: any[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 5632, replies, replyExtras);
 		ctx.message.text = 'create a benchmark pack';
 		const indexModule: any = await import('../src/index');
 
@@ -1973,15 +1963,17 @@ async function run(): Promise<void> {
 		assert.match(replies.join('\n'), /create level 7 benchmarks for Spark QA Operator/);
 		assert.match(replies.join('\n'), /level 10 is the long-running research\/swarm lab mode/i);
 		assert.doesNotMatch(replies.join('\n'), /Mission:/);
+		assert.equal(replyExtras[0]?.__sparkTraceContext?.route, 'creator.benchmark_pack_clarify'); assert.equal(replyExtras[0]?.__sparkTraceContext?.command, 'telegram_benchmark_pack_clarify');
+		assert.equal(replyExtras[0]?.__sparkTraceContext?.proofCapsule?.schema, 'spark.harness_proof.v1');
 
 		restoreAxios();
 		restoreEnv();
 	});
 
-	await test('benchmark pack creation asks for level when path is known', async () => {
-		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
-		process.env.BOT_DEFAULT_TIER = 'base';
+		await test('benchmark pack creation asks for level when path is known', async () => {
+			restoreAxios();
+			process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+			process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -2008,13 +2000,13 @@ async function run(): Promise<void> {
 		assert.doesNotMatch(replies.join('\n'), /Mission:/);
 
 		restoreAxios();
-		restoreEnv();
-	});
+			restoreEnv();
+		});
 
-	await test('browser proof health questions use runtime probe before recursive context', async () => {
-		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
-		process.env.SPARK_BOT_TEST_MODE = '1';
+		await test('browser proof health questions use runtime probe before recursive context', async () => {
+			restoreAxios();
+			process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+			process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 
@@ -2101,12 +2093,16 @@ async function run(): Promise<void> {
 
 	await test('domain chip pending state ignores unrelated QA bug-hunt turns', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
-		process.env.BOT_DEFAULT_TIER = 'base';
-		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
-		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
-		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
-		process.env.SPARK_BOT_TEST_MODE = '1';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-domain-chip-e2e-real-create-'));
+		const fakeBuilder = path.join(tempRoot, 'fake-chip-builder.js');
+		const builderArgvPath = path.join(tempRoot, 'builder-argv.json');
+		writeFileSync(fakeBuilder, `#!/usr/bin/env node\nconst fs = require('node:fs');\nconst argv = process.argv.slice(2);\nif (argv.includes('chips') && argv.includes('create')) fs.writeFileSync(${JSON.stringify(builderArgvPath)}, JSON.stringify(argv, null, 2));\nprocess.stdout.write(${JSON.stringify(JSON.stringify({ ok: true, chip_key: 'domain-chip-telegram-memory-routing', chip_path: '/tmp/private-domain-chip/domain-chip-telegram-memory-routing', router_invokable: false, proof_artifacts: { schema_version: 'spark-domain-chip.proof_artifact_summary.v1', benchmark_pack: true, autoloop_policy: true, proof_capsule: true, qa_evidence_lane_packet: true, evaluate_run_contract: true, review_role_packets: { blind_judge: true, adversary: true, safety_judge: true, consumer: true, operator: true }, review_role_packet_count: 5, promotion_blocked: true, network_absorbable: false }, warnings: [] }))});`);
+		chmodSync(fakeBuilder, 0o755);
+		const testUserId = 8319079055;
+		Object.assign(process.env, {
+			ADMIN_TELEGRAM_IDS: String(testUserId), BOT_DEFAULT_TIER: 'base', SPAWNER_UI_URL: 'http://stub-spawner.test', SPAWNER_UI_PUBLIC_URL: 'http://stub-spawner.test',
+			SPARK_AGENT_ACCESS_PROFILE: 'developer', SPARK_BOT_TEST_MODE: '1', SPARK_BUILDER_REPO: tempRoot, SPARK_BUILDER_PYTHON: fakeBuilder, SPARK_MISSION_CONTROL_DISABLED: '1'
+		});
 
 		const captured: CapturedCall[] = [];
 		(axios as any).post = async (url: string, body: any) => {
@@ -2116,15 +2112,15 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 853, replies);
+		const ctx = makeFakeCtx(testUserId, testUserId, 853, replies);
 		ctx.message.text = 'build a domain-chip for Telegram memory routing';
 		const indexModule: any = await import('../src/index');
 
 		await indexModule.handleTextMessage(ctx);
-		assert.match(replies.join('\n'), /Before I start/);
+		assert.match(replies.join('\n'), /private Domain Chip[\s\S]*reusable Spark playbook[\s\S]*Reply "go"/);
 		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'preview should not enqueue before confirmation');
 
-		const yesCtx = makeFakeCtx(8319079055, 8319079055, 854, replies);
+		const yesCtx = makeFakeCtx(testUserId, testUserId, 854, replies);
 		yesCtx.message.text = 'yes';
 		await indexModule.handleTextMessage(yesCtx);
 
@@ -2134,27 +2130,55 @@ async function run(): Promise<void> {
 		assert.doesNotMatch(replies[replies.length - 1] || '', /Mission:/);
 		assert.doesNotMatch(replies[replies.length - 1] || '', /Spawned work/);
 
-		const qaCtx = makeFakeCtx(8319079055, 8319079055, 855, replies);
+		const qaCtx = makeFakeCtx(testUserId, testUserId, 855, replies);
 		qaCtx.message.text = 'prepare a huge unit test and let us become bug hunters for Mission Control and Spawner workflow';
 		await indexModule.handleTextMessage(qaCtx);
 
 		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'unrelated QA turn must not dispatch pending domain chip');
-		assert.match(replies.join('\n'), /QA pass first, not a mission launch/);
+		assert.match(replies.join('\n'), /QA planning, not a mission launch/);
 		assert.match(replies.join('\n'), /I will not start a mission from this wording/);
 		assert.doesNotMatch(replies.join('\n'), /read-only/i);
 		assert.doesNotMatch(replies.join('\n'), /Prepared, but/i);
 		assert.doesNotMatch(replies.join('\n'), /Starting domain-chip-/);
 		assert.doesNotMatch(replies.join('\n'), /Spawned work/);
 
-		const directionCtx = makeFakeCtx(8319079055, 8319079055, 856, replies);
+		const directionCtx = makeFakeCtx(testUserId, testUserId, 856, replies);
 		directionCtx.message.text = 'names with rationale and usage angle, make the vibe surreal';
 		await indexModule.handleTextMessage(directionCtx);
 
-		assert.ok(captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'actual domain-chip direction should still dispatch pending chip');
-		assert.match(replies.join('\n'), /use that direction and start domain-chip-/i);
+		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'actual domain-chip direction should use chip scaffolder, not PRD bridge');
+		const creationReceipt = replies[replies.length - 1] || '';
+		assert.match(replies.join('\n'), /use that direction and create domain-chip-/i);
+			assert.match(creationReceipt, /Domain Chip created: domain-chip-telegram-memory-routing[\s\S]*Private starter kit is ready[\s\S]*Spark can run the first local check now[\s\S]*Still needed before[\s\S]*Privacy: private\/local only/i);
+			assert.doesNotMatch(creationReceipt, /\/tmp\/private-domain-chip|Mission:|Provider:|Move:|Status:/i);
+			assert.doesNotMatch(creationReceipt, /Router:|Benchmark\/autoloop:|reports\//i);
+		const builderArgv = JSON.parse(readFileSync(builderArgvPath, 'utf8')) as string[];
+		const governorFlagIndex = builderArgv.indexOf('--governor-decision-json');
+		assert.notEqual(governorFlagIndex, -1, 'confirmed pending domain chip creation must pass Governor authority into Builder');
+		const governorDecision = JSON.parse(builderArgv[governorFlagIndex + 1] || '{}');
+		assert.equal(governorDecision.schema_version, 'governor-decision-v1');
+		assert.equal(governorDecision.outcome, 'execute');
+		assert.equal(governorDecision.execution_boundary?.action_authorized, true);
+		assert.ok(
+			(governorDecision.tool_ledgers || []).some((entry: any) =>
+				entry?.tool_name === 'chip.create' &&
+				entry?.capability_id === 'capability:spark-intelligence-builder:chip.create' &&
+				entry?.authorization?.capability_id === 'capability:spark-intelligence-builder:chip.create' &&
+				entry?.authorization?.verdict === 'allow'
+			),
+			'Governor authority must bind Builder chip.create capability, not only Telegram domain_chip.create'
+		);
+		const pendingDomainChipEvidence = require('../src/telegramPendingDomainChipEvidence') as typeof import('../src/telegramPendingDomainChipEvidence');
+		await pendingDomainChipEvidence.clearLastCreatedDomainChipForTests(
+			pendingDomainChipEvidence.telegramPendingDomainChipKey(testUserId, testUserId)
+		);
+		const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
+		await conversationModule.conversation.clearUserStateForTests({ id: testUserId, username: 'cem' });
 
-			restoreAxios();
-			restoreEnv();
+		restoreAxios();
+		restoreEnv();
+		for (const key of ['SPARK_BUILDER_REPO', 'SPARK_BUILDER_PYTHON', 'SPARK_MISSION_CONTROL_DISABLED']) delete process.env[key];
+		rmSync(tempRoot, { recursive: true, force: true });
 		});
 
 		await test('creator loop template package route is not stolen by creator/schedule/chat fallbacks', async () => {
@@ -2236,6 +2260,11 @@ async function run(): Promise<void> {
 			};
 
 			const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
+			await conversationModule.conversation.clearUserStateForTests({ id: testUserId, username: 'cem' });
+			const pendingDomainChipEvidence = require('../src/telegramPendingDomainChipEvidence') as typeof import('../src/telegramPendingDomainChipEvidence');
+			await pendingDomainChipEvidence.clearLastCreatedDomainChipForTests(
+				pendingDomainChipEvidence.telegramPendingDomainChipKey(testUserId, testUserId)
+			);
 			await conversationModule.conversation.remember(
 				{ id: testUserId, username: 'cem' },
 				'We are working on Spark QA Operator and path:spark-qa-operator.'
@@ -4386,10 +4415,10 @@ async function run(): Promise<void> {
 		}
 	});
 
-	await test('fresh live state answers disclose runtime source instead of memory', async () => {
-		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
-		process.env.BOT_DEFAULT_TIER = 'base';
+		await test('fresh live state answers disclose runtime source instead of memory', async () => {
+			restoreAxios();
+			process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+			process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-live-state-source-'));
 		const binDir = path.join(tempRoot, 'bin');
@@ -4445,13 +4474,13 @@ async function run(): Promise<void> {
 			rmSync(tempRoot, { recursive: true, force: true });
 			restoreAxios();
 			restoreEnv();
-		}
-	});
+			}
+		});
 
-	await test('repair-needed current-status question answers from live status without repairing', async () => {
-		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
-		process.env.BOT_DEFAULT_TIER = 'base';
+		await test('repair-needed current-status question answers from live status without repairing', async () => {
+			restoreAxios();
+			process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+			process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-repair-status-no-action-'));
 		const binDir = path.join(tempRoot, 'bin');

@@ -134,6 +134,23 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
   }
 
   if (
+    context === 'spawner' &&
+    (
+      lower.includes('missing mission id') ||
+      lower.includes('without mission id') ||
+      lower.includes('missing closure proof')
+    )
+  ) {
+    return {
+      category: 'spawner_missing_closure_proof',
+      userLine: 'Mission Control answered, but it did not return a mission id.',
+      detail,
+      check: 'Treat this as missing closure proof, not a started run. Retry only after Mission Control can return a fresh mission id for the exact turn.',
+      repair: 'Operator fix: check the /api/spark/run response and Mission Control relay logs, then rerun the no-edit probe.'
+    };
+  }
+
+  if (
     lower.includes('timed out') ||
     lower.includes('promise timed') ||
     lower.includes('command timed')

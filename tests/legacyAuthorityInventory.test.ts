@@ -65,6 +65,18 @@ test('high-agency Telegram planes are Harness Core consumers with Governor and l
   }
 });
 
+test('Spawner bridge authority summary uses Loop Engineering public wording', () => {
+  const plane = buildTelegramLegacyAuthorityPlanes().find((entry) => (
+    entry.source_ref.id === 'artifact:telegram-spawner-creator-bridge:source'
+  ));
+
+  assert.ok(plane);
+  const summary = plane.evidence.map((entry) => entry.summary).join(' ');
+  assert.match(summary, /Spawner Loop Engineering/);
+  assert.match(summary, /legacy creator mission API/);
+  assert.doesNotMatch(summary, /^Spawner, creator mission,/);
+});
+
 test('Telegram inventory names the known old patch planes that could fight routing', () => {
   const planeIds = new Set(buildTelegramLegacyAuthorityPlanes().map((plane) => plane.source_ref.id));
 

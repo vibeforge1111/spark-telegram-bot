@@ -249,18 +249,19 @@ function executionPolicyForDecision(
   const noExecution = noExecutionBoundary || decision.constraints.noExecution || decision.enforcement === 'blocked';
   const route = decision.route;
   const canPublish = !decision.constraints.noPublish && !decision.constraints.localOnly;
-  const localMutationRoute = /(?:build|spawner|creator|domain_chip|loop_engineering|canvas|prd|operator\.safe_action|diagnostics\.scan|spark\.self_improvement|spark\.process|spark\.reflect|spark_wiki\.promote|spark\.wiki|access\.change|mission_updates\.preference|model\.switch|voice\.command|sparkqa\.|recursive\.)/.test(route);
+  const domainChipPreview = route === 'domain_chip.preview';
+  const localMutationRoute = !domainChipPreview && /(?:build|spawner|creator|domain_chip|loop_engineering|canvas|prd|operator\.safe_action|diagnostics\.scan|spark\.self_improvement|spark\.process|spark\.reflect|spark_wiki\.promote|spark\.wiki|access\.change|mission_updates\.preference|model\.switch|voice\.command|sparkqa\.|recursive\.)/.test(route);
   const fileMutationBlocked = decision.payload?.noFileMutation === true ||
     decision.matched_signals.includes('explicit_spawner_no_edit_mission');
   const routeProbeExternalNetwork = route === 'route.probe' && decision.payload?.externalNetwork === true;
 
   return {
     canMutateFiles: !noExecution && !fileMutationBlocked && localMutationRoute,
-    canLaunchMission: !noExecution && /(?:spawner|mission|creator|domain_chip|loop_engineering|recursive\.start|startup\.answer_improvement_canary|natural_run|external_research)/.test(route),
+    canLaunchMission: !noExecution && !domainChipPreview && /(?:spawner|mission|creator|domain_chip|loop_engineering|recursive\.start|startup\.answer_improvement_canary|natural_run|external_research)/.test(route),
     canWriteMemory: !noExecution && (route === 'memory.write' || route === 'memory.delete' || route === 'spark_wiki.promote' || route === 'spark.wiki' || route === 'spark.process' || route === 'spark.reflect' || route === 'route.probe'),
     canCreateSchedule: !noExecution && (/schedule\.create/.test(route) || route === 'loop_engineering.command'),
     canDeleteSchedule: !noExecution && (/schedule\.delete/.test(route) || route === 'loop_engineering.command'),
-    canCreateChip: !noExecution && /(?:domain_chip|creator)/.test(route),
+    canCreateChip: !noExecution && !domainChipPreview && /(?:domain_chip|creator)/.test(route),
     canPublish: !noExecution && canPublish && /(?:publish|deploy|ship)/.test(route),
     canUseExternalNetwork: !noExecution && !decision.constraints.localOnly && (routeLooksExternal(route) || routeProbeExternalNetwork || route === 'natural_run')
   };
@@ -364,7 +365,7 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
   if (policy.canLaunchMission) tools.push('spawner.run');
   if (decision.route === 'natural_run') tools.push('provider.run');
   if (policy.canMutateFiles) tools.push('spawner.files');
-  if (policy.canCreateChip) tools.push('domain_chip.create');
+  if (policy.canCreateChip) tools.push('domain_chip.create', 'chip.create');
   if (policy.canCreateSchedule) tools.push('schedule.create');
   if (policy.canDeleteSchedule) tools.push('schedule.delete');
   if (policy.canPublish) tools.push('publish.run');
@@ -380,6 +381,7 @@ function deniedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spar
       'spawner.files',
       'spawner.mission_control',
       'domain_chip.create',
+      'chip.create',
       'schedule.create',
       'schedule.delete',
       'publish.run',
@@ -621,7 +623,12 @@ export function authorizeToolCallFromEnvelope(
   if (!envelope.toolPolicy.mutationClassesAllowed.includes(input.mutationClass)) {
     reasonCodes.push('mutation_class_not_authorized');
   }
-  if (input.ownerSystem !== envelope.selectedIntent.ownerSystem && input.ownerSystem !== envelope.runtimeOwnership.replyComposerOwner) {
+  const selectedOwnerMatches = input.ownerSystem === envelope.selectedIntent.ownerSystem;
+  const replyComposerOwnerMatches =
+    input.ownerSystem === envelope.runtimeOwnership.replyComposerOwner &&
+    input.toolName === 'answer.compose' &&
+    ['none', 'read_only'].includes(input.mutationClass);
+  if (!selectedOwnerMatches && !replyComposerOwnerMatches) {
     reasonCodes.push('owner_mismatch');
   }
   return {

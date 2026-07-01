@@ -269,6 +269,25 @@ export function renderDomainChipFailureCopyNoActionReply(): string {
 export function isDomainChipNoActionAdvisoryQuestion(text: string): boolean {
   const normalized = String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return false;
+  if (
+    /\b(?:not a command|quoted words?|words? as examples?|examples? of risky triggers?|risky triggers?)\b/.test(normalized) ||
+    /\bdiscussing the words?\b/.test(normalized)
+  ) {
+    return false;
+  }
+  if (
+    /\b(?:domain\s+chip\s+labs|loop\s+engineering\s+run)\b/.test(normalized) &&
+    /\b(?:what\s+proof|proof\s+would|proof\s+spark|considered\s+safe|safe\s+to\s+run)\b/.test(normalized)
+  ) {
+    return false;
+  }
+  if (
+    /\bdomain-chip-[a-z0-9][a-z0-9-]{1,100}\b/.test(normalized) &&
+    /\b(?:what\s+should\s+happen|what\s+should\s+spark\s+do|how\s+should\s+spark\s+handle|should\s+happen\s+when)\b/.test(normalized) &&
+    /\brun\s+the\s+benchmarks?\s+for\s+it\b/.test(normalized)
+  ) {
+    return false;
+  }
   const mentionsChip = /\b(?:domain[-\s]*chip|chip)\b/.test(normalized);
   const asksAdvisory =
     /\b(?:hypothetical|what\s+would|what\s+should|would\s+you|should\s+it|check\s+first|prepare\s+an?\s+evidence\s+brief|evidence\s+brief)\b/.test(normalized);

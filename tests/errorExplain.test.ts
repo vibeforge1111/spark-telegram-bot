@@ -50,6 +50,15 @@ test('explains slow Spawner handoffs separately from offline Spawner', () => {
   assert.match(reply, /Spark spawner failure: spawner_slow/);
 });
 
+test('explains malformed Spawner success without mission id as missing closure proof', () => {
+  const reply = renderSparkErrorReply(new Error('Spark run bridge returned success but missing mission id.'), 'spawner', true);
+
+  assert.match(reply, /did not return a mission id/i);
+  assert.match(reply, /closure proof/i);
+  assert.match(reply, /Spark spawner failure: spawner_missing_closure_proof/);
+  assert.doesNotMatch(reply, /internal error/i);
+});
+
 test('explains read-only execution as runner capability, not access permission', () => {
   const reply = renderSparkErrorReply(new Error('Operation not permitted: workspace is read-only and apply_patch rejected writes'), 'mission', true);
 

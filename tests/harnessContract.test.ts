@@ -150,3 +150,96 @@ test('blocks schedule delete when the turn says not to execute it', () => {
   assert.equal(authorization.verdict, 'blocked');
   assert.ok(authorization.reasonCodes.includes('no_execution_boundary'));
 });
+
+test('allows private Domain Chip creation while forbidding publication and outbound side effects', () => {
+  const text = [
+    'Build a private Domain Chip for daily schedule reliability.',
+    'It should handle recurring tasks and timezone ambiguity.',
+    'Keep it private/local; no publishing, activation, or real reminder sends.'
+  ].join(' ');
+  const envelope = envelopeFor(text);
+
+  assert.equal(envelope.selectedIntent.action, 'domain_chip.create');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(envelope.directive.noPublish, true);
+  assert.equal(envelope.directive.localOnly, true);
+  assert.equal(envelope.executionPolicy.canCreateChip, true);
+  assert.ok(envelope.toolPolicy.allowedTools.includes('domain_chip.create'));
+  assert.ok(envelope.toolPolicy.deniedTools.includes('publish.run'));
+
+  const authorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'domain_chip.create',
+    ownerSystem: envelope.selectedIntent.ownerSystem,
+    mutationClass: 'creates_chip'
+  });
+
+  assert.deepEqual(authorization, { verdict: 'allowed', reasonCodes: [] });
+});
+
+test('keeps explicit Domain Chip no-create wording chat-only', () => {
+  const envelope = envelopeFor('Do not create a Domain Chip for schedule reliability; just explain the benchmark design.');
+
+  assert.equal(envelope.directive.noExecution, true);
+  assert.equal(envelope.executionPolicy.canCreateChip, false);
+
+  const authorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'domain_chip.create',
+    ownerSystem: envelope.selectedIntent.ownerSystem,
+    mutationClass: 'creates_chip'
+  });
+
+  assert.equal(authorization.verdict, 'blocked');
+  assert.ok(authorization.reasonCodes.includes('no_execution_boundary'));
+});
+
+test('allows preview-only Domain Chip staging without create authority', () => {
+  const text = [
+    'Create a private local Domain Chip starter preview for Operations Research Watchdesk.',
+    'Do not run benchmarks, autoloops, activation, publishing, registry changes, or network absorption.',
+    'Show the private starter preview and ask me for go before creating files.'
+  ].join(' ');
+  const envelope = envelopeFor(text);
+
+  assert.equal(envelope.selectedIntent.action, 'domain_chip.preview');
+  assert.equal(envelope.selectedIntent.ownerSystem, 'spark-telegram-bot');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(envelope.executionPolicy.canCreateChip, false);
+  assert.ok(envelope.toolPolicy.allowedTools.includes('answer.compose'));
+  assert.ok(!envelope.toolPolicy.allowedTools.includes('domain_chip.create'));
+
+  const previewAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'answer.compose',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'read_only'
+  });
+  assert.deepEqual(previewAuthorization, { verdict: 'allowed', reasonCodes: [] });
+
+  const createAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'domain_chip.create',
+    ownerSystem: 'domain-chip',
+    mutationClass: 'creates_chip'
+  });
+  assert.equal(createAuthorization.verdict, 'blocked');
+  assert.ok(createAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'));
+});
+
+test('blocks reply-composer owner from claiming mutation tools', () => {
+  const envelope = envelopeFor('Build a private Domain Chip for daily schedule reliability.');
+
+  const mutationAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'domain_chip.create',
+    ownerSystem: envelope.runtimeOwnership.replyComposerOwner,
+    mutationClass: 'creates_chip'
+  });
+
+  assert.equal(mutationAuthorization.verdict, 'blocked');
+  assert.ok(mutationAuthorization.reasonCodes.includes('owner_mismatch'));
+
+  const replyAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'answer.compose',
+    ownerSystem: envelope.runtimeOwnership.replyComposerOwner,
+    mutationClass: 'read_only'
+  });
+
+  assert.deepEqual(replyAuthorization, { verdict: 'allowed', reasonCodes: [] });
+});

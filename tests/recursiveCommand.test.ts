@@ -123,11 +123,11 @@ async function main(): Promise<void> {
   await test('recursive async start paths record final Harness Core ledgers', async () => {
     const source = readFileSync(path.join(process.cwd(), 'src', 'index.ts'), 'utf-8');
     const loopCommandBlock = source.slice(
-      source.indexOf("bot.command('loop'"),
-      source.indexOf('export async function handleSparkQaCommand')
+      source.indexOf('export async function handleLoopCommand'),
+      source.indexOf("bot.command('loop'")
     );
     assert.match(loopCommandBlock, /status:\s*'partial'[\s\S]*Recursive chip loop .* started asynchronously/);
-    assert.match(loopCommandBlock, /status:\s*'success'[\s\S]*completed .* round/);
+    assert.match(loopCommandBlock, /status:\s*'success'[\s\S]*completed \$\{result\.roundsCompleted\}\/\$\{result\.totalRounds\}/);
     assert.match(loopCommandBlock, /status:\s*'failure'[\s\S]*failed after asynchronous start/);
     assert.match(loopCommandBlock, /status:\s*'failure'[\s\S]*crashed after asynchronous start/);
 
@@ -153,12 +153,24 @@ async function main(): Promise<void> {
       chip_key: 'domain-chip-creator',
       rounds_completed: 1,
       total_rounds: 1,
-      updated_at: '2026-05-08T13:53:36Z',
+      updated_at: '2099-05-08T13:53:36Z',
       history: [{
         round_index: 1,
         suggestions_count: 3,
         best_verdict: null,
         best_metric: 0
+      }]
+    }));
+    writeFileSync(path.join(loopRoot, 'domain-chip-operations-watchdesk.status.json'), JSON.stringify({
+      chip_key: 'domain-chip-operations-watchdesk',
+      rounds_completed: 1,
+      total_rounds: 1,
+      updated_at: '2099-05-08T13:54:36Z',
+      history: [{
+        round_index: 1,
+        suggestions_count: 3,
+        best_verdict: 'defer',
+        best_metric: 54
       }]
     }));
 
@@ -186,13 +198,23 @@ async function main(): Promise<void> {
       assert.match(sessionsCtx.replies.join('\n'), /Local\nstatus files on this machine/);
       assert.doesNotMatch(sessionsCtx.replies.join('\n'), /127\.0\.0\.1:4178/);
 
-      const reportCtx = fakeCtx('/recursive report 1');
+      const reportCtx = fakeCtx('/recursive report domain-chip-creator');
       await handleRecursiveCommand(reportCtx);
-      assert.match(reportCtx.replies.join('\n'), /Latest Domain Chip Creator local run held steady\./);
-      assert.match(reportCtx.replies.join('\n'), /Score\n• 1\/1 rounds\n• best score 0\n• 3 suggestions reviewed/);
-      assert.match(reportCtx.replies.join('\n'), /Workspace\n• local-only mode/);
+      assert.match(reportCtx.replies.join('\n'), /Domain Chip Creator finished 1\/1 round locally and held steady\./);
+      assert.match(reportCtx.replies.join('\n'), /Spark drafted a possible improvement for this private workflow helper\. It has not been used, approved, or shared\./);
+      assert.match(reportCtx.replies.join('\n'), /real self-improvement still needs a separate review on a multi-round trend/);
+      assert.match(reportCtx.replies.join('\n'), /Saved locally\. Keep it private until the review gates pass\./);
+      assert.doesNotMatch(reportCtx.replies.join('\n'), /^Score$/m);
+      assert.doesNotMatch(reportCtx.replies.join('\n'), /^Workspace$/m);
 
-      const traceCtx = fakeCtx('/recursive trace 1');
+      const latestReportCtx = fakeCtx('/recursive report latest');
+      await handleRecursiveCommand(latestReportCtx);
+      assert.match(latestReportCtx.replies.join('\n'), /I finished checking Domain Chip Operations Watchdesk locally\./);
+      assert.match(latestReportCtx.replies.join('\n'), /Spark drafted a possible improvement for this private workflow helper\. It has not been used, approved, or shared\./);
+      assert.match(latestReportCtx.replies.join('\n'), /I kept it private and made no changes\./);
+      assert.doesNotMatch(latestReportCtx.replies.join('\n'), /improved/);
+
+      const traceCtx = fakeCtx('/recursive trace domain-chip-creator');
       await handleRecursiveCommand(traceCtx);
       assert.match(traceCtx.replies.join('\n'), /Domain Chip Creator local trace/);
       assert.match(traceCtx.replies.join('\n'), /round 1: held steady, best score 0, 3 suggestions/);

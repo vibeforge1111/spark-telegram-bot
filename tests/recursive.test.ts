@@ -1440,13 +1440,17 @@ test('renders Builder chip loop completion with Workspace sync details', () => {
     }
   );
 
-  assert.match(reply, /🟢 Latest Startup YC run improved\./);
-  assert.match(reply, /Score\n• 2\/2 rounds\n• best score 0.8123\n• 4 suggestions reviewed/);
-  assert.match(reply, /Workspace\n• updated\n• http:\/\/127.0.0.1:4178\/runs\?tab=recursions/);
-  assert.match(reply, /Report\n• \/recursive report path_builder_chip_startup_yc\n• \/recursive trace path_builder_chip_startup_yc/);
-  assert.doesNotMatch(reply, /What happened:/);
-  assert.doesNotMatch(reply, /Saved locally:/);
-  assert.doesNotMatch(reply, /Next:/);
+  assert.match(reply, /🟢 Startup YC finished 2\/2 rounds and improved\./);
+  assert.match(reply, /Spark drafted a possible improvement for this private workflow helper\. It has not been used, approved, or shared\./);
+  assert.match(reply, /real self-improvement still needs a separate review on a multi-round trend/);
+  assert.match(reply, /Workspace is updated: http:\/\/127.0.0.1:4178\/runs\?tab=recursions/);
+  assert.match(reply, /To open the private draft, send:\n\/recursive report latest/);
+  assert.match(reply, /This only opens the private draft\./);
+  assert.match(reply, /ignore it, ask for changes, or ask me to run another review/);
+  assert.doesNotMatch(reply, /^Score$/m);
+  assert.doesNotMatch(reply, /^Workspace$/m);
+  assert.doesNotMatch(reply, /^Report$/m);
+  assert.doesNotMatch(reply, /path_builder_chip_startup_yc/);
   assert.doesNotMatch(reply, /C:\\status/);
   assert.doesNotMatch(reply, /Workspace outcome/);
 });
@@ -1462,10 +1466,35 @@ test('renders regressed Builder chip loop completion without softening the verdi
     ]
   });
 
-  assert.match(reply, /🔴 Latest Startup YC run regressed\./);
-  assert.match(reply, /Score\n• 1\/1 rounds\n• best score 0.4123\n• 2 suggestions reviewed/);
+  assert.match(reply, /🔴 Startup YC finished 1\/1 round and regressed\./);
+  assert.match(reply, /Spark drafted a possible improvement for this private workflow helper\. It has not been used, approved, or shared\./);
+  assert.match(reply, /Treat this as a rollback signal until separated judges explain what broke\./);
+  assert.match(reply, /Saved locally and kept private\./);
+  assert.doesNotMatch(reply, /^Score$/m);
+  assert.doesNotMatch(reply, /^Local$/m);
+  assert.doesNotMatch(reply, /^Report$/m);
   assert.doesNotMatch(reply, /Change:/);
   assert.doesNotMatch(reply, /The best result regressed\./);
+});
+
+test('renders deferred Builder chip loop completion as readable English', () => {
+  const reply = renderBuilderChipLoopCompletion({
+    ok: true,
+    chipKey: 'b2c-reachout',
+    roundsCompleted: 1,
+    totalRounds: 1,
+    history: [
+      { round_index: 1, suggestions_count: 3, best_verdict: 'defer', best_metric: 54 }
+    ]
+  });
+
+  assert.match(reply, /I finished checking B2C Reachout\./);
+  assert.match(reply, /Spark drafted a possible improvement for this private workflow helper\. It has not been used, approved, or shared\./);
+  assert.match(reply, /I kept it private and made no changes\./);
+  assert.match(reply, /To open the private draft, send:\n\/recursive report latest/);
+  assert.match(reply, /This only opens the private draft\./);
+  assert.match(reply, /ignore it, ask for changes, or ask me to run another review/);
+  assert.doesNotMatch(reply, /and defer\./);
 });
 
 test('renders recent Workspace trace movement with distinct run labels', () => {
@@ -1581,7 +1610,7 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
         scope: 'workspace',
         specializationId: null,
         repoLabel: 'spark-intelligence-builder',
-        summary: 'Builder chip loop for Startup Yc completed 3/3 round(s).',
+        summary: 'Builder chip loop for Startup Yc completed 3/3 rounds.',
         status: 'open',
         bestOutcomeId: 'outcome_builder_chip_startup_yc_20260507T100000000',
         updatedAt: '2026-05-07T10:00:00.000Z'
@@ -1651,6 +1680,7 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   assert.doesNotMatch(report, /Signal/);
   assert.doesNotMatch(report, /Next:/);
   assert.doesNotMatch(report, /recursive trace path_builder_chip_startup_yc/);
+  assert.equal(renderRecursiveWorkspaceReport(snapshot, 'startup-yc'), report);
 
   const trace = workspaceTraceView(snapshot, 'path_builder_chip_startup_yc');
   assert.equal(trace.spawner.board_entry.taskCount, 2);
@@ -1972,7 +2002,7 @@ test('summarizes large Workspace evidence sets with clean highlights', () => {
         scope: 'workspace',
         specializationId: null,
         repoLabel: 'spark-intelligence-builder',
-        summary: 'Builder chip loop for Startup YC completed 1/1 round(s).',
+        summary: 'Builder chip loop for Startup YC completed 1/1 round.',
         status: 'open',
         bestOutcomeId: 'outcome_builder_chip_startup_yc_20260508T060000000',
         updatedAt: '2026-05-08T06:00:00.000Z'
@@ -2167,7 +2197,7 @@ test('uses path summary in Workspace report when snapshot omits outcome bodies',
         scope: 'workspace',
         specializationId: null,
         repoLabel: 'spark-intelligence-builder',
-        summary: 'Builder chip loop for Startup YC completed 1/1 round(s).',
+        summary: 'Builder chip loop for Startup YC completed 1/1 round.',
         status: 'open',
         bestOutcomeId: 'outcome_builder_chip_startup_yc_20260507T151032889',
         updatedAt: '2026-05-07T15:10:32.889Z'

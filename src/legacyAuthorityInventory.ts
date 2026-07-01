@@ -201,7 +201,7 @@ export function buildTelegramLegacyAuthorityPlanes(): LegacyAuthorityPlaneV1[] {
       id: 'telegram-spawner-creator-bridge',
       plane_type: 'mission_helper',
       source_path: 'src/spawner.ts',
-      summary: 'Spawner, creator mission, validation, and execution API calls accept/preserve Governor executionAuthority and ledger evidence.',
+      summary: 'Spawner Loop Engineering, the legacy creator mission API, validation, and execution API calls accept/preserve Governor executionAuthority and ledger evidence.',
       authority_risk: {
         can_execute: true,
         can_mutate_state: true,

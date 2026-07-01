@@ -24,12 +24,18 @@ export function isLiveSparkHealthQuestion(text: string): boolean {
   if (isRuntimeDoctrineDiscussion(normalized)) {
     return false;
   }
-  const sparkScoped = /\b(?:spark|spawner|telegram|mission control|runtime|live stack|systems?|stack)\b/.test(normalized);
+  const connectionCheckScoped =
+    /\bconnection\s+check\b/.test(normalized) &&
+    /\b(?:current\s+)?(?:live\s+)?(?:state|status|health)\b/.test(normalized);
+  const sparkScoped =
+    connectionCheckScoped ||
+    /\b(?:spark|spawner|telegram|mission control|runtime|live stack|systems?|stack)\b/.test(normalized);
   if (!sparkScoped) return false;
   return (
     /\bspark live status\b/.test(normalized) ||
     /\blive spark health\b/.test(normalized) ||
     /\bsame source as spark live status\b/.test(normalized) ||
+    connectionCheckScoped ||
     /\b(?:check|show|refresh|inspect|probe|verify)\b.*\bspark\b.*\b(?:health|status|state)\b/.test(normalized) ||
     /\bfresh\s+(?:live\s+)?(?:state|runtime|health|status)\b.*\b(?:say|show|prove|report)\b/.test(normalized) ||
     /\bwhat\s+does\s+fresh\s+(?:live\s+)?(?:state|runtime|health|status)\s+say\b/.test(normalized) ||

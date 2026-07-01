@@ -198,13 +198,15 @@ Required proof:
 
 ### spawner-ui
 
-Role: execution plane, mission dispatch, PRD auto-dispatch, creator mission create/execute, canvas execution.
+Role: execution plane, mission dispatch, PRD auto-dispatch, Loop Engineering
+create/execute through the legacy `creator mission` API, canvas execution.
 
 Rules:
 
 - `/api/dispatch` needs envelope or machine-origin policy.
 - PRD auto-dispatch and canvas auto-run need envelope import or machine-origin policy.
-- Creator mission create/execute must preserve execution policy and mutation class.
+- Loop Engineering create/execute through the legacy `creator mission` API must
+  preserve execution policy and mutation class.
 - No-edit probes may run while file mutation remains blocked.
 - Provider dispatch must carry source policy, trace, and mutation class.
 
@@ -213,7 +215,7 @@ Required proof:
 - intent-boundary tests
 - dispatch authority tests
 - PRD auto-dispatch tests
-- creator mission create/execute tests
+- Loop Engineering create/execute tests for the legacy `creator mission` API
 - mission board card tests
 - `npm run check`
 - `npm run build`

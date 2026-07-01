@@ -51,7 +51,9 @@ async function main(): Promise<void> {
     assert.equal(summary.statusCounts['local-artifacts'], 1);
     assert.match(reply, /Capability garden needs review/);
     assert.match(reply, /2 cards/);
-    assert.match(reply, /creator-system:spark-domain-chip-labs: local-artifacts \(2 blockers\)/);
+    assert.match(reply, /Surfaces: Loop Engineering=1, specialization path=1/);
+    assert.match(reply, /Loop Engineering: spark-domain-chip-labs: local-artifacts \(2 blockers\)/);
+    assert.doesNotMatch(reply, /creator-system:spark-domain-chip-labs/);
     assert.match(reply, /Full evidence: `spark os capabilities --json`/);
     assert.doesNotMatch(reply, /secret command/);
     assert.doesNotMatch(reply, /primary_command/);
