@@ -98,6 +98,20 @@ function stubSpawner(calls: Array<{ url: string; body: any }>): void {
         }
       };
     }
+    if (url.includes('/loops/run')) {
+      return {
+        data: {
+          ok: true,
+          commandResult: {
+            action: 'loop_run_queued',
+            missionId: 'spark-loop-prd',
+            eventId: 'lee-loop-prd',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Queued a capped private loop for domain-chip-prd-writing-proof-loop. It still needs separated evaluator evidence before any improvement claim or activation.'
+          }
+        }
+      };
+    }
     if (url.includes('/evaluator-review')) {
       return {
         data: {
@@ -280,6 +294,27 @@ async function run(): Promise<void> {
     assert.equal(calls[0].body.sourceSurface, 'telegram');
     assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.benchmark.run');
     assert.match(replies[0], /Queued a private benchmark mission/);
+    assert.match(replies[0], /Spawner: http:\/\/127\.0\.0\.1:3333\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
+    assert.doesNotMatch(replies[0], /approved|activated|published/i);
+  });
+
+  await test('/loop run queues capped private loop rounds through Spawner command-result payload', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleLoopCommand(fakeCtx('/loop run domain-chip-prd-writing-proof-loop 5', replies, { chat: 8319079055, user: 8319079055, message: 9069 }));
+
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/loops\/run$/);
+    assert.equal(calls[0].body.sourceSurface, 'telegram');
+    assert.equal(calls[0].body.roundLimit, 5);
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.loop.run');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+    assert.match(replies[0], /Queued a capped private loop/);
+    assert.match(replies[0], /separated evaluator evidence/i);
     assert.match(replies[0], /Spawner: http:\/\/127\.0\.0\.1:3333\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
     assert.doesNotMatch(replies[0], /approved|activated|published/i);
   });
