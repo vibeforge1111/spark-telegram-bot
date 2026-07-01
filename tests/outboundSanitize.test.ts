@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import {
+  collapseTelegramHorizontalRules,
+  replaceEmDashes,
   rewriteSpawnerSurfaceStandaloneQuestion,
   sanitizeAndSplitTelegramText,
   sanitizeOutbound,
   splitTelegramText,
+  stripFormatControls,
   TELEGRAM_SAFE_MESSAGE_LIMIT,
   stripMarkdownEmphasis
 } from '../src/outboundSanitize';
@@ -74,9 +77,50 @@ test('keeps bullets while removing bold emphasis', () => {
   );
 });
 
-test('still replaces dash family characters', () => {
-  assert.equal(sanitizeOutbound('One — two – three'), 'One - two - three');
+test('collapses standalone markdown dividers into Telegram paragraph spacing', () => {
+  const raw = [
+    'Make a Day Triage Button, not a planner.',
+    '',
+    '---',
+    '',
+    'One screen:',
+    '• Pick state.',
+    '',
+    '---',
+    '',
+    'The product should feel like a reset button.'
+  ].join('\n');
+
+  const cleaned = collapseTelegramHorizontalRules(raw);
+
+  assert.doesNotMatch(cleaned, /^---$/m);
+  assert.match(cleaned, /planner\.\n\nOne screen:/);
+  assert.match(sanitizeOutbound(raw), /state\.\n\nThe product should feel/);
 });
+
+test('still replaces dash family characters', () => {
+  assert.equal(sanitizeOutbound('One \u2014 two \u2013 three'), 'One - two - three');
+});
+
+test('preserves unrelated indentation while replacing dash characters', () => {
+  const text = 'Plan:\n  1. ship it\n  2. measure \u2014 then iterate';
+  assert.equal(replaceEmDashes(text), 'Plan:\n  1. ship it\n  2. measure - then iterate');
+});
+
+test('preserves unrelated double spaces while replacing dash characters', () => {
+  assert.equal(replaceEmDashes('a  b'), 'a  b');
+});
+
+test('single-spaces adjacent dash whitespace', () => {
+  assert.equal(replaceEmDashes('word \u2014 word'), 'word - word');
+  assert.equal(replaceEmDashes('word\u2014word'), 'word - word');
+});
+
+test('removes Unicode format controls from outbound text', () => {
+  assert.equal(stripFormatControls('alpha\u200bbeta\u202egamma'), 'alphabetagamma');
+  assert.equal(sanitizeOutbound('alpha\u200b \u2014 beta'), 'alpha - beta');
+});
+
 test('chunks long Telegram text under the safe message limit', () => {
   const text = Array.from({ length: 90 }, (_, index) => `Paragraph ${index}: ${'useful context '.repeat(8)}`).join('\n\n');
   const chunks = splitTelegramText(text, 500);

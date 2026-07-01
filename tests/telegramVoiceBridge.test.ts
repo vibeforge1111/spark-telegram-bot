@@ -39,12 +39,12 @@ test('downloads Telegram voice bytes through the active runner context', async (
       telegram: {
         async getFileLink(fileId: string): Promise<string> {
           assert.equal(fileId, 'voice-file-id');
-          return 'https://telegram.example/file.ogg';
+          return 'https://api.telegram.org/file/bot123/voice/file.ogg';
         },
       },
     },
     async (url: string | URL | Request) => {
-      assert.equal(String(url), 'https://telegram.example/file.ogg');
+      assert.equal(String(url), 'https://api.telegram.org/file/bot123/voice/file.ogg');
       return fakeResponse(Buffer.from('voice-bytes'), {
         'content-length': '11',
         'content-type': 'audio/ogg',
@@ -108,7 +108,7 @@ test('falls back when voice byte limit env has a unit suffix', async () => {
         update,
         telegram: {
           async getFileLink(): Promise<string> {
-            return 'https://telegram.example/file.ogg';
+            return 'https://api.telegram.org/file/bot123/voice/file.ogg';
           },
         },
       },
@@ -123,4 +123,41 @@ test('falls back when voice byte limit env has a unit suffix', async () => {
     if (originalLimit === undefined) delete process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES;
     else process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES = originalLimit;
   }
+});
+
+test('rejects a file link whose host is not api.telegram.org without fetching', async () => {
+  const update = {
+    update_id: 13,
+    message: {
+      message_id: 23,
+      voice: {
+        file_id: 'voice-file-id',
+        mime_type: 'audio/ogg',
+      },
+    },
+  };
+
+  let fetched = false;
+  const enriched = await buildVoiceBridgeUpdate(
+    {
+      update,
+      telegram: {
+        async getFileLink(): Promise<string> {
+          return 'https://evil.example/file.ogg';
+        },
+      },
+    },
+    async () => {
+      fetched = true;
+      return fakeResponse(Buffer.from('voice-bytes'), {
+        'content-length': '11',
+        'content-type': 'audio/ogg',
+      });
+    }
+  );
+
+  // The host check throws before fetch; buildVoiceBridgeUpdate swallows the
+  // error and leaves the update unchanged.
+  assert.equal(fetched, false);
+  assert.equal((enriched.message as any).spark_media, undefined);
 });

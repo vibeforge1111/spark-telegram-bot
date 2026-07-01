@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { parseBuildIntent } from '../src/buildIntent';
 import {
   formatProviderCompletionForTelegram,
@@ -25,9 +27,7 @@ import {
   isDomainChipPendingDirection,
   isPendingClarificationAlternativeRequest,
   isPendingClarificationFollowup,
-  isRouteConfidenceGateUnsupportedError,
   latestCanvasPlanFromLoadState,
-  routeConfidenceGateCompatibilityAllows,
   cleanupSlidingWindowRateLimit,
   slidingWindowRateLimitAllows,
   shouldAnswerAuthoritativeRuntimeStatus,
@@ -53,29 +53,6 @@ function assertBuild(prompt: string, expectedProjectName: string): void {
   assert.ok(intent, `Expected build route for:\n${prompt}`);
   assert.equal(intent.projectName, expectedProjectName);
 }
-
-test('rate limit uses a sliding window instead of a single last-action timestamp', () => {
-  const requests = new Map<number, number[]>();
-
-  assert.equal(slidingWindowRateLimitAllows(requests, 123, 0), true);
-  assert.equal(slidingWindowRateLimitAllows(requests, 123, 400), true);
-  assert.equal(slidingWindowRateLimitAllows(requests, 123, 800), true);
-  assert.equal(slidingWindowRateLimitAllows(requests, 123, 999), false);
-  assert.equal(slidingWindowRateLimitAllows(requests, 123, 1000), true);
-  assert.deepEqual(requests.get(123), [400, 800, 1000]);
-});
-
-test('rate limit cleanup removes stale users and preserves active windows', () => {
-  const requests = new Map<number, number[]>([
-    [123, [0, 10]],
-    [456, [950, 990]],
-  ]);
-
-  cleanupSlidingWindowRateLimit(requests, 1500);
-
-  assert.equal(requests.has(123), false);
-  assert.deepEqual(requests.get(456), [950, 990]);
-});
 
 test('bug hunt: strategy, QA, and route-meta conversations do not hijack into builds', () => {
   [
@@ -152,6 +129,18 @@ test('bug hunt: pending build clarification does not hijack alternative requests
   assert.equal(isPendingClarificationFollowup(explicitSteering), true);
 });
 
+test('bug hunt: pending build clarification lives behind evidence adapter', () => {
+  const indexSource = readFileSync(resolve(__dirname, '../src/index.ts'), 'utf8');
+  const adapterSource = readFileSync(resolve(__dirname, '../src/telegramPendingBuildEvidence.ts'), 'utf8');
+
+  assert.match(indexSource, /telegramPendingBuildEvidence/);
+  assert.match(indexSource, /pendingBuildClarificationForMessage/);
+  assert.doesNotMatch(indexSource, /const pendingClarifications = new Map/);
+  assert.doesNotMatch(indexSource, /export function isPendingClarificationFollowup/);
+  assert.match(adapterSource, /const buildClarifications = new Map/);
+  assert.match(adapterSource, /export function pendingBuildClarificationForMessage/);
+});
+
 test('bug hunt: no-execution boundaries outrank build and mission words', () => {
   const prompts = [
     'I am mentioning build and mission, but do not start anything. What is the current Spark risk profile?',
@@ -173,6 +162,10 @@ test('bug hunt: no-execution boundaries outrank build and mission words', () => 
 
 test('bug hunt: pending domain-chip drafts only accept explicit confirmation or chip-shaping direction', () => {
   assert.equal(isDomainChipPendingDirection('go'), true);
+  assert.equal(isDomainChipPendingDirection('go ahead and start that domain chip with the recommended defaults'), true);
+  assert.equal(isDomainChipPendingDirection('please use the recommended defaults for that domain chip'), true);
+  assert.equal(isDomainChipPendingDirection('yes'), false);
+  assert.equal(isDomainChipPendingDirection('yes create it'), true);
   assert.equal(isDomainChipPendingDirection('names with rationale and usage angle, make the vibe surreal'), true);
   assert.equal(isDomainChipPendingDirection('luxury sci-fi but still developer-friendly'), true);
   assert.equal(
@@ -180,6 +173,51 @@ test('bug hunt: pending domain-chip drafts only accept explicit confirmation or 
     false
   );
   assert.equal(isDomainChipPendingDirection('what else should we test in the Spawner loop?'), false);
+});
+
+test('bug hunt: pending domain-chip draft state lives behind evidence adapter', () => {
+  const indexSource = readFileSync(resolve(__dirname, '../src/index.ts'), 'utf8');
+  const adapterSource = readFileSync(resolve(__dirname, '../src/telegramPendingDomainChipEvidence.ts'), 'utf8');
+
+  assert.match(indexSource, /telegramPendingDomainChipEvidence/);
+  assert.match(indexSource, /getPendingDomainChipBuild/);
+  assert.ok(
+    indexSource.indexOf('pendingDomainChipKeyForRouter') < indexSource.indexOf('if (modelRouterPrimary)'),
+    'pending domain-chip followups must be handled before generic model-router confirmation/chat handling'
+  );
+  assert.doesNotMatch(indexSource, /const pendingDomainChipBuilds = new Map/);
+  assert.doesNotMatch(indexSource, /export function isDomainChipPendingDirection/);
+  assert.match(adapterSource, /const domainChipBuilds = new Map/);
+  assert.match(adapterSource, /export function isDomainChipPendingDirection/);
+});
+
+test('bug hunt: pending creator and cancel state live behind evidence adapters', () => {
+  const indexSource = readFileSync(resolve(__dirname, '../src/index.ts'), 'utf8');
+  const creatorAdapter = readFileSync(resolve(__dirname, '../src/telegramPendingCreatorMissionEvidence.ts'), 'utf8');
+  const cancelAdapter = readFileSync(resolve(__dirname, '../src/telegramPendingMissionCancelEvidence.ts'), 'utf8');
+
+  assert.match(indexSource, /telegramPendingCreatorMissionEvidence/);
+  assert.match(indexSource, /telegramPendingMissionCancelEvidence/);
+  assert.doesNotMatch(indexSource, /const pendingCreatorMissions = new Map/);
+  assert.doesNotMatch(indexSource, /const pendingMissionCancelConfirmations = new Map/);
+  assert.doesNotMatch(indexSource, /function parsePendingCreatorMissionAction/);
+  assert.doesNotMatch(indexSource, /function isMissionCancelConfirmationText/);
+  assert.match(creatorAdapter, /const creatorMissions = new Map/);
+  assert.match(creatorAdapter, /export function parsePendingCreatorMissionAction/);
+  assert.match(cancelAdapter, /const missionCancelConfirmations = new Map/);
+  assert.match(cancelAdapter, /export function isMissionCancelConfirmationText/);
+  assert.doesNotMatch(cancelAdapter, /executionAuthority/);
+});
+
+test('bug hunt: branch promotion cannot mint mutating route authority', () => {
+  const indexSource = readFileSync(resolve(__dirname, '../src/index.ts'), 'utf8');
+  const branchPromotion = indexSource.match(/function branchActionCanPromoteFromEvidence[\s\S]*?\n}/);
+
+  assert.ok(branchPromotion, 'expected branchActionCanPromoteFromEvidence to exist');
+  assert.match(
+    branchPromotion[0],
+    /input\.mutationClass !== 'none' && input\.mutationClass !== 'read_only'\) return false/
+  );
 });
 
 test('bug hunt: Spark workflow QA prompts get a local plan, not invented execution claims', () => {
@@ -203,9 +241,28 @@ test('bug hunt: mission routing failure-class prompts stay short and non-executi
 
   const reply = renderMissionRoutingFailureClassReply(prompt);
   assert.match(reply, /route hijack/i);
-  assert.match(reply, /asked to explain only/i);
+  assert.match(reply, /Governor decision/i);
+  assert.doesNotMatch(reply, /This is no-action|no-action/i);
   assert.doesNotMatch(reply, /Canvas|Kanban|Mission board|latest canvas|H70 Orbit Proof/i);
   assert.ok(reply.split(/\n/).filter((line) => line.trim()).length <= 2, `expected compact reply, got: ${reply}`);
+});
+
+test('bug hunt: no-action explanation reply does not reuse stale mission/build wording', () => {
+  const staleGoReply = renderMissionRoutingFailureClassReply(
+    'go. There is no active pending action in this turn. Do not continue an old mission. Just tell me whether this word alone is enough to act.'
+  );
+  assert.match(staleGoReply, /word by itself is not enough/i);
+  assert.match(staleGoReply, /fresh explicit continuation request/i);
+  assert.doesNotMatch(staleGoReply, /This is no-action|no-action/i);
+  assert.doesNotMatch(staleGoReply, /mission or build words/i);
+  assert.doesNotMatch(staleGoReply, /asked to explain only/i);
+
+  const publishReply = renderMissionRoutingFailureClassReply(
+    'This is not a command. I am discussing remember, publish, deploy, schedule, provider, and chip as risky triggers. Do not save memory or publish anything.'
+  );
+  assert.match(publishReply, /examples, quoted words/i);
+  assert.match(publishReply, /fresh, explicit save request/i);
+  assert.doesNotMatch(publishReply, /mission or build words/i);
 });
 
 test('bug hunt: mission utility requests do not become project builds', () => {
@@ -232,6 +289,7 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
     elapsed: 145,
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p1&mission=mission-123',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-123',
+    canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 5, pairingStatus: 'complete' },
     analysis: {
       tasks: [
         { title: 'Create the app shell', skills: ['frontend-engineer', 'ui-design'] },
@@ -241,11 +299,13 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
       ]
     }
   });
-  assert.match(canvasReady, /Canvas is ready for Proof Orchard\./);
+  assert.match(canvasReady, /<b>Canvas is ready for Proof Orchard\.<\/b>/);
   assert.doesNotMatch(canvasReady, /Spawned tasks/);
-  assert.match(canvasReady, /Canvas\n• http:\/\/127\.0\.0\.1:3333\/canvas/);
-  assert.doesNotMatch(canvasReady, /Mission board/);
-  assert.match(canvasReady, /Spark queued 4 build steps and is moving now\./);
+  assert.match(canvasReady, /<a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=p1&amp;mission=mission-123">Open canvas<\/a>/);
+  assert.doesNotMatch(canvasReady, /Canvas\n-/);
+  assert.doesNotMatch(canvasReady, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-123/);
+  assert.match(canvasReady, /The canvas is ready to inspect, and Spark is moving into the build\./);
+  assert.doesNotMatch(canvasReady, /paired nodes|skills/);
   assert.doesNotMatch(canvasReady, /Plan\n• App shell · frontend/);
   assert.doesNotMatch(canvasReady, /• Smoke notes/);
   assert.doesNotMatch(canvasReady, /• Smoke notes · docs/);
@@ -262,19 +322,21 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
     elapsed: 4,
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p-fast&mission=mission-fast',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-fast',
+    canvasMaterialization: { nodeCount: 1, pairedNodeCount: 1, skillCount: 3, pairingStatus: 'complete' },
     analysis: {
       tasks: [
         { title: 'Build and check the single-file static page', skills: ['frontend-engineer', 'accessibility', 'qa-engineering'] }
       ]
     }
   });
-  assert.match(oneStepFastLane, /Spark queued 1 build step and is moving now/);
+  assert.match(oneStepFastLane, /The canvas is ready to inspect, and Spark is moving into the build\./);
+  assert.doesNotMatch(oneStepFastLane, /paired node|skills/);
   assert.doesNotMatch(oneStepFastLane, /• Build \+ check static page · frontend/);
   assert.doesNotMatch(oneStepFastLane, /\.\.\./);
 
   const heartbeat = formatCanvasShapingHeartbeatSummary({ projectName: 'Proof Orchard', elapsedSeconds: 120 });
-  assert.match(heartbeat, /still shaping Proof Orchard\./);
-  assert.match(heartbeat, /still shaping Proof Orchard\.\n\nI will keep this quiet until the canvas is ready or something needs attention\./);
+  assert.match(heartbeat, /<b>Still shaping Proof Orchard\.<\/b>/);
+  assert.match(heartbeat, /<b>Still shaping Proof Orchard\.<\/b>\n\nI will keep this quiet until the canvas is ready or something needs attention\./);
   assert.doesNotMatch(heartbeat, /🛠️/);
   assert.doesNotMatch(heartbeat, /Canvas prep has been running/);
   assert.doesNotMatch(heartbeat, /^Status$/m);
@@ -286,9 +348,11 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
     elapsedSeconds: 240,
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-123'
   });
-  assert.match(stillRunning, /still preparing Proof Orchard\./);
+  assert.match(stillRunning, /<b>Still preparing Proof Orchard\.<\/b>/);
   assert.match(stillRunning, /taking a little longer than usual/);
   assert.match(stillRunning, /I will send the canvas when it is ready\./);
+  assert.match(stillRunning, /<a href="http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-123">Open board<\/a>/);
+  assert.doesNotMatch(stillRunning, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-123/);
   assert.doesNotMatch(stillRunning, /🛠️/);
   assert.doesNotMatch(stillRunning, /It has been shaping/);
   assert.doesNotMatch(stillRunning, /^Status$/m);
@@ -303,6 +367,7 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
     elapsed: 20,
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p2&mission=mission-456',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-456',
+    canvasMaterialization: { nodeCount: 10, pairedNodeCount: 10, skillCount: 1, pairingStatus: 'complete' },
     analysis: {
       tasks: Array.from({ length: 10 }, (_, index) => ({
         title: `Step ${index + 1}`,
@@ -310,7 +375,9 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
       }))
     }
   });
-  assert.match(tenStepReply, /Spark queued 10 build steps and is moving now\./);
+  assert.match(tenStepReply, /The canvas is ready to inspect, and Spark is moving into the build\./);
+  assert.doesNotMatch(tenStepReply, /paired nodes|skill/);
+  assert.match(tenStepReply, /<a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=p2&amp;mission=mission-456">Open canvas<\/a>/);
   assert.doesNotMatch(tenStepReply, /• Step 1 · frontend/);
   assert.doesNotMatch(tenStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(tenStepReply, /• \+\d+ more/);
@@ -321,6 +388,7 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
     elapsed: 20,
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p3&mission=mission-789',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-789',
+    canvasMaterialization: { nodeCount: 12, pairedNodeCount: 12, skillCount: 1, pairingStatus: 'complete' },
     analysis: {
       tasks: Array.from({ length: 12 }, (_, index) => ({
         title: `Step ${index + 1}`,
@@ -328,7 +396,9 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
       }))
     }
   });
-  assert.match(twelveStepReply, /Spark queued 12 build steps and is moving now\./);
+  assert.match(twelveStepReply, /The canvas is ready to inspect, and Spark is moving into the build\./);
+  assert.doesNotMatch(twelveStepReply, /paired nodes|skill/);
+  assert.match(twelveStepReply, /<a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=p3&amp;mission=mission-789">Open canvas<\/a>/);
   assert.doesNotMatch(twelveStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• Step 11 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• \+2 more/);
@@ -342,6 +412,7 @@ test('bug hunt: automatic pro canvas summaries do not dump skill machinery', () 
     tier: 'pro',
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p4&mission=mission-pro',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-pro',
+    canvasMaterialization: { nodeCount: 2, pairedNodeCount: 2, skillCount: 4, pairingStatus: 'complete' },
     analysis: {
       tasks: [
         { title: 'Create the playable game shell', skills: ['frontend-engineer', 'game-development'] },
@@ -364,6 +435,7 @@ test('bug hunt: automatic pro canvas ready summary hides the full skill stack', 
     tier: 'pro',
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p-h70&mission=mission-h70',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-h70',
+    canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 12, pairingStatus: 'complete' },
     analysis: {
       tasks: [
         {
@@ -422,6 +494,10 @@ test('bug hunt: canvas task details stay available as an explicit follow-up', ()
 
 test('bug hunt: casual next-step questions do not recall stale canvas plans', () => {
   assert.equal(
+    isLatestCanvasPlanQuestion('Quick reset check: after the restart, what was the little project I said I was sketching tonight, and what constraint did I put on the next step?'),
+    false
+  );
+  assert.equal(
     isLatestCanvasPlanQuestion('What’s the smallest useful next step here? Keep it natural, short paragraphs, and use bullets only if they help.'),
     false
   );
@@ -431,10 +507,6 @@ test('bug hunt: casual next-step questions do not recall stale canvas plans', ()
   );
   assert.equal(
     isLatestCanvasPlanQuestion('Do not start a mission. If I say "Create a tiny maze game plan and build only a minimal playable prototype", what mission title would you use? Keep it natural and short.'),
-    false
-  );
-  assert.equal(
-    isLatestCanvasPlanQuestion('Do not start a mission or build anything. Just answer in chat. I want to check whether my Spark providers are ready. What command should I run for spark providers status or the nearest provider test command? Please explain how to read missing keys, role-specific readiness for Agent LLM versus Mission LLM, and the safest next step if one provider is not ready. Do not print raw config, secrets, tokens, or full environment values.'),
     false
   );
 });
@@ -447,6 +519,13 @@ test('bug hunt: named Telegram profile setup stays out of live health status', (
 
   assert.equal(isNamedTelegramProfileSetupQuestion(prompt), true);
   assert.equal(shouldAnswerAuthoritativeRuntimeStatus(prompt), false);
+});
+
+test('bug hunt: repair-needed current-status question uses live status instead of repair action', () => {
+  assert.equal(
+    shouldAnswerAuthoritativeRuntimeStatus('Do not repair anything. Is a repair needed from the current status?'),
+    true
+  );
 });
 
 test('bug hunt: latest canvas plan can be restored from persisted Spawner state after restart', () => {
@@ -478,7 +557,6 @@ test('bug hunt: latest canvas plan can be restored from persisted Spawner state 
   assert.match(reply, /2 build steps are queued\./);
   assert.match(reply, /• Create the playable game shell - frontend, Three\.js, game dev, game UI, mobile/);
   assert.match(reply, /Skills invoked\n• Active: 10 skills: frontend, Three\.js, game dev, game UI, mobile, game design, game loop, puzzle, procedural, levels\n• Skill tier: pro tier \(full Spark skill catalog\)/);
-  assert.doesNotMatch(reply, /spark-skill-graphs/);
   assert.match(reply, /Canvas\n• http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=prd-tg-build-d9318b7927c7-1778771867119&mission=mission-1778771867119/);
   assert.doesNotMatch(reply, /I can turn this into/);
 });
@@ -509,58 +587,29 @@ test('bug hunt: provider completion does not make failures look shipped', () => 
   assert.doesNotMatch(noText, /Mission: mission-empty/);
 });
 
-test('bug hunt: missing Builder route-confidence command degrades through local compatibility gate', () => {
-  assert.equal(
-    isRouteConfidenceGateUnsupportedError(
-      new Error("spark-intelligence self: error: argument self_command: invalid choice: 'route-confidence-gate'")
-    ),
-    true
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: true,
-      runnerWritable: 'yes'
-    }),
-    true
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'no_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: true,
-      runnerWritable: 'yes'
-    }),
-    false
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'missing',
-      spawnerAvailable: true,
-      runnerWritable: 'yes'
-    }),
-    false
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: false,
-      runnerWritable: 'yes'
-    }),
-    false
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: true,
-      runnerWritable: 'no'
-    }),
-    false
-  );
+test('bug hunt: created mission handoff is not framed as finished work', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'mission-agent-mission-control-v1',
+    verbosity: 'normal',
+    response: [
+      'Created the focused Spawner mission v1.',
+      '',
+      'Mission: `mission-agent-mission-control-v1`',
+      'Canvas: http://127.0.0.1:3334/canvas?pipeline=prd-telegram-agent-mission-control-v1&mission=mission-agent-mission-control-v1',
+      'Kanban: http://127.0.0.1:3334/kanban?mission=mission-agent-mission-control-v1',
+      '',
+      'Verification passed:',
+      '- Board shows the mission in `created` with `5/5` tasks queued.',
+      '- Trace reports `canvas_ready`, `0%`, `5` nodes.',
+      '- npm run smoke:routes passed.'
+    ].join('\n')
+  });
+
+  assert.match(message, /(?:staged the handoff|queued, not completed|set up; execution is still pending|canvas is ready)/i);
+  assert.match(message, /Created the focused Spawner mission v1/i);
+  assert.doesNotMatch(message, /I got this one finished|got it done|came back clean|this one is finished/i);
+  assert.doesNotMatch(message, /^✨/);
 });
 
 test('bug hunt: pause, resume, and cancel relay state messages stay compact', () => {

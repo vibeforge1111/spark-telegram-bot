@@ -24,8 +24,22 @@ function argList(name: string): string[] {
   return value.split(',').map((entry) => entry.trim()).filter(Boolean);
 }
 
+function catalogFileName(): string {
+  const catalog = (argValue(process.argv, 'catalog') || 'standard').trim().toLowerCase();
+  if (catalog === 'standard' || catalog === 'default' || catalog === 'natural-language') {
+    return 'natural-language-live-commands.json';
+  }
+  if (catalog === 'genesis' || catalog === 'genesis100' || catalog === 'genesis-100') {
+    return 'genesis-live-telegram-100.json';
+  }
+  if (/^[a-z0-9_.-]+\.json$/i.test(catalog) && !catalog.includes('/') && !catalog.includes('\\')) {
+    return catalog;
+  }
+  throw new Error(`Unsupported live NL catalog: ${catalog}`);
+}
+
 function loadCases(): LiveNlCommandCase[] {
-  const file = path.join(__dirname, 'natural-language-live-commands.json');
+  const file = path.join(__dirname, catalogFileName());
   return parseLiveNlCommandCases(JSON.parse(fs.readFileSync(file, 'utf-8')));
 }
 
@@ -91,8 +105,10 @@ async function main(): Promise<void> {
       '',
       'Usage:',
       '  npm run nl:live -- --list',
+      '  npm run nl:live -- --catalog genesis100 --list --include-risky',
       '  npx ts-node ops/runtimeFreshnessCheck.ts --warn-only',
       '  npm run nl:live -- --copy-paste --cases guard-006,guard-007,build-004,domain-chip-003',
+      '  npm run nl:live -- --catalog genesis100 --copy-paste --include-risky',
       '  npm run nl:live -- --case mission-001',
       '  npm run nl:live -- --cases guard-006,domain-chip-003',
       '  npm run nl:live -- --suite smoke',
@@ -106,6 +122,7 @@ async function main(): Promise<void> {
       '  --send only sends prompt cards. It does not start polling or read updates.',
       '  --copy-paste prints natural user messages only, plus reply-capture blocks for Codex.',
       '  --profile loads the matching Spark Telegram profile env and bot token.',
+      '  --catalog genesis100 loads the Spark Genesis 100-prompt live QA catalog.',
       '  Suite alias: memory_architecture expands to memory, self_awareness, wiki, and anti_drift.',
       '  Risky suites are excluded from broad selection unless --include-risky is set.'
     ].join('\n'));

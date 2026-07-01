@@ -1,0 +1,18 @@
+{
+  "hard_cap": 3000,
+  "warn_cap": 1500,
+  "root": "line-count-gate",
+  "offenders": {
+    "src/builderBridge.ts": 3894,
+    "src/conversationIntent.ts": 3780,
+    "src/index.ts": 14320,
+    "src/missionRelay.ts": 2946,
+    "src/recursive.ts": 3313,
+    "src/spawner.ts": 2120,
+    "tests/buildE2E.test.ts": 7291,
+    "tests/conversationIntent.test.ts": 2619,
+    "tests/missionRelayFormatting.test.ts": 2498,
+    "tests/recursive.test.ts": 2419,
+    "tests/spawner.test.ts": 2109
+  }
+}

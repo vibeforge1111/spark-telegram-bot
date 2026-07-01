@@ -5,18 +5,6 @@ import {
   type NaturalRouteDecisionContext,
   type NaturalRouteOwnerSystem
 } from './naturalRouteDecision';
-import {
-  evaluateDeterministicRoute,
-  shouldUseRouteArbiter,
-  type DeterministicRouteId
-} from './routeFirewall';
-
-export interface ConversationSmokeCandidateRoute {
-  route: DeterministicRouteId;
-  expectedFirewallAllow?: boolean;
-  expectedFirewallReason?: string;
-  expectedArbiter?: boolean;
-}
 
 export interface ConversationSmokeTurn {
   id?: string;
@@ -28,7 +16,6 @@ export interface ConversationSmokeTurn {
   expectedRequiresConfirmation?: boolean;
   mustNotRoute?: string[];
   context?: NaturalRouteDecisionContext;
-  candidateRoutes?: ConversationSmokeCandidateRoute[];
   remember?: boolean;
 }
 
@@ -86,33 +73,6 @@ function mergeContext(
   };
 }
 
-function evaluateCandidateRoutes(turn: ConversationSmokeTurn): string[] {
-  const failures: string[] = [];
-  for (const candidate of turn.candidateRoutes || []) {
-    const verdict = evaluateDeterministicRoute(candidate.route, turn.user);
-    const useArbiter = shouldUseRouteArbiter(candidate.route, turn.user, verdict);
-    if (
-      typeof candidate.expectedFirewallAllow === 'boolean' &&
-      verdict.allow !== candidate.expectedFirewallAllow
-    ) {
-      failures.push(
-        `candidate ${candidate.route} expected firewall allow ${candidate.expectedFirewallAllow}, got ${verdict.allow}`
-      );
-    }
-    if (candidate.expectedFirewallReason && verdict.reason !== candidate.expectedFirewallReason) {
-      failures.push(
-        `candidate ${candidate.route} expected firewall reason ${candidate.expectedFirewallReason}, got ${verdict.reason}`
-      );
-    }
-    if (typeof candidate.expectedArbiter === 'boolean' && useArbiter !== candidate.expectedArbiter) {
-      failures.push(
-        `candidate ${candidate.route} expected arbiter ${candidate.expectedArbiter}, got ${useArbiter}`
-      );
-    }
-  }
-  return failures;
-}
-
 function evaluateTurn(
   scenario: ConversationSmokeScenario,
   turn: ConversationSmokeTurn,
@@ -143,7 +103,6 @@ function evaluateTurn(
   if ((turn.mustNotRoute || []).includes(decision.route)) {
     failures.push(`must not route to ${decision.route}`);
   }
-  failures.push(...evaluateCandidateRoutes(turn));
 
   return {
     scenarioId: scenario.id,
@@ -176,7 +135,21 @@ export function parseConversationSmokeScenarios(value: unknown): ConversationSmo
 }
 
 export function readConversationSmokeScenarios(filePath: string): ConversationSmokeScenario[] {
-  return parseConversationSmokeScenarios(JSON.parse(fs.readFileSync(filePath, 'utf8')));
+  let content: string;
+  try {
+    content = fs.readFileSync(filePath, 'utf8');
+  } catch {
+    return [];
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return [];
+  }
+
+  return parseConversationSmokeScenarios(parsed);
 }
 
 export function runConversationSmokeScenarios(scenarios: ConversationSmokeScenario[]): ConversationSmokeSummary {

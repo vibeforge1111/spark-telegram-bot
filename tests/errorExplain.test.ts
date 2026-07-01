@@ -23,6 +23,22 @@ test('explains provider auth failures with a repair path', () => {
   assert.doesNotMatch(reply, /Try again in a moment/);
 });
 
+test('explains Spawner bridge auth separately from provider keys', () => {
+  const reply = renderSparkErrorReply(
+    new Error('HTTP 401 - PRDBridgeWrite routes require API key for non-local requests - ERR_BAD_REQUEST'),
+    'spawner',
+    true
+  );
+
+  assert.match(reply, /Mission Control rejected Spark/);
+  assert.match(reply, /Telegram-to-Spawner bridge/);
+  assert.match(reply, /SPARK_BRIDGE_API_KEY/);
+  assert.match(reply, /Spark spawner failure: spawner_bridge_auth/);
+  assert.doesNotMatch(reply, /provider authentication is not working/);
+  assert.doesNotMatch(reply, /spark providers status/);
+  assert.doesNotMatch(reply, /spark setup/);
+});
+
 test('explains local service network failures', () => {
   const explanation = explainSparkError(new Error('ECONNREFUSED 127.0.0.1:3333'), 'spawner');
 
@@ -76,11 +92,12 @@ test('does not mislabel Builder command failures as Telegram config', () => {
     true
   );
 
-  assert.match(reply, /Builder memory path/);
-  assert.match(reply, /Builder bridge command did not finish cleanly/);
-  assert.match(reply, /Spark builder failure: builder_or_memory/);
+  assert.match(reply, /Builder memory is shaky/);
+  assert.match(reply, /visible chat/);
   assert.doesNotMatch(reply, /Telegram configuration problem/);
   assert.doesNotMatch(reply, /Spark telegram failure: telegram_config/);
+  assert.doesNotMatch(reply, /Spark builder failure: builder_or_memory/);
+  assert.doesNotMatch(reply, /spark fix telegram|spark doctor llm|Still stuck/);
   assert.doesNotMatch(reply, /runpy|spark_intelligence\.cli|simulate-telegram-update|Command failed/);
 });
 
@@ -95,10 +112,10 @@ test('explains command timeouts in chat as runtime timeouts', () => {
 test('explains builder memory failures', () => {
   const reply = renderSparkErrorReply(new Error('Builder bridge is required but unavailable'), 'memory', true);
 
-  assert.match(reply, /Builder memory path/);
-  assert.match(reply, /Check now: Run \/diagnose/);
-  assert.match(reply, /spark fix telegram/);
-  assert.match(reply, /spark verify --onboarding/);
+  assert.match(reply, /Builder memory is shaky/);
+  assert.match(reply, /visible chat/);
+  assert.match(reply, /Run \/diagnose when you want the health check/);
+  assert.doesNotMatch(reply, /spark fix telegram|spark verify --onboarding|Still stuck/);
 });
 
 test('keeps conversational builder memory failures out of diagnostic mode', () => {
@@ -108,8 +125,9 @@ test('keeps conversational builder memory failures out of diagnostic mode', () =
     true
   );
 
+  assert.match(reply, /Builder memory is shaky/);
   assert.match(reply, /visible chat/);
-  assert.match(reply, /Run \/diagnose only when you want a health check/);
+  assert.match(reply, /Run \/diagnose when you want the health check/);
   assert.doesNotMatch(reply, /Spark could not reach the Builder memory path/);
   assert.doesNotMatch(reply, /spark fix telegram|spark doctor llm|upstream PR draft/);
 });

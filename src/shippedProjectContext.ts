@@ -87,6 +87,15 @@ function projectPathFromPreviewUrl(previewUrl: string): string | null {
   }
 }
 
+function projectPathFromLinkedFileTarget(target: string): string | null {
+  const normalized = normalizeLocalProjectPath(target);
+  if (!/^[A-Za-z]:\//.test(normalized)) return null;
+  const extension = path.posix.extname(normalized);
+  return extension
+    ? normalizeLocalProjectPath(path.posix.dirname(normalized))
+    : normalized;
+}
+
 export function extractProjectPathFromMissionText(text: string): string | null {
   const parsed = parseJsonObject(text);
   const jsonPath = parsed
@@ -98,6 +107,11 @@ export function extractProjectPathFromMissionText(text: string): string | null {
   if (previewUrl) {
     const decoded = projectPathFromPreviewUrl(previewUrl);
     if (decoded) return decoded;
+  }
+
+  for (const match of text.matchAll(/\]\(([^)\r\n]+)\)/g)) {
+    const linkedProjectPath = projectPathFromLinkedFileTarget(match[1]);
+    if (linkedProjectPath) return linkedProjectPath;
   }
 
   const patterns = [

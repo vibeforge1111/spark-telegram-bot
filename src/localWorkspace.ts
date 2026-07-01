@@ -100,8 +100,7 @@ async function summarizeRoot(root: string, limit: number): Promise<{
     const entries = await readdir(resolvedRoot, { withFileTypes: true });
     const directories = entries
       .filter((entry) => entry.isDirectory())
-      .filter((entry) => !SKIP_NAMES.has(entry.name.toLowerCase()))
-      .slice(0, Math.max(limit * 3, limit));
+      .filter((entry) => !SKIP_NAMES.has(entry.name.toLowerCase()));
 
     const projects: LocalWorkspaceProject[] = [];
     for (const entry of directories) {
@@ -179,7 +178,7 @@ export function renderLocalWorkspaceInspectionReply(summary: LocalWorkspaceSumma
 
   const projectLines = summary.projects.slice(0, 12).map((project, index) => {
     const signalText = project.signals.length > 0 ? project.signals.join(', ') : 'folder';
-    return `${index + 1}. ${project.name} - ${signalText} - ${relativeAge(project.modifiedAt)}\n   ${project.path}`;
+    return `${index + 1}. ${project.name} - ${signalText} - ${relativeAge(project.modifiedAt)}`;
   });
 
   return [

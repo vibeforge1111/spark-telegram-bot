@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sparkswarm.ai/schemas/observability/turn-trace-line.v1.schema.json",
+  "title": "Spark Turn Trace Line V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "ts",
+    "turn_id",
+    "telegram_update_id",
+    "chat_ref",
+    "status",
+    "hops"
+  ],
+  "properties": {
+    "schema": { "const": "spark.turn_trace.v1" },
+    "ts": { "type": "string", "format": "date-time" },
+    "turn_id": {
+      "type": "string",
+      "pattern": "^telegram-update:[0-9]+$"
+    },
+    "telegram_update_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "chat_ref": {
+      "type": "string",
+      "pattern": "^(chat_[a-f0-9]{16}|unknown)$"
+    },
+    "status": {
+      "enum": ["delivered", "failed", "suppressed"]
+    },
+    "hops": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "enum": ["telegram-bot", "sib-gateway", "chip", "spawner", "harness-core"]
+      }
+    },
+    "sib_request_id": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "sib_trace_ref": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "mission_id": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "build_request_id": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "route": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "reply_kind": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "gen_ai.usage.input_tokens": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "gen_ai.usage.output_tokens": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "gen_ai.request.model": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "duration_ms": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    }
+  }
+}

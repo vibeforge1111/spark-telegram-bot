@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { sparkConfigModulesDir, sparkSecretPythonBridgeCommand } from '../src/profileEnv';
+import { applySparkTelegramProfileSecrets, sparkConfigModulesDir, sparkSecretPythonBridgeCommand } from '../src/profileEnv';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -46,4 +46,33 @@ test('runtime health wrapper forwards profile arguments', () => {
 
   assert.match(wrapper, /process\.argv\.slice\(2\)/);
   assert.match(wrapper, /\.\.\.forwardedArgs/);
+});
+
+test('profile secret loader falls back to global relay secret', () => {
+  const env = {
+    TEST_BOT_TOKEN: '123:test-profile-token'
+  } as NodeJS.ProcessEnv;
+
+  applySparkTelegramProfileSecrets('spark-recursive', env, (secretId) => {
+    if (secretId === 'telegram.relay_secret') return 'relay-secret-from-global';
+    return null;
+  });
+
+  assert.equal(env.BOT_TOKEN, '123:test-profile-token');
+  assert.equal(env.TELEGRAM_RELAY_SECRET, 'relay-secret-from-global');
+  assert.equal(env.SPARK_PROFILE_RELAY_SECRET_MISSING, undefined);
+});
+
+test('profile relay secret overrides global relay secret', () => {
+  const env = {
+    TEST_BOT_TOKEN: '123:test-profile-token'
+  } as NodeJS.ProcessEnv;
+
+  applySparkTelegramProfileSecrets('spark-agi', env, (secretId) => {
+    if (secretId === 'telegram.profiles.spark-agi.relay_secret') return 'relay-secret-from-profile';
+    if (secretId === 'telegram.relay_secret') return 'relay-secret-from-global';
+    return null;
+  });
+
+  assert.equal(env.TELEGRAM_RELAY_SECRET, 'relay-secret-from-profile');
 });

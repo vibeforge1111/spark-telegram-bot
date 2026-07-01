@@ -4,6 +4,10 @@ import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
 import { DEFAULT_LOCAL_SERVICE_TIMEOUT_MS, localServiceDefaultTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
 import type { SkillTier } from './userTier';
+import {
+  harnessExecutionAuthorityFailureReason,
+  type HarnessExecutionAuthorityExpectation
+} from './harnessExecutionAuthority';
 
 const SPAWNER_UI_URL = resolveSpawnerUiUrl();
 const PROJECT_PREVIEW_URL = resolveProjectPreviewBaseUrl();
@@ -20,6 +24,7 @@ interface RunGoalInput {
   userId: string;
   requestId: string;
   traceRef?: string;
+  executionAuthority?: unknown;
   tier?: SkillTier;
   providers?: string[];
   promptMode?: 'simple' | 'orchestrator';
@@ -40,6 +45,7 @@ interface CreatorMissionInput {
   privacyMode?: CreatorPrivacyMode;
   riskLevel?: CreatorRiskLevel;
   executionPolicy?: 'manual_run' | 'read_only';
+  executionAuthority?: unknown;
 }
 
 interface CreatorIntentPacket {
@@ -95,11 +101,27 @@ interface CreatorMissionResult {
 interface CreatorMissionExecutionInput {
   missionId?: string;
   requestId?: string;
+  executionAuthority?: unknown;
+}
+
+interface MissionCommandOptions {
+  executionAuthority?: unknown;
+}
+
+const MISSING_EXECUTION_AUTHORITY_ERROR = 'Harness Core execution authority is required before Spawner adapter calls.';
+
+function executionAuthorityError(
+  value: unknown,
+  expected: HarnessExecutionAuthorityExpectation | HarnessExecutionAuthorityExpectation[]
+): string | null {
+  const reason = harnessExecutionAuthorityFailureReason(value, expected);
+  return reason ? `${MISSING_EXECUTION_AUTHORITY_ERROR} (${reason})` : null;
 }
 
 interface CreatorMissionLookupInput {
   missionId?: string;
   requestId?: string;
+  executionAuthority?: unknown;
 }
 
 interface CreatorMissionStatusResult {
@@ -129,6 +151,7 @@ interface CreatorMissionValidationInput {
   missionId?: string;
   requestId?: string;
   maxCommands?: number;
+  executionAuthority?: unknown;
 }
 
 interface CreatorValidationCommandResult {
@@ -184,6 +207,12 @@ interface BoardEntry {
     summary?: string;
   }>;
   providerSummary?: string;
+  projectLineage?: {
+    projectId?: string | null;
+    projectPath?: string | null;
+    previewUrl?: string | null;
+    parentMissionId?: string | null;
+  } | null;
 }
 
 const STALE_RUNNING_MISSION_MS = 15 * 60 * 1000;
@@ -242,7 +271,7 @@ function normalizeBucket(value: unknown): BoardEntry[] {
 
 function isFreshRunningEntry(entry: BoardEntry): boolean {
   const ageMs = Date.now() - Date.parse(entry.lastUpdated);
-  return !Number.isFinite(ageMs) || ageMs < STALE_RUNNING_MISSION_MS;
+  return Number.isFinite(ageMs) && ageMs < STALE_RUNNING_MISSION_MS;
 }
 
 async function fetchBoardSnapshot(): Promise<BoardSnapshot> {
@@ -280,6 +309,67 @@ function latestFailureEntry(board: BoardSnapshot): BoardEntry | null {
   ];
   entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
   return entries.find((entry) => entry.status === 'failed' || entry.lastEventType === 'mission_failed') || null;
+}
+
+function boardEntryLineageKeys(entry: BoardEntry): Set<string> {
+  const keys = new Set<string>();
+  const add = (prefix: string, value: string | null | undefined) => {
+    const normalized = value?.trim().toLowerCase();
+    if (normalized) keys.add(`${prefix}:${normalized}`);
+  };
+  const text = [
+    entry.missionId,
+    entry.missionName,
+    entry.taskName,
+    entry.providerSummary,
+    entry.lastSummary,
+    entry.projectLineage?.projectId,
+    entry.projectLineage?.projectPath,
+    entry.projectLineage?.previewUrl,
+    entry.projectLineage?.parentMissionId
+  ].filter((part): part is string => Boolean(part?.trim())).join('\n');
+
+  add('mission-ref', entry.missionId);
+  add('mission-ref', entry.projectLineage?.parentMissionId);
+  add('project', entry.projectLineage?.projectId);
+  add('project-path', entry.projectLineage?.projectPath);
+  add('preview', entry.projectLineage?.previewUrl);
+
+  for (const match of text.matchAll(/\bmission-\d{6,}\b/gi)) {
+    add('mission-ref', match[0]);
+  }
+
+  return keys;
+}
+
+function hasSharedLineage(left: BoardEntry, right: BoardEntry): boolean {
+  const leftKeys = boardEntryLineageKeys(left);
+  if (leftKeys.size === 0) return false;
+  for (const key of boardEntryLineageKeys(right)) {
+    if (leftKeys.has(key)) return true;
+  }
+  return false;
+}
+
+function findNewerNonCompletedLineageEntry(candidate: BoardEntry, board: BoardSnapshot): BoardEntry | null {
+  const candidateUpdated = Date.parse(candidate.lastUpdated || '');
+  const entries = [
+    ...board.running,
+    ...board.paused,
+    ...board.failed,
+    ...board.cancelled,
+    ...board.created
+  ]
+    .filter((entry) => entry.missionId !== candidate.missionId)
+    .filter((entry) => {
+      const entryUpdated = Date.parse(entry.lastUpdated || '');
+      if (!Number.isFinite(candidateUpdated)) return Number.isFinite(entryUpdated);
+      return Number.isFinite(entryUpdated) && entryUpdated > candidateUpdated;
+    })
+    .filter((entry) => hasSharedLineage(candidate, entry));
+
+  entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
+  return entries[0] || null;
 }
 
 function isKnownProviderLabel(value: string | null | undefined): value is string {
@@ -365,7 +455,9 @@ function rootRouteLooksLikeProject(text: string): boolean {
 function projectOpenLinkForEntry(entry: BoardEntry): string | null {
   const text = providerResultText(entry);
   const projectPath = extractProjectPathFromText(text);
-  return extractPreviewUrlFromText(text)
+  return entry.projectLineage?.previewUrl?.trim()
+    || (entry.projectLineage?.projectPath?.trim() ? projectPreviewLink(entry.projectLineage.projectPath) : null)
+    || extractPreviewUrlFromText(text)
     || (projectPath ? projectPreviewLink(projectPath) : null)
     || (rootRouteLooksLikeProject(text) ? PROJECT_PREVIEW_URL.replace(/\/+$/, '') : null);
 }
@@ -376,6 +468,7 @@ function isOperationalProbeMission(entry: BoardEntry): boolean {
   return /\btelegram\s+golden\s+path\s+probe\b/i.test(title)
     || /\bno[-\s]*edit\s+spawner\s+probe\b/i.test(title)
     || /\bgolden[-\s]*path\s+health\s+probe\b/i.test(text)
+    || /\bspark\s+run:\s*reply\s+with\s+exactly\b/i.test(title)
     || /\breply\s+with\s+exactly\b[\s\S]{0,140}\bdo\s+not\s+edit\s+files\b/i.test(text);
 }
 
@@ -769,6 +862,85 @@ function providerStatusRows(providers: unknown): string[] {
   return rows.length > 0 ? rows : ['• none'];
 }
 
+function stringField(record: unknown, key: string): string | null {
+  if (!record || typeof record !== 'object') return null;
+  const value = (record as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function missionStatusFromEvent(eventType: string | null): string | null {
+  if (eventType === 'mission_completed') return 'completed';
+  if (eventType === 'mission_failed' || eventType === 'task_failed') return 'failed';
+  if (eventType === 'mission_cancelled' || eventType === 'task_cancelled') return 'cancelled';
+  if (eventType === 'mission_paused') return 'paused';
+  if (eventType) return 'running';
+  return null;
+}
+
+function missionStatusSentence(status: string | null, title: string): string {
+  if (status === 'completed') return `${title} completed.`;
+  if (status === 'failed') return `${title} failed.`;
+  if (status === 'cancelled') return `${title} was cancelled.`;
+  if (status === 'paused') return `${title} is paused.`;
+  if (status === 'running') return `${title} is still running.`;
+  return `${title} has Mission Control evidence.`;
+}
+
+function safeMissionEvidenceLine(value: string): string {
+  if (/[/\\]\.spark[/\\]workspaces[/\\]/i.test(value) || /[A-Z]:\\Users\\/i.test(value)) {
+    return 'Spawner recorded local workspace evidence; private local paths are hidden here.';
+  }
+  return value;
+}
+
+function formatMissionStatusReadReply(missionId: string, data: unknown): string {
+  const snapshot = data && typeof data === 'object' ? (data as Record<string, any>).snapshot : null;
+  const recent = Array.isArray(snapshot?.recent) ? snapshot.recent : [];
+  const latest = recent[0] && typeof recent[0] === 'object' ? recent[0] : null;
+  const completionEvidence = snapshot?.completionEvidence && typeof snapshot.completionEvidence === 'object'
+    ? snapshot.completionEvidence
+    : null;
+  const terminalStatus = stringField(completionEvidence, 'terminalStatus') || missionStatusFromEvent(stringField(latest, 'eventType'));
+  const title = stringField(latest, 'missionName') || missionId;
+  const providerSummary = stringField(snapshot, 'providerSummary');
+  const latestSummary = stringField(latest, 'summary');
+
+  if (!recent.length && !providerSummary && !terminalStatus) {
+    return [
+      `I could not find ${missionId} in Mission Control.`,
+      '',
+      `Board: ${missionScopedBoardUrl(missionId)}`
+    ].join('\n');
+  }
+
+  const lines = [
+    missionStatusSentence(terminalStatus, title),
+    '',
+    'Evidence'
+  ];
+  if (terminalStatus) lines.push(`- Terminal status: ${formatCreatorReadiness(terminalStatus)}`);
+  if (providerSummary) lines.push(`- Provider: ${safeMissionEvidenceLine(providerSummary)}`);
+  else if (latestSummary) lines.push(`- Latest event: ${safeMissionEvidenceLine(latestSummary)}`);
+
+  lines.push('', 'Decision');
+  if (terminalStatus === 'completed') {
+    lines.push('- Treat it as completed: yes.');
+    lines.push('- Rerun: only if you want a new polish pass.');
+  } else if (terminalStatus === 'failed' || terminalStatus === 'cancelled') {
+    lines.push('- Treat it as completed: no.');
+    lines.push('- Rerun: yes, if you still want this mission outcome.');
+  } else if (terminalStatus === 'running' || terminalStatus === 'paused') {
+    lines.push('- Treat it as completed: no.');
+    lines.push('- Rerun: not yet; inspect or resume the current mission first.');
+  } else {
+    lines.push('- Treat it as completed: not proven.');
+    lines.push('- Rerun: decide after checking the board evidence.');
+  }
+
+  lines.push('', `Board: ${missionScopedBoardUrl(missionId)}`);
+  return lines.join('\n');
+}
+
 function formatCreatorReadiness(value: string | undefined): string {
   return (value || 'unknown').replace(/_/g, ' ');
 }
@@ -892,7 +1064,11 @@ function countValidationResults(run: CreatorValidationRun | null, status: Creato
 function formatValidationResultLine(result: CreatorValidationCommandResult): string {
   const artifact = result.artifact_id || result.artifact_type || 'unknown artifact';
   const status = result.status || 'unknown';
-  const suffix = result.error ? ` (${result.error})` : '';
+  const error = result.error || '';
+  const safeError = /(?:repository path not found|required path not found|no such file|enoent).*(?:\/Users\/|\.spark\/modules|[A-Z]:\\)/i.test(error)
+    ? 'required local artifact path is not available'
+    : error;
+  const suffix = safeError ? ` (${safeError})` : '';
   return `${status}: ${artifact}${suffix}`;
 }
 
@@ -946,8 +1122,8 @@ export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUr
     'Capability gain needs baseline, candidate, held-out or trap evidence before Rec says the path made the agent better.',
     '',
     'Workspace',
-    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
     `Board: ${kanbanUrl}`,
+    'Canvas will follow after nodes, skill pairings, and workflow handoff are materialized.',
     '',
     'Next',
     ...(readOnly
@@ -1001,8 +1177,8 @@ export function formatCreatorMissionStatusSummary(
     '',
     'Workspace',
     `${artifactCount} artifact plan${artifactCount === 1 ? '' : 's'}`,
-    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
-    `Board: ${kanbanUrl}`
+    `Board: ${kanbanUrl}`,
+    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : [])
   ].filter((line): line is string => Boolean(line)).join('\n');
 }
 
@@ -1033,8 +1209,8 @@ export function formatCreatorMissionExecutionSummary(
     ...(result.reason ? [`Note: ${result.reason}`] : []),
     '',
     'Workspace',
-    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
-    `Board: ${kanbanUrl}`
+    `Board: ${kanbanUrl}`,
+    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : [])
   ].join('\n');
 }
 
@@ -1054,9 +1230,16 @@ export function formatCreatorMissionValidationSummary(
   const canvasUrl = absoluteSpawnerUrl(trace.links?.canvas, baseUrl);
   const failedOrSkipped = results.filter((item) => item.status === 'failed' || item.status === 'skipped').slice(0, 5);
   const status = result.status || run?.status || 'unknown';
+  const blockers = Array.isArray(trace.blockers) ? trace.blockers.filter((blocker) => String(blocker).trim()) : [];
+  const promotionBlocked = blockers.length > 0 ||
+    /block/.test(String(trace.stage_status || '').toLowerCase()) ||
+    /promotion[_-\s]*blocked/.test(String(trace.current_stage || '').toLowerCase());
+  const headline = status === 'passed' && promotionBlocked
+    ? '🟡 Creator artifact validation passed; promotion is still blocked.'
+    : `${creatorValidationIcon(status)} Creator validation ${formatCreatorReadiness(status)}.`;
 
   return [
-    `${creatorValidationIcon(status)} Creator validation ${formatCreatorReadiness(status)}.`,
+    headline,
     '',
     'Checks',
     `${results.length} command${results.length === 1 ? '' : 's'}`,
@@ -1066,13 +1249,14 @@ export function formatCreatorMissionValidationSummary(
     ...(failedOrSkipped.length > 0 ? ['', 'Needs attention', ...failedOrSkipped.map(formatValidationResultLine)] : []),
     '',
     'Ability',
-    status === 'passed'
+    status === 'passed' && !promotionBlocked
       ? 'The path can claim improvement only where the benchmark pack shows a before/after gain.'
-      : 'No higher-ability claim yet; fix the checks or rerun the benchmark pack first.',
+      : 'No higher-ability claim yet; promotion needs baseline, candidate, delta, held-out/trap verdicts, and benchmark refs.',
+    ...(promotionBlocked && blockers.length > 0 ? ['', 'Promotion blocker', blockers[0]] : []),
     '',
     'Workspace',
-    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
-    `Board: ${kanbanUrl}`
+    `Board: ${kanbanUrl}`,
+    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : [])
   ].join('\n');
 }
 
@@ -1087,6 +1271,14 @@ export const spawner = {
   },
 
   async runGoal(input: RunGoalInput): Promise<RunGoalResult> {
+    const authorityError = executionAuthorityError(input.executionAuthority, {
+      toolName: 'spawner.run',
+      ownerSystem: 'spawner-ui',
+      actionType: 'launch_mission'
+    });
+    if (authorityError) {
+      return { success: false, error: authorityError };
+    }
     try {
       const relay = telegramRelayIdentityFromEnv();
       const res = await postLocalServiceWithRetry(
@@ -1102,7 +1294,8 @@ export const spawner = {
           ...(input.tier ? { tier: input.tier } : {}),
           ...(SPARK_RUN_PROJECT_PATH ? { projectPath: SPARK_RUN_PROJECT_PATH } : {}),
           ...(input.providers && input.providers.length > 0 ? { providers: input.providers } : {}),
-          ...(input.promptMode ? { promptMode: input.promptMode } : {})
+          ...(input.promptMode ? { promptMode: input.promptMode } : {}),
+          executionAuthority: input.executionAuthority
         },
         localServiceTimeoutMs('SPARK_SPAWNER_RUN_TIMEOUT_MS')
       );
@@ -1122,6 +1315,21 @@ export const spawner = {
   },
 
   async creatorMission(input: CreatorMissionInput): Promise<CreatorMissionResult> {
+    const authorityError = executionAuthorityError(input.executionAuthority, [
+      {
+        toolName: 'spawner.creator_mission',
+        ownerSystem: 'spawner-ui',
+        actionType: 'create_domain_chip'
+      },
+      {
+        toolName: 'creator.mission.create',
+        ownerSystem: 'spawner-ui',
+        actionType: 'create_domain_chip'
+      }
+    ]);
+    if (authorityError) {
+      return { success: false, error: authorityError };
+    }
     try {
       const res = await postLocalServiceWithRetry(
         `${SPAWNER_UI_URL}/api/creator/mission`,
@@ -1131,7 +1339,8 @@ export const spawner = {
           ...(input.missionId ? { missionId: input.missionId } : {}),
           ...(input.privacyMode ? { privacyMode: input.privacyMode } : {}),
           ...(input.riskLevel ? { riskLevel: input.riskLevel } : {}),
-          ...(input.executionPolicy ? { executionPolicy: input.executionPolicy } : {})
+          ...(input.executionPolicy ? { executionPolicy: input.executionPolicy } : {}),
+          executionAuthority: input.executionAuthority
         },
         localServiceTimeoutMs('SPARK_CREATOR_MISSION_TIMEOUT_MS')
       );
@@ -1160,12 +1369,28 @@ export const spawner = {
   },
 
   async creatorMissionExecute(input: CreatorMissionExecutionInput): Promise<CreatorMissionExecutionResult> {
+    const authorityError = executionAuthorityError(input.executionAuthority, [
+      {
+        toolName: 'spawner.creator_mission.run',
+        ownerSystem: 'spawner-ui',
+        actionType: 'launch_mission'
+      },
+      {
+        toolName: 'spawner.dispatch',
+        ownerSystem: 'spawner-ui',
+        actionType: 'launch_mission'
+      }
+    ]);
+    if (authorityError) {
+      return { success: false, error: authorityError };
+    }
     try {
       const res = await postLocalServiceWithRetry(
         `${SPAWNER_UI_URL}/api/creator/mission/execute`,
         {
           ...(input.missionId ? { missionId: input.missionId } : {}),
-          ...(input.requestId ? { requestId: input.requestId } : {})
+          ...(input.requestId ? { requestId: input.requestId } : {}),
+          executionAuthority: input.executionAuthority
         },
         localServiceTimeoutMs('SPARK_CREATOR_MISSION_EXECUTE_TIMEOUT_MS')
       );
@@ -1199,6 +1424,15 @@ export const spawner = {
   },
 
   async creatorMissionStatus(input: CreatorMissionLookupInput): Promise<CreatorMissionStatusResult> {
+    const authorityError = executionAuthorityError(input.executionAuthority, {
+      toolName: 'spawner.creator_mission.status',
+      ownerSystem: 'spawner-ui',
+      actionType: 'read'
+    });
+    if (authorityError) {
+      return { success: false, error: authorityError };
+    }
+
     try {
       const params = new URLSearchParams();
       if (input.missionId) params.set('missionId', input.missionId);
@@ -1233,13 +1467,22 @@ export const spawner = {
   },
 
   async creatorMissionValidate(input: CreatorMissionValidationInput): Promise<CreatorMissionValidationResult> {
+    const authorityError = executionAuthorityError(input.executionAuthority, {
+      toolName: 'spawner.creator_mission.validate',
+      ownerSystem: 'spawner-ui',
+      actionType: 'launch_mission'
+    });
+    if (authorityError) {
+      return { success: false, error: authorityError };
+    }
     try {
       const res = await postLocalServiceWithRetry(
         `${SPAWNER_UI_URL}/api/creator/mission/validate`,
         {
           ...(input.missionId ? { missionId: input.missionId } : {}),
           ...(input.requestId ? { requestId: input.requestId } : {}),
-          ...(typeof input.maxCommands === 'number' ? { maxCommands: input.maxCommands } : {})
+          ...(typeof input.maxCommands === 'number' ? { maxCommands: input.maxCommands } : {}),
+          executionAuthority: input.executionAuthority
         },
         localServiceTimeoutMs('SPARK_CREATOR_MISSION_VALIDATE_TIMEOUT_MS')
       );
@@ -1267,16 +1510,55 @@ export const spawner = {
     }
   },
 
-  async missionCommand(action: MissionAction, missionId: string): Promise<{ success: boolean; message: string }> {
+  async missionCommand(action: MissionAction, missionId: string, options: MissionCommandOptions = {}): Promise<{ success: boolean; message: string }> {
+    const missionControlAuthorityExpectation = action === 'status'
+      ? [
+          {
+            toolName: 'spawner.mission_control.status',
+            ownerSystem: 'spawner-ui',
+            actionType: 'read' as const
+          },
+          {
+            toolName: 'spawner.mission_control.command',
+            ownerSystem: 'spawner-ui',
+            actionType: 'read' as const
+          }
+        ]
+      : {
+          toolName: 'spawner.mission_control.command',
+          ownerSystem: 'spawner-ui',
+          actionType: 'run_command' as const
+        };
+    const authorityError = executionAuthorityError(options.executionAuthority, missionControlAuthorityExpectation);
+    if (authorityError) {
+      return { success: false, message: authorityError };
+    }
     try {
+      if (action === 'status') {
+        const res = await axios.get(
+          `${SPAWNER_UI_URL}/api/mission-control/status?missionId=${encodeURIComponent(missionId)}`,
+          spawnerAxiosOptions(10000)
+        );
+
+        if (res.data?.ok === false) {
+          return {
+            success: false,
+            message: res.data?.error || `Mission ${missionId} status read was rejected.`
+          };
+        }
+
+        return { success: true, message: formatMissionStatusReadReply(missionId, res.data) };
+      }
+
       const res = await axios.post(
         `${SPAWNER_UI_URL}/api/mission-control/command`,
         {
           action,
           missionId,
-          source: 'telegram'
+          source: 'telegram',
+          executionAuthority: options.executionAuthority
         },
-        spawnerAxiosOptions(10000)
+        spawnerAxiosOptions(10000, {}, { mode: 'events' })
       );
 
       if (res.data?.ok === false) {
@@ -1284,35 +1566,6 @@ export const spawner = {
           success: false,
           message: res.data?.error || `Mission ${missionId} command was rejected.`
         };
-      }
-
-      if (action === 'status') {
-        const status = res.data?.status;
-        const statusLabel = missionStatusLabel(status);
-        const boardStatus = typeof status?.boardStatus === 'string' && status.boardStatus.trim()
-          ? formatCreatorReadiness(status.boardStatus)
-          : null;
-        const lines = [
-          `Mission is ${statusLabel}.`,
-          '',
-          'State',
-          ...(boardStatus ? [`• Board: ${boardStatus}`] : []),
-          `• Paused: ${status?.paused ? 'yes' : 'no'}`,
-          `• Complete: ${status?.allComplete ? 'yes' : 'no'}`,
-          '',
-          'Providers',
-          ...providerStatusRows(status?.providers),
-          '',
-          'Next',
-          status?.allComplete
-            ? '• Inspect the handoff in Spawner.'
-            : status?.paused
-              ? `• /mission resume ${missionId}`
-              : `• /mission pause ${missionId}`,
-          '',
-          ...missionInspectionLines(missionId)
-        ];
-        return { success: true, message: lines.join('\n') };
       }
 
       const actionLabel = action === 'kill' ? 'stop' : action;
@@ -1335,7 +1588,7 @@ export const spawner = {
     }
   },
 
-  async pauseContextualActiveMission(): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+  async pauseContextualActiveMission(options: MissionCommandOptions = {}): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
     try {
       const board = await fetchBoardSnapshot();
       const running = board.running;
@@ -1343,7 +1596,7 @@ export const spawner = {
       if (running.length === 1) {
         const mission = running[0];
         const title = missionTitle(mission);
-        const result = await spawner.missionCommand('pause', mission.missionId);
+        const result = await spawner.missionCommand('pause', mission.missionId, options);
         if (!result.success) {
           return {
             success: false,
@@ -1480,7 +1733,7 @@ export const spawner = {
     }
   },
 
-  async resumeContextualPausedMission(): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+  async resumeContextualPausedMission(options: MissionCommandOptions = {}): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
     try {
       const board = await fetchBoardSnapshot();
       const paused = board.paused;
@@ -1488,7 +1741,7 @@ export const spawner = {
       if (paused.length === 1) {
         const mission = paused[0];
         const title = missionTitle(mission);
-        const result = await spawner.missionCommand('resume', mission.missionId);
+        const result = await spawner.missionCommand('resume', mission.missionId, options);
         if (!result.success) {
           return {
             success: false,
@@ -1616,7 +1869,11 @@ export const spawner = {
     }
   },
 
-  async confirmContextualMissionCancel(missionId: string, title: string): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+  async confirmContextualMissionCancel(
+    missionId: string,
+    title: string,
+    options: MissionCommandOptions = {}
+  ): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
     try {
       const board = await fetchBoardSnapshot();
       const active = [...board.running, ...board.paused];
@@ -1634,7 +1891,7 @@ export const spawner = {
       }
 
       const currentTitle = missionTitle(mission) || title;
-      const result = await spawner.missionCommand('kill', missionId);
+      const result = await spawner.missionCommand('kill', missionId, options);
       if (!result.success) {
         return {
           success: false,
@@ -1813,6 +2070,21 @@ export const spawner = {
       }
 
       const openLink = projectOpenLinkForEntry(latest);
+      const newerRelated = findNewerNonCompletedLineageEntry(latest, board);
+      if (openLink && newerRelated) {
+        return {
+          success: true,
+          message: [
+            `I found a completed preview for ${missionTitle(latest)}, but I would not treat it as the current finished version yet.`,
+            '',
+            `A newer related Mission Control item is ${statusWord(newerRelated.status)}: ${missionTitle(newerRelated)}.`,
+            '',
+            'Inspect',
+            `â€¢ Preview: ${openLink}`,
+            `â€¢ Board: ${missionScopedBoardUrl(newerRelated.missionId)}`
+          ].join('\n')
+        };
+      }
       if (!openLink) {
         return {
           success: true,

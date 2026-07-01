@@ -1,3 +1,9 @@
+import {
+  createTelegramLiveQaEvidencePacket,
+  type TelegramLiveQaEvidencePacketV1,
+  type TelegramLiveQaVerdict
+} from '@spark/harness-core';
+
 export type LiveNlRisk = 'safe' | 'mission' | 'writes_files' | 'external';
 
 export interface LiveNlCommandCase {
@@ -23,13 +29,50 @@ export interface LiveNlVerdictReportOptions {
   suite?: string | null;
 }
 
+export interface LiveNlEvidencePacketOptions {
+  generatedAt?: Date;
+  title?: string;
+  catalog?: string;
+  suite?: string | null;
+  includeRisky?: boolean;
+  runId?: string;
+  requiredSessionEvidence?: Partial<TelegramLiveQaEvidencePacketV1['required_session_evidence']>;
+}
+
 export interface LiveNlCopyPasteOptions {
   title?: string;
 }
 
+type LiveNlPacketCase = TelegramLiveQaEvidencePacketV1['cases'][number];
+type LiveNlObservedTurn = LiveNlPacketCase['observed_turns'][number];
+type LiveNlSideEffects = LiveNlPacketCase['side_effects'];
+type LiveNlEvidenceRefs = LiveNlPacketCase['evidence_refs'];
+
+export interface LiveNlObservationFile {
+  generatedAt?: string;
+  runId?: string;
+  title?: string;
+  session?: Partial<TelegramLiveQaEvidencePacketV1['required_session_evidence']>;
+  cases: LiveNlCaseObservation[];
+}
+
+export interface LiveNlCaseObservation {
+  id: string;
+  verdict: TelegramLiveQaVerdict;
+  actualRoute?: string | null;
+  actualOutcome?: string | null;
+  replies?: Array<string | null>;
+  observedTurns?: Array<Partial<LiveNlObservedTurn> & { turnIndex?: number }>;
+  sideEffects?: Partial<LiveNlSideEffects>;
+  evidenceRefs?: Partial<LiveNlEvidenceRefs>;
+  issue?: string | null;
+  fixCommit?: string | null;
+  retestRequired?: boolean;
+}
+
 export const LIVE_NL_SUITE_ALIASES: Record<string, string[]> = {
   memory_architecture: ['memory', 'self_awareness', 'wiki', 'anti_drift'],
-  routing_architecture: ['route_firewall', 'operator', 'access', 'diagnostics', 'spawner_flow', 'research']
+  routing_architecture: ['harness_core_authority', 'operator', 'access', 'diagnostics', 'spawner_flow', 'research']
 };
 
 function objectValue(value: unknown): Record<string, unknown> | null {
@@ -128,6 +171,326 @@ function indentedBlock(text: string): string {
     .split(/\r?\n/)
     .map((line) => `    ${line}`)
     .join('\n');
+}
+
+export function buildLiveNlEvidencePacket(
+  cases: LiveNlCommandCase[],
+  options: LiveNlEvidencePacketOptions = {}
+): TelegramLiveQaEvidencePacketV1 {
+  const generatedAt = (options.generatedAt || new Date()).toISOString();
+  const catalog = options.catalog || 'natural-language-live-commands';
+  const suite = options.suite?.trim() || null;
+  const includeRisky = Boolean(options.includeRisky);
+
+  return createTelegramLiveQaEvidencePacket({
+    generated_at: generatedAt,
+    run_id: options.runId,
+    title: options.title || 'Spark Telegram Live QA Evidence Packet',
+    catalog,
+    suite,
+    include_risky: includeRisky,
+    required_session_evidence: options.requiredSessionEvidence,
+    cases: buildLiveNlPacketCases(cases)
+  });
+}
+
+export function buildLiveNlObservationTemplate(
+  cases: LiveNlCommandCase[],
+  options: LiveNlEvidencePacketOptions = {}
+): LiveNlObservationFile {
+  const generatedAt = (options.generatedAt || new Date()).toISOString();
+
+  return {
+    generatedAt,
+    runId: options.runId,
+    title: options.title || 'Spark Telegram Live QA Observation Template',
+    session: options.requiredSessionEvidence,
+    cases: cases.map((entry) => ({
+      id: entry.id,
+      verdict: 'untested',
+      actualRoute: null,
+      actualOutcome: null,
+      observedTurns: liveNlCaseTurns(entry).map((turn, index) => ({
+        turnIndex: index + 1,
+        prompt: turn,
+        reply: null,
+        reply_timestamp: null
+      })),
+      sideEffects: {
+        files_changed: null,
+        memory_written: null,
+        mission_started: null,
+        external_network_called: null,
+        pr_opened: null,
+        publish_or_deploy_started: null,
+        schedule_changed: null,
+        tool_or_browser_used: null
+      },
+      evidenceRefs: {
+        authorization_ledgers: [],
+        tool_ledgers: [],
+        traces: [],
+        runtime_status: [],
+        screenshots: [],
+        commits: [],
+        prs: []
+      },
+      issue: null,
+      fixCommit: null,
+      retestRequired: false
+    }))
+  };
+}
+
+function buildLiveNlPacketCases(cases: LiveNlCommandCase[]): LiveNlPacketCase[] {
+  return cases.map((entry, index) => {
+    const turns = liveNlCaseTurns(entry);
+    return {
+      ordinal: index + 1,
+      id: entry.id,
+      suite: entry.suite,
+      risk: entry.risk,
+      expected_route: entry.expectedRoute,
+      expected_outcome: entry.expectedOutcome,
+      verdict: 'untested',
+      actual_route: null,
+      actual_outcome: null,
+      observed_turns: turns.map((turn, turnIndex) => ({
+        turn_index: turnIndex + 1,
+        prompt: turn,
+        reply: null,
+        reply_timestamp: null
+      })),
+      side_effects: {
+        files_changed: null,
+        memory_written: null,
+        mission_started: null,
+        external_network_called: null,
+        pr_opened: null,
+        publish_or_deploy_started: null,
+        schedule_changed: null,
+        tool_or_browser_used: null
+      },
+      evidence_refs: {
+        authorization_ledgers: [],
+        tool_ledgers: [],
+        traces: [],
+        runtime_status: [],
+        screenshots: [],
+        commits: [],
+        prs: []
+      },
+      issue: null,
+      fix_commit: null,
+      retest_required: false
+    };
+  });
+}
+
+const LIVE_NL_VERDICTS = new Set<TelegramLiveQaVerdict>(['pass', 'fail', 'blocked', 'needs-retest', 'untested']);
+const LIVE_NL_SIDE_EFFECT_KEYS: Array<keyof LiveNlSideEffects> = [
+  'files_changed',
+  'memory_written',
+  'mission_started',
+  'external_network_called',
+  'pr_opened',
+  'publish_or_deploy_started',
+  'schedule_changed',
+  'tool_or_browser_used'
+];
+const LIVE_NL_EVIDENCE_REF_KEYS: Array<keyof LiveNlEvidenceRefs> = [
+  'authorization_ledgers',
+  'tool_ledgers',
+  'traces',
+  'runtime_status',
+  'screenshots',
+  'commits',
+  'prs'
+];
+
+function nullableStringFromRecord(record: Record<string, unknown>, ...keys: string[]): string | null | undefined {
+  for (const key of keys) {
+    if (!(key in record)) continue;
+    const value = record[key];
+    if (value === null) return null;
+    if (typeof value === 'string') return value.trim() || null;
+  }
+  return undefined;
+}
+
+function booleanOrNull(value: unknown): boolean | null | undefined {
+  if (value === null) return null;
+  if (typeof value === 'boolean') return value;
+  return undefined;
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => typeof entry === 'string' ? entry.trim() : '').filter(Boolean);
+}
+
+function objectField(record: Record<string, unknown>, ...keys: string[]): Record<string, unknown> | null {
+  for (const key of keys) {
+    const value = record[key];
+    const object = objectValue(value);
+    if (object) return object;
+  }
+  return null;
+}
+
+function observationTurns(record: Record<string, unknown>): LiveNlCaseObservation['observedTurns'] {
+  const raw = record.observedTurns || record.observed_turns;
+  if (!Array.isArray(raw)) return undefined;
+  const turns: Array<Partial<LiveNlObservedTurn> & { turnIndex?: number }> = [];
+  for (const entry of raw) {
+    const turn = objectValue(entry);
+    if (!turn) continue;
+    const turnIndexValue = turn.turnIndex ?? turn.turn_index;
+    const turnIndex = typeof turnIndexValue === 'number' ? turnIndexValue : Number(turnIndexValue || 0);
+    turns.push({
+      turnIndex: Number.isFinite(turnIndex) && turnIndex > 0 ? turnIndex : undefined,
+      reply: nullableStringFromRecord(turn, 'reply'),
+      reply_timestamp: nullableStringFromRecord(turn, 'reply_timestamp', 'replyTimestamp') ?? null,
+      prompt: nullableStringFromRecord(turn, 'prompt') ?? undefined
+    });
+  }
+  return turns;
+}
+
+function parseCaseObservation(value: unknown, index: number): LiveNlCaseObservation {
+  const record = objectValue(value);
+  if (!record) throw new Error(`Live NL observation ${index + 1} is not an object.`);
+  const id = stringField(record, 'id');
+  const verdict = stringField(record, 'verdict') as TelegramLiveQaVerdict;
+  if (!id) throw new Error(`Live NL observation ${index + 1} needs id.`);
+  if (!LIVE_NL_VERDICTS.has(verdict)) {
+    throw new Error(`Live NL observation ${id} has unsupported verdict ${verdict || 'unknown'}.`);
+  }
+
+  const sideEffectInput = objectField(record, 'sideEffects', 'side_effects');
+  const sideEffects: Partial<LiveNlSideEffects> = {};
+  if (sideEffectInput) {
+    for (const key of LIVE_NL_SIDE_EFFECT_KEYS) {
+      const camelKey = key.replace(/_([a-z])/g, (_, char: string) => char.toUpperCase());
+      const parsed = booleanOrNull(sideEffectInput[key] ?? sideEffectInput[camelKey]);
+      if (parsed !== undefined) sideEffects[key] = parsed;
+    }
+  }
+
+  const evidenceInput = objectField(record, 'evidenceRefs', 'evidence_refs');
+  const evidenceRefs: Partial<LiveNlEvidenceRefs> = {};
+  if (evidenceInput) {
+    for (const key of LIVE_NL_EVIDENCE_REF_KEYS) {
+      const camelKey = key.replace(/_([a-z])/g, (_, char: string) => char.toUpperCase());
+      const refs = stringArray(evidenceInput[key] ?? evidenceInput[camelKey]);
+      if (refs.length > 0) evidenceRefs[key] = refs;
+    }
+  }
+
+  const replies = Array.isArray(record.replies)
+    ? record.replies.map((reply) => typeof reply === 'string' ? reply : null)
+    : undefined;
+
+  return {
+    id,
+    verdict,
+    actualRoute: nullableStringFromRecord(record, 'actualRoute', 'actual_route'),
+    actualOutcome: nullableStringFromRecord(record, 'actualOutcome', 'actual_outcome'),
+    replies,
+    observedTurns: observationTurns(record),
+    sideEffects,
+    evidenceRefs,
+    issue: nullableStringFromRecord(record, 'issue'),
+    fixCommit: nullableStringFromRecord(record, 'fixCommit', 'fix_commit'),
+    retestRequired: Boolean(record.retestRequired ?? record.retest_required)
+  };
+}
+
+export function parseLiveNlObservationFile(value: unknown): LiveNlObservationFile {
+  const record = objectValue(value);
+  if (!record) throw new Error('Live NL observation file must be a JSON object.');
+  const rawCases = record.cases;
+  if (!Array.isArray(rawCases)) throw new Error('Live NL observation file needs a cases array.');
+  const session = objectField(record, 'session', 'required_session_evidence') || undefined;
+  return {
+    generatedAt: stringField(record, 'generatedAt') || stringField(record, 'generated_at') || undefined,
+    runId: stringField(record, 'runId') || stringField(record, 'run_id') || undefined,
+    title: stringField(record, 'title') || undefined,
+    session: session as LiveNlObservationFile['session'],
+    cases: rawCases.map(parseCaseObservation)
+  };
+}
+
+function deriveOverallVerdict(cases: LiveNlPacketCase[]): TelegramLiveQaVerdict {
+  const verdicts = new Set(cases.map((entry) => entry.verdict));
+  if (verdicts.has('fail')) return 'fail';
+  if (verdicts.has('needs-retest')) return 'needs-retest';
+  if (verdicts.has('blocked')) return 'blocked';
+  if (verdicts.has('untested')) return 'untested';
+  return 'pass';
+}
+
+function mergeObservation(target: LiveNlPacketCase, observation: LiveNlCaseObservation): void {
+  target.verdict = observation.verdict;
+  if (observation.actualRoute !== undefined) target.actual_route = observation.actualRoute;
+  if (observation.actualOutcome !== undefined) target.actual_outcome = observation.actualOutcome;
+  if (observation.issue !== undefined) target.issue = observation.issue;
+  if (observation.fixCommit !== undefined) target.fix_commit = observation.fixCommit;
+  target.retest_required = Boolean(observation.retestRequired);
+
+  observation.replies?.forEach((reply, index) => {
+    if (!target.observed_turns[index]) return;
+    target.observed_turns[index].reply = reply;
+  });
+  observation.observedTurns?.forEach((turn, index) => {
+    const targetIndex = turn.turnIndex ? turn.turnIndex - 1 : index;
+    const targetTurn = target.observed_turns[targetIndex];
+    if (!targetTurn) return;
+    if (turn.reply !== undefined) targetTurn.reply = turn.reply;
+    if (turn.reply_timestamp !== undefined) targetTurn.reply_timestamp = turn.reply_timestamp;
+  });
+  if (observation.sideEffects) {
+    target.side_effects = { ...target.side_effects, ...observation.sideEffects };
+  }
+  if (observation.evidenceRefs) {
+    for (const key of LIVE_NL_EVIDENCE_REF_KEYS) {
+      const refs = observation.evidenceRefs[key];
+      if (refs?.length) target.evidence_refs[key] = Array.from(new Set([...target.evidence_refs[key], ...refs]));
+    }
+  }
+}
+
+export function buildObservedLiveNlEvidencePacket(
+  cases: LiveNlCommandCase[],
+  observations: LiveNlObservationFile,
+  options: LiveNlEvidencePacketOptions = {}
+): TelegramLiveQaEvidencePacketV1 {
+  const packetCases = buildLiveNlPacketCases(cases);
+  const byId = new Map(packetCases.map((entry) => [entry.id, entry]));
+  for (const observation of observations.cases) {
+    const target = byId.get(observation.id);
+    if (!target) throw new Error(`Live NL observation references unknown case ${observation.id}.`);
+    mergeObservation(target, observation);
+  }
+
+  const sessionEvidence = {
+    ...(options.requiredSessionEvidence || {}),
+    ...(observations.session || {})
+  };
+  if (!sessionEvidence.overall_verdict) {
+    sessionEvidence.overall_verdict = deriveOverallVerdict(packetCases);
+  }
+
+  return createTelegramLiveQaEvidencePacket({
+    generated_at: observations.generatedAt || options.generatedAt?.toISOString(),
+    run_id: observations.runId || options.runId,
+    title: observations.title || options.title || 'Spark Telegram Live QA Evidence Packet',
+    catalog: options.catalog || 'natural-language-live-commands',
+    suite: options.suite?.trim() || null,
+    include_risky: Boolean(options.includeRisky),
+    required_session_evidence: sessionEvidence,
+    cases: packetCases
+  });
 }
 
 export function formatLiveNlVerdictReport(

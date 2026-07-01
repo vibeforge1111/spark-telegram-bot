@@ -3,7 +3,6 @@ import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  codexClientConfigArgsFromModelCommand,
   normalizeModelProvider,
   normalizeModelRole,
   providerIsConfigured,
@@ -43,39 +42,9 @@ test('renders a model status help surface', () => {
     assert.doesNotMatch(status, /Choose one provider first/);
     assert.match(status, /\/model agent claude claude-sonnet-4-6/);
     assert.match(status, /\/model mission claude claude-opus-4-7/);
-    assert.match(status, /\/model codex fast high/);
   } finally {
     process.env = before;
   }
-});
-
-test('parses Codex client config model commands for Telegram', () => {
-  assert.deepEqual(codexClientConfigArgsFromModelCommand('agent codex'), { handled: false });
-  assert.deepEqual(codexClientConfigArgsFromModelCommand('codex status'), {
-    handled: true,
-    args: ['providers', 'codex']
-  });
-  assert.deepEqual(codexClientConfigArgsFromModelCommand('codex fast high'), {
-    handled: true,
-    args: ['providers', 'codex', '--service-tier', 'fast', '--reasoning-effort', 'high']
-  });
-  assert.deepEqual(codexClientConfigArgsFromModelCommand('codex model=gpt-5.5 tier=fast reasoning=high'), {
-    handled: true,
-    args: [
-      'providers',
-      'codex',
-      '--model',
-      'gpt-5.5',
-      '--service-tier',
-      'fast',
-      '--reasoning-effort',
-      'high'
-    ]
-  });
-  assert.match(
-    (codexClientConfigArgsFromModelCommand('codex weird') as { handled: true; error: string }).error,
-    /do not recognize/
-  );
 });
 
 test('renders recommended model versions for Claude families', () => {
@@ -127,6 +96,25 @@ test('refuses API providers when no key is configured', () => {
   assert.equal(providerIsConfigured('zai', {} as NodeJS.ProcessEnv), false);
   assert.equal(providerIsConfigured('codex', {} as NodeJS.ProcessEnv), true);
   assert.equal(providerIsConfigured('anthropic', {} as NodeJS.ProcessEnv), true);
+});
+
+test('provider allowlist blocks configured GLM model switching', async () => {
+  const before = { ...process.env };
+  try {
+    process.env.SPARK_MODULE_CONFIG_DIR = '__missing_test_dir__';
+    process.env.SPARK_ALLOWED_LLM_PROVIDERS = 'codex';
+    process.env.ZAI_API_KEY = 'zai-test-key';
+
+    const agentReply = await switchModelRoute('agent', 'zai');
+    const missionReply = await switchModelRoute('mission', 'zai');
+
+    assert.match(agentReply, /cannot switch agent chat\/runtime\/memory to zai/);
+    assert.match(agentReply, /Allowed chat provider\(s\): codex/);
+    assert.match(missionReply, /cannot switch missions to zai/);
+    assert.match(missionReply, /Allowed mission provider\(s\): codex/);
+  } finally {
+    process.env = before;
+  }
 });
 
 test('uses a lightweight Ollama default for local model switching', async () => {

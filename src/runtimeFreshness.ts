@@ -36,11 +36,40 @@ export interface RuntimeFreshnessOptions {
   paths?: string[];
 }
 
+const MODULE_ID = 'spark-telegram-bot';
+
+export const HARNESS_CORE_RUNTIME_PATHS = [
+  'src/harnessContract.ts',
+  'src/harnessCoreVNext.ts',
+  'src/harnessCoreLedger.ts',
+  'src/telegramActionAuthority.ts',
+  'src/telegramCommandAuthority.ts',
+  'src/telegramMediaAuthority.ts',
+  'src/legacyAuthorityInventory.ts',
+  'src/spawner.ts',
+  'src/schedule.ts',
+  'dist/harnessContract.js',
+  'dist/harnessCoreVNext.js',
+  'dist/harnessCoreLedger.js',
+  'dist/telegramActionAuthority.js',
+  'dist/telegramCommandAuthority.js',
+  'dist/telegramMediaAuthority.js',
+  'dist/legacyAuthorityInventory.js',
+  'dist/spawner.js',
+  'dist/schedule.js',
+  'node_modules/@spark/harness-core/package.json',
+  'node_modules/@spark/harness-core/SOURCE_MANIFEST.md',
+  'node_modules/@spark/harness-core/ts-dist/index.js',
+  'node_modules/@spark/harness-core/ts-dist/index.d.ts',
+  'node_modules/@spark/harness-core/ts-dist-esm/index.mjs'
+];
+
 export const ROUTE_CRITICAL_RUNTIME_PATHS = [
   'package.json',
   'package-lock.json',
   'tsconfig.json',
   'spark.toml',
+  ...HARNESS_CORE_RUNTIME_PATHS,
   'src/index.ts',
   'src/builderBridge.ts',
   'src/builderRepoPath.ts',
@@ -48,8 +77,7 @@ export const ROUTE_CRITICAL_RUNTIME_PATHS = [
   'src/conversationFrame.ts',
   'src/buildIntent.ts',
   'src/operatorActions.ts',
-  'src/routeFirewall.ts',
-  'src/routeArbiter.ts',
+  'src/routeTypes.ts',
   'src/naturalRouteDecision.ts',
   'src/conversationSmoke.ts',
   'src/naturalRouteTelemetry.ts',
@@ -80,8 +108,7 @@ export const ROUTE_CRITICAL_RUNTIME_PATHS = [
   'dist/conversationFrame.js',
   'dist/buildIntent.js',
   'dist/operatorActions.js',
-  'dist/routeFirewall.js',
-  'dist/routeArbiter.js',
+  'dist/routeTypes.js',
   'dist/naturalRouteDecision.js',
   'dist/conversationSmoke.js',
   'dist/naturalRouteTelemetry.js',
@@ -102,7 +129,20 @@ export const ROUTE_CRITICAL_RUNTIME_PATHS = [
 ];
 
 export function defaultRuntimeRoot(): string {
-  return path.join(os.homedir(), '.spark', 'modules', 'spark-telegram-bot', 'source');
+  if (process.env.SPARK_TELEGRAM_RUNTIME_ROOT) {
+    return path.resolve(process.env.SPARK_TELEGRAM_RUNTIME_ROOT);
+  }
+  const fallback = path.join(os.homedir(), '.spark', 'modules', MODULE_ID, 'source');
+  const installedJson = path.join(os.homedir(), '.spark', 'state', 'installed.json');
+  if (!fs.existsSync(installedJson)) return fallback;
+  try {
+    const installed = JSON.parse(fs.readFileSync(installedJson, 'utf8')) as Record<string, { path?: string; source?: string }>;
+    const record = installed[MODULE_ID];
+    const configured = record?.path || record?.source;
+    return configured ? path.resolve(configured) : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function normalizeRelPath(relPath: string): string {

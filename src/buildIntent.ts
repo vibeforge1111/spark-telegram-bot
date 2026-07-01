@@ -3,6 +3,9 @@
 
 export interface BuildIntent {
   projectPath: string | null;
+  requestedProjectPath: string | null;
+  projectPathEvidenceOnly: boolean;
+  projectPathRejectedReason: string | null;
   prd: string;
   projectName: string;
   buildMode: BuildMode;
@@ -93,6 +96,7 @@ function titleCaseProjectName(value: string): string {
     qa: 'QA',
     saas: 'SaaS',
     tg: 'TG',
+    cua: 'CUA',
     ui: 'UI'
   };
   return value
@@ -128,7 +132,7 @@ export function polishBuildProjectName(value: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 
-  const genericSparkMatch = clean.match(/^(something|anything|app|tool|game|site|website|page|dashboard|system)\s+(?:for\s+)?spark$/i);
+  const genericSparkMatch = clean.match(/^(something|anything|app|tool|game|site|website|page|dashboard|system|board|pad)\s+(?:for\s+)?spark$/i);
   if (genericSparkMatch) {
     const noun = genericSparkMatch[1].toLowerCase() === 'something' || genericSparkMatch[1].toLowerCase() === 'anything'
       ? 'App'
@@ -143,14 +147,19 @@ export function polishBuildProjectName(value: string): string {
   return polishInferredProjectName(clean);
 }
 
+const PRODUCT_TYPE_PATTERN = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|backend|api|service|bot|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page|board|pad)';
+
+const PRODUCT_PHRASE_PATTERNS = [
+  new RegExp(`^(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${PRODUCT_TYPE_PATTERN})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
+  new RegExp(`\\b(?:build|create|make|scaffold|ship|implement|design)\\s+(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${PRODUCT_TYPE_PATTERN})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
+  new RegExp(`\\bi\\s+(?:want|need|could\\s+use|would\\s+like)\\s+(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${PRODUCT_TYPE_PATTERN})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i')
+];
+
+const PRODUCT_TYPE_TAIL = new RegExp(`\\b${PRODUCT_TYPE_PATTERN}\\b$`, 'i');
+
 function inferProductPhraseProjectName(prd: string): string | null {
   const normalized = prd.replace(/\s+/g, ' ').trim();
-  const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|backend|api|service|bot|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page)';
-  const patterns = [
-    new RegExp(`^(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
-    new RegExp(`\\b(?:build|create|make|scaffold|ship|implement|design)\\s+(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
-    new RegExp(`\\bi\\s+(?:want|need|could\\s+use|would\\s+like)\\s+(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i')
-  ];
+  const patterns = PRODUCT_PHRASE_PATTERNS;
   const genericLeadingWords = new Set([
     'a',
     'an',
@@ -159,8 +168,12 @@ function inferProductPhraseProjectName(prd: string): string | null {
     'private',
     'local',
     'local-first',
+    'tiny',
+    'small',
+    'compact',
     'simple',
     'quick',
+    'practical',
     'polished',
     'real',
     'full',
@@ -184,7 +197,7 @@ function inferProductPhraseProjectName(prd: string): string | null {
       words = words.slice(1);
     }
     phrase = words.join(' ').replace(/\s+/g, ' ').trim().replace(/[.!?]+$/, '');
-    const productMatch = phrase.match(new RegExp(`\\b${productType}\\b$`, 'i'));
+    const productMatch = phrase.match(PRODUCT_TYPE_TAIL);
     if (!productMatch) continue;
     const qualifier = phrase.slice(0, productMatch.index).trim();
     const meaningfulQualifier = qualifier
@@ -200,7 +213,7 @@ function inferProductPhraseProjectName(prd: string): string | null {
 function inferForAudienceProductName(prd: string): string | null {
   const normalized = prd.replace(/\s+/g, ' ').trim();
   const match = normalized.match(
-    /^(?:a\s+|an\s+|the\s+)?(platform|system|dashboard|tool|app)\s+for\s+(?:managing\s+|tracking\s+|organizing\s+|running\s+)?([A-Za-z][A-Za-z0-9 -]{2,40}?)(?=\s+(?:with|that|which|where|using|and)\b|[.,:;?!]|$)/i
+    /^(?:a\s+|an\s+|the\s+)?(platform|system|dashboard|tool|app|board)\s+for\s+(?:managing\s+|tracking\s+|organizing\s+|running\s+)?([A-Za-z][A-Za-z0-9 -]{2,40}?)(?=\s+(?:with|that|which|where|using|and)\b|[.,:;?!]|$)/i
   );
   if (!match) return null;
 
@@ -253,6 +266,13 @@ function inferQuotedHeadingProjectName(prd: string): string | null {
 }
 
 function inferExplicitProjectName(prd: string): string | null {
+  const projectNamedMatch = prd.match(
+    /\b(?:project|app|site|dashboard|tool|board|page|game)\s+(?:called|named)\s+([A-Za-z0-9][A-Za-z0-9 _.-]{2,80}?)(?=[.,;?!]|\s+(?:that|which|where|with|for|using|and|to)\b|$)/i
+  );
+  if (projectNamedMatch?.[1]) {
+    return polishInferredProjectName(projectNamedMatch[1]);
+  }
+
   const quotedNameMatch = prd.match(
     /\b(?:called|named)\s+["']([^"']{3,80})["']/i
   );
@@ -280,7 +300,7 @@ function inferProjectName(prd: string, projectPath: string | null): string {
   if (nameMatch) return polishInferredProjectName(nameMatch[1].replace(/\s*[:;,-]\s*$/, ''));
   const shippedProjectMatch = prd.match(/\bexisting shipped project\s+["']([^"']{3,80})["']/i);
   if (shippedProjectMatch) return polishInferredProjectName(shippedProjectMatch[1]);
-  const quotedProjectMatch = prd.match(/\b(?:project|app|site|dashboard|tool)\s+["']([^"']{3,80})["']/i);
+  const quotedProjectMatch = prd.match(/\b(?:project|app|site|dashboard|tool|board)\s+["']([^"']{3,80})["']/i);
   if (quotedProjectMatch) return polishInferredProjectName(quotedProjectMatch[1]);
   if (projectPath) {
     const pathName = projectPath.split(/[\\/]/).filter(Boolean).pop();
@@ -324,27 +344,49 @@ function cleanExtractedPath(value: string): string {
   );
 }
 
-function extractPath(text: string): string | null {
+function extractPathCandidate(text: string): string | null {
   const labeledMatch = text.match(
     /\b(?:target\s+folder|project\s+path|local\s+project|full\s+local\s+project|create\s+(?:a\s+)?(?:full\s+)?local\s+project\s+(?:at|in|into))\s*:?\s*(?:\r?\n\s*)?((?:[A-Z]:[\\/]|\/)[^\r\n]+)/i
   );
   if (labeledMatch) {
-    const candidate = cleanExtractedPath(labeledMatch[1]);
-    if (isInsideWorkspace(candidate)) {
-      return candidate;
-    }
+    return cleanExtractedPath(labeledMatch[1]);
   }
 
   const atMatch = text.match(
     /(?:at|in|into)\s*:?\s*(?:\r?\n\s*)?((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+Files?\b)/i
   );
-  if (atMatch) {
-    const candidate = cleanExtractedPath(atMatch[1]);
-    if (isInsideWorkspace(candidate)) {
-      return candidate;
-    }
+  return atMatch ? cleanExtractedPath(atMatch[1]) : null;
+}
+
+function extractPathEvidence(text: string): {
+  projectPath: string | null;
+  requestedProjectPath: string | null;
+  projectPathEvidenceOnly: boolean;
+  projectPathRejectedReason: string | null;
+} {
+  const requestedProjectPath = extractPathCandidate(text);
+  if (!requestedProjectPath) {
+    return {
+      projectPath: null,
+      requestedProjectPath: null,
+      projectPathEvidenceOnly: false,
+      projectPathRejectedReason: null
+    };
   }
-  return null;
+  if (isInsideWorkspace(requestedProjectPath)) {
+    return {
+      projectPath: requestedProjectPath,
+      requestedProjectPath,
+      projectPathEvidenceOnly: false,
+      projectPathRejectedReason: null
+    };
+  }
+  return {
+    projectPath: null,
+    requestedProjectPath,
+    projectPathEvidenceOnly: true,
+    projectPathRejectedReason: 'outside_configured_workspace_root'
+  };
 }
 
 function removeLeadingPathPrefix(text: string): string {
@@ -498,13 +540,35 @@ function isBuildContextRecallProbe(text: string): boolean {
 function isPreBuildShapingRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   return (
-    /\b(?:help\s+me\s+)?(?:shape|scope|brainstorm|think\s+through|plan|design)\b/.test(normalized) &&
-    /\b(?:before|prior\s+to)\s+(?:creating|building|making|scaffolding|generating|starting)\b/.test(normalized)
+    (
+      /\b(?:help\s+me\s+)?(?:shape|scope|brainstorm|think\s+through|plan|design)\b/.test(normalized) &&
+      /\b(?:before|prior\s+to)\s+(?:creating|building|making|scaffolding|generating|starting)\b/.test(normalized)
+    ) ||
+    /\b(?:before|prior\s+to)\b.{0,100}\b(?:can|should|could|would)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute)\b.{0,120}\b(?:what\s+(?:would|should|does)|how\s+(?:would|should|does)|harness|proof|evidence|checks?)\b/.test(normalized)
   );
 }
 
 function isBuildRouteMetaDiscussion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (
+    /^(?:build|create|make|scaffold|generate)\s+(?:a|an|the|this|new|tiny|small|compact|practical|private|local)\b/.test(normalized) &&
+    /\b(?:project|app|website|dashboard|tool|game|canvas|kanban|workflow|product|prototype|platform|board|pad|page)\b/.test(normalized)
+  ) {
+    return false;
+  }
+  if (
+    /\b(?:route\s+explanation|fix\s+notes?|bug|regression|trace|logs?|repro|prior\s+reply|last\s+reply|mission\s+log|selectedintent|route=)\b/.test(normalized) &&
+    /\b(?:build|make|create|ship|scaffold|generate|develop)\b/.test(normalized) &&
+    /\b(?:authority|authorize|authorized|fresh\s+intent|what\s+failed|why|classify|diagnos(?:e|is|tic)|owner\s+layer|expected\s+chat[-\s]*only|boundary|not\s+approving|candidate\s+evidence|execution\s+authority|no[-\s]*op)\b/.test(normalized)
+  ) {
+    return true;
+  }
+  if (
+    /\b(?:does\s+that\s+authorize|is\s+that\s+enough\s+authority|not\s+enough\s+authority|not\s+approving)\b/.test(normalized) &&
+    /\b(?:build|make|create|ship|scaffold|generate|develop)\b/.test(normalized)
+  ) {
+    return true;
+  }
   if (
     /\b(?:what|which|anything|something|thing|else|other|first\s+major\s+focus)\b.*\b(?:healthy|useful|good|better|worth|nice)?\s*(?:to\s+)?build(?:ing)?\b/.test(normalized) &&
     /\b(?:updates?|upgrades?|self[-\s]*updates?|ledger|systems?|spark|capabilit(?:y|ies)|improvements?)\b/.test(normalized)
@@ -557,6 +621,12 @@ function isBuildRouteMetaDiscussion(text: string): boolean {
   if (
     /\b(?:words?|keywords?|terms?|phrases?)\s+(?:like|such\s+as)\b/.test(normalized) &&
     /\b(?:build|access|sandbox|workspace|docker|route|hijack)\b/.test(normalized)
+  ) {
+    return true;
+  }
+  if (
+    /\b(?:mentioning|saying|using|writing|typing)\b.{0,40}\b(?:build|make|create|ship|scaffold|generate|develop)\b/.test(normalized) &&
+    /\b(?:does\s+not|doesn't|doesnt|is\s+not|isn't|isnt)\s+mean\b/.test(normalized)
   ) {
     return true;
   }
@@ -623,10 +693,18 @@ function isNoExecutionBoundary(text: string): boolean {
     /\bno\s+(?:build|mission|execution|new\s+work)(?:\s+or\s+(?:build|mission|execution|new\s+work))*\s+for\s+now\b/,
     /\bno\s+(?:build|mission|execution|new\s+work)\s+for\s+now\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|ship|kick\s+off)\b/,
-    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make)\s+(?:yet|for\s+now|anything|something|new\s+work|a\s+mission|a\s+build|a\s+project|the\s+mission|the\s+build|the\s+project|it|this|that)\b/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make)\s+(?:yet|for\s+now|anything|something|new\s+work|a\s+mission|a\s+build|a\s+project|a\s+domain[-\s]*chip|a\s+chip|the\s+mission|the\s+build|the\s+project|the\s+domain[-\s]*chip|the\s+chip|it|this|that)\b/,
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute|kick\s+off)\s+(?:anything|something|new\s+work|work|tasks?|missions?|builds?)(?:\s+new)?\b/,
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute)\s+(?:(?:a|another)\s+)?(?:mission|build|project)\b/,
-    /\b(?:no need|not needed|not now|not for now|maybe later|hold off|pause|cancel|stop|never mind|nevermind)\b/,
+    /\b(?:no need|not needed|not now|not for now|maybe later|hold off|never mind|nevermind)\b/,
+    // pause/cancel/stop are decline verbs only when they appear as command-like
+    // clauses, not as product copy ("shows the text pause route proof passed").
+    /(?:^|[.!?]\s+|,\s+)(?:actually[, ]+|please[, ]+|just\s+)?(?:pause|cancel|stop)\b(?!\s*(?:[,/&]\s*)?(?:(?:and|or)\s+)?(?:reset|resume|restart|start|play|buttons?|controls?|keys?|toggles?|icons?|timers?)\b)/,
+    /\b(?:mentioning|saying|using|writing|typing)\b.{0,40}\b(?:build|make|create|ship|scaffold|generate|develop)\b.{0,40}\b(?:does\s+not|doesn't|doesnt|is\s+not|isn't|isnt)\s+mean\b/,
+    /\b(?:build|make|create|ship|scaffold|generate|develop)\b.{0,100}\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b/,
+    /\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b.{0,100}\b(?:build|make|create|ship|scaffold|generate|develop)\b/,
+    /\b(?:route\s+explanation|fix\s+notes?|bug|regression|trace|logs?|repro|prior\s+reply|last\s+reply|mission\s+log|selectedintent|route=)\b.{0,140}\b(?:build|make|create|ship|scaffold|generate|develop)\b.{0,140}\b(?:authority|authorize|authorized|fresh\s+intent|what\s+failed|why|classify|diagnos(?:e|is|tic)|owner\s+layer|expected\s+chat[-\s]*only|boundary|not\s+approving|candidate\s+evidence|execution\s+authority|no[-\s]*op)\b/,
+    /\b(?:stay in chat|just explain|explain the boundary|explain the failure class)\b/,
     /\b(?:we can|we should|let'?s|lets|just)\s+(?:talk|chat|discuss)(?:\s+(?:here|for now|instead))?\b/
   ].some((pattern) => pattern.test(normalized));
 }
@@ -640,7 +718,7 @@ function isConversationFramingMakeRequest(description: string): boolean {
 function isVoiceTuningMakeRequest(description: string): boolean {
   const normalized = description.replace(/\s+/g, ' ').trim().toLowerCase();
   if (!normalized) return false;
-  const productArtifact = /\b(?:app|application|dashboard|website|site|page|game|tool|player|recorder|studio|interface)\b/.test(normalized);
+  const productArtifact = /\b(?:app|application|dashboard|website|site|page|game|tool|player|recorder|studio|interface|board)\b/.test(normalized);
   if (productArtifact) return false;
   return (
     /\b(?:voice|speech|audio|sound|tone|style|persona|reply|responses?)\b/.test(normalized) &&
@@ -652,7 +730,8 @@ function isSparkCapabilityMakeRequest(description: string): boolean {
   const normalized = description.replace(/\s+/g, ' ').trim();
   const lowered = normalized.toLowerCase();
   const productArtifact =
-    /^(?:a\s+|an\s+|the\s+)?(?:web\s+|mobile\s+|desktop\s+|local-first\s+|private\s+|static\s+|tiny\s+|simple\s+|internal\s+|spark\s+memory\s+|spark\s+)*(?:app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(normalized);
+    /^(?:a\s+|an\s+|the\s+)?(?:web\s+|mobile\s+|desktop\s+|local-first\s+|private\s+|static\s+|tiny\s+|simple\s+|internal\s+|spark\s+memory\s+|spark\s+)*(?:app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(normalized) ||
+    /^(?:a\s+|an\s+|the\s+)?spark\s+[a-z0-9 -]{0,50}\b(?:app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(normalized);
   const explicitSparkOwner =
     /^(?:(?:my|our)\s+)?spark\b|^(?:you|your|yourself|the\s+agent|my\s+agent|our\s+agent|agents?)\b/i.test(normalized);
   const capabilitySurface =
@@ -691,7 +770,8 @@ function isAmbiguousContextualBuildRequest(text: string, projectPath: string | n
   const concreteStandaloneBrief =
     prd.length >= 80 &&
     /^(?:a\s+|an\s+|the\s+)?(?:narrow\s+|private\s+|local-first\s+|tiny\s+|simple\s+|internal\s+|real\s+|polished\s+|full\s+)*(?:backend|api|service|bot|tool|app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(prd.trim());
-  if (concreteStandaloneBrief) {
+  const namedProductPhrase = inferProductPhraseProjectName(prd) !== null;
+  if (concreteStandaloneBrief || namedProductPhrase) {
     return false;
   }
   if (/\b(?:called|named)\s+[A-Z0-9][A-Za-z0-9 '&.-]{2,80}\b/i.test(normalized)) {
@@ -709,7 +789,7 @@ function isConversationalStrategyStructureRequest(text: string, prd: string): bo
   const strategyDomain = /\b(?:nfts?|token|tokens|buybacks?|launch|hype|sales?|sell|selling|community|holders?|mint)\b/.test(normalized);
   const speculative = /\b(?:maybe|later|i think|if we|if we do|we can|we could|we should|not for now|for now|talk|discuss)\b/.test(normalized);
   const abstractStructure = /\b(?:nice|good|clear|better|clean)?\s*structure\b/.test(normalizedPrd);
-  const concreteArtifact = /\b(?:app|application|dashboard|website|site|landing page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas)\b/.test(normalizedPrd);
+  const concreteArtifact = /\b(?:app|application|dashboard|website|site|landing page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|board)\b/.test(normalizedPrd);
   return strategyDomain && speculative && abstractStructure && !concreteArtifact;
 }
 
@@ -722,9 +802,9 @@ function isAllocationStrategyQuestion(text: string): boolean {
   const asksStrategy =
     /\b(?:what\s+if|wondering|would\s+it\s+be|too\s+small|good\s+enough|how\s+would\s+you\s+organize|organize\s+the\s+rest|remaining|fixed|makes?\s+sense|should\s+we|could\s+we)\b/.test(normalized);
   const concreteArtifact =
-    /\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|file|repo|repository)\b/.test(normalized);
+    /\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|board|file|repo|repository)\b/.test(normalized);
   const explicitArtifactBuild =
-    /\b(?:build|create|make|ship|scaffold|generate|develop)\b.{0,80}\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock)\b/.test(normalized);
+    /\b(?:build|create|make|ship|scaffold|generate|develop)\b.{0,80}\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|board)\b/.test(normalized);
   return allocationDomain && hasPercent && asksStrategy && !(concreteArtifact && explicitArtifactBuild);
 }
 
@@ -739,7 +819,7 @@ function isRecursiveInsightPacketRequest(text: string): boolean {
     /\b(?:do\s+not|don't|dont|without|no)\s+(?:publish|share|run|start|launch|post|broadcast)\b/.test(normalized) ||
     /\blocal(?:ly)?\b|\bprivate(?:ly)?\b/.test(normalized);
   const concreteBuildSurface =
-    /\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas)\b/.test(normalized);
+    /\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|board)\b/.test(normalized);
   return packetArtifact && recursiveDomain && nonPublishBoundary && !concreteBuildSurface;
 }
 
@@ -784,7 +864,7 @@ function isAbstractPlanningStructureRequest(prd: string): boolean {
   const normalizedPrd = prd.toLowerCase().replace(/\s+/g, ' ').trim();
   const startsAbstract =
     /^(?:a\s+|an\s+|the\s+)?(?:nice|good|clear|better|clean|reusable|simple|solid|strong)?\s*(?:structure|plan|strategy|framework)\b/.test(normalizedPrd);
-  const concreteArtifact = /\b(?:app|application|dashboard|website|site|landing page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|file|files|folder|folders|repo|repository|component|components)\b/.test(normalizedPrd);
+  const concreteArtifact = /\b(?:app|application|dashboard|website|site|landing page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|board|file|files|folder|folders|repo|repository|component|components)\b/.test(normalizedPrd);
   return startsAbstract && !concreteArtifact;
 }
 
@@ -814,6 +894,8 @@ function extractBuildDescription(text: string): string | null {
       /\b(?:whether|should\s+we|think\s+through|help\s+me\s+think|before\s+we)\b/.test(prefix) ||
       /\bhow\s+(?:should|would|could|can)\b/.test(prefix) ||
       /\b(?:words?|keywords?|terms?|phrases?)\s+(?:like|such\s+as)\b/.test(prefix) ||
+      /\b(?:mentioning|saying|using|writing|typing)\b/.test(prefix) ||
+      /\b(?:does\s+not|doesn't|doesnt|is\s+not|isn't|isnt)\s+mean\b/.test(prefix) ||
       /\b(?:best|right|safe|secure)\s+way\s+to\b/.test(prefix) ||
       isNegatedBuildCommandPrefix(prefix) ||
       // Philosophical/hypothetical questions: "Can God create...", "Could gravity break..."
@@ -865,7 +947,8 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   // still filtering "x" / "ok" / "yo".
   if (stripped.length < 3) return null;
 
-  const projectPath = extractPath(original);
+  const pathEvidence = extractPathEvidence(original);
+  const projectPath = pathEvidence.projectPath;
   const prd = normalizeAgentChosenGameBrief(original, removeLeadingPathPrefix(stripped.trim()));
   if (isAbstractPlanningStructureRequest(prd)) return null;
   if (isConversationalStrategyStructureRequest(trimmed, prd)) return null;
@@ -878,6 +961,9 @@ export function parseBuildIntent(text: string): BuildIntent | null {
 
   return {
     projectPath,
+    requestedProjectPath: pathEvidence.requestedProjectPath,
+    projectPathEvidenceOnly: pathEvidence.projectPathEvidenceOnly,
+    projectPathRejectedReason: pathEvidence.projectPathRejectedReason,
     prd,
     projectName,
     buildMode: buildMode.mode,

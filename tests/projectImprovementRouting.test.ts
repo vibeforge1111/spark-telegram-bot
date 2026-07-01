@@ -31,7 +31,7 @@ const reliabilityDesk = {
 test('named polish pass stays attached to the shipped project despite build-intent wording', () => {
   const text = 'can we make one tiny polish pass on Mission Control Reliability Desk: keep exactly the same five files, do not add features, only improve spacing and visual consistency, and verify MC_RELIABILITY_DESK_OK is still visible';
 
-  assert.ok(parseBuildIntent(text), 'the generic build parser can still see this as build-like wording');
+  assert.equal(parseBuildIntent(text), null, 'polish wording without a target path is no longer a standalone build');
   assert.equal(isProjectImprovementRequest(text, reliabilityDesk), true);
 
   const goal = buildProjectImprovementGoal(text, reliabilityDesk);

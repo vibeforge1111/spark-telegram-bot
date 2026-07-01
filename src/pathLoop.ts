@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -38,6 +38,19 @@ export interface PathLoopResult {
   metricName?: string | null;
   metricValue?: number | null;
   summary?: string | null;
+  stdout?: string;
+  stderr?: string;
+  error?: string;
+}
+
+export interface SpecializationPathBenchmarkResult {
+  ok: boolean;
+  pathKey: string;
+  repoRoot?: string;
+  score?: number | null;
+  caseCount?: number | null;
+  missingEvidenceCount?: number | null;
+  outputPath?: string | null;
   stdout?: string;
   stderr?: string;
   error?: string;
@@ -134,6 +147,7 @@ export interface SpecializationLoopInsights {
   ok: boolean;
   pathKey: string;
   pathLabel?: string | null;
+  status?: SpecializationLoopStatus | null;
   sessionId?: string | null;
   completedRounds?: number;
   requestedRounds?: number;
@@ -241,6 +255,8 @@ export function resolveLocalSpecializationPathTarget(targetKey: string): Recursi
 
   const candidates = [
     process.env[specializationRepoEnvVar(normalizedTarget)],
+    normalizedTarget === 'spark-qa-operator' ? process.env.SPARK_QA_OPERATOR_REPO : undefined,
+    path.resolve(process.cwd(), '..', `specialization-path-${normalizedTarget}`),
     path.join(os.homedir(), 'Desktop', `specialization-path-${normalizedTarget}`),
   ].filter((candidate): candidate is string => Boolean(candidate));
 
@@ -273,7 +289,12 @@ async function loadBuilderAttachmentSnapshot(config: PathLoopConfig): Promise<an
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
     maxBuffer: 10 * 1024 * 1024,
   }));
-  return JSON.parse(stdout);
+  try {
+    return JSON.parse(stdout);
+  } catch (err) {
+    console.error('[pathLoop] Failed to parse attachment snapshot:', err);
+    return {};
+  }
 }
 
 export async function resolveRecursiveStartTarget(targetKey: string): Promise<RecursiveStartTarget> {
@@ -355,6 +376,24 @@ export function buildSpecializationPathPackageBridgeArgs(input: {
   ];
 }
 
+export function buildSpecializationPathEvidenceBenchmarkArgs(input: {
+  casesPath: string;
+  evidenceRoot: string;
+  outputPath: string;
+}): string[] {
+  return [
+    '-m',
+    'specialization_path_spark_qa_operator.cli',
+    'evidence-benchmark',
+    '--cases',
+    input.casesPath,
+    '--evidence-root',
+    input.evidenceRoot,
+    '--output',
+    input.outputPath,
+  ];
+}
+
 function parseLabeledLine(stdout: string, label: string): string | null {
   const pattern = new RegExp(`^${label}:\\s*(.+)$`, 'im');
   return stdout.match(pattern)?.[1]?.trim() || null;
@@ -362,8 +401,95 @@ function parseLabeledLine(stdout: string, label: string): string | null {
 
 async function readJsonObject(filePath: string | null): Promise<Record<string, any> | null> {
   if (!filePath || !existsSync(filePath)) return null;
-  const parsed = JSON.parse(await readFile(filePath, 'utf-8'));
-  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  try {
+    const parsed = JSON.parse(await readFile(filePath, 'utf-8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readBenchmarkCaseCount(casesPath: string): Promise<number | null> {
+  const parsed = await readJsonObject(casesPath);
+  return Array.isArray(parsed?.cases) ? parsed.cases.length : null;
+}
+
+export async function runSpecializationPathBenchmark(
+  target: RecursiveStartTarget
+): Promise<SpecializationPathBenchmarkResult> {
+  const pathKey = target.key;
+  const repoRoot = target.repoRoot;
+  if (!pathKey) return { ok: false, pathKey, error: 'empty specialization path key' };
+  if (!repoRoot) return { ok: false, pathKey, error: `specialization path ${pathKey} has no attached repo root` };
+
+  const config = resolveConfig();
+  const casesPath = path.join(repoRoot, 'benchmarks', 'evidence', 'mac_lab_cases.json');
+  const evidenceRoot = path.join(repoRoot, 'benchmarks', 'evidence', 'runs', 'latest');
+  const outputPath = path.join(repoRoot, '.spark-swarm', 'evidence-benchmark', 'latest-from-telegram.json');
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await rm(outputPath, { force: true });
+
+  const args = buildSpecializationPathEvidenceBenchmarkArgs({ casesPath, evidenceRoot, outputPath });
+  const env: NodeJS.ProcessEnv = { ...process.env, PYTHONIOENCODING: 'utf-8' };
+  const specializationPathSrc = path.join(repoRoot, 'src');
+  env.PYTHONPATH = [specializationPathSrc, env.PYTHONPATH].filter(Boolean).join(path.delimiter);
+
+  try {
+    const { stdout, stderr } = await execFileAsync(config.pythonCommand, args, withHiddenWindows({
+      cwd: repoRoot,
+      timeout: 120000,
+      env,
+      maxBuffer: 10 * 1024 * 1024,
+    }));
+    const parsed = await readJsonObject(outputPath);
+    if (!parsed) {
+      return { ok: false, pathKey, repoRoot, outputPath, stdout, stderr, error: 'benchmark runner did not write a score artifact' };
+    }
+    const expectedCaseCount = await readBenchmarkCaseCount(casesPath);
+    const caseCount = typeof parsed.caseCount === 'number' ? parsed.caseCount : null;
+    if (expectedCaseCount !== null && caseCount !== expectedCaseCount) {
+      return {
+        ok: false,
+        pathKey,
+        repoRoot,
+        score: typeof parsed.overallScore === 'number' ? parsed.overallScore : null,
+        caseCount,
+        missingEvidenceCount: typeof parsed.missingEvidenceCount === 'number' ? parsed.missingEvidenceCount : null,
+        outputPath,
+        stdout,
+        stderr,
+        error: `benchmark runner caseCount ${caseCount} does not match the benchmark case pack count ${expectedCaseCount}`,
+      };
+    }
+    const score = typeof parsed.overallScore === 'number' ? parsed.overallScore : null;
+    const missingEvidenceCount = typeof parsed.missingEvidenceCount === 'number' ? parsed.missingEvidenceCount : null;
+    const pass = parsed.pass === true && (missingEvidenceCount === null || missingEvidenceCount === 0);
+    return {
+      ok: pass,
+      pathKey,
+      repoRoot,
+      score,
+      caseCount,
+      missingEvidenceCount,
+      outputPath,
+      stdout,
+      stderr,
+      error: pass ? undefined : 'benchmark runner did not pass evidence gates',
+    };
+  } catch (err: any) {
+    const stdout = redactText(typeof err?.stdout === 'string' ? err.stdout : '');
+    const stderr = redactText(typeof err?.stderr === 'string' ? err.stderr : '');
+    const message = redactText(err?.message ? String(err.message) : '');
+    return {
+      ok: false,
+      pathKey,
+      repoRoot,
+      outputPath,
+      stdout,
+      stderr,
+      error: message ? `${message}${stderr ? ': ' + stderr.slice(-400) : ''}` : 'benchmark runner failed',
+    };
+  }
 }
 
 function sessionSummaryPath(repoRoot: string, pathKey: string, sessionId: string | null): string | null {
