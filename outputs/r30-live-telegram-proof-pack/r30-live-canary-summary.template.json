@@ -1,0 +1,110 @@
+{
+  "schema_version": "spark.r30.live_telegram_summary.v1",
+  "summary": {
+    "target": "SparkRecursive_bot",
+    "generatedAt": "2026-07-01T16:42:20.727Z",
+    "runtimeEvidenceCollectedAt": "",
+    "runtimeEvidenceMaxAgeHours": 1,
+    "runtimeEvidenceExpiresAt": "",
+    "totalCases": 4,
+    "verdictCounts": {
+      "pass": 0,
+      "fail": 0,
+      "blocked": 0,
+      "needs-retest": 0,
+      "untested": 4
+    },
+    "readyForRelease": false,
+    "readyForPublish": false,
+    "releaseBlockers": [
+      "live_r30_cases_untested"
+    ],
+    "publishBlockers": [
+      "publish_not_in_scope"
+    ],
+    "missingPacketEvidence": [
+      "live_observations_pending"
+    ],
+    "invalidPacketEvidence": [],
+    "stalePacketEvidence": [],
+    "gateScope": "selected_case_gate",
+    "cases": [
+      {
+        "id": "r30-prd-fast-001",
+        "promptHash": "sha256:7477ff9ba608f2f87998d4de812dbe83ec37ccf2e8e9061cc97d602aaba49011",
+        "category": "domain_chip_fast_path",
+        "verdict": "untested",
+        "expectedRoute": "prd_writing.fast_path",
+        "expectedAuthority": "chat_only",
+        "expectedMutationClass": "none",
+        "expectedReplyShape": "natural",
+        "missingCaptures": [
+          "verdict",
+          "observed_reply",
+          "side_effects",
+          "proof_join",
+          "proof_panel",
+          "screenshot",
+          "user_confirmation"
+        ]
+      },
+      {
+        "id": "r30-daily-fast-001",
+        "promptHash": "sha256:887971ff5967f53739f1f6cf30183a981417e0aeb33ab465da2f1d924e99a6be",
+        "category": "domain_chip_fast_path",
+        "verdict": "untested",
+        "expectedRoute": "daily_schedule.fast_path",
+        "expectedAuthority": "chat_only",
+        "expectedMutationClass": "none",
+        "expectedReplyShape": "natural",
+        "missingCaptures": [
+          "verdict",
+          "observed_reply",
+          "side_effects",
+          "proof_join",
+          "proof_panel",
+          "screenshot",
+          "user_confirmation"
+        ]
+      },
+      {
+        "id": "r30-daily-loop-advisory-001",
+        "promptHash": "sha256:8a7aad4d7e746f04e82d76f9a8157ef009ee5ab5492b4fc20df064c9c2688e50",
+        "category": "domain_chip_fast_path",
+        "verdict": "untested",
+        "expectedRoute": "daily_schedule.loop_advisory",
+        "expectedAuthority": "chat_only",
+        "expectedMutationClass": "none",
+        "expectedReplyShape": "natural",
+        "missingCaptures": [
+          "verdict",
+          "observed_reply",
+          "side_effects",
+          "proof_join",
+          "proof_panel",
+          "screenshot",
+          "user_confirmation"
+        ]
+      },
+      {
+        "id": "r30-boundary-meta-timezone-001",
+        "promptHash": "sha256:6ed49de77647af69d58868bd0fe01e66f898261d6869647de459dfd81cc0845b",
+        "category": "boundary",
+        "verdict": "untested",
+        "expectedRoute": "plain_chat.no_action_boundary",
+        "expectedAuthority": "chat_only",
+        "expectedMutationClass": "none",
+        "expectedReplyShape": "natural",
+        "missingCaptures": [
+          "verdict",
+          "observed_reply",
+          "side_effects",
+          "proof_join",
+          "proof_panel",
+          "screenshot",
+          "user_confirmation"
+        ]
+      }
+    ]
+  }
+}

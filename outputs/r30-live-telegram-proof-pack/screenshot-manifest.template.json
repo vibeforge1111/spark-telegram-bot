@@ -1,0 +1,30 @@
+{
+  "schema_version": "spark.r30.screenshot_manifest.v1",
+  "generated_at": "2026-07-01T16:42:20.728Z",
+  "entries": [
+    {
+      "ref": "screenshot:sha256:<computed-from-file>",
+      "file_path": "<absolute-local-screenshot-path>",
+      "sha256": "<computed-from-file>",
+      "captured_for_case_id": "r30-prd-fast-001"
+    },
+    {
+      "ref": "screenshot:sha256:<computed-from-file>",
+      "file_path": "<absolute-local-screenshot-path>",
+      "sha256": "<computed-from-file>",
+      "captured_for_case_id": "r30-daily-fast-001"
+    },
+    {
+      "ref": "screenshot:sha256:<computed-from-file>",
+      "file_path": "<absolute-local-screenshot-path>",
+      "sha256": "<computed-from-file>",
+      "captured_for_case_id": "r30-daily-loop-advisory-001"
+    },
+    {
+      "ref": "screenshot:sha256:<computed-from-file>",
+      "file_path": "<absolute-local-screenshot-path>",
+      "sha256": "<computed-from-file>",
+      "captured_for_case_id": "r30-boundary-meta-timezone-001"
+    }
+  ]
+}

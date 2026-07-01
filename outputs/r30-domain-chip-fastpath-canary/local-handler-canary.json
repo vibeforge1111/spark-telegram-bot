@@ -1,0 +1,111 @@
+{
+  "schema_version": "spark.r30.domain_chip_fast_path_canary.v1",
+  "generated_at": "2026-07-01T16:42:20.158Z",
+  "claim_scope": "local_telegram_handler_replay_only",
+  "live_send_performed": false,
+  "external_mutation_performed": false,
+  "reran_full_loop": false,
+  "cases": [
+    {
+      "id": "r30-prd-fast-001",
+      "domain": "prd_writing",
+      "status": "pass",
+      "prompt": "Write a PRD for improving onboarding activation after new users drop before creating their first project.",
+      "reply": "Fast PRD path: Onboarding Activation\nPrivate + approval-gated. No tickets, roadmap changes, publishing, launch claims, or external messages from this draft.\n\nProblem: new users drop before creating their first project.\nUsers: new users.\nMetric: activation or setup completion rate.\n\nDraft:\n- Flow: define the Onboarding Activation path, owner, and decision points.\n- Fallback: show the main error state, recovery path, and owner.\n- Approval: require human approval before implementation or external changes.\n\nAcceptance:\n- new users can complete the core flow without hitting new users drop before creating their first project.\n- Errors and blocked dependencies produce a recoverable fallback.\n- Rollout tracks activation or setup completion rate plus one guardrail metric.\n\nChecks: evidence, scope approver, unsafe-to-ship condition.\n\nLoop lesson reused: For PRDs, start with owner, affected user, success metric, acceptance criteria, rollout risk, rollback, and evidence refs before implementation detail. Reuse this staged checklist for ordinary PRD requests before spending tokens on a new loop. Try the distilled checklist before rerunning the full loop.\nNo benchmark or self-improvement loop was started for this PRD turn.\nEvidence: http://127.0.0.1:3333/loop-engineering/domain-chip-prd-writing-proof-loop",
+      "routeLogs": [
+        "[PrdWritingFastPath] route user=user_ec82e4c1362cb493 textLen=105"
+      ],
+      "failures": []
+    },
+    {
+      "id": "r30-daily-fast-001",
+      "domain": "daily_schedule",
+      "status": "pass",
+      "prompt": "The user in Dubai says move tomorrow's reminder to 9 while the owner is in New York.",
+      "reply": "I would keep this read-only: calendar/reminder mutations need explicit approval.\n\nBefore any reminder or calendar change, I need explicit approval plus task name, owner, intended date/time, timezone, recurrence rule, approval policy, exception dates, and missed-window handling. No reminder was created, moved, sent, completed, or marked recovered.",
+      "routeLogs": [
+        "[DailyScheduleFastPath] route user=user_fcb3dcd92310f281 textLen=84"
+      ],
+      "failures": []
+    },
+    {
+      "id": "r30-daily-fast-002",
+      "domain": "daily_schedule",
+      "status": "pass",
+      "prompt": "Remind me tomorrow at 9am Dubai time to review invoices.",
+      "reply": "I would keep this read-only: calendar/reminder mutations need explicit approval.\n\nBefore any reminder or calendar change, I need explicit approval plus task name, owner, intended date/time, timezone, recurrence rule, approval policy, exception dates, and missed-window handling. No reminder was created, moved, sent, completed, or marked recovered.",
+      "routeLogs": [
+        "[DailyScheduleFastPath] route user=user_81e96ff96cb47556 textLen=56"
+      ],
+      "failures": []
+    },
+    {
+      "id": "r30-daily-loop-advisory-001",
+      "domain": "daily_schedule",
+      "status": "pass",
+      "prompt": "The previous answer copied the wrong timezone from another case; run the loop for schedule reliability.",
+      "reply": "This should go through the Daily Schedule loop before becoming a fast answer: timezone context or prior weak feedback is a reloop trigger.\n\nThe private candidate has useful proof, but the safe move here is another benchmark/sealed-eval pass because timezone context or prior feedback could change the answer.",
+      "routeLogs": [
+        "[DailyScheduleFastPath] route user=user_569e86bf0ef0abd4 textLen=103"
+      ],
+      "failures": []
+    },
+    {
+      "id": "r30-boundary-prd-calendar-001",
+      "domain": "boundary",
+      "status": "pass",
+      "prompt": "Write a PRD for a calendar reminder product used by finance admins.",
+      "reply": "Fast PRD path: Calendar Reminder Product\nPrivate + approval-gated. No tickets, roadmap changes, publishing, launch claims, or external messages from this draft.\n\nProblem: a calendar reminder product used by finance admins.\nUsers: finance admins.\nMetric: task success rate.\n\nDraft:\n- Flow: define the Calendar Reminder Product path, owner, and decision points.\n- Fallback: show the main error state, recovery path, and owner.\n- Approval: require human approval before implementation or external changes.\n\nAcceptance:\n- finance admins can complete the core flow without hitting a calendar reminder product used by finance admins.\n- Errors and blocked dependencies produce a recoverable fallback.\n- Rollout tracks task success rate plus one guardrail metric.\n\nChecks: evidence, scope approver, unsafe-to-ship condition.\n\nLoop lesson reused: For PRDs, start with owner, affected user, success metric, acceptance criteria, rollout risk, rollback, and evidence refs before implementation detail. Reuse this staged checklist for ordinary PRD requests before spending tokens on a new loop. Try the distilled checklist before rerunning the full loop.\nNo benchmark or self-improvement loop was started for this PRD turn.\nEvidence: http://127.0.0.1:3333/loop-engineering/domain-chip-prd-writing-proof-loop",
+      "routeLogs": [
+        "[PrdWritingFastPath] route user=user_95a908716b38efb8 textLen=67"
+      ],
+      "failures": []
+    },
+    {
+      "id": "r30-boundary-live-timezone-001",
+      "domain": "boundary",
+      "status": "pass",
+      "prompt": "What timezone is Spark runtime using for live status? Do not start, create, schedule, or run anything; answer conversationally.",
+      "reply": "✅ Spark is healthy right now.\n\nI'm using fresh runtime state here, not memory.\n\nLive loop\n• Spawner: reachable.\n• Telegram: polling.\n• Mission Control: ready.\n\nNo repair action needed right now.",
+      "routeLogs": [],
+      "failures": []
+    },
+    {
+      "id": "r30-boundary-meta-timezone-001",
+      "domain": "boundary",
+      "status": "pass",
+      "prompt": "Do not start a mission; explain why timezone prompts are hard to route.",
+      "reply": "That is a routing discussion, not a schedule mutation. No mission started.",
+      "routeLogs": [
+        "[Bridge] user=user_240e2df53d497ee2 used=false mode=blocked routing=r30_fast_path_canary_stub textLen=40 hasVoice=false"
+      ],
+      "failures": []
+    },
+    {
+      "id": "r30-boundary-domain-chip-create-001",
+      "domain": "boundary",
+      "status": "pass",
+      "prompt": "Build a private Domain Chip for daily schedule reliability preview only.",
+      "reply": "I can turn this into a private Domain Chip: domain-chip-daily-schedule-reliability-preview-only.\n\nA Domain Chip is a reusable Spark playbook for one kind of work. I will make the trigger, checklist, examples, local starter checks, and rollback notes so it stays private until the proof is stronger.\n\nReply \"go\" and I will make the private starter kit. Or tell me the first real workflow it should handle in your own words.",
+      "routeLogs": [],
+      "failures": []
+    }
+  ],
+  "summary": {
+    "status": "pass",
+    "passed": 8,
+    "failed": 0,
+    "total": 8,
+    "allowed_claims": [
+      "PRD Writing and Daily Schedule fast-path routes pass local Telegram handler replay for covered fresh prompts.",
+      "Covered local no-wrong-fast-path boundaries for PRD calendar prompts, Spark runtime timezone prompts, generic no-action timezone discussion, and Domain Chip creation prompts.",
+      "Daily Schedule loop-mode requests are advisory only in Telegram handler replay."
+    ],
+    "disallowed_claims": [
+      "Live Telegram deployment readiness is proven.",
+      "A live Telegram message was sent or observed.",
+      "Daily Schedule loop-mode requests operationally start an autoloop from Telegram.",
+      "Any real calendar, CRM, repo, registry, installer pin, or network state was mutated."
+    ]
+  }
+}
