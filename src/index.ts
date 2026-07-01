@@ -7903,7 +7903,10 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
       return;
     }
     await safeSendChatAction(ctx, 'typing');
-    const requestId = `tg-loop-${Date.now()}`;
+    const authorityRequestUri = authorization.harnessCore?.action?.args_ref?.path_or_uri;
+    const requestId = typeof authorityRequestUri === 'string' && authorityRequestUri.trim()
+      ? decodeURIComponent(authorityRequestUri.split('/').pop() || '') || `tg-loop-${Date.now()}`
+      : `tg-loop-${Date.now()}`;
     let result: Awaited<ReturnType<typeof spawner.runLoopEngineeringBenchmark>>;
     let actionLabel = 'run loop-engineering action';
     if (parsedLoopEngineering.kind === 'benchmark') {
