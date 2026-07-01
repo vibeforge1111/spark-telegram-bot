@@ -422,6 +422,22 @@ async function run(): Promise<void> {
     assert.doesNotMatch(replies[0], /approved|published/i);
   });
 
+  await test('/loop benchmark now can execute selected clean benchmark cases only', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleLoopCommand(fakeCtx('/loop benchmark domain-chip-prd-writing-proof-loop now case benchcase-clean-prd-001,benchcase-clean-prd-002', replies, { chat: 8319079055, user: 8319079055, message: 9073 }));
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].body.executeNow, true);
+    assert.deepEqual(calls[0].body.benchmarkCaseIds, ['benchcase-clean-prd-001', 'benchcase-clean-prd-002']);
+    assert.match(replies[0], /Ran 2 private benchmark cases/);
+    assert.doesNotMatch(replies[0], /approved|published/i);
+  });
+
   await test('/loop benchmark execute aliases explicitly execute staged private benchmark', async () => {
     restoreEnv();
     const calls: Array<{ url: string; body: any }> = [];
