@@ -58,6 +58,8 @@ const MUTATING_ACTION_PATTERN = /\b(?:activate|publish|register|schedule|run|sta
 const STATUS_WORD_PATTERN = new RegExp(`\\b(?:${STATUS_LOOKUP_WORD_PATTERN.source}|why)\\b`, 'i');
 const DAILY_ALIAS_PATTERN = /\b(?:daily\s+schedule|schedule\s+reliability|daily\s+reminder|reminder\s+reliability)\b/i;
 const PRD_ALIAS_PATTERN = /\b(?:prd\s+writing|product\s+requirements?\s+doc(?:ument)?|prd\s+chip)\b/i;
+const PROJECT_MAINTENANCE_ALIAS_PATTERN = /\b(?:project\s+maintenance|maintenance\s+steward|project\s+maintenance\s+steward)\b/i;
+const OPERATIONS_RESEARCH_ALIAS_PATTERN = /\b(?:operations?\s+research|operations?\s+research\s+watchdesk|or\s+watchdesk|optimization\s+watchdesk)\b/i;
 const FRESHNESS_WINDOW_MS = 10_000;
 const RECENT_FRESHNESS_WINDOW_MS = 15 * 60_000;
 
@@ -71,7 +73,15 @@ export function isLoopEngineeringStatusRequest(text: string): boolean {
   const prdLoopStateStatus = PRD_ALIAS_PATTERN.test(normalized) &&
     /\b(?:loop|schedule|spawner|control[-\s]?plane)\b/i.test(normalized) &&
     /\b(?:latest|current|state|status|fresh|stale|improved|distilled|reuse|rerun|link|read[-\s]?only)\b/i.test(normalized);
-  if (!LOOP_STATUS_PATTERN.test(normalized) && !prdLoopStateStatus) return false;
+  const namedChipLoopStateStatus = (
+    DAILY_ALIAS_PATTERN.test(normalized) ||
+    PRD_ALIAS_PATTERN.test(normalized) ||
+    PROJECT_MAINTENANCE_ALIAS_PATTERN.test(normalized) ||
+    OPERATIONS_RESEARCH_ALIAS_PATTERN.test(normalized)
+  ) &&
+    /\b(?:loop|schedule|spawner|control[-\s]?plane|benchmark|readiness|state|status|result|evidence|truth)\b/i.test(normalized) &&
+    /\b(?:latest|current|state|status|fresh|stale|readiness|benchmark|results?|link|read[-\s]?only|truth|changed|blocked)\b/i.test(normalized);
+  if (!LOOP_STATUS_PATTERN.test(normalized) && !prdLoopStateStatus && !namedChipLoopStateStatus) return false;
   if (MUTATING_ACTION_PATTERN.test(normalized) && !STATUS_WORD_PATTERN.test(normalized)) return false;
   if (/\b(?:build|create|scaffold)\b[\s\S]{0,80}\bdomain[-\s]?chip\b/i.test(normalized)) return false;
   return true;
@@ -83,6 +93,8 @@ export function resolveLoopEngineeringChipId(text: string): string | null {
   if (exact) return exact;
   if (DAILY_ALIAS_PATTERN.test(normalized)) return 'domain-chip-daily-schedule-reliability-r30-persisted-context-qa';
   if (PRD_ALIAS_PATTERN.test(normalized)) return 'domain-chip-prd-writing-proof-loop';
+  if (PROJECT_MAINTENANCE_ALIAS_PATTERN.test(normalized)) return 'domain-chip-project-maintenance-steward-r30-usefulness-loop';
+  if (OPERATIONS_RESEARCH_ALIAS_PATTERN.test(normalized)) return 'domain-chip-operations-research-watchdesk-r30-bridge-qa';
   return null;
 }
 

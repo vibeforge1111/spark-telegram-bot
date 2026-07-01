@@ -168,6 +168,47 @@ function projectMaintenanceChipResponse() {
   return response;
 }
 
+function operationsResearchChipResponse() {
+  const response: any = chipResponse();
+  response.chip.summary.id = 'domain-chip-operations-research-watchdesk-r30-bridge-qa';
+  response.chip.summary.domain = 'Operations Research Watchdesk R30 Bridge QA';
+  response.chip.readiness.label = 'Private candidate supported';
+  response.chip.readiness.passCount = 9;
+  response.chip.readiness.checks = [
+    { id: 'benchmark_ab', label: 'No-chip vs chip A/B', status: 'passed', detail: 'passed' },
+    { id: 'live_telegram_proof', label: 'Live Telegram proof', status: 'passed', detail: 'passed' },
+    { id: 'hard_blockers', label: 'Hard blockers', status: 'blocked', detail: 'operator publication approval missing' }
+  ];
+  response.chip.events = [
+    {
+      eventType: 'benchmark_run',
+      label: 'Private benchmark run executed',
+      status: 'passed',
+      previousScore: 4.13,
+      candidateScore: 9.84,
+      utilityDelta: 5.71,
+      roundsObserved: null,
+      commandResult: { caseCount: 17, action: 'benchmark_run_executed' },
+      evaluatorSeparated: true,
+      nextAction: 'Use this evaluator verdict as private evidence; activation remains blocked until operator approval.',
+      updatedAt: '2026-07-01T16:10:46.874Z'
+    },
+    {
+      eventType: 'loop_batch',
+      label: 'Self-improvement loop',
+      status: 'passed',
+      previousScore: null,
+      candidateScore: 84,
+      utilityDelta: 24,
+      roundsObserved: 5,
+      evaluatorSeparated: true,
+      nextAction: 'Distill durable operations-research triage lessons into the runtime fast path.',
+      updatedAt: '2026-07-01T16:09:00.000Z'
+    }
+  ];
+  return response;
+}
+
 function prdChipResponse() {
   return {
     ok: true,
@@ -263,6 +304,11 @@ async function withServer(fn: (baseUrl: string, hits: string[]) => Promise<void>
       res.end(JSON.stringify(projectMaintenanceChipResponse()));
       return;
     }
+    if (req.url?.startsWith('/api/loop-engineering/chips/domain-chip-operations-research-watchdesk-r30-bridge-qa')) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(operationsResearchChipResponse()));
+      return;
+    }
     res.writeHead(404, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ ok: false, error: 'not found' }));
   });
@@ -281,6 +327,7 @@ test('detects explicit loop engineering status requests without hijacking chip c
   assert.equal(isLoopEngineeringStatusRequest('Why is the daily schedule domain chip blocked from activation?'), true);
   assert.equal(isLoopEngineeringStatusRequest('For QA: what is the latest PRD Writing loop-engineering state from Spawner/control-plane right now? Do not run, mutate, publish, activate, schedule, or start anything.'), true);
   assert.equal(isLoopEngineeringStatusRequest('Loop QA read-only check: latest PRD Writing loop state from Spawner? Include schedule status, fresh/stale, what improved, distilled reuse without rerun, and link. Do not mutate anything.'), true);
+  assert.equal(isLoopEngineeringStatusRequest('Loop QA final smoke: read-only check latest Operations Research Watchdesk loop state from Spawner. Do not run a benchmark, loop, schedule, activation, mission, publication, or mutation. Confirm whether it matches the Spawner Operations Research control-plane truth and whether anything changed.'), true);
   assert.equal(isLoopEngineeringStatusRequest('Build a private Domain Chip for daily schedule reliability.'), false);
   assert.equal(isLoopEngineeringStatusRequest('Remind me tomorrow at 9am Dubai time.'), false);
 });
@@ -297,6 +344,10 @@ test('resolves Daily Schedule alias and exact chip ids', () => {
   assert.equal(
     resolveLoopEngineeringChipId('latest PRD Writing loop-engineering state from Spawner'),
     'domain-chip-prd-writing-proof-loop'
+  );
+  assert.equal(
+    resolveLoopEngineeringChipId('latest Operations Research Watchdesk loop state from Spawner'),
+    'domain-chip-operations-research-watchdesk-r30-bridge-qa'
   );
 });
 
@@ -520,6 +571,36 @@ test('Telegram handler answers exact Project Maintenance chip status with cases,
     assert.doesNotMatch(replies[0], /\b17 rounds\b/i);
     assert.doesNotMatch(replies[0], /\b(?:I (?:queued|ran|started|scheduled|activated|published|mutated)|has been (?:queued|started|scheduled|activated|published))\b/i);
     assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-project-maintenance-steward-r30-usefulness-loop']);
+  });
+});
+
+test('Telegram handler routes Operations Research Watchdesk final-smoke wording to Spawner status, not QA planning', async () => {
+  await withServer(async (baseUrl, hits) => {
+    process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+    process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+    process.env.SPARK_BOT_TEST_MODE = '1';
+    process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+    process.env.SPAWNER_UI_URL = baseUrl;
+    process.env.SPAWNER_UI_PUBLIC_URL = baseUrl;
+
+    const indexModule: any = await import('../src/index');
+    const replies: string[] = [];
+    await indexModule.handleTextMessage(fakeCtx(
+      'Loop QA final smoke: read-only check latest Operations Research Watchdesk loop state from Spawner. Do not run a benchmark, loop, schedule, activation, mission, publication, or mutation. Confirm whether it matches the Spawner Operations Research control-plane truth and whether anything changed.',
+      replies,
+      { chat: 8319079055, user: 8319079055, message: 8466 }
+    ));
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /Operations Research Watchdesk R30 Bridge QA is private candidate supported/i);
+    assert.match(replies[0], /9\/12 checks pass/i);
+    assert.match(replies[0], /Latest result: Private benchmark run executed passed \(4\.1 -> 9\.8, 17 cases, separated evaluator, 2026-07-01T16:10:46\.874Z\)\./);
+    assert.match(replies[0], /Activation proof: not live-approved yet; blockers I can prove are operator publication approval missing\./);
+    assert.match(replies[0], /Self-improvement loop passed \(\+24\.0, 5 rounds, separated evaluator\)/);
+    assert.match(replies[0], /I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued\./);
+    assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-operations-research-watchdesk-r30-bridge-qa/i);
+    assert.doesNotMatch(replies[0], /QA planning, not a mission launch/i);
+    assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-operations-research-watchdesk-r30-bridge-qa']);
   });
 });
 

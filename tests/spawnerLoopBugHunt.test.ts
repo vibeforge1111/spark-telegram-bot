@@ -223,6 +223,11 @@ test('bug hunt: PRD Writing loop-state QA prompts yield to Loop Engineering stat
   assert.equal(isSparkWorkflowBugHuntRequest(prompt), false);
 });
 
+test('bug hunt: Operations Research loop-state QA prompts yield to Loop Engineering status', () => {
+  const prompt = 'Loop QA final smoke: read-only check latest Operations Research Watchdesk loop state from Spawner. Do not run a benchmark, loop, schedule, activation, mission, publication, or mutation. Confirm whether it matches the Spawner Operations Research control-plane truth and whether anything changed.';
+  assert.equal(isSparkWorkflowBugHuntRequest(prompt), false);
+});
+
 test('bug hunt: mission routing failure-class prompts stay short and non-executing', () => {
   const prompt = 'I am asking about a bug in mission routing. Do not launch a mission; just explain the likely failure class in one or two natural sentences.';
   assert.equal(isMissionRoutingFailureClassQuestion(prompt), true);
