@@ -7609,6 +7609,7 @@ type LoopEngineeringCompletionStatus = 'passed' | 'failed' | 'blocked';
 
 type LoopEngineeringCommand =
   | { kind: 'list' }
+  | { kind: 'invalid'; message: string }
   | { kind: 'status'; chipQuery: string }
   | { kind: 'benchmark'; chipKey: string; executeNow?: boolean; benchmarkCaseIds?: string[] }
   | { kind: 'run'; chipKey: string; rounds: number; executeNow?: boolean; benchmarkCaseIds?: string[] }
@@ -7678,12 +7679,17 @@ function loopNumberAfter(text: string, keyword: string): number | undefined {
   return Number.isFinite(value) ? value : undefined;
 }
 
-function loopBenchmarkCaseIds(text: string): string[] {
-  const caseMatch = text.match(/\scases?\s+(.+)$/i);
-  return (caseMatch?.[1] || '')
-    .split(/[,\s]+/)
-    .map((item) => item.trim())
-    .filter((item) => /^benchcase-[a-z0-9-]+$/i.test(item));
+function loopBenchmarkCaseScope(text: string): { present: boolean; ids: string[]; invalidTokens: string[] } {
+  const caseMatch = text.match(/\scases?\b/i);
+  if (!caseMatch || typeof caseMatch.index !== 'number') return { present: false, ids: [], invalidTokens: [] };
+  const afterCase = text.slice(caseMatch.index + caseMatch[0].length).trim();
+  const tokens = afterCase.split(/[,\s]+/).map((item) => item.trim()).filter(Boolean);
+  const ids = tokens.filter((item) => /^benchcase-[a-z0-9-]+$/i.test(item));
+  return {
+    present: true,
+    ids,
+    invalidTokens: tokens.filter((item) => !/^benchcase-[a-z0-9-]+$/i.test(item))
+  };
 }
 
 function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null {
@@ -7701,13 +7707,19 @@ function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null
     const parts = text.split(/\s+/);
     const chipKey = parts[1];
     const executeNow = parts.slice(2).some((part) => /^(?:now|execute|run|score)$/i.test(part));
-    const benchmarkCaseIds = loopBenchmarkCaseIds(text);
+    const benchmarkCaseScope = loopBenchmarkCaseScope(text);
+    if (benchmarkCaseScope.present && (benchmarkCaseScope.ids.length === 0 || benchmarkCaseScope.invalidTokens.length > 0)) {
+      return {
+        kind: 'invalid',
+        message: 'I could not run that because the benchmark case scope is not valid. Use `case benchcase-...` or omit `case` to use active staged cases.'
+      };
+    }
     return chipKey
       ? {
           kind: 'benchmark',
           chipKey,
           ...(executeNow ? { executeNow } : {}),
-          ...(benchmarkCaseIds.length ? { benchmarkCaseIds } : {})
+          ...(benchmarkCaseScope.ids.length ? { benchmarkCaseIds: benchmarkCaseScope.ids } : {})
         }
       : null;
   }
@@ -7716,14 +7728,20 @@ function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null
     const chipKey = parts[1];
     const rounds = Math.max(1, Math.min(25, Number.parseInt(parts[2] || '3', 10) || 3));
     const executeNow = parts.slice(2).some((part) => /^(?:now|execute|score)$/i.test(part));
-    const benchmarkCaseIds = loopBenchmarkCaseIds(text);
+    const benchmarkCaseScope = loopBenchmarkCaseScope(text);
+    if (benchmarkCaseScope.present && (benchmarkCaseScope.ids.length === 0 || benchmarkCaseScope.invalidTokens.length > 0)) {
+      return {
+        kind: 'invalid',
+        message: 'I could not run that because the benchmark case scope is not valid. Use `case benchcase-...` or omit `case` to use active staged cases.'
+      };
+    }
     return chipKey
       ? {
           kind: 'run',
           chipKey,
           rounds,
           ...(executeNow ? { executeNow } : {}),
-          ...(benchmarkCaseIds.length ? { benchmarkCaseIds } : {})
+          ...(benchmarkCaseScope.ids.length ? { benchmarkCaseIds: benchmarkCaseScope.ids } : {})
         }
       : null;
   }
@@ -7908,6 +7926,9 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
   const parsedLoopEngineering = parseLoopEngineeringCommand(raw);
   const knownLoopEngineeringVerb = /^(?:list|chips|status|evidence|benchmark|bench|run|complete|bind|eval|review|case|benchmark-case|bench-case|distill|schedule|fire-schedule|fire_schedule|fire|activate)\b/i.test(raw);
   if (parsedLoopEngineering) {
+    if (parsedLoopEngineering.kind === 'invalid') {
+      return ctx.reply(parsedLoopEngineering.message);
+    }
     if (parsedLoopEngineering.kind === 'list') {
       await safeSendChatAction(ctx, 'typing');
       const result = await spawner.listLoopEngineeringChips();

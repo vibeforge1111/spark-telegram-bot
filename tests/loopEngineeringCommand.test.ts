@@ -527,6 +527,78 @@ async function run(): Promise<void> {
     assert.doesNotMatch(replies[0], /approved|published/i);
   });
 
+  await test('/loop run now rejects malformed explicit benchmark case scope without widening', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleLoopCommand(fakeCtx('/loop run domain-chip-prd-writing-proof-loop 3 now case typo', replies, { chat: 8319079055, user: 8319079055, message: 9075 }));
+
+    assert.equal(calls.length, 0);
+    assert.match(replies[0], /case scope is not valid/i);
+    assert.doesNotMatch(replies[0], /Ran|Queued|activated|published/i);
+  });
+
+  await test('/loop run now refuses success without execution proof ids', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    (axios as any).post = async (url: string, body: unknown) => {
+      calls.push({ url, body });
+      return {
+        data: {
+          ok: true,
+          commandResult: {
+            action: 'loop_run_executed',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Ran 3 private loop rounds for domain-chip-prd-writing-proof-loop.'
+          }
+        }
+      };
+    };
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleLoopCommand(fakeCtx('/loop run domain-chip-prd-writing-proof-loop 3 now case benchcase-clean-prd-001', replies, { chat: 8319079055, user: 8319079055, message: 9076 }));
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].body.executeNow, true);
+    assert.match(replies[0], /did not accept/i);
+    assert.doesNotMatch(replies[0], /Ran 3 private loop rounds/i);
+    assert.match(replies[0], /Nothing was activated or published/i);
+  });
+
+  await test('/loop benchmark now refuses success without execution proof ids', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    (axios as any).post = async (url: string, body: unknown) => {
+      calls.push({ url, body });
+      return {
+        data: {
+          ok: true,
+          commandResult: {
+            action: 'benchmark_run_executed',
+            missionId: 'spark-loop-benchmark',
+            eventId: 'lee-benchmark-prd',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Ran 1 private benchmark case for domain-chip-prd-writing-proof-loop.'
+          }
+        }
+      };
+    };
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleLoopCommand(fakeCtx('/loop benchmark domain-chip-prd-writing-proof-loop now case benchcase-clean-prd-001', replies, { chat: 8319079055, user: 8319079055, message: 9077 }));
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].body.executeNow, true);
+    assert.match(replies[0], /did not accept/i);
+    assert.doesNotMatch(replies[0], /Ran 1 private benchmark case/i);
+    assert.match(replies[0], /Nothing was activated or published/i);
+  });
+
   await test('/loop eval, distill, and activate drive PRD Writing evidence chain through Spawner', async () => {
     restoreEnv();
     const calls: Array<{ url: string; body: any }> = [];

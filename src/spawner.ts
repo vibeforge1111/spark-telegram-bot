@@ -1310,11 +1310,31 @@ async function runLoopEngineeringSpawnerAction(
       : typeof res.data?.mission?.id === 'string'
         ? res.data.mission.id
         : undefined;
+    const eventId = typeof commandResult.eventId === 'string' ? commandResult.eventId : undefined;
+    const action = typeof commandResult.action === 'string' ? commandResult.action : undefined;
+    if (res.data?.ok && input.executeNow) {
+      const expectedAction = kind === 'benchmark' ? 'benchmark_run_executed' : 'loop_run_executed';
+      const runIdKey = kind === 'benchmark' ? 'benchmarkRunId' : 'loopRunId';
+      const runId = typeof commandResult[runIdKey] === 'string' ? commandResult[runIdKey] : undefined;
+      if (action !== expectedAction || !missionId || !eventId || !runId) {
+        return {
+          success: false,
+          action,
+          missionId,
+          eventId,
+          inspectUrl: typeof commandResult.inspectUrl === 'string' ? absoluteSpawnerUrl(commandResult.inspectUrl) : undefined,
+          event: res.data?.event && typeof res.data.event === 'object' ? res.data.event : undefined,
+          mission: res.data?.mission && typeof res.data.mission === 'object' ? res.data.mission : undefined,
+          commandResult,
+          error: `Spawner did not return ${kind} execution proof, so Telegram did not treat it as run.`
+        };
+      }
+    }
     return {
       success: Boolean(res.data?.ok),
-      action: typeof commandResult.action === 'string' ? commandResult.action : undefined,
+      action,
       missionId,
-      eventId: typeof commandResult.eventId === 'string' ? commandResult.eventId : undefined,
+      eventId,
       inspectUrl: typeof commandResult.inspectUrl === 'string' ? absoluteSpawnerUrl(commandResult.inspectUrl) : undefined,
       message: typeof commandResult.userMessage === 'string' ? commandResult.userMessage : undefined,
       event: res.data?.event && typeof res.data.event === 'object' ? res.data.event : undefined,
