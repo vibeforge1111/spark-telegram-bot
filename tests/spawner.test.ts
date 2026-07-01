@@ -301,6 +301,36 @@ async function run(): Promise<void> {
     assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.loop.run');
   });
 
+  await test('listLoopEngineeringChips reads Spawner Loop Engineering registry', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    (axios as any).get = async (url: string) => {
+      capturedUrl = url;
+      return {
+        data: {
+          ok: true,
+          registry: {
+            chips: [
+              {
+                id: 'domain-chip-prd-writing-proof-loop',
+                domain: 'PRD Writing',
+                statusLabel: 'Private candidate',
+                benchmark: { utilityDelta: 2.4 }
+              }
+            ]
+          }
+        }
+      };
+    };
+
+    const result = await spawner.listLoopEngineeringChips();
+
+    assert.equal(result.success, true);
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips$/);
+    assert.equal(result.chips?.[0]?.id, 'domain-chip-prd-writing-proof-loop');
+    assert.equal(result.inspectUrl, 'http://127.0.0.1:3333/loop-engineering');
+  });
+
   await test('recordLoopEngineeringEvaluatorReview posts separated evaluator evidence to Spawner', async () => {
     restoreAxios();
     let capturedUrl = '';

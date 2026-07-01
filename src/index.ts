@@ -7607,6 +7607,8 @@ type LoopEngineeringBenchmarkCaseKind = 'visible' | 'held_out' | 'trap' | 'no_op
 type LoopEngineeringScheduleMode = 'once' | 'interval' | 'fixed_time' | 'continuous' | 'round_count';
 
 type LoopEngineeringCommand =
+  | { kind: 'list' }
+  | { kind: 'status'; chipQuery: string }
   | { kind: 'benchmark'; chipKey: string }
   | { kind: 'run'; chipKey: string; rounds: number }
   | { kind: 'eval'; chipKey: string; previousScore: number; candidateScore: number; roundsObserved?: number; evidenceRefs: string[] }
@@ -7619,6 +7621,8 @@ function loopEngineeringUsage(): string {
   return [
     'Usage: /loop <chip_key> [rounds]',
     'Spawner loop-engineering:',
+    '/loop list',
+    '/loop status <domain-chip-key or chip name>',
     '/loop benchmark <domain-chip-key>',
     '/loop run <domain-chip-key> [rounds]',
     '/loop case <domain-chip-key> <visible|held_out|trap|no_op|regression> prompt <prompt> expected <expected>',
@@ -7658,6 +7662,12 @@ function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null
   if (!text) return null;
   const [verbRaw] = text.split(/\s+/, 1);
   const verb = verbRaw.toLowerCase();
+  if (verb === 'list' || verb === 'chips') {
+    return { kind: 'list' };
+  }
+  if (verb === 'status' || verb === 'evidence') {
+    return { kind: 'status', chipQuery: text.replace(/^(?:status|evidence)\s*/i, '').trim() };
+  }
   if (verb === 'benchmark' || verb === 'bench') {
     const chipKey = text.split(/\s+/)[1];
     return chipKey ? { kind: 'benchmark', chipKey } : null;
@@ -7744,6 +7754,7 @@ function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null
 }
 
 function loopEngineeringToolName(kind: LoopEngineeringCommand['kind']): string {
+  if (kind === 'list' || kind === 'status') return 'spawner.loop_engineering.read';
   if (kind === 'benchmark') return 'spawner.loop_engineering.benchmark.run';
   if (kind === 'run') return 'spawner.loop_engineering.loop.run';
   if (kind === 'eval') return 'spawner.loop_engineering.evaluator_review.record';
@@ -7754,9 +7765,41 @@ function loopEngineeringToolName(kind: LoopEngineeringCommand['kind']): string {
 }
 
 function loopEngineeringMutationClass(kind: LoopEngineeringCommand['kind']): SparkHarnessMutationClass {
+  if (kind === 'list' || kind === 'status') return 'read_only';
   if (kind === 'benchmark' || kind === 'run') return 'launches_mission';
   if (kind === 'schedule') return 'creates_schedule';
   return 'writes_files';
+}
+
+function renderLoopEngineeringListReply(result: Awaited<ReturnType<typeof spawner.listLoopEngineeringChips>>): string {
+  if (!result.success) {
+    return [
+      'I could not read the Loop Engineering chip list from Spawner yet.',
+      result.inspectUrl ? `Spawner: ${result.inspectUrl}` : ''
+    ].filter(Boolean).join('\n\n');
+  }
+  const chips = (result.chips || []).slice(0, 10);
+  if (chips.length === 0) {
+    return [
+      'I do not see Loop Engineering chips in Spawner yet.',
+      result.inspectUrl ? `Spawner: ${result.inspectUrl}` : ''
+    ].filter(Boolean).join('\n\n');
+  }
+  const lines = chips.map((chip) => {
+    const label = chip.domain || chip.name || chip.id;
+    const status = chip.statusLabel || chip.status || 'status unknown';
+    const delta = typeof chip.benchmark?.utilityDelta === 'number'
+      ? `, delta ${chip.benchmark.utilityDelta > 0 ? '+' : ''}${chip.benchmark.utilityDelta.toFixed(1)}`
+      : '';
+    return `- ${label}: ${chip.id} (${status}${delta})`;
+  });
+  return [
+    `Loop Engineering chips I can see (${result.chips?.length || chips.length}):`,
+    ...lines,
+    '',
+    'Ask `/loop status <chip key>` when you want the evidence packet.',
+    result.inspectUrl ? `Spawner: ${result.inspectUrl}` : ''
+  ].filter(Boolean).join('\n');
 }
 
 function renderLoopEngineeringCommandReply(result: { success: boolean; message?: string; inspectUrl?: string; error?: string }, action: string): string {
@@ -7773,8 +7816,22 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
 
   const raw = ctx.message.text.replace('/loop', '').trim();
   const parsedLoopEngineering = parseLoopEngineeringCommand(raw);
-  const knownLoopEngineeringVerb = /^(?:benchmark|bench|run|eval|review|case|benchmark-case|bench-case|distill|schedule|activate)\b/i.test(raw);
+  const knownLoopEngineeringVerb = /^(?:list|chips|status|evidence|benchmark|bench|run|eval|review|case|benchmark-case|bench-case|distill|schedule|activate)\b/i.test(raw);
   if (parsedLoopEngineering) {
+    if (parsedLoopEngineering.kind === 'list') {
+      await safeSendChatAction(ctx, 'typing');
+      const result = await spawner.listLoopEngineeringChips();
+      return ctx.reply(renderLoopEngineeringListReply(result));
+    }
+    if (parsedLoopEngineering.kind === 'status') {
+      await safeSendChatAction(ctx, 'typing');
+      const packet = await fetchLoopEngineeringStatusPacket(
+        parsedLoopEngineering.chipQuery
+          ? `Loop Engineering status for ${parsedLoopEngineering.chipQuery}`
+          : 'Loop Engineering status'
+      );
+      return ctx.reply(packet?.reply || loopEngineeringUsage());
+    }
     const toolName = loopEngineeringToolName(parsedLoopEngineering.kind);
     const authorization = telegramCommandActionAuthorityDecision(ctx, {
       commandName: 'loop',

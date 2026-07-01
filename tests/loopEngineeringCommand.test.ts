@@ -14,6 +14,8 @@ async function test(name: string, fn: AsyncTest): Promise<void> {
 }
 
 const originalPost = axios.post;
+const originalGet = axios.get;
+const originalFetch = globalThis.fetch;
 const originalEnv = {
   ADMIN_TELEGRAM_IDS: process.env.ADMIN_TELEGRAM_IDS,
   BOT_TOKEN: process.env.BOT_TOKEN,
@@ -57,6 +59,31 @@ async function withLoopHandler() {
 }
 
 function stubSpawner(calls: Array<{ url: string; body: any }>): void {
+  (axios as any).get = async (url: string) => {
+    if (url.includes('/api/loop-engineering/chips')) {
+      return {
+        data: {
+          ok: true,
+          registry: {
+            chips: [
+              {
+                id: 'domain-chip-prd-writing-proof-loop',
+                domain: 'PRD Writing',
+                statusLabel: 'Private candidate',
+                benchmark: { utilityDelta: 2.4 }
+              },
+              {
+                id: 'domain-chip-b2c-reachout-drafting',
+                domain: 'B2C Reachout Drafting',
+                statusLabel: 'Blocked'
+              }
+            ]
+          }
+        }
+      };
+    }
+    throw new Error(`unexpected get ${url}`);
+  };
   (axios as any).post = async (url: string, body: unknown) => {
     calls.push({ url, body });
     if (url.includes('/benchmarks/run')) {
@@ -138,6 +165,79 @@ function stubSpawner(calls: Array<{ url: string; body: any }>): void {
 }
 
 async function run(): Promise<void> {
+  await test('/loop list discovers Loop Engineering chips without mutations', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleLoopCommand(fakeCtx('/loop list', replies));
+
+    assert.equal(calls.length, 0);
+    assert.match(replies[0], /Loop Engineering chips I can see \(2\)/);
+    assert.match(replies[0], /PRD Writing: domain-chip-prd-writing-proof-loop/);
+    assert.match(replies[0], /Ask `\/loop status <chip key>`/);
+    assert.doesNotMatch(replies[0], /queued|started|activated|published/i);
+  });
+
+  await test('/loop status reads Spawner evidence packet without mutations', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+    globalThis.fetch = async (input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      assert.match(url, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop$/);
+      return Response.json({
+        ok: true,
+        chip: {
+          summary: {
+            id: 'domain-chip-prd-writing-proof-loop',
+            domain: 'PRD Writing',
+            activation: { liveTelegramProven: false }
+          },
+          readiness: {
+            label: 'Private candidate',
+            passCount: 7,
+            totalCount: 10,
+            nextAction: 'Run live Telegram proof.',
+            checks: [
+              { id: 'live_telegram_proof', label: 'Live Telegram proof', status: 'blocked', detail: 'missing', evidenceRefs: [] }
+            ]
+          },
+          events: [
+            {
+              eventType: 'evaluator_review',
+              label: 'Separated evaluator review',
+              status: 'passed',
+              previousScore: 6,
+              candidateScore: 8.4,
+              utilityDelta: 2.4,
+              roundsObserved: 3,
+              evaluatorSeparated: true,
+              nextAction: 'Distill accepted lessons.'
+            }
+          ]
+        }
+      }) as any;
+    };
+
+    try {
+      await indexModule.handleLoopCommand(fakeCtx('/loop status domain-chip-prd-writing-proof-loop', replies, { chat: 8319079055, user: 8319079055, message: 9060 }));
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    assert.equal(calls.length, 0);
+    assert.match(replies[0], /PRD Writing is private candidate/i);
+    assert.match(replies[0], /7\/10 checks pass/);
+    assert.match(replies[0], /Separated evaluator review passed/);
+    assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:3333\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
+    assert.doesNotMatch(replies[0], /queued|started|activated|published/i);
+  });
+
   await test('/loop benchmark queues private benchmark through Spawner command-result payload', async () => {
     restoreEnv();
     const calls: Array<{ url: string; body: any }> = [];
@@ -219,6 +319,8 @@ async function run(): Promise<void> {
 
 run().finally(() => {
   (axios as any).post = originalPost;
+  (axios as any).get = originalGet;
+  globalThis.fetch = originalFetch;
   restoreEnv();
 }).catch((error) => {
   console.error(error);

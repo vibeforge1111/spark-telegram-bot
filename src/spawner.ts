@@ -62,6 +62,25 @@ interface LoopEngineeringRunResult {
   error?: string;
 }
 
+interface LoopEngineeringChipSummary {
+  id: string;
+  name?: string;
+  domain?: string;
+  statusLabel?: string;
+  status?: string;
+  nextAction?: string;
+  benchmark?: {
+    utilityDelta?: number | null;
+  };
+}
+
+interface LoopEngineeringChipListResult {
+  success: boolean;
+  chips?: LoopEngineeringChipSummary[];
+  inspectUrl?: string;
+  error?: string;
+}
+
 interface LoopEngineeringEvaluatorReviewInput {
   chipKey: string;
   previousScore: number;
@@ -1389,6 +1408,27 @@ export const spawner = {
 
   async runLoopEngineeringLoop(input: LoopEngineeringRunInput): Promise<LoopEngineeringRunResult> {
     return runLoopEngineeringSpawnerAction('loop', input);
+  },
+
+  async listLoopEngineeringChips(): Promise<LoopEngineeringChipListResult> {
+    try {
+      const res = await axios.get(`${SPAWNER_UI_URL}/api/loop-engineering/chips`, spawnerAxiosOptions(10000));
+      const chips = Array.isArray(res.data?.registry?.chips)
+        ? res.data.registry.chips.filter((item: unknown): item is LoopEngineeringChipSummary => Boolean(item && typeof item === 'object' && typeof (item as LoopEngineeringChipSummary).id === 'string'))
+        : [];
+      return {
+        success: Boolean(res.data?.ok),
+        chips,
+        inspectUrl: absoluteSpawnerUrl('/loop-engineering'),
+        ...(res.data?.ok ? {} : { error: res.data?.error || 'Loop Engineering chip list failed' })
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        inspectUrl: absoluteSpawnerUrl('/loop-engineering'),
+        error: err?.response?.data?.error || err?.message || 'Loop Engineering chip list failed'
+      };
+    }
   },
 
   async recordLoopEngineeringEvaluatorReview(input: LoopEngineeringEvaluatorReviewInput): Promise<LoopEngineeringRunResult> {
