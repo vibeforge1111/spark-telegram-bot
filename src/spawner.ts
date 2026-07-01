@@ -10,11 +10,10 @@ import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUi
 import { DEFAULT_LOCAL_SERVICE_TIMEOUT_MS, localServiceDefaultTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
 import type { SkillTier } from './userTier';
 import { creatorMissionClosureProof } from './creatorMissionClosureProof';
-
+import { domainChipLabsEvidenceSurfaceLine, formatDomainChipLabsContractProofLine } from './domainChipLabsCreatorContract';
 const SPAWNER_UI_URL = resolveSpawnerUiUrl();
 const PROJECT_PREVIEW_URL = resolveProjectPreviewBaseUrl();
 const SPARK_RUN_PROJECT_PATH = process.env.SPARK_RUN_PROJECT_PATH?.trim();
-
 type MissionAction = 'status' | 'pause' | 'resume' | 'kill';
 type CreatorPrivacyMode = 'local_only' | 'github_pr' | 'swarm_shared';
 type CreatorRiskLevel = 'low' | 'medium' | 'high';
@@ -40,6 +39,29 @@ interface RunGoalResult {
   error?: string;
 }
 
+interface LoopEngineeringRunInput {
+  chipKey: string;
+  objective?: string;
+  roundLimit?: number;
+  benchmarkCaseIds?: string[];
+  sourceSurface?: 'telegram' | 'spawner';
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
+interface LoopEngineeringRunResult {
+  success: boolean;
+  action?: string;
+  missionId?: string;
+  eventId?: string;
+  inspectUrl?: string;
+  message?: string;
+  event?: Record<string, unknown>;
+  mission?: Record<string, unknown>;
+  commandResult?: Record<string, unknown>;
+  error?: string;
+}
+
 interface CreatorMissionInput {
   brief: string;
   requestId?: string;
@@ -48,6 +70,11 @@ interface CreatorMissionInput {
   riskLevel?: CreatorRiskLevel;
   executionPolicy?: 'manual_run' | 'read_only';
   executionAuthority?: unknown;
+}
+
+function safeDomainChipKey(value: string): string | null {
+  const clean = String(value || '').trim().toLowerCase();
+  return /^domain-chip-[a-z0-9][a-z0-9-]{2,}$/.test(clean) ? clean : null;
 }
 
 interface CreatorIntentPacket {
@@ -781,7 +808,7 @@ function absoluteSpawnerUrl(value: string | undefined, baseUrl = spawnerPublicUr
 
 function formatCreatorMode(value: string | undefined): string {
   const normalized = (value || 'unknown').replace(/_/g, ' ');
-  if (value === 'full_path') return 'full creator system';
+  if (value === 'full_path') return 'Loop Engineering system';
   if (value === 'specialization_path') return 'specialization path';
   if (value === 'domain_chip') return 'domain chip';
   return normalized;
@@ -820,10 +847,10 @@ function formatCreatorPrivacy(value: string | undefined): string {
 }
 
 function formatCreatorCheckHeadline(status: string): string {
-  if (status === 'passed') return '🟢 Creator checks passed.';
-  if (status === 'failed') return '🔴 Creator checks need attention.';
-  if (status === 'blocked') return '🟡 Creator checks are blocked.';
-  return '🟡 Creator checks finished.';
+  if (status === 'passed') return '🟢 Loop Engineering checks passed.';
+  if (status === 'failed') return '🔴 Loop Engineering checks need attention.';
+  if (status === 'blocked') return '🟡 Loop Engineering checks are blocked.';
+  return '🟡 Loop Engineering checks finished.';
 }
 
 export function formatCreatorDomainLabel(value: string | undefined): string {
@@ -865,7 +892,7 @@ export function formatCreatorDomainLabel(value: string | undefined): string {
   return labelWords
     .map((word) => {
       const lower = word.toLowerCase();
-      if (['ai', 'api', 'llm', 'ui', 'ux', 'yc'].includes(lower)) return lower.toUpperCase();
+      if (['ai', 'api', 'llm', 'pr', 'ui', 'ux', 'yc'].includes(lower)) return lower.toUpperCase();
       return lower.charAt(0).toUpperCase() + lower.slice(1);
     })
     .join(' ');
@@ -887,9 +914,9 @@ function formatCreatorArtifactLabel(value: string): string {
 
 function creatorPlanOpening(seed: string): string {
   const variants = [
-    'Creator plan ready. I staged the private path without starting it.',
+    'Loop Engineering plan ready. I staged the private path without starting it.',
     'Private path staged. Nothing is running yet.',
-    'Creator plan is staged and waiting for your call.'
+    'Loop Engineering plan is staged and waiting for your call.'
   ];
   const score = seed.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return variants[score % variants.length];
@@ -901,7 +928,7 @@ function formatCreatorArtifactSummary(artifacts: string[] | undefined): string {
   return usable.slice(0, 6).map(formatCreatorArtifactLabel).join(', ');
 }
 function creatorEvidenceStandardLine(): string {
-  return 'creator intent, adapter map, artifact manifest, domain chip, manifest/hook contract, triggers/non-triggers, playbook, examples, benchmark pack, score dimensions, allowed mutations, watchtower, specialization path, autoloop policy, evidence ladder, privacy boundary, rollback, review packet, activation notes, creator mission status, swarm/contribution_packet.json';
+  return `intent packet, adapter map, artifact manifest, domain chip, ${domainChipLabsEvidenceSurfaceLine()}, specialization path, autoloop policy, Loop Engineering status, swarm/contribution_packet.json`;
 }
 
 function formatEvidenceTier(value: string | undefined): string {
@@ -952,7 +979,7 @@ function creatorValidationIcon(status: string | undefined): string {
 
 export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUrl = spawnerPublicUrl()): string {
   if (!result.success) {
-    return `Creator mission failed: ${result.error || 'unknown error'}`;
+    return `Loop Engineering staging failed: ${result.error || 'unknown error'}`;
   }
 
   const trace = result.trace || {};
@@ -986,7 +1013,7 @@ export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUr
     '',
     'Evidence',
     `Staged: ${artifacts}`,
-    `Creator-run contract: ${creatorEvidenceStandardLine()}`,
+    `Loop Engineering contract: ${creatorEvidenceStandardLine()}`,
     'Capability gain needs baseline, candidate, held-out or trap evidence before Rec says the path made the agent better.',
     '',
     'Workspace',
@@ -1008,7 +1035,7 @@ export function formatCreatorMissionStatusSummary(
   baseUrl = spawnerPublicUrl()
 ): string {
   if (!result.success) {
-    return `Creator mission status failed: ${result.error || 'unknown error'}`;
+    return `Loop Engineering status failed: ${result.error || 'unknown error'}`;
   }
 
   const trace = result.trace || {};
@@ -1026,7 +1053,7 @@ export function formatCreatorMissionStatusSummary(
   const networkAbsorbable = formatNetworkAbsorbable(trace.publication?.network_absorbable);
 
   return [
-    `${statusIcon} ${domain} creator status.`,
+    `${statusIcon} ${domain} Loop Engineering status.`,
     '',
     'State',
     `${formatCreatorReadiness(trace.stage_status)} at ${formatCreatorReadiness(trace.current_stage)}`,
@@ -1042,7 +1069,8 @@ export function formatCreatorMissionStatusSummary(
     ...(blockers.length > 0 ? [`blocker: ${blockers[0]}`] : []),
     '',
     'Evidence',
-    `Creator-run contract: ${creatorEvidenceStandardLine()}`,
+    `Loop Engineering contract: ${creatorEvidenceStandardLine()}`,
+    formatDomainChipLabsContractProofLine(trace),
     '',
     'Workspace',
     `${artifactCount} artifact plan${artifactCount === 1 ? '' : 's'}`,
@@ -1056,7 +1084,7 @@ export function formatCreatorMissionExecutionSummary(
   baseUrl = spawnerPublicUrl()
 ): string {
   if (!result.success) {
-    return `Creator mission run failed: ${result.error || 'unknown error'}`;
+    return `Loop Engineering run failed: ${result.error || 'unknown error'}`;
   }
 
   const trace = result.trace || {};
@@ -1064,10 +1092,10 @@ export function formatCreatorMissionExecutionSummary(
   const canvasUrl = absoluteSpawnerUrl(result.canvasUrl || trace.links?.canvas, baseUrl);
   const kanbanUrl = trace.links?.kanban || (missionId !== 'unknown' ? creatorMissionKanbanUrl(missionId, baseUrl) : `${baseUrl}/kanban`);
   const headline = result.started
-    ? '🟢 Creator mission started.'
+    ? '🟢 Loop Engineering run started.'
     : result.skipped
-      ? '🟡 Creator mission was already handled.'
-      : '🟢 Creator mission accepted.';
+      ? '🟡 Loop Engineering run was already handled.'
+      : '🟢 Loop Engineering run accepted.';
 
   return [
     headline,
@@ -1088,7 +1116,7 @@ export function formatCreatorMissionValidationSummary(
   baseUrl = spawnerPublicUrl()
 ): string {
   if (!result.success) {
-    return `Creator mission validation failed: ${result.error || 'unknown error'}`;
+    return `Loop Engineering validation failed: ${result.error || 'unknown error'}`;
   }
 
   const trace = result.trace || {};
@@ -1104,8 +1132,8 @@ export function formatCreatorMissionValidationSummary(
     /block/.test(String(trace.stage_status || '').toLowerCase()) ||
     /promotion[_-\s]*blocked/.test(String(trace.current_stage || '').toLowerCase());
   const headline = status === 'passed' && promotionBlocked
-    ? '🟡 Creator artifact validation passed; promotion is still blocked.'
-    : `${creatorValidationIcon(status)} Creator validation ${formatCreatorReadiness(status)}.`;
+    ? '🟡 Loop Engineering artifact validation passed; promotion is still blocked.'
+    : `${creatorValidationIcon(status)} Loop Engineering validation ${formatCreatorReadiness(status)}.`;
 
   return [
     headline,
@@ -1127,6 +1155,66 @@ export function formatCreatorMissionValidationSummary(
     ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
     `Board: ${kanbanUrl}`
   ].join('\n');
+}
+
+async function runLoopEngineeringSpawnerAction(
+  kind: 'benchmark' | 'loop',
+  input: LoopEngineeringRunInput
+): Promise<LoopEngineeringRunResult> {
+  const chipKey = safeDomainChipKey(input.chipKey);
+  if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+  const endpoint = kind === 'benchmark'
+    ? `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/benchmarks/run`
+    : `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/loops/run`;
+  const toolName = kind === 'benchmark'
+    ? 'spawner.loop_engineering.benchmark.run'
+    : 'spawner.loop_engineering.loop.run';
+  try {
+    const res = await postLocalServiceWithRetry(
+      `${SPAWNER_UI_URL}${endpoint}`,
+      {
+        ...(input.objective?.trim() ? { objective: input.objective.trim() } : {}),
+        ...(kind === 'loop' && typeof input.roundLimit === 'number' ? { roundLimit: input.roundLimit } : {}),
+        ...(kind === 'benchmark' && input.benchmarkCaseIds?.length ? { benchmarkCaseIds: input.benchmarkCaseIds } : {}),
+        sourceSurface: input.sourceSurface || 'telegram',
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        executionAuthority: input.executionAuthority ?? governorDecisionAuthority({
+          source: 'telegram_loop_engineering_bridge',
+          reason: `Telegram requested a private loop-engineering ${kind} mission through Spawner.`,
+          toolName,
+          mutationClass: 'launches_mission',
+          requestId: input.requestId,
+          target: chipKey
+        })
+      },
+      localServiceTimeoutMs('SPARK_LOOP_ENGINEERING_RUN_TIMEOUT_MS')
+    );
+    const commandResult = res.data?.commandResult && typeof res.data.commandResult === 'object'
+      ? res.data.commandResult
+      : {};
+    const missionId = typeof commandResult.missionId === 'string'
+      ? commandResult.missionId
+      : typeof res.data?.mission?.id === 'string'
+        ? res.data.mission.id
+        : undefined;
+    return {
+      success: Boolean(res.data?.ok),
+      action: typeof commandResult.action === 'string' ? commandResult.action : undefined,
+      missionId,
+      eventId: typeof commandResult.eventId === 'string' ? commandResult.eventId : undefined,
+      inspectUrl: typeof commandResult.inspectUrl === 'string' ? absoluteSpawnerUrl(commandResult.inspectUrl) : undefined,
+      message: typeof commandResult.userMessage === 'string' ? commandResult.userMessage : undefined,
+      event: res.data?.event && typeof res.data.event === 'object' ? res.data.event : undefined,
+      mission: res.data?.mission && typeof res.data.mission === 'object' ? res.data.mission : undefined,
+      commandResult,
+      ...(res.data?.ok ? {} : { error: res.data?.error || `Loop-engineering ${kind} run failed` })
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.response?.data?.error || err?.message || `Loop-engineering ${kind} run failed`
+    };
+  }
 }
 
 export const spawner = {
@@ -1168,6 +1256,7 @@ export const spawner = {
         localServiceTimeoutMs('SPARK_SPAWNER_RUN_TIMEOUT_MS')
       );
 
+      if (res.data?.success && !(typeof res.data?.missionId === 'string' && res.data.missionId.trim())) return { success: false, error: 'Spark run bridge returned success but missing mission id.' };
       return {
         success: Boolean(res.data?.success),
         missionId: res.data?.missionId,
@@ -1180,6 +1269,14 @@ export const spawner = {
         error: err.response?.data?.error || err.message
       };
     }
+  },
+
+  async runLoopEngineeringBenchmark(input: LoopEngineeringRunInput): Promise<LoopEngineeringRunResult> {
+    return runLoopEngineeringSpawnerAction('benchmark', input);
+  },
+
+  async runLoopEngineeringLoop(input: LoopEngineeringRunInput): Promise<LoopEngineeringRunResult> {
+    return runLoopEngineeringSpawnerAction('loop', input);
   },
 
   async creatorMission(input: CreatorMissionInput): Promise<CreatorMissionResult> {
@@ -1197,7 +1294,7 @@ export const spawner = {
             ? {
                 executionAuthority: input.executionAuthority ?? governorDecisionAuthority({
                   source: 'telegram_creator_mission_bridge',
-                  reason: 'Telegram creator mission bridge requested an executable creator mission.',
+                  reason: 'Telegram Loop Engineering bridge requested an executable path.',
                   toolName: 'creator.mission.create',
                   mutationClass: 'creates_chip',
                   requestId: input.requestId,
@@ -1209,9 +1306,9 @@ export const spawner = {
         localServiceTimeoutMs('SPARK_CREATOR_MISSION_TIMEOUT_MS')
       );
 
-      if (res.data?.ok === false) return { success: false, error: res.data?.error || 'Creator mission was rejected.' };
+      if (res.data?.ok === false) return { success: false, error: res.data?.error || 'Loop Engineering request was rejected.' };
       const proof = creatorMissionClosureProof(res.data);
-      if (res.data?.ok && !proof.missionId && !proof.stagedPath) return { success: false, error: 'Creator mission bridge returned ok but missing mission id or staged artifact proof.' };
+      if (res.data?.ok && !proof.missionId && !proof.stagedPath) return { success: false, error: 'Loop Engineering bridge returned ok but missing mission id or staged artifact proof.' };
 
       return {
         success: Boolean(res.data?.ok),
@@ -1239,7 +1336,7 @@ export const spawner = {
           ...(input.requestId ? { requestId: input.requestId } : {}),
           executionAuthority: input.executionAuthority ?? governorDecisionAuthority({
             source: 'telegram_creator_mission_execute_bridge',
-            reason: 'Telegram creator mission bridge requested execution of a staged creator mission.',
+            reason: 'Telegram Loop Engineering bridge requested execution of a staged path.',
             toolName: 'spawner.dispatch',
             mutationClass: 'launches_mission',
             requestId: input.requestId,
@@ -1252,7 +1349,7 @@ export const spawner = {
       if (res.data?.ok === false) {
         return {
           success: false,
-          error: res.data?.error || 'Creator mission execution was rejected.'
+          error: res.data?.error || 'Loop Engineering execution was rejected.'
         };
       }
 
@@ -1291,7 +1388,7 @@ export const spawner = {
       if (res.data?.ok === false) {
         return {
           success: false,
-          error: res.data?.error || 'Creator mission status lookup was rejected.'
+          error: res.data?.error || 'Loop Engineering status lookup was rejected.'
         };
       }
 
@@ -1326,7 +1423,7 @@ export const spawner = {
       if (res.data?.ok === false) {
         return {
           success: false,
-          error: res.data?.error || 'Creator mission validation was rejected.'
+          error: res.data?.error || 'Loop Engineering validation was rejected.'
         };
       }
 

@@ -218,6 +218,89 @@ async function run(): Promise<void> {
     assert.equal(capturedBody.promptMode, undefined);
   });
 
+  await test('runLoopEngineeringBenchmark posts to Spawner command-result endpoint with Governor authority', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          event: { id: 'lee-1', eventType: 'benchmark_run', status: 'queued' },
+          mission: { id: 'spark-loop-1' },
+          commandResult: {
+            action: 'benchmark_run_queued',
+            launchedMission: true,
+            missionId: 'spark-loop-1',
+            eventId: 'lee-1',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Queued a private benchmark mission.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.runLoopEngineeringBenchmark({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      objective: 'Run one private benchmark.',
+      benchmarkCaseIds: ['held-out-1'],
+      requestId: 'tg-loop-benchmark'
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'benchmark_run_queued');
+    assert.equal(result.missionId, 'spark-loop-1');
+    assert.equal(result.inspectUrl, 'http://127.0.0.1:3333/loop-engineering/domain-chip-prd-writing-proof-loop');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/benchmarks\/run$/);
+    assert.equal(capturedBody.sourceSurface, 'telegram');
+    assert.deepEqual(capturedBody.benchmarkCaseIds, ['held-out-1']);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.benchmark.run');
+  });
+
+  await test('runLoopEngineeringLoop posts capped loop runs to Spawner with loop authority', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          event: { id: 'lee-2', eventType: 'loop_batch', status: 'queued' },
+          mission: { id: 'spark-loop-2' },
+          commandResult: {
+            action: 'loop_run_queued',
+            launchedMission: true,
+            missionId: 'spark-loop-2',
+            eventId: 'lee-2',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Queued a capped private loop mission.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.runLoopEngineeringLoop({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      objective: 'Improve PRD quality.',
+      roundLimit: 3,
+      requestId: 'tg-loop-run'
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'loop_run_queued');
+    assert.equal(result.missionId, 'spark-loop-2');
+    assert.equal(result.inspectUrl, 'http://127.0.0.1:3333/loop-engineering/domain-chip-prd-writing-proof-loop');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/loops\/run$/);
+    assert.equal(capturedBody.roundLimit, 3);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.loop.run');
+  });
+
   await test('creatorMission posts creator planning input to Spawner', async () => {
     restoreAxios();
 
@@ -305,14 +388,14 @@ async function run(): Promise<void> {
       'http://spawner.test/'
     );
 
-    assert.match(message, /Creator plan ready|Private path staged|Creator plan is staged/);
+    assert.match(message, /Loop Engineering plan ready|Private path staged|Loop Engineering plan is staged/);
     assert.doesNotMatch(message, /Scope/);
     assert.match(message, /Startup YC/);
     assert.match(message, /GitHub review \/ high risk/);
     assert.match(message, /No execution or publishing happened from staging/);
     assert.match(message, /Labs verdict: prototype; evidence tier: local only; network_absorbable=false/);
     assert.match(message, /domain chip, benchmark pack, autoloop policy/);
-    assert.match(message, /Creator-run contract: creator intent, adapter map, artifact manifest, domain chip, manifest\/hook contract, triggers\/non-triggers, playbook, examples, benchmark pack, score dimensions, allowed mutations, watchtower[\s\S]*privacy boundary, rollback, review packet, activation notes, creator mission status, swarm\/contribution_packet\.json/);
+    assert.match(message, /Loop Engineering contract: intent packet, adapter map, artifact manifest, domain chip, starter kit \(17 checks\), loop proof \(5 checks\), and promotion review \(7 checks\), specialization path, autoloop policy, Loop Engineering status, swarm\/contribution_packet\.json/);
     assert.match(message, /baseline, candidate, held-out or trap evidence/);
     assert.match(message, /2 tasks queued/);
     assert.match(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
@@ -421,7 +504,7 @@ async function run(): Promise<void> {
       'http://spawner.test/'
     );
 
-    assert.match(message, /Creator mission started/);
+    assert.match(message, /Loop Engineering run started/);
     assert.match(message, /running now/);
     assert.match(message, /Builder: Codex/);
     assert.doesNotMatch(message, /mission: mission-creator-1/);
@@ -508,7 +591,7 @@ async function run(): Promise<void> {
       'http://spawner.test/'
     );
 
-    assert.match(message, /Startup YC creator status/);
+    assert.match(message, /Startup YC Loop Engineering status/);
     assert.doesNotMatch(message, /Mission: mission-creator-1/);
     assert.match(message, /failed at validation failed/);
     assert.match(message, /Labs verdict: blocked/);
@@ -517,7 +600,7 @@ async function run(): Promise<void> {
     assert.match(message, /capability gain: not proven yet/);
     assert.match(message, /1 manifest issue/);
     assert.match(message, /blocker: One or more validation commands failed/);
-    assert.match(message, /Creator-run contract: creator intent, adapter map, artifact manifest/);
+    assert.match(message, /Loop Engineering contract: intent packet, adapter map, artifact manifest[\s\S]*Contract proof: not attached yet/);
     assert.match(message, /2 artifact plans/);
     assert.match(message, /Board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
   });
@@ -594,7 +677,7 @@ async function run(): Promise<void> {
       'http://spawner.test/'
     );
 
-    assert.match(message, /Creator validation failed/);
+    assert.match(message, /Loop Engineering validation failed/);
     assert.doesNotMatch(message, /Mission: mission-creator-1/);
     assert.match(message, /2 commands/);
     assert.match(message, /1 passed/);
@@ -636,7 +719,7 @@ async function run(): Promise<void> {
 
     assert.match(message, /artifact validation passed; promotion is still blocked/i);
     assert.match(message, /baseline, candidate, delta, held-out\/trap verdicts, and benchmark refs/);
-    assert.doesNotMatch(message, /Creator validation passed\./);
+    assert.doesNotMatch(message, /Loop Engineering validation passed\./);
     assert.doesNotMatch(message, /Creator Mission score/);
   });
 

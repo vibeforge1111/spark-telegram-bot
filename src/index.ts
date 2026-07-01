@@ -1,5 +1,4 @@
-import 'dotenv/config';
-import { config as loadEnv } from 'dotenv';
+import './bootstrapEnv';
 import { execFile } from 'node:child_process';
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
@@ -7,13 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { Telegraf } from 'telegraf';
-import { loadSparkTelegramProfileEnv } from './profileEnv';
 import { effectiveLevel5RuntimeEnv } from './level5RuntimeEnv';
-
-// Load .env.override LAST with override=true. Wins over anything spark-cli
-// rewrites in .env. Never committed (.gitignored).
-loadSparkTelegramProfileEnv(process.argv.slice(2), process.env, { preserveExisting: true });
-loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });
 import { message } from 'telegraf/filters';
 import { conversation, isPendingTaskRecoveryQuestion, renderPendingTaskRecoveryReply } from './conversation';
 import { domainChipLabsCreatorContractLines, FULL_CREATOR_SYSTEM_ARTIFACT_PATTERN } from './domainChipLabsCreatorContract';
@@ -66,6 +59,10 @@ import {
 } from './spawner';
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
+import { evaluateDailyScheduleFastPath } from './dailyScheduleFastPath';
+import { fetchLoopEngineeringStatusPacket } from './loopEngineeringStatus';
+import { domainChipBenchmarkFollowupReplyExtra, handleNaturalDomainChipBenchmarkAutoloopFollowup, labelForTelegram } from './domainChipBenchmarkFollowup';
+import { renderDistilledPrdFastPathReply } from './prdWritingFastPath';
 import { packageSpecializationPathLoop, readSpecializationPathLoopInsights, readSpecializationPathLoopStatus, resolveRecursiveStartTarget, runSpecializationPathAutoloop } from './pathLoop';
 import {
   isSparkQaOperatorKey,
@@ -173,6 +170,31 @@ import { readTraceRepairSummary, renderTraceRepairSummary } from './traceRepair'
 import { projectHarnessProof } from './harnessProofProjection';
 import { parseBuildIntent, polishBuildProjectName, type BuildLane } from './buildIntent';
 import {
+  buildDomainChipCapabilityProposalPacket,
+  buildDomainChipPrd,
+  domainChipBuildModeForBrief,
+  formatDomainChipCreateFailure,
+  formatDomainChipCreatedReceipt,
+  formatDomainChipBuildPreview,
+  isDomainChipFailureCopyNoActionQuestion,
+  isDomainChipNoActionAdvisoryQuestion,
+  renderDomainChipFailureCopyNoActionReply,
+  renderDomainChipNoActionAdvisoryReply,
+  projectNameForDomainChipBrief
+} from './domainChipBuild';
+export {
+  buildDomainChipCapabilityProposalPacket,
+  buildDomainChipPrd,
+  formatDomainChipCreateFailure,
+  formatDomainChipCreatedReceipt,
+  formatDomainChipBuildPreview,
+  isDomainChipFailureCopyNoActionQuestion,
+  isDomainChipNoActionAdvisoryQuestion,
+  renderDomainChipFailureCopyNoActionReply,
+  renderDomainChipNoActionAdvisoryReply,
+  projectNameForDomainChipBrief
+} from './domainChipBuild';
+import {
   cleanupPendingBuildClarifications,
   deletePendingBuildClarification,
   getPendingBuildClarification,
@@ -187,13 +209,16 @@ import {
 import {
   cleanupPendingDomainChipBuilds,
   deletePendingDomainChipBuild,
+  formatLastCreatedDomainChipContext,
   getPendingDomainChipBuild,
+  getLastCreatedDomainChip,
   isBareDomainChipPendingYes,
   isDomainChipPendingCancel,
   isDomainChipPendingDirection,
   isDomainChipPendingStart,
   isPendingDomainChipBuildExpired,
   pendingDomainChipPrdWithUserDirection,
+  rememberLastCreatedDomainChip,
   rememberPendingDomainChipBuild,
   telegramPendingDomainChipKey,
   type PendingDomainChipBuild
@@ -431,6 +456,13 @@ function recursiveStatusDeps(): RecursiveStatusDeps {
 }
 
 // Validate environment
+const missingProfileToken = process.env.SPARK_PROFILE_TOKEN_MISSING?.trim();
+if (missingProfileToken && !TELEGRAM_SMOKE_MODE) {
+  console.error(`ERROR: ${missingProfileToken} is not available for this Telegram profile`);
+  console.error('Reconnect this profile with `spark telegram connect <profile>` or stop the profile before starting polling.');
+  process.exit(1);
+}
+
 if (!process.env.BOT_TOKEN && !TELEGRAM_SMOKE_MODE) {
   console.error('ERROR: BOT_TOKEN not set in .env');
   console.error('Get one from @BotFather on Telegram');
@@ -581,10 +613,12 @@ function runtimeTruthSourceEvidence(text: string): TelegramSourceUsedEvidence[] 
 function isLiveSparkHealthQuestion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return false;
+  const connectionCheckScoped = /\bconnection\s+check\b/.test(normalized) && /\b(?:current\s+)?(?:live\s+)?(?:state|status|health)\b/.test(normalized);
   return (
     /\bspark live status\b/.test(normalized) ||
     /\blive spark health\b/.test(normalized) ||
     /\bsame source as spark live status\b/.test(normalized) ||
+    connectionCheckScoped ||
     (/\bspawner\b/.test(normalized) && /\btelegram\b/.test(normalized) && /\b(?:supervised|running|stopped|health|live)\b/.test(normalized))
   );
 }
@@ -952,7 +986,7 @@ async function renderPendingActionReadAnswer(ctx: any, user: any): Promise<strin
   const active = [
     getPendingBuildClarification(buildKey) ? 'build clarification' : '',
     getPendingDomainChipBuild(domainChipKey) ? 'domain-chip build preview' : '',
-    getPendingCreatorMission(creatorKey) ? 'creator mission follow-up' : '',
+    getPendingCreatorMission(creatorKey) ? 'Loop Engineering follow-up' : '',
     getPendingMissionCancelConfirmation(cancelKey) ? 'mission cancel confirmation' : '',
     await conversation.getPendingTaskRecovery(user).catch(() => null) ? 'task recovery' : ''
   ].filter(Boolean);
@@ -967,7 +1001,7 @@ async function renderPendingActionReadAnswer(ctx: any, user: any): Promise<strin
     : [
         'I do not see a pending action waiting for confirmation in this chat.',
         '',
-        'I checked build clarification, domain-chip preview, creator mission, mission cancel, and task recovery state. Nothing was resumed or executed.'
+        'I checked build clarification, domain-chip preview, Loop Engineering follow-up, mission cancel, and task recovery state. Nothing was resumed or executed.'
       ].join('\n');
 }
 
@@ -1657,6 +1691,7 @@ function shouldAttachFreshRuntimeTruthContext(text: string): boolean {
 }
 
 function isMetaNoActionTriggerDiscussion(text: string): boolean {
+  if (parseNaturalChipCreateIntent(text)) return false;
   if (isActionWordMetaDiscussion(text)) return true;
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return false;
@@ -1837,8 +1872,19 @@ async function persistTelegramStreamingConfig(updates: TelegramStreamingConfigSe
 
 async function recordNaturalRouteShadow(ctx: any, text: string): Promise<NaturalRouteDecision | null> {
   try {
+    const recentTurns = await conversation.getRecentTurns(ctx.from, 15).catch(() => []);
+    const recentMessages = recentTurns.length > 0
+      ? recentTurns.map((turn) => `${turn.role === 'assistant' ? 'Spark' : 'User'}: ${turn.text}`)
+      : await conversation.getRecentMessages(ctx.from, 15).catch(() => []);
+    const key = telegramPendingDomainChipKey(ctx.chat?.id, ctx.from?.id);
+    const lastCreatedChipContext = formatLastCreatedDomainChipContext(
+      await getLastCreatedDomainChip(key).catch(() => null)
+    );
+    const routeRecentMessages = lastCreatedChipContext
+      ? [...recentMessages, lastCreatedChipContext]
+      : recentMessages;
     return decideNaturalRoute(text, {
-      recentMessages: await conversation.getRecentMessages(ctx.from, 15).catch(() => []),
+      recentMessages: routeRecentMessages,
       pendingBuildClarification: Boolean(
         ctx.chat?.id &&
         ctx.from?.id &&
@@ -1993,6 +2039,8 @@ function renderSparkQaBenchmarkNoRunReply(): string {
 
 function isUnderspecifiedBenchmarkPackCreation(text: string): boolean {
   const normalized = String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (/\b(?:do not|don't|dont|please don't|please dont|not asking (?:you )?to|i am not asking (?:you )?to)\b.{0,180}\b(?:create|build|make|plan|stage|generate|benchmark|autoloop|publish|promote)\b.{0,80}\b(?:benchmark|benchmarks|benchmark pack|autoloop)\b/.test(normalized) || /\b(?:benchmark|benchmarks|benchmark pack|autoloop)\b.{0,80}\b(?:do not|don't|dont|please don't|please dont|not asking (?:you )?to|i am not asking (?:you )?to)\b.{0,180}\b(?:create|build|make|plan|stage|generate|benchmark|autoloop|publish|promote)\b/.test(normalized)) return false;
+  if (isSparkWorkflowBugHuntRequest(normalized)) return false;
   if (!/\b(?:create|build|make|plan|stage|generate)\b.{0,60}\b(?:benchmark pack|benchmarks|benchmark)\b/.test(normalized)) return false;
   const hasLevel = /\blevel\s*(10|[1-9])\b/.test(normalized);
   const hasTarget = /\b(?:spark\s+qa\s+operator|qa\s+operator|specialization\s+path|startup[-\s]+yc|domain[-\s]+chip[-\s]+creator)\b/.test(normalized);
@@ -2008,29 +2056,151 @@ function renderUnderspecifiedBenchmarkPackReply(): string {
   ].join('\n');
 }
 
-function labelForTelegram(value: string): string {
-  return String(value || '')
-    .replace(/^path:/, '')
-    .replace(/^path[_-]/, '')
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\w/g, (match) => match.toUpperCase())
-    .trim() || 'specialization';
+function activePendingDomainChipDirection(ctx: any, text: string): boolean {
+  if (!conversation.isAdmin(ctx.from) || !ctx.chat?.id || !ctx.from?.id) return false;
+  const pending = getPendingDomainChipBuild(telegramPendingDomainChipKey(ctx.chat.id, ctx.from.id));
+  return Boolean(pending && !isPendingDomainChipBuildExpired(pending) && isDomainChipPendingDirection(text));
 }
 
-async function handleNaturalRecursiveRoute(
+function isExplicitDirectDomainChipCreateText(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  if (/\b(?:domain\s+chip\s+labs?\s+framework|loop\s+engineering\s+system|creator\s+(?:mission|system|run)|speciali[sz]ation\s+path|full\s+(?:creator\s+)?path)\b/.test(normalized)) {
+    return false;
+  }
+  return (
+    /^(?:let'?s\s+|lets\s+|shall\s+we\s+|please\s+|can\s+you\s+|could\s+you\s+|would\s+you\s+)?(?:build|create|make|scaffold|generate)\s+(?:a\s+|an\s+)?(?:(?:private|local|spark|advanced|custom)\s+)*domain[-\s]*chip\s+(?:(?:starter\s+)?preview\s+(?:for|of)\s+|(?:for|to|around|about|called|named)\b)/.test(normalized) ||
+    /^domain[-\s]*chip\s+(?:for|to|around|about|called|named)\b/.test(normalized)
+  );
+}
+
+function domainChipBuilderAuthorityText(userText: string, brief: string): string {
+  const cleanUserText = userText.trim() || 'go';
+  const cleanBrief = brief.trim() || 'new Domain Chip';
+  return `${cleanUserText}\n\nPending Domain Chip approval: build a domain chip for ${cleanBrief}.`;
+}
+
+function isDomainChipPreviewOnlyRequest(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  return (
+    /\b(?:preview\s+only|starter\s+preview|show\s+(?:me\s+)?(?:the\s+)?(?:private\s+)?(?:starter\s+)?preview)\b/.test(normalized) ||
+    /\bask\s+(?:me\s+)?(?:for\s+)?go\b.{0,80}\bbefore\s+(?:creating|create|writing|making)\s+(?:files?|artifacts?)\b/.test(normalized)
+  );
+}
+
+function authorizeDomainChipBuilderCreate(
+  ctx: any,
+  text: string,
+  authorityText = text
+): TelegramActionAuthorityResult {
+  return telegramCommandActionAuthorityDecision(ctx, {
+    commandName: 'chip',
+    route: 'domain_chip.create',
+    text: authorityText,
+    toolName: 'chip.create',
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'creates_chip',
+    action: 'domain_chip.create',
+    kind: 'creator_or_domain_chip'
+  });
+}
+
+function ensureDomainChipBuilderCreateGovernor(
+  ctx: any,
+  authorization: TelegramActionAuthorityResult,
+  text: string,
+  pendingBrief: string
+): TelegramActionAuthorityResult {
+  if (!authorization.allow || authorization.governorDecision) {
+    return authorization;
+  }
+  return authorizeDomainChipBuilderCreate(
+    ctx,
+    text,
+    domainChipBuilderAuthorityText(text, pendingBrief)
+  );
+}
+
+async function stageNaturalDomainChipBuildPreview(
   ctx: any,
   user: any,
   text: string,
-  decision: NaturalRouteDecision | null
+  brief: string,
+  turnIntentEnvelope: TurnIntentEnvelopeV1
 ): Promise<boolean> {
+  const previewOnly = isDomainChipPreviewOnlyRequest(text);
+  if (!telegramBranchActionAuthorityAllowed(turnIntentEnvelope, {
+    route: previewOnly ? 'domain_chip.preview' : 'domain_chip.create',
+    text,
+    toolName: previewOnly ? 'answer.compose' : 'domain_chip.create',
+    ownerSystem: previewOnly ? 'spark-telegram-bot' : turnIntentEnvelope.selectedIntent.ownerSystem,
+    mutationClass: previewOnly ? 'read_only' : 'creates_chip',
+    action: previewOnly ? 'domain_chip.preview' : 'domain_chip.create'
+  })) {
+    return false;
+  }
+
+  await conversation.remember(user, text).catch(() => {});
+  const mode = domainChipBuildModeForBrief(brief);
+  deletePendingCreatorMission(telegramPendingDomainChipKey(ctx.chat.id, ctx.from.id));
+  rememberPendingDomainChipBuild(telegramPendingDomainChipKey(ctx.chat.id, ctx.from.id), {
+    brief,
+    prd: buildDomainChipPrd(brief),
+    projectName: projectNameForDomainChipBrief(brief),
+    buildMode: mode.buildMode,
+    buildModeReason: mode.reason,
+    capabilityProposalPacket: buildDomainChipCapabilityProposalPacket(brief),
+    timestamp: Date.now()
+  });
+  await ctx.reply(formatDomainChipBuildPreview(brief));
+  return true;
+}
+
+async function handleNaturalRecursiveRoute(ctx: any, user: any, text: string, decision: NaturalRouteDecision | null, turnIntentEnvelope: TurnIntentEnvelopeV1): Promise<boolean> {
   if (!conversation.isAdmin(ctx.from)) return false;
   const rawCommand = naturalRecursiveRawCommand(decision);
   if (!rawCommand) return false;
 
   await conversation.remember(user, text).catch(() => {});
 
+  if (await handleNaturalDomainChipBenchmarkAutoloopFollowup({
+    ctx, text, decision, rawCommand,
+    authorize: (input) => telegramBranchActionAuthorityDecision(turnIntentEnvelope, input),
+    replyAuthorityBlocked: () => replyTelegramCommandAuthorityBlocked(ctx),
+    sendTyping: () => safeSendChatAction(ctx, 'typing'),
+    recordNaturalExecution: () => recordNaturalRouteExecution(ctx, decision, 'recursive.start', 'spark-telegram-bot', 'recursive.loop.start'),
+    recordHarnessExecution: (authorization, status, summary) => recordTelegramHarnessCoreExecution(authorization, { toolName: 'recursive.loop', status, summary }),
+    replyExtra: (authorization, status, summary) => domainChipBenchmarkFollowupReplyExtra(turnIntentEnvelope, authorization, status, summary),
+    requestId: turnIntentEnvelope.turnId,
+    runLoopEngineering: async (input) => input.kind === 'loop'
+      ? spawner.runLoopEngineeringLoop({
+          chipKey: input.chipKey,
+          objective: input.objective,
+          roundLimit: input.roundLimit,
+          sourceSurface: 'telegram',
+          requestId: input.requestId
+        })
+      : spawner.runLoopEngineeringBenchmark({
+          chipKey: input.chipKey,
+          objective: input.objective,
+          sourceSurface: 'telegram',
+          requestId: input.requestId
+        }),
+    rememberAssistantReply: async (reply) => { await conversation.rememberAssistantReply(user, reply).catch(() => {}); },
+    redact: redactText
+  })) {
+    return true;
+  }
+
   if (/^start\b/i.test(rawCommand)) {
     recordNaturalRouteExecution(ctx, decision, 'recursive.start_confirmation_required', 'spark-telegram-bot', 'clarify');
+    if (/\b(?:private|starter|local)\s+check\b/i.test(text)) {
+      const reply = 'Which Domain Chip should I check? I need the chip name or the latest creation receipt before I run a private starter check.';
+      await ctx.reply(reply);
+      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      return true;
+    }
     const target = rawCommand.replace(/^start\s+/i, '').replace(/\s+rounds\s+\d+\s*$/i, '').trim();
     const reply = target
       ? `I can run the ${labelForTelegram(target)} loop, but that starts benchmark work. Use \`/recursive ${rawCommand}\` when you want the run to actually begin.`
@@ -2339,17 +2509,11 @@ async function handleTelegramIntentGateV2SafeRoute(
     }
     await conversation.remember(user, text).catch(() => {});
     const reply = await renderAuthoritativeSparkAccessStatus(ctx.chat.id);
-    await ctx.reply(reply);
+    const traceContext = buildTurnOutboundTraceContext(envelope, { route: 'access.status', intentKind: 'access.status', command: 'telegram_intent_gate_access_status', reasonSummary: 'Intent Gate V2 answered fresh access status; no repair, access change, or owner execution was authorized.' });
+    setTurnOutboundTraceContext(ctx, traceContext);
+    await ctx.reply(reply, outboundTraceExtra(traceContext));
     recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
-    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_intent_gate_v2_access_status', [
-      {
-        source: 'spark_access_status',
-        role: 'access_truth',
-        freshness: 'fresh',
-        sourceRef: 'spark access status [--level 5 for operator chats] --json',
-        summary: 'Intent Gate V2 routed access status to the authoritative Spark CLI access state and runner writability preflight.'
-      }
-    ]);
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_intent_gate_v2_access_status', [{ source: 'spark_access_status', role: 'access_truth', freshness: 'fresh', sourceRef: 'spark access status [--level 5 for operator chats] --json', summary: 'Intent Gate V2 routed access status to the authoritative Spark CLI access state and runner writability preflight.' }]);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return true;
   }
@@ -3190,6 +3354,15 @@ mapCleanupTimer.unref?.();
 const PUBLIC_ONBOARDING_COMMANDS = new Set(['/start', '/myid']);
 const TELEGRAM_POLLING_READY_GRACE_MS = 3000;
 let pollingActive = false;
+let pollingStartedAt: string | null = null;
+
+function summarizeTelegramPollingError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replace(/bot\d+:[^/\s]+/g, 'bot[REDACTED]')
+    .replace(/\b\d{6,}:[A-Za-z0-9_-]+\b/g, '[REDACTED_TOKEN]')
+    .slice(0, 500);
+}
 
 function clearPendingExecutionState(key: string): boolean {
   const hadClarification = deletePendingBuildClarification(key);
@@ -3844,10 +4017,10 @@ bot.start(async (ctx) => {
       'Spawner Control:',
       '/run <goal> - Start a mission in Spawner',
       '/board - Mission state report',
-      '/creator plan <brief> - Plan a creator mission for a chip/path/benchmark/autoloop',
-      '/creator run <missionId> - Execute a planned creator mission',
-      '/creator status <missionId> - Show creator mission readiness and validation state',
-      '/creator validate <missionId> [maxCommands] - Run creator validation gates',
+      '/creator plan <brief> - Plan a Loop Engineering path for a chip/benchmark/autoloop',
+      '/creator run <missionId> - Execute a planned Loop Engineering path',
+      '/creator status <missionId> - Show Loop Engineering readiness and validation state',
+      '/creator validate <missionId> [maxCommands] - Run Loop Engineering validation gates',
       '/workspaces - Show local project folders',
       '/model - Show or change Agent/Mission model routing',
       '/models - Show recommended model versions',
@@ -5396,11 +5569,11 @@ type NaturalCreatorMissionIntent = ParsedCreatorCommand & {
 };
 
 const CREATOR_USAGE = [
-  'Usage: /creator plan [private|github|swarm] [risk low|medium|high] <brief>',
+  'Usage: /creator plan [private|github|swarm] [risk low|medium|high] <Loop Engineering brief>',
   '       /creator run <mission-creator-id>',
   '       /creator status <mission-creator-id>',
   '       /creator validate <mission-creator-id> [maxCommands]',
-  'Example: /creator plan private risk medium create a Startup YC benchmarked specialization path',
+  'Example: /creator plan private risk medium create a Startup YC benchmarked Loop Engineering path',
   'Example: /creator run mission-creator-1776768300668',
   'Example: /creator validate mission-creator-1776768300668 6'
 ].join('\n');
@@ -5632,7 +5805,7 @@ export function parseNaturalCreatorMissionIntent(text: string, recentMessages: s
   if (!hasCreateVerb) return null;
 
   const artifactPatterns: Array<{ label: string; pattern: RegExp }> = [
-    { label: 'full creator system', pattern: FULL_CREATOR_SYSTEM_ARTIFACT_PATTERN },
+    { label: 'Loop Engineering system', pattern: FULL_CREATOR_SYSTEM_ARTIFACT_PATTERN },
     { label: 'specialization path', pattern: /\b(?:specialization path|specialisation path|learning path|mastery path)\b/ },
     { label: 'autoloop', pattern: /\b(?:autoloop|auto loop|recursive loop|self-improvement loop)\b/ },
     { label: 'benchmark pack', pattern: /\b(?:benchmark pack|eval pack|evaluation pack|test suite)\b/ },
@@ -5676,7 +5849,7 @@ export function parseNaturalCreatorMissionIntent(text: string, recentMessages: s
       ...domainChipLabsCreatorContractLines(),
       'Require explicit evidence for creator-intent.json, adapter-map.json, created-artifact-manifest.json, domain-chip/, benchmark/, specialization-path/, autoloop/policy.json, reports/evidence_ladder.md, reports/creator-mission-status.json, and swarm/contribution_packet.json before any publish or share step.',
       'Keep publication.network_absorbable=false unless future promotion gates and explicit operator approval allow it.',
-      'Use Spark creator-system standards: creator intent packet, adapter map, artifact manifests, benchmark gates, evidence ladder, local/private boundary, rollback note, and review bundle only when gates allow it.',
+      'Use Spark Loop Engineering standards: intent packet, adapter map, artifact manifests, benchmark gates, evidence ladder, local/private boundary, rollback note, and review bundle only when gates allow it.',
       'Keep Telegram user-facing output natural and concise; keep detailed evidence in Workspace/Canvas/Kanban.'
     ].join('\n'),
     privacyMode: inferNaturalCreatorPrivacyMode(normalized),
@@ -5733,90 +5906,6 @@ async function buildBuildClarificationReply(projectName: string, questions: stri
   return formatBuildClarificationReplyWithMicrocopy(projectName, questions, assumptions, microcopy);
 }
 
-function slugForDomainChipBrief(brief: string): string {
-  const slug = brief
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .split('-')
-    .filter(Boolean)
-    .slice(0, 5)
-    .join('-');
-  return slug || 'custom-domain-chip';
-}
-
-export function projectNameForDomainChipBrief(brief: string): string {
-  const base = slugForDomainChipBrief(brief);
-  return base.startsWith('domain-chip-') ? base : `domain-chip-${base}`;
-}
-
-export function buildDomainChipCapabilityProposalPacket(brief: string): Record<string, unknown> {
-  const chipKey = projectNameForDomainChipBrief(brief);
-  return {
-    schema_version: 'spark.capability_proposal.v1',
-    status: 'proposal_plan_only',
-    capability_goal: brief,
-    recipient: 'Spark',
-    implementation_route: 'domain_chip',
-    owner_system: 'Spark domain chip runtime',
-    permissions_required: ['operator_approval_to_activate'],
-    safe_probe: 'Create the chip in a local or shadow route first, then prove only matching domain language invokes it.',
-    human_approval_boundary: 'Operator approval is required before activating the chip in the live Spark router.',
-    rollback_path: `Disable or remove ${chipKey} from the chip registry and delete its runtime attachment.`,
-    activation_path: 'Register the chip manifest through the Spark chip attachment contract after tests pass.',
-    eval_or_smoke_test: 'Router-invocation smoke test plus a fallthrough test for unrelated natural language.',
-    capability_ledger_key: `domain_chip:${chipKey}`,
-    claim_boundary: 'This packet is a proposal plan, not proof that Spark has gained the capability.'
-  };
-}
-
-export function buildDomainChipPrd(brief: string): string {
-  const chipKey = projectNameForDomainChipBrief(brief);
-  return [
-    `Create a Spark domain chip named ${chipKey}.`,
-    '',
-    `Natural-language chip brief: ${brief}`,
-    '',
-    'This must use the current Spark-compatible domain chip standards, not the older domain-chip-labs-only assumptions.',
-    'If this chip adds an executable Spark capability, follow Builder docs/CAPABILITY_PROPOSAL_STANDARD_V1.md: classify the route, name permissions, safe probe, approval boundary, rollback, eval, activation path, and capability ledger key before claiming the capability is live.',
-    '',
-    'Requirements:',
-    '- Scaffold or update the chip under the active Spark chip runtime location.',
-    '- Include a valid spark-chip.json manifest with router metadata, precise intent keywords, and no generic keyword hijacking.',
-    '- Implement hook entrypoints that can be invoked through the Spark attachments/chips runtime.',
-    '- Include the Domain Chip Labs scaffold contract: purpose, triggers, non-triggers, playbook, examples, evals, evidence ladder, privacy boundary, review packet, and rollback path.',
-    '- Include loop-engineering assets that can improve output quality over time: benchmark scenarios, score dimensions, allowed mutations, held-out checks, and watchtower signals.',
-    '- Add focused tests or smoke checks that prove the chip is router-invokable.',
-    '- Register or document the runtime activation step if the scaffolder does not activate it automatically.',
-    '- Avoid deterministic slash-command handoffs in Telegram-facing text; the chip should work from natural language.',
-    '- Validate that unrelated mentions of "chip" do not route to this chip.',
-    '',
-    'Acceptance checks:',
-    `- The created chip key is ${chipKey} or a clearly justified close variant.`,
-    '- The chip can be discovered by the Spark chip router for matching domain language.',
-    '- A non-domain phrase like "we talked about chips and snacks earlier" falls through conversationally.',
-    '- The final response reports chip key, path, router-invokable status, and any warnings.'
-  ].join('\n');
-}
-
-function domainChipBuildModeForBrief(_brief: string): { buildMode: 'direct' | 'advanced_prd'; reason: string } {
-  return {
-    buildMode: 'advanced_prd',
-    reason: 'Domain-chip creation needs manifest design, hook contracts, router boundaries, activation notes, and tests.'
-  };
-}
-
-export function formatDomainChipBuildPreview(brief: string): string {
-  const projectName = projectNameForDomainChipBrief(brief);
-  const mode = domainChipBuildModeForBrief(brief);
-  return [
-    `I can build this as ${projectName}.`,
-    `Recommended path: ${mode.buildMode === 'advanced_prd' ? 'Advanced PRD -> tasks' : 'Direct build'} because ${mode.reason}`,
-    'Before I start: should v1 focus on ideation only, shot/prompt packets, watchtower checks, or the full campaign workflow?',
-    'Reply "go" to use my default: private DCL scaffold, prompt packets, evals, watchtower, and no external API calls.'
-  ].join('\n');
-}
-
 async function handlePendingDomainChipBuild(ctx: any, text: string, envelope?: TurnIntentEnvelopeV1): Promise<boolean> {
   const key = telegramPendingDomainChipKey(ctx.chat.id, ctx.from.id);
   const pending = getPendingDomainChipBuild(key);
@@ -5824,7 +5913,7 @@ async function handlePendingDomainChipBuild(ctx: any, text: string, envelope?: T
 
   if (isPendingDomainChipBuildExpired(pending)) {
     deletePendingDomainChipBuild(key);
-    await ctx.reply('That domain-chip draft expired. Send the idea again and I will shape it before starting.');
+    await ctx.reply('That Domain Chip draft expired, so I did not start anything. Send the idea again and I will shape a fresh private draft first.');
     return true;
   }
 
@@ -5843,36 +5932,68 @@ async function handlePendingDomainChipBuild(ctx: any, text: string, envelope?: T
     return false;
   }
 
-  if (envelope && !telegramBranchActionAuthorityAllowed(envelope, {
-    route: 'domain_chip.pending',
+  let authorization = envelope
+    ? telegramBranchActionAuthorityDecision(envelope, {
+        route: 'domain_chip.pending',
+        text,
+        toolName: 'chip.create',
+        ownerSystem: 'spark-intelligence-builder',
+        mutationClass: 'creates_chip',
+        action: 'domain_chip.create',
+        kind: 'creator_or_domain_chip',
+        confidence: 'contextual'
+      })
+    : authorizeDomainChipBuilderCreate(
+        ctx,
+        text,
+        domainChipBuilderAuthorityText(text, pending.projectName || pending.brief)
+      );
+  authorization = ensureDomainChipBuilderCreateGovernor(
+    ctx,
+    authorization,
     text,
-    toolName: 'domain_chip.create',
-    ownerSystem: 'domain-chip',
-    mutationClass: 'creates_chip',
-    action: 'domain_chip.pending',
-    kind: 'creator_or_domain_chip',
-    confidence: 'contextual'
-  })) {
-    return false;
+    pending.projectName || pending.brief
+  );
+  if (!authorization.allow) {
+    await replyTelegramCommandAuthorityBlocked(ctx);
+    return true;
+  }
+  if (!authorization.governorDecision) {
+    await ctx.reply('I did not start that Domain Chip because the Builder handoff is missing fresh Governor authority. Send the idea again and I will shape a fresh private draft first.');
+    return true;
   }
 
   deletePendingDomainChipBuild(key);
   const prd = pendingDomainChipPrdWithUserDirection(pending, text);
   await ctx.reply(isDomainChipPendingStart(text)
-    ? `Starting ${pending.projectName} with the recommended defaults.`
-    : `Got it. I will use that direction and start ${pending.projectName}.`);
-  await handleBuildIntent(
-    ctx,
-    prd,
-    pending.projectName,
-    null,
-    pending.buildMode,
-    pending.buildModeReason,
-    pending.capabilityProposalPacket,
-    undefined,
-    undefined,
-    { confirmationState: 'confirmed' }
-  );
+    ? `Creating ${pending.projectName} privately with the recommended defaults.`
+    : `Got it. I will use that direction and create ${pending.projectName} privately.`);
+  await safeSendChatAction(ctx, 'typing');
+  const result = await createChipFromPrompt(prd, {
+    governorDecision: authorization.governorDecision
+  });
+  recordTelegramHarnessCoreExecution(authorization, {
+    toolName: 'chip.create',
+    status: result.ok ? 'success' : 'failure',
+    summary: result.ok
+      ? `Domain chip ${result.chipKey || pending.projectName} was created from Telegram pending approval.`
+      : `Domain chip creation failed: ${result.error || 'unknown error'}`
+  });
+  if (!result.ok) {
+    await ctx.reply(formatDomainChipCreateFailure(pending.projectName, result.error));
+    return true;
+  }
+
+  const reply = formatDomainChipCreatedReceipt(result, pending.projectName);
+  if (result.chipKey) {
+    await rememberLastCreatedDomainChip(key, {
+      chipKey: result.chipKey,
+      projectName: pending.projectName,
+      createdAt: Date.now()
+    }).catch(() => {});
+  }
+  await ctx.reply(reply);
+  await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
   return true;
 }
 
@@ -5884,7 +6005,7 @@ async function handleCreatorMissionPlan(
   const accessProfile = await getSparkAccessProfile(ctx.chat.id);
   if (!sparkAccessAllows(accessProfile, 'spawner_build')) {
     await ctx.reply(renderSparkAccessDenial(accessProfile, 'spawner_build'));
-    const summary = 'Creator mission planning blocked by Spark access policy.';
+    const summary = 'Loop Engineering planning blocked by Spark access policy.';
     recordTelegramHarnessCoreExecution(authorization, {
       toolName: 'spawner.creator_mission',
       status: 'failure',
@@ -5903,30 +6024,30 @@ async function handleCreatorMissionPlan(
     executionPolicy: creatorExecutionPolicyForBrief(parsed.brief),
     executionAuthority: authorization?.governorDecision
   });
-
   await ctx.reply(formatCreatorMissionSummary(result));
   recordTelegramHarnessCoreExecution(authorization, {
     toolName: 'spawner.creator_mission',
     status: creatorExecutionStatus(result.success),
     summary: result.success
-      ? `Creator mission ${result.missionId || requestId} was staged through Spawner.`
-      : `Creator mission staging failed: ${result.error || 'unknown error'}`
+      ? `Loop Engineering path ${result.missionId || requestId} was staged through Spawner.`
+      : `Loop Engineering staging failed: ${result.error || 'unknown error'}`
   });
   if (result.success && result.missionId && result.trace?.execution_policy !== 'read_only') {
+    deletePendingDomainChipBuild(telegramPendingCreatorMissionKey(ctx.chat?.id, ctx.from?.id));
     rememberPendingCreatorMission(telegramPendingCreatorMissionKey(ctx.chat?.id, ctx.from?.id), {
       missionId: result.missionId,
       timestamp: Date.now()
     });
     await conversation.learnAboutUser(
       ctx.from,
-      `Planned creator mission ${result.missionId} for ${parsed.brief.slice(0, 220)}`
+      `Planned Loop Engineering mission ${result.missionId} for ${parsed.brief.slice(0, 220)}`
     ).catch(() => {});
   }
   return {
     status: creatorExecutionStatus(result.success),
     summary: result.success
-      ? `Creator mission ${result.missionId || requestId} was staged through Spawner.`
-      : `Creator mission staging failed: ${result.error || 'unknown error'}`
+      ? `Loop Engineering path ${result.missionId || requestId} was staged through Spawner.`
+      : `Loop Engineering staging failed: ${result.error || 'unknown error'}`
   };
 }
 
@@ -5934,12 +6055,17 @@ async function handlePendingCreatorMissionControl(ctx: any, text: string, envelo
   const key = telegramPendingCreatorMissionKey(ctx.chat?.id, ctx.from?.id);
   const pending = getPendingCreatorMission(key);
   if (!pending) return false;
+  const action = parsePendingCreatorMissionAction(text);
   if (isPendingCreatorMissionExpired(pending)) {
     deletePendingCreatorMission(key);
-    return false;
+    if (!action) return false;
+    await conversation.remember(ctx.from, text).catch(() => {});
+    const reply = 'That Loop Engineering follow-up expired, so I did not start anything. Send the Domain Chip or Loop Engineering request again and I will stage a fresh private path first.';
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+    return true;
   }
 
-  const action = parsePendingCreatorMissionAction(text);
   if (!action) return false;
   const accessProfile = await getSparkAccessProfile(ctx.chat.id);
   if (!sparkAccessAllows(accessProfile, 'spawner_build')) {
@@ -5976,8 +6102,8 @@ async function handlePendingCreatorMissionControl(ctx: any, text: string, envelo
       toolName: 'spawner.creator_mission.validate',
       status: creatorExecutionStatus(result.success),
       summary: result.success
-        ? `Creator mission ${result.missionId || pending.missionId} validation ran from pending control.`
-        : `Creator mission validation failed: ${result.error || 'unknown error'}`
+        ? `Loop Engineering validation ${result.missionId || pending.missionId} ran from pending control.`
+        : `Loop Engineering validation failed: ${result.error || 'unknown error'}`
     });
     await ctx.reply(formatCreatorMissionValidationSummary(result));
     return true;
@@ -6003,12 +6129,15 @@ async function handlePendingCreatorMissionControl(ctx: any, text: string, envelo
     missionId: pending.missionId,
     executionAuthority: executeAuthorization?.governorDecision
   });
+  if (result.success) {
+    deletePendingCreatorMission(key);
+  }
   recordTelegramHarnessCoreExecution(executeAuthorization, {
     toolName: 'spawner.creator_mission.run',
     status: creatorExecutionStatus(result.success),
     summary: result.success
-      ? `Creator mission ${result.missionId || pending.missionId} execution started from pending control.`
-      : `Creator mission execution failed: ${result.error || 'unknown error'}`
+      ? `Loop Engineering run ${result.missionId || pending.missionId} started from pending control.`
+      : `Loop Engineering run failed: ${result.error || 'unknown error'}`
   });
   await ctx.reply(formatCreatorMissionExecutionSummary(result));
   return true;
@@ -7343,10 +7472,10 @@ bot.command('creator', async (ctx) => {
     }
     const missionId = control.missionId.trim();
     if (missionId.includes('<') || missionId.includes('>')) {
-      return ctx.reply('Use the real creator mission ID, for example: /creator run mission-creator-1776768300668');
+      return ctx.reply('Use the real Loop Engineering mission ID, for example: /creator run mission-creator-1776768300668');
     }
     if (!isValidCreatorMissionId(missionId)) {
-      return ctx.reply('Use a creator mission ID from /creator plan or /board, for example: /creator run mission-creator-1776768300668');
+      return ctx.reply('Use a Loop Engineering mission ID from /creator plan or /board, for example: /creator run mission-creator-1776768300668');
     }
 
     if (control.action === 'status') {
@@ -7355,35 +7484,35 @@ bot.command('creator', async (ctx) => {
         toolName: 'spawner.creator_mission.status',
         status: creatorExecutionStatus(result.success),
         summary: result.success
-          ? `Creator mission ${result.missionId || missionId} status was read.`
-          : `Creator mission status failed: ${result.error || 'unknown error'}`
+          ? `Loop Engineering status ${result.missionId || missionId} was read.`
+          : `Loop Engineering status failed: ${result.error || 'unknown error'}`
       });
       await ctx.reply(formatCreatorMissionStatusSummary(result));
       return;
     }
 
     if (control.action === 'validate') {
-      await ctx.reply('Running creator mission validation through Spawner...');
+      await ctx.reply('Running Loop Engineering validation through Spawner...');
       const result = await spawner.creatorMissionValidate({ missionId, maxCommands: control.maxCommands });
       recordTelegramHarnessCoreExecution(authorization, {
         toolName: 'spawner.creator_mission.validate',
         status: creatorExecutionStatus(result.success),
         summary: result.success
-          ? `Creator mission ${result.missionId || missionId} validation ran.`
-          : `Creator mission validation failed: ${result.error || 'unknown error'}`
+          ? `Loop Engineering validation ${result.missionId || missionId} ran.`
+          : `Loop Engineering validation failed: ${result.error || 'unknown error'}`
       });
       await ctx.reply(formatCreatorMissionValidationSummary(result));
       if (result.success && result.missionId) {
         await conversation.learnAboutUser(
           ctx.from,
-          `Ran validation for creator mission ${result.missionId} from Telegram.`
+          `Ran validation for Loop Engineering mission ${result.missionId} from Telegram.`
         ).catch(() => {});
       }
       return;
     }
 
     if (control.action === 'run') {
-      await ctx.reply('Starting creator mission execution through Spawner...');
+      await ctx.reply('Starting Loop Engineering run through Spawner...');
       const result = await spawner.creatorMissionExecute({
         missionId,
         executionAuthority: authorization.governorDecision
@@ -7392,14 +7521,14 @@ bot.command('creator', async (ctx) => {
         toolName: 'spawner.creator_mission.run',
         status: creatorExecutionStatus(result.success),
         summary: result.success
-          ? `Creator mission ${result.missionId || missionId} execution started.`
-          : `Creator mission execution failed: ${result.error || 'unknown error'}`
+          ? `Loop Engineering run ${result.missionId || missionId} started.`
+          : `Loop Engineering run failed: ${result.error || 'unknown error'}`
       });
       await ctx.reply(formatCreatorMissionExecutionSummary(result));
       if (result.success && result.missionId) {
         await conversation.learnAboutUser(
           ctx.from,
-          `Started execution for creator mission ${result.missionId} from Telegram.`
+          `Started execution for Loop Engineering mission ${result.missionId} from Telegram.`
         ).catch(() => {});
       }
       return;
@@ -7415,7 +7544,7 @@ bot.command('creator', async (ctx) => {
     await replyTelegramCommandAuthorityBlocked(ctx);
     return;
   }
-  await ctx.reply('I will stage the creator mission first. No run or publishing yet.');
+  await ctx.reply('I will stage the Loop Engineering run first. No run or publishing yet.');
   await handleCreatorMissionPlan(ctx, parsed, authorization);
 });
 
@@ -7431,16 +7560,7 @@ bot.command('chip', async (ctx) => {
     return ctx.reply('Usage: /chip create <natural language description>');
   }
 
-  const authorization = telegramCommandActionAuthorityDecision(ctx, {
-    commandName: 'chip',
-    route: 'domain_chip.create',
-    text: ctx.message.text,
-    toolName: 'domain_chip.create',
-    ownerSystem: 'domain-chip',
-    mutationClass: 'creates_chip',
-    action: 'domain_chip.create',
-    kind: 'creator_or_domain_chip'
-  });
+  const authorization = authorizeDomainChipBuilderCreate(ctx, ctx.message.text);
   if (!authorization.allow) {
     await replyTelegramCommandAuthorityBlocked(ctx);
     return;
@@ -7448,9 +7568,11 @@ bot.command('chip', async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
   await ctx.reply('Scaffolding new domain chip from your brief...');
 
-  const result = await createChipFromPrompt(prompt);
+  const result = await createChipFromPrompt(prompt, {
+    governorDecision: authorization.governorDecision
+  });
   recordTelegramHarnessCoreExecution(authorization, {
-    toolName: 'domain_chip.create',
+    toolName: 'chip.create',
     status: result.ok ? 'success' : 'failure',
     summary: result.ok
       ? `Domain chip ${result.chipKey} was created from Telegram slash command.`
@@ -7460,11 +7582,18 @@ bot.command('chip', async (ctx) => {
   if (!result.ok) {
     return ctx.reply(renderTelegramError('Chip create failed', result.error));
   }
+  if (result.chipKey) {
+    await rememberLastCreatedDomainChip(telegramPendingDomainChipKey(ctx.chat?.id, ctx.from?.id), {
+      chipKey: result.chipKey,
+      projectName: result.chipKey,
+      createdAt: Date.now()
+    }).catch(() => {});
+  }
 
   const lines = [
     'Chip created successfully.',
     `Key: ${result.chipKey}`,
-    `Path: ${result.chipPath}`,
+    'Private/local package is ready.',
     `Router invokable: ${result.routerInvokable ? 'yes' : 'no'}`,
   ];
   if (result.warnings && result.warnings.length > 0) {
@@ -7503,12 +7632,13 @@ bot.command('loop', async (ctx) => {
     return;
   }
   const chatId = ctx.chat.id;
+  const roundText = `${rounds} ${rounds === 1 ? 'round' : 'rounds'}`;
   await safeSendChatAction(ctx, 'typing');
-  await ctx.reply(`Starting autoloop on ${chipKey} for ${rounds} round(s). This may take several minutes - I'll post the summary when it finishes.`);
+  await ctx.reply(`Starting autoloop on ${chipKey} for ${roundText}. This may take several minutes - I'll post the summary when it finishes.`);
   recordTelegramHarnessCoreExecution(authorization, {
     toolName: 'recursive.loop',
     status: 'partial',
-    summary: `Recursive chip loop ${chipKey} started asynchronously for ${rounds} round(s).`
+    summary: `Recursive chip loop ${chipKey} started asynchronously for ${roundText}.`
   });
 
   // Detach the heavy work so the Telegraf handler returns instantly;
@@ -7528,7 +7658,7 @@ bot.command('loop', async (ctx) => {
       recordTelegramHarnessCoreExecution(authorization, {
         toolName: 'recursive.loop',
         status: 'success',
-        summary: `Recursive chip loop ${chipKey} completed ${result.roundsCompleted}/${result.totalRounds} round(s).`
+        summary: `Recursive chip loop ${chipKey} completed ${result.roundsCompleted}/${result.totalRounds} ${result.totalRounds === 1 ? 'round' : 'rounds'}.`
       });
       const lines = [
         `Loop complete: ${result.chipKey}`,
@@ -7872,17 +8002,18 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
       if (!parsed.chipKey) return ctx.reply('Usage: /recursive start <targetKey> [rounds <n>]');
       const chatId = ctx.chat.id;
       const rounds = parsed.rounds || 3;
+      const roundText = `${rounds} ${rounds === 1 ? 'round' : 'rounds'}`;
       const startTarget = await resolveRecursiveStartTarget(parsed.chipKey);
+      const startLabel = labelForTelegram(startTarget.key);
       await safeSendChatAction(ctx, 'typing');
-      const targetLabel = startTarget.kind === 'path' ? 'Spark Swarm specialization path loop' : 'recursive Builder chip loop';
       const startLine = startTarget.kind === 'path'
-        ? `🧪 I’m starting ${startTarget.key} for ${rounds} benchmark round(s). I’ll keep the raw evidence local and send the summary when the loop settles.`
-        : `🧪 I’m starting ${targetLabel} on ${startTarget.key} for ${rounds} round(s). I’ll send the summary when it settles.`;
+        ? `🧪 I’m starting ${startLabel} for ${roundText} of benchmarks. I’ll keep the raw evidence local and send the summary when the loop settles.`
+        : `🧪 I’m running a private review of ${startLabel}. I’ll do ${rounds === 1 ? 'one pass' : roundText} and send a plain summary when it finishes.`;
       await ctx.reply(startLine);
       recordTelegramHarnessCoreExecution(authorization, {
         toolName: 'recursive.loop',
         status: 'partial',
-        summary: `Recursive loop ${startTarget.key} started asynchronously for ${rounds} round(s).`
+        summary: `Recursive loop ${startTarget.key} started asynchronously for ${roundText}.`
       });
 
       void (async () => {
@@ -8629,6 +8760,45 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   })
     ? parsedEarlyBuildIntent
     : null;
+  const distilledPrdReply = !earlyBuildIntent ? renderDistilledPrdFastPathReply(text) : null;
+  if (distilledPrdReply) {
+    await conversation.remember(user, text).catch(() => {});
+    console.log(`[PrdWritingFastPath] route user=${userRef(ctx.from?.id)} textLen=${text.length}`);
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'domain_chip.prd_writing_fast_path', 'spark-telegram-bot', 'prd_writing.fast_path');
+    await ctx.reply(distilledPrdReply);
+    await conversation.rememberAssistantReply(user, distilledPrdReply).catch(() => {});
+    return;
+  }
+  const loopEngineeringStatus = !earlyBuildIntent ? await fetchLoopEngineeringStatusPacket(text) : null;
+  if (loopEngineeringStatus) {
+    await conversation.remember(user, text).catch(() => {});
+    console.log(`[LoopEngineeringStatus] route user=${userRef(ctx.from?.id)} chip=${loopEngineeringStatus.chipId || 'unselected'} textLen=${text.length}`);
+    recordNaturalRouteExecution(
+      ctx,
+      naturalRouteShadow,
+      'loop_engineering.status',
+      'spark-telegram-bot',
+      'loop_engineering.read_only_status'
+    );
+    await ctx.reply(loopEngineeringStatus.reply);
+    await conversation.rememberAssistantReply(user, loopEngineeringStatus.reply).catch(() => {});
+    return;
+  }
+  const dailyScheduleResult = !earlyBuildIntent ? evaluateDailyScheduleFastPath(text) : null;
+  if (dailyScheduleResult) {
+    await conversation.remember(user, text).catch(() => {});
+    console.log(`[DailyScheduleFastPath] route user=${userRef(ctx.from?.id)} textLen=${text.length}`);
+    recordNaturalRouteExecution(
+      ctx,
+      naturalRouteShadow,
+      dailyScheduleResult.mode === 'loop_mode' ? 'domain_chip.daily_schedule_loop_mode_advisory' : 'domain_chip.daily_schedule_fast_path',
+      'spark-telegram-bot',
+      dailyScheduleResult.mode === 'loop_mode' ? 'daily_schedule.loop_mode_advisory' : 'daily_schedule.fast_path'
+    );
+    await ctx.reply(dailyScheduleResult.reply);
+    await conversation.rememberAssistantReply(user, dailyScheduleResult.reply).catch(() => {});
+    return;
+  }
   if (isMetaNoActionTriggerDiscussion(text)) {
     const reply = renderMissionRoutingFailureClassReply(text);
     await conversation.remember(user, text).catch(() => {});
@@ -9114,16 +9284,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   if (!earlyBuildIntent && isAccessStatusQuestion(text) && routeEvidenceAllowed({ route: 'access.status', text, profile: activeTelegramProfile() })) {
     await conversation.remember(user, text).catch(() => {});
     const reply = await renderAuthoritativeSparkAccessStatus(ctx.chat.id);
-    await ctx.reply(reply);
-    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_access_status_answer', [
-      {
-        source: 'spark_access_status',
-        role: 'access_truth',
-        freshness: 'fresh',
-        sourceRef: 'spark access status [--level 5 for operator chats] --json',
-        summary: 'Telegram answered access status from the Spark CLI access state and runner writability preflight.'
-      }
-    ]);
+    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, { route: 'access.status', intentKind: 'access.status', command: 'telegram_access_status_answer', reasonSummary: 'Telegram answered access status from fresh Spark access state; no repair, access change, or owner execution was authorized.' });
+    setTurnOutboundTraceContext(ctx, traceContext);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, { route: 'access.status', owner: 'spark-telegram-bot', action: 'access.status', signal: 'access_status_question' }), 'access.status', 'spark-telegram-bot', 'access.status');
+    await ctx.reply(reply, outboundTraceExtra(traceContext));
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_access_status_answer', [{ source: 'spark_access_status', role: 'access_truth', freshness: 'fresh', sourceRef: 'spark access status [--level 5 for operator chats] --json', summary: 'Telegram answered access status from the Spark CLI access state and runner writability preflight.' }]);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
@@ -9196,11 +9361,64 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
+  if (!earlyBuildIntent && isDomainChipFailureCopyNoActionQuestion(text)) {
+    const reply = renderDomainChipFailureCopyNoActionReply();
+    await conversation.remember(user, text).catch(() => {});
+    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, {
+      route: 'conversation.domain_chip_failure_copy_no_action',
+      intentKind: 'conversation.domain_chip_failure_copy_no_action',
+      command: 'telegram_domain_chip_failure_copy_no_action',
+      reasonSummary: 'Telegram explained Domain Chip failure-copy requirements; no creation, benchmark, autoloop, repair, publication, or promotion was authorized.'
+    });
+    setTurnOutboundTraceContext(ctx, traceContext);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'conversation.domain_chip_failure_copy_no_action',
+      owner: 'spark-telegram-bot',
+      action: 'plain_chat.qa_boundary',
+      signal: 'domain_chip_failure_copy_no_action'
+    }), 'conversation.domain_chip_failure_copy_no_action', 'spark-telegram-bot', 'plain_chat.qa_boundary');
+    await ctx.reply(reply, outboundTraceExtra(traceContext));
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isDomainChipNoActionAdvisoryQuestion(text)) {
+    const key = telegramPendingDomainChipKey(ctx.chat?.id, ctx.from?.id);
+    const lastCreated = await getLastCreatedDomainChip(key).catch(() => null);
+    const reply = renderDomainChipNoActionAdvisoryReply(
+      lastCreated?.chipKey ? labelForTelegram(lastCreated.chipKey) : 'this Domain Chip'
+    );
+    await conversation.remember(user, text).catch(() => {});
+    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, {
+      route: 'conversation.domain_chip_no_action_advisory',
+      intentKind: 'conversation.domain_chip_no_action_advisory',
+      command: 'telegram_domain_chip_no_action_advisory',
+      reasonSummary: 'Telegram answered a Domain Chip no-action advisory question; no creation, benchmark, autoloop, browsing, file edit, alert, publication, activation, or promotion was authorized.'
+    });
+    setTurnOutboundTraceContext(ctx, traceContext);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'conversation.domain_chip_no_action_advisory',
+      owner: 'spark-telegram-bot',
+      action: 'plain_chat.qa_boundary',
+      signal: 'domain_chip_no_action_advisory'
+    }), 'conversation.domain_chip_no_action_advisory', 'spark-telegram-bot', 'plain_chat.qa_boundary');
+    await ctx.reply(reply, outboundTraceExtra(traceContext));
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
   if (!earlyBuildIntent && isUnderspecifiedBenchmarkPackCreation(text)) {
     const reply = renderUnderspecifiedBenchmarkPackReply();
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'creator.benchmark_pack_clarify', 'spark-telegram-bot', 'clarify');
-    await ctx.reply(reply);
+    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, { route: 'creator.benchmark_pack_clarify', intentKind: 'creator.benchmark_pack_clarify', command: 'telegram_benchmark_pack_clarify', reasonSummary: 'Telegram asked for benchmark pack path and level before staging any Loop Engineering creator mission.' });
+    setTurnOutboundTraceContext(ctx, traceContext);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'creator.benchmark_pack_clarify',
+      owner: 'spark-telegram-bot',
+      action: 'clarify',
+      signal: 'benchmark_pack_clarification'
+    }), 'creator.benchmark_pack_clarify', 'spark-telegram-bot', 'clarify');
+    await ctx.reply(reply, outboundTraceExtra(traceContext));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
@@ -9229,8 +9447,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   if (!earlyBuildIntent && isSparkWorkflowBugHuntRequest(text)) {
     const reply = renderSparkWorkflowBugHuntReply(text);
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
-    await ctx.reply(reply);
+    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, { route: 'conversation.qa_planning', intentKind: 'conversation.qa_planning', command: 'telegram_qa_planning', reasonSummary: 'Telegram answered QA planning in chat; no mission launch or owner execution was authorized.' });
+    setTurnOutboundTraceContext(ctx, traceContext);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'conversation.qa_planning',
+      owner: 'spark-telegram-bot',
+      action: 'plain_chat.qa_plan',
+      signal: 'qa_planning_no_execution'
+    }), 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply, outboundTraceExtra(traceContext));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
@@ -9268,6 +9493,22 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
+  const preRecursiveNaturalChipBrief = conversation.isAdmin(ctx.from) ? parseNaturalChipCreateIntent(text) : null;
+  const preRecursiveCreatorIntent = preRecursiveNaturalChipBrief
+    ? parseNaturalCreatorMissionIntent(text, [])
+    : null;
+  const preRecursiveDirectDomainChip = preRecursiveNaturalChipBrief
+    ? isExplicitDirectDomainChipCreateText(text)
+    : false;
+  if (
+    !earlyBuildIntent &&
+    preRecursiveNaturalChipBrief &&
+    (!preRecursiveCreatorIntent || preRecursiveDirectDomainChip) &&
+    await stageNaturalDomainChipBuildPreview(ctx, user, text, preRecursiveNaturalChipBrief, turnIntentEnvelope)
+  ) {
+    return;
+  }
+
 	  if (!earlyBuildIntent && conversation.isAdmin(ctx.from) && isNaturalSparkQaBenchmarkStatusQuestion(text)) {
 	    await conversation.remember(user, text).catch(() => {});
 	    await safeSendChatAction(ctx, 'typing');
@@ -9298,11 +9539,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	    await conversation.rememberAssistantReply(user, reply).catch(() => {});
 	    return;
 	  }
-
-	  if (!earlyBuildIntent && await handleNaturalRecursiveRoute(ctx, user, text, naturalRouteShadow)) {
-	    return;
-	  }
-
+		  if (!earlyBuildIntent && !activePendingDomainChipDirection(ctx, text) && await handleNaturalRecursiveRoute(ctx, user, text, naturalRouteShadow, turnIntentEnvelope)) {
+		    return;
+		  }
   const activePendingClarification = conversation.isAdmin(ctx.from)
     ? pendingBuildClarificationForMessage(telegramPendingBuildKey(ctx.chat.id, ctx.from.id), text)
     : null;
@@ -9342,7 +9581,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       /\b(?:create|update|attach|add|link)\b.{0,24}\b(?:domain[-\s]*chip|chip)\b/i.test(text)
     );
   const earlyNaturalChipBrief = conversation.isAdmin(ctx.from) ? parseNaturalChipCreateIntent(text) : null;
-  const naturalCreatorAuthorization = naturalCreatorIntent && (!earlyNaturalChipBrief || creatorLoopDomainChipFollowup || naturalCreatorIntent.artifactLabel === 'full creator system')
+  const directNaturalDomainChip = earlyNaturalChipBrief ? isExplicitDirectDomainChipCreateText(text) : false;
+  const naturalCreatorAuthorization = naturalCreatorIntent && (!earlyNaturalChipBrief || creatorLoopDomainChipFollowup || (naturalCreatorIntent.artifactLabel === 'Loop Engineering system' && !directNaturalDomainChip))
     ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
         route: 'creator.mission',
         text,
@@ -9353,31 +9593,50 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         kind: 'creator_or_domain_chip'
       })
     : null;
-  if (naturalCreatorIntent && (!earlyNaturalChipBrief || creatorLoopDomainChipFollowup || naturalCreatorIntent.artifactLabel === 'full creator system') && naturalCreatorAuthorization?.allow) {
+  if (naturalCreatorIntent && (!earlyNaturalChipBrief || creatorLoopDomainChipFollowup || (naturalCreatorIntent.artifactLabel === 'Loop Engineering system' && !directNaturalDomainChip)) && naturalCreatorAuthorization?.allow) {
     await conversation.remember(user, text).catch(() => {});
     await ctx.reply(`I will stage the ${naturalCreatorIntent.artifactLabel} privately first. No run or publishing yet.`);
     await handleCreatorMissionPlan(ctx, naturalCreatorIntent, naturalCreatorAuthorization);
     return;
   }
-  if (earlyNaturalChipBrief && telegramActionAuthorityAllowed(turnIntentEnvelope, {
-    route: 'domain_chip.create',
-    text,
-    toolName: 'domain_chip.create',
-    ownerSystem: turnIntentEnvelope.selectedIntent.ownerSystem,
-    mutationClass: 'creates_chip'
-  })) {
+  if (earlyNaturalChipBrief && await stageNaturalDomainChipBuildPreview(ctx, user, text, earlyNaturalChipBrief, turnIntentEnvelope)) {
+    return;
+  }
+  if (!earlyBuildIntent && /\buse\s+the\s+word\s+chip\b/i.test(text) && isNoExecutionBoundary(text)) {
     await conversation.remember(user, text).catch(() => {});
-    const mode = domainChipBuildModeForBrief(earlyNaturalChipBrief);
-    rememberPendingDomainChipBuild(telegramPendingDomainChipKey(ctx.chat.id, ctx.from.id), {
-      brief: earlyNaturalChipBrief,
-      prd: buildDomainChipPrd(earlyNaturalChipBrief),
-      projectName: projectNameForDomainChipBrief(earlyNaturalChipBrief),
-      buildMode: mode.buildMode,
-      buildModeReason: mode.reason,
-      capabilityProposalPacket: buildDomainChipCapabilityProposalPacket(earlyNaturalChipBrief),
-      timestamp: Date.now()
-    });
-    await ctx.reply(formatDomainChipBuildPreview(earlyNaturalChipBrief));
+    const response = buildNoExecutionIdeationReply(text);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'conversation.literal_word_usage',
+      owner: 'spark-telegram-bot',
+      action: 'plain_chat.no_action',
+      signal: 'literal_chip_word_usage'
+    }), 'conversation.literal_word_usage', 'spark-telegram-bot', 'plain_chat.no_action');
+    await ctx.reply(response);
+    await conversation.rememberAssistantReply(user, response).catch(() => {});
+    return;
+  }
+  if (
+    !earlyBuildIntent &&
+    /\bdomain[-\s]*chip\b/i.test(text) &&
+    /\bproposal\b/i.test(text) &&
+    /\bchat\s+only\b/i.test(text) &&
+    isNoExecutionBoundary(text)
+  ) {
+    await conversation.remember(user, text).catch(() => {});
+    const response = renderMissionRoutingFailureClassReply(text);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'conversation.domain_chip_chat_only_proposal',
+      owner: 'spark-telegram-bot',
+      action: 'plain_chat.no_action',
+      signal: 'domain_chip_chat_only_proposal'
+    }), 'conversation.domain_chip_chat_only_proposal', 'spark-telegram-bot', 'plain_chat.no_action');
+    await ctx.reply(response);
+    await conversation.rememberAssistantReply(user, response).catch(() => {});
+    return;
+  }
+  if (!earlyBuildIntent && conversation.isAdmin(ctx.from) && isNoExecutionBoundary(text) && clearPendingExecutionState(`${ctx.chat.id}-${ctx.from.id}`)) {
+    await conversation.remember(user, text).catch(() => {});
+    await ctx.reply('Got it, no build or mission started. We can keep talking here.');
     return;
   }
   if (!earlyBuildIntent && shouldPreferConversationalIdeation(text)) {
@@ -9614,6 +9873,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
+  if (await handlePendingDomainChipBuild(ctx, text, turnIntentEnvelope)) {
+    await conversation.remember(user, text).catch(() => {});
+    return;
+  }
+
   if (!earlyBuildIntent) {
     try {
       const coldMemoryContext = await runBuilderConversationColdContext({
@@ -9638,7 +9902,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const buildIntent = earlyBuildIntent;
     const pendingExecutionKey = `${ctx.chat.id}-${ctx.from.id}`;
     const pendingClarification = pendingBuildClarificationForMessage(pendingExecutionKey, text);
-
 	    if (await handlePendingMissionCancelConfirmation(ctx, text, turnIntentEnvelope)) {
       return;
     }
@@ -9674,12 +9937,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
-	    if (await handlePendingDomainChipBuild(ctx, text, turnIntentEnvelope)) {
-      await conversation.remember(user, text).catch(() => {});
-      return;
-    }
-
-    const latestShippedProject = await getLatestShippedProjectContext(ctx.chat.id);
+	    const latestShippedProject = await getLatestShippedProjectContext(ctx.chat.id);
     const projectImprovementAuthorization = isProjectImprovementRequest(text, latestShippedProject)
       ? telegramActionAuthorityDecision(turnIntentEnvelope, {
         route: 'spawner.project_iteration',
@@ -9797,12 +10055,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
-	    if (await handlePendingDomainChipBuild(ctx, text, turnIntentEnvelope)) {
-      await conversation.remember(user, text).catch(() => {});
-      return;
-    }
-
-	    if (pendingClarification && !buildIntent && telegramBranchActionAuthorityAllowed(turnIntentEnvelope, {
+		    if (pendingClarification && !buildIntent && telegramBranchActionAuthorityAllowed(turnIntentEnvelope, {
 	      route: 'spawner.pending_clarification',
 	      text,
 	      toolName: 'spawner.run',
@@ -9893,11 +10146,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       if (result.commandSent && result.missionId) {
         markMissionRelayResumed(result.missionId);
       }
-      await ctx.reply(result.message);
-      return;
-    }
-
-	    if (isProtectedMissionPausePronounIntent(text, contextualTurns) && telegramBranchActionAuthorityAllowed(turnIntentEnvelope, {
+	      await ctx.reply(result.message);
+	      return;
+	    }
+		    if (isProtectedMissionPausePronounIntent(text, contextualTurns) && telegramBranchActionAuthorityAllowed(turnIntentEnvelope, {
 	      route: 'spawner.mission_control',
 	      text,
 	      toolName: 'spawner.mission_control',
@@ -9942,7 +10194,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       await ctx.reply(result.message);
       return;
     }
-
     const naturalChipBrief = parseNaturalChipCreateIntent(text);
     if (naturalChipBrief && telegramActionAuthorityAllowed(turnIntentEnvelope, {
       route: 'domain_chip.create',
@@ -9953,6 +10204,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     })) {
       await conversation.remember(user, text).catch(() => {});
       const mode = domainChipBuildModeForBrief(naturalChipBrief);
+      deletePendingCreatorMission(telegramPendingDomainChipKey(ctx.chat.id, ctx.from.id));
       rememberPendingDomainChipBuild(telegramPendingDomainChipKey(ctx.chat.id, ctx.from.id), {
         brief: naturalChipBrief,
         prd: buildDomainChipPrd(naturalChipBrief),
@@ -10774,19 +11026,39 @@ async function start() {
     wait(TELEGRAM_POLLING_READY_GRACE_MS).then(() => ({ status: 'running' as const }))
   ]);
   if (launchProbe.status === 'failed') {
+    setMissionRelayRuntimeStatus({
+      telegramPolling: 'error',
+      pollingStartedAt,
+      pollingLastErrorAt: new Date().toISOString(),
+      pollingLastError: summarizeTelegramPollingError(launchProbe.error)
+    });
     throw launchProbe.error;
   }
   if (launchProbe.status === 'settled') {
+    setMissionRelayRuntimeStatus({
+      telegramPolling: 'stopped',
+      pollingStartedAt,
+      pollingStoppedAt: new Date().toISOString(),
+      pollingLastError: 'Telegram polling stopped during startup.'
+    });
     throw new Error('Telegram polling stopped during startup.');
   }
   pollingActive = true;
+  pollingStartedAt = new Date().toISOString();
   setMissionRelayRuntimeStatus({
     telegramPolling: 'active',
-    pollingStartedAt: new Date().toISOString()
+    pollingStartedAt
   });
   console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
   void launchPromise.catch((err) => {
     void releaseGatewayOwnership();
+    pollingActive = false;
+    setMissionRelayRuntimeStatus({
+      telegramPolling: 'error',
+      pollingStartedAt,
+      pollingLastErrorAt: new Date().toISOString(),
+      pollingLastError: summarizeTelegramPollingError(err)
+    });
     console.error('Telegram polling stopped:', err);
     process.exit(1);
   });
