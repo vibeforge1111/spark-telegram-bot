@@ -67,6 +67,14 @@ function normalizeText(text: string): string {
   return text.replace(/[‘’]/g, "'").replace(/\s+/g, ' ').trim();
 }
 
+function normalizeLookupText(text: string): string {
+  return normalizeText(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function isLoopEngineeringStatusRequest(text: string): boolean {
   const normalized = normalizeText(text);
   if (!normalized) return false;
@@ -81,7 +89,10 @@ export function isLoopEngineeringStatusRequest(text: string): boolean {
   ) &&
     /\b(?:loop|schedule|spawner|control[-\s]?plane|benchmark|readiness|state|status|result|evidence|truth)\b/i.test(normalized) &&
     /\b(?:latest|current|state|status|fresh|stale|readiness|benchmark|results?|link|read[-\s]?only|truth|changed|blocked)\b/i.test(normalized);
-  if (!LOOP_STATUS_PATTERN.test(normalized) && !prdLoopStateStatus && !namedChipLoopStateStatus) return false;
+  const registryBackedLoopStatus =
+    /\b(?:spawner|control[-\s]?plane|domain[-\s]?chip|chip)\b/i.test(normalized) &&
+    (/\b(?:loop|benchmark|schedule|readiness)\b[\s\S]{0,100}\b(?:latest|current|state|status|fresh|stale|results?|evidence|blocked|changed)\b|\b(?:latest|current|state|status|fresh|stale|results?|evidence|blocked|changed)\b[\s\S]{0,100}\b(?:loop|benchmark|schedule|readiness)\b/i.test(normalized));
+  if (!LOOP_STATUS_PATTERN.test(normalized) && !prdLoopStateStatus && !namedChipLoopStateStatus && !registryBackedLoopStatus) return false;
   if (MUTATING_ACTION_PATTERN.test(normalized) && !STATUS_WORD_PATTERN.test(normalized)) return false;
   if (/\b(?:build|create|scaffold)\b[\s\S]{0,80}\bdomain[-\s]?chip\b/i.test(normalized)) return false;
   return true;
@@ -96,6 +107,51 @@ export function resolveLoopEngineeringChipId(text: string): string | null {
   if (PROJECT_MAINTENANCE_ALIAS_PATTERN.test(normalized)) return 'domain-chip-project-maintenance-steward-r30-usefulness-loop';
   if (OPERATIONS_RESEARCH_ALIAS_PATTERN.test(normalized)) return 'domain-chip-operations-research-watchdesk-r30-bridge-qa';
   return null;
+}
+
+function registryChipIdFromBody(text: string, body: any): string | null {
+  const registry = Array.isArray(body?.registry) ? body.registry : [];
+  const lookup = normalizeLookupText(text);
+  if (!lookup) return null;
+  let best: { id: string; score: number } | null = null;
+  for (const item of registry) {
+    if (!item || typeof item !== 'object') continue;
+    const id = typeof item.id === 'string' ? item.id.trim() : '';
+    if (!EXACT_CHIP_ID_PATTERN.test(id)) continue;
+    const candidates = [
+      typeof item.domain === 'string' ? item.domain : '',
+      typeof item.name === 'string' ? item.name : '',
+      id.replace(/^domain-chip-/, '')
+    ].map(normalizeLookupText).filter(Boolean);
+    for (const candidate of candidates) {
+      if (!candidate || candidate.length < 4) continue;
+      const candidateTokens = candidate.split(' ').filter((token) => token.length > 2);
+      const matchedTokens = candidateTokens.filter((token) => lookup.includes(token));
+      const phraseMatch = lookup.includes(candidate);
+      const score = (phraseMatch ? 100 : 0) + matchedTokens.length * 10 + Math.min(candidateTokens.length, 8);
+      const enoughTokenCoverage = matchedTokens.length >= Math.min(2, candidateTokens.length);
+      if ((phraseMatch || enoughTokenCoverage) && (!best || score > best.score)) {
+        best = { id: id.toLowerCase(), score };
+      }
+    }
+  }
+  return best?.id ?? null;
+}
+
+async function resolveLoopEngineeringChipIdFromRegistry(
+  text: string,
+  fetchImpl: LoopEngineeringFetchLike,
+  internalBaseUrl: string,
+  signal: AbortSignal
+): Promise<string | null> {
+  try {
+    const response = await fetchImpl(`${internalBaseUrl}/api/loop-engineering/chips`, { signal });
+    if (!response.ok) return null;
+    const body = await response.json();
+    return registryChipIdFromBody(text, body);
+  } catch {
+    return null;
+  }
 }
 
 function topBlockedChecks(checks: LoopEngineeringStatusCheck[]): LoopEngineeringStatusCheck[] {
@@ -339,7 +395,7 @@ function wantsCompactLatestReply(text: string): boolean {
     (
       /\blatest\b/.test(normalized) &&
       /\b(?:schedule|loop|result|state)\b/.test(normalized) &&
-      /\b(?:fresh|stale|freshness)\b/.test(normalized)
+      /\b(?:fresh|stale|freshness|link|status)\b/.test(normalized)
     )
   );
 }
@@ -447,10 +503,17 @@ export async function fetchLoopEngineeringStatusPacket(
   options: { fetchImpl?: LoopEngineeringFetchLike; timeoutMs?: number; nowMs?: number } = {}
 ): Promise<LoopEngineeringStatusPacket | null> {
   if (!isLoopEngineeringStatusRequest(text)) return null;
-  const chipId = resolveLoopEngineeringChipId(text);
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const timeoutMs = options.timeoutMs ?? 8000;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const internalBaseUrl = resolveSpawnerUiUrl().replace(/\/+$/, '');
+  const publicBaseUrl = resolveSpawnerPublicUrl().replace(/\/+$/, '');
+  const chipId = resolveLoopEngineeringChipId(text) ||
+    await resolveLoopEngineeringChipIdFromRegistry(text, fetchImpl, internalBaseUrl, controller.signal);
   if (!chipId) {
-    const baseUrl = resolveSpawnerPublicUrl().replace(/\/+$/, '');
-    const detailUrl = `${baseUrl}/loop-engineering`;
+    clearTimeout(timeout);
+    const detailUrl = `${publicBaseUrl}/loop-engineering`;
     return {
       route: 'loop_engineering.status',
       chipId: '',
@@ -477,13 +540,6 @@ export async function fetchLoopEngineeringStatusPacket(
       ].join('\n\n')
     };
   }
-
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const timeoutMs = options.timeoutMs ?? 8000;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  const internalBaseUrl = resolveSpawnerUiUrl().replace(/\/+$/, '');
-  const publicBaseUrl = resolveSpawnerPublicUrl().replace(/\/+$/, '');
   try {
     const response = await fetchImpl(`${internalBaseUrl}/api/loop-engineering/chips/${encodeURIComponent(chipId)}`, {
       signal: controller.signal

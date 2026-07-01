@@ -210,6 +210,60 @@ function operationsResearchChipResponse() {
   return response;
 }
 
+function researchBriefTriageChipResponse() {
+  const response: any = chipResponse();
+  response.chip.summary.id = 'domain-chip-research-brief-triage-loop';
+  response.chip.summary.domain = 'Research Brief Triage';
+  response.chip.summary.nextAction = 'Distill the latest evaluator win before scoped activation.';
+  response.chip.readiness.label = 'Loop proven private';
+  response.chip.readiness.passCount = 11;
+  response.chip.readiness.totalCount = 12;
+  response.chip.readiness.nextAction = 'Distill the latest evaluator win before scoped activation.';
+  response.chip.readiness.checks = [
+    { id: 'benchmark_ab', label: 'No-chip vs chip A/B', status: 'passed', detail: 'passed' },
+    { id: 'live_telegram_proof', label: 'Live Telegram proof', status: 'passed', detail: 'passed' },
+    { id: 'activation_scope', label: 'Activation scope', status: 'blocked', detail: 'operator approval missing' }
+  ];
+  response.chip.events = [
+    {
+      eventType: 'benchmark_run',
+      label: 'Private benchmark run executed',
+      status: 'passed',
+      previousScore: 5.1,
+      candidateScore: 8.9,
+      utilityDelta: 3.8,
+      roundsObserved: null,
+      commandResult: { caseCount: 9, action: 'benchmark_run_executed' },
+      evaluatorSeparated: true,
+      nextAction: 'Use the verdict as private evidence; activation remains scoped.',
+      updatedAt: '2026-07-01T17:20:00.000Z'
+    },
+    {
+      eventType: 'loop_batch',
+      label: 'Self-improvement loop',
+      status: 'passed',
+      previousScore: null,
+      candidateScore: 8.9,
+      utilityDelta: 3.8,
+      roundsObserved: 4,
+      evaluatorSeparated: true,
+      nextAction: 'Distill the accepted research triage lesson.',
+      updatedAt: '2026-07-01T17:21:00.000Z'
+    }
+  ];
+  response.chip.distillations = [
+    {
+      id: 'distill-research-brief-1',
+      lessons: ['Research briefs improved when the chip forced source freshness, decision owner, and next-use question into the first pass.'],
+      tokenBudgetHint: 'Reuse this triage lens before spending another full loop on similar research requests.',
+      status: 'staged',
+      createdAt: '2026-07-01T17:22:00.000Z',
+      updatedAt: '2026-07-01T17:22:00.000Z'
+    }
+  ];
+  return response;
+}
+
 function prdChipResponse() {
   return {
     ok: true,
@@ -290,6 +344,20 @@ async function withServer(fn: (baseUrl: string, hits: string[]) => Promise<void>
   const hits: string[] = [];
   const server = createServer((req, res) => {
     hits.push(req.url || '');
+    if (req.url === '/api/loop-engineering/chips') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({
+        ok: true,
+        registry: [
+          { id: 'domain-chip-daily-schedule-reliability-r30-persisted-context-qa', domain: 'Daily Schedule Reliability R30 Persisted Context QA', name: 'Daily Schedule Reliability' },
+          { id: 'domain-chip-prd-writing-proof-loop', domain: 'PRD Writing', name: 'PRD Writing Proof Loop' },
+          { id: 'domain-chip-project-maintenance-steward-r30-usefulness-loop', domain: 'Project Maintenance Steward R30 Usefulness Loop', name: 'Project Maintenance Steward' },
+          { id: 'domain-chip-operations-research-watchdesk-r30-bridge-qa', domain: 'Operations Research Watchdesk R30 Bridge QA', name: 'Operations Research Watchdesk' },
+          { id: 'domain-chip-research-brief-triage-loop', domain: 'Research Brief Triage', name: 'Research Brief Triage Loop' }
+        ]
+      }));
+      return;
+    }
     if (req.url?.startsWith('/api/loop-engineering/chips/domain-chip-daily-schedule-reliability-r30-persisted-context-qa')) {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(chipResponse()));
@@ -308,6 +376,11 @@ async function withServer(fn: (baseUrl: string, hits: string[]) => Promise<void>
     if (req.url?.startsWith('/api/loop-engineering/chips/domain-chip-operations-research-watchdesk-r30-bridge-qa')) {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(operationsResearchChipResponse()));
+      return;
+    }
+    if (req.url?.startsWith('/api/loop-engineering/chips/domain-chip-research-brief-triage-loop')) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(researchBriefTriageChipResponse()));
       return;
     }
     res.writeHead(404, { 'content-type': 'application/json' });
@@ -329,6 +402,7 @@ test('detects explicit loop engineering status requests without hijacking chip c
   assert.equal(isLoopEngineeringStatusRequest('For QA: what is the latest PRD Writing loop-engineering state from Spawner/control-plane right now? Do not run, mutate, publish, activate, schedule, or start anything.'), true);
   assert.equal(isLoopEngineeringStatusRequest('Loop QA read-only check: latest PRD Writing loop state from Spawner? Include schedule status, fresh/stale, what improved, distilled reuse without rerun, and link. Do not mutate anything.'), true);
   assert.equal(isLoopEngineeringStatusRequest('Loop QA final smoke: read-only check latest Operations Research Watchdesk loop state from Spawner. Do not run a benchmark, loop, schedule, activation, mission, publication, or mutation. Confirm whether it matches the Spawner Operations Research control-plane truth and whether anything changed.'), true);
+  assert.equal(isLoopEngineeringStatusRequest('What is the latest Research Brief Triage loop status from Spawner? Do not run anything.'), true);
   assert.equal(isLoopEngineeringStatusRequest('Build a private Domain Chip for daily schedule reliability.'), false);
   assert.equal(isLoopEngineeringStatusRequest('Remind me tomorrow at 9am Dubai time.'), false);
 });
@@ -578,7 +652,7 @@ test('Telegram handler answers exact Project Maintenance chip status with cases,
     assert.match(replies[0], /Latest: Private benchmark run executed\. Score 3\.9 -> 9\.8; 17 cases; separated evaluator\./);
     assert.match(replies[0], /Activation is still blocked by local Telegram fast-path proof missing, live Telegram proof missing, operator approval missing\./);
     assert.match(replies[0], /Other evidence: Benchmark A\/B passed \(\+20\.7\); Self-improvement loop passed \(\+20\.7, 5 rounds\)\./);
-    assert.match(replies[0], /I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued\./);
+    assert.match(replies[0], /I only read Spawner here; nothing was queued or changed\./);
     assert.match(replies[0], /Spawner: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-project-maintenance-steward-r30-usefulness-loop/i);
     assert.doesNotMatch(replies[0], /\b17 rounds\b/i);
     assert.doesNotMatch(replies[0], /Loop results:|Activation proof:|Latest result:|Details:/i);
@@ -615,6 +689,39 @@ test('Telegram handler routes Operations Research Watchdesk final-smoke wording 
     assert.doesNotMatch(replies[0], /QA planning, not a mission launch/i);
     assert.doesNotMatch(replies[0], /Loop results:|Activation proof:|Latest result:|Details:/i);
     assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-operations-research-watchdesk-r30-bridge-qa']);
+  });
+});
+
+test('Telegram handler resolves future chip names through the Spawner registry before rendering status', async () => {
+  await withServer(async (baseUrl, hits) => {
+    process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+    process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+    process.env.SPARK_BOT_TEST_MODE = '1';
+    process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+    process.env.SPAWNER_UI_URL = baseUrl;
+    process.env.SPAWNER_UI_PUBLIC_URL = baseUrl;
+
+    const indexModule: any = await import('../src/index');
+    const replies: string[] = [];
+    await indexModule.handleTextMessage(fakeCtx(
+      'What is the latest Research Brief Triage loop status from Spawner? Include what improved and the link. Do not run, schedule, activate, publish, or mutate anything.',
+      replies,
+      { chat: 8319079055, user: 8319079055, message: 8467 }
+    ));
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /Research Brief Triage is loop proven private/i);
+    assert.match(replies[0], /11\/12 checks pass/i);
+    assert.match(replies[0], /Latest: Self-improvement loop passed\. Delta \+3\.8; 4 rounds; separated evaluator\./);
+    assert.match(replies[0], /Distilled reuse: Research briefs improved when the chip forced source freshness, decision owner, and next-use question into the first pass\./i);
+    assert.match(replies[0], /I only read Spawner here; nothing was queued or changed\./);
+    assert.match(replies[0], /Spawner: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-research-brief-triage-loop/i);
+    assert.doesNotMatch(replies[0], /Loop results:|Activation proof:|Latest result:|Details:/i);
+    assert.deepEqual(hits, [
+      '/api/loop-engineering/chips',
+      '/api/loop-engineering/chips/domain-chip-research-brief-triage-loop'
+    ]);
+    assertLoopEngineeringTelegramReadability(replies[0], 8);
   });
 });
 
