@@ -99,6 +99,17 @@ test('recommends loop mode for novel high-risk or explicitly benchmarked asks', 
   assert.match(weakResult.reasons.join(','), /weak_feedback/);
 });
 
+test('does not treat no-rerun safety wording as a request for loop mode', () => {
+  const result = evaluatePrdFastPath(
+    'Write a PRD for reducing invoice export failures for finance admins after CSV jobs time out. Use the PRD Writing domain chip if it fits, but do not run a benchmark, loop, schedule, activation, mission, or publication.'
+  );
+
+  assert.ok(result);
+  assert.equal(result.mode, 'draft_prd');
+  assert.match(result.reply, /Fast PRD path: Invoice Export/i);
+  assert.doesNotMatch(result.reply, /should use loop mode/i);
+});
+
 test('adds review packet sections for sensitive or dependency-heavy drafts', () => {
   const result = evaluatePrdFastPath('Write a PRD for support impersonation controls where agents need temporary access but customers must be protected.');
   assert.ok(result);

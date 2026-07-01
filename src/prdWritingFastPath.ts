@@ -1,3 +1,9 @@
+import {
+  fetchLoopEngineeringStatusPacket,
+  type LoopEngineeringFetchLike,
+  type LoopEngineeringStatusPacket
+} from './loopEngineeringStatus';
+
 export type PrdFastPathMode = 'draft_prd' | 'questions_only' | 'refuse' | 'loop_mode';
 export type PrdTokenMode = 'quick_draft' | 'review_packet' | 'loop_mode';
 
@@ -9,14 +15,23 @@ export interface PrdFastPathResult {
   reply: string;
 }
 
+export interface PrdFastPathEvidence {
+  chipId: string;
+  distilledLearningLine: string;
+  detailUrl: string;
+  freshnessLabel: string;
+}
+
 const FALSE_APPROVAL_PATTERN = /\b(?:already\s+approved|approved\s+already|legal\s+approved|engineering\s+approved|tickets?\s+(?:are\s+)?created|roadmap\s+(?:is\s+)?(?:changed|updated)|release\s+committed|launch\s+ready)\b/i;
 const HARMFUL_PATTERN = /\b(?:dark[-\s]?pattern|hide\s+(?:the\s+)?decline|trick\s+users?|deceive\s+users?|coerce\s+users?|manipulate\s+users?|stealth\s+tracking|without\s+consent|bypass\s+consent)\b/i;
 const NO_DRAFT_PATTERN = /\b(?:do\s+not|don't|dont|without)\s+(?:write|draft|create|make|publish|file|send)\b|\bonly\s+(?:list|ask|give)\s+(?:questions|what\s+we\s+need|unknowns)\b|\bnot\s+ready\s+to\s+draft\b/i;
 const FULL_LOOP_PATTERN = /\b(?:full\s+loop|autoloop|auto[-\s]?loop|benchmark(?:ed|ing)?|self[-\s]?improv|long[-\s]?running|separated\s+judges?|sealed\s+judge|adversarial\s+eval)\b/i;
+const LOOP_ACTION_NEGATION_PATTERN = /\b(?:do\s+not|don't|dont|without|no)\s+(?:run|start|rerun|launch|queue|schedule|activate|publish|use|trigger|begin)[\s\S]{0,120}\b(?:benchmark|loop|auto[-\s]?loop|autoloop|schedule|activation|mission|publication)\b/i;
 const WEAK_FEEDBACK_PATTERN = /\b(?:weak|not\s+useful|bad\s+draft|failed\s+(?:review|eval)|low\s+score|score\s+below|keeps?\s+missing|repeated\s+edits?|edited\s+this\s+(?:several|many|multiple)\s+times|human\s+marked\s+(?:it\s+)?weak)\b/i;
 const HIGH_RISK_PATTERN = /\b(?:medical|clinical|diagnos|legal|financial|banking|regulated|children|minors|safety[-\s]?critical|production[-\s]?critical)\b/i;
 const SENSITIVE_PATTERN = /\b(?:privacy|security|legal|billing|payment|consent|tracking|account\s+deletion|export|impersonation|permissions?|admin|customer\s+data|personal\s+data|pii|audit|support)\b/i;
 const DEPENDENCY_PATTERN = /\b(?:dependency|dependencies|integration|upstream|downstream|api|webhook|billing|payment|support|permissions?|enterprise|admin|audit)\b/i;
+const PRD_WRITING_STATUS_PROMPT = 'Loop QA read-only check: latest PRD Writing loop state from Spawner? Include schedule status, fresh/stale, what improved, distilled reuse without rerun, and link. Do not mutate anything.';
 
 function normalizedText(text: string): string {
   return text.replace(/[‘’]/g, "'").replace(/\s+/g, ' ').trim();
@@ -213,7 +228,38 @@ function draftReply(text: string, tokenMode: PrdTokenMode): string {
   return lines.join('\n');
 }
 
-export function evaluatePrdFastPath(text: string): PrdFastPathResult | null {
+function cleanDistilledLearningLine(line: string): string {
+  return line
+    .replace(/^Distilled reuse:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function evidenceFromPacket(packet: LoopEngineeringStatusPacket | null): PrdFastPathEvidence | null {
+  const distilledLearningLine = typeof packet?.distilledLearningLine === 'string'
+    ? cleanDistilledLearningLine(packet.distilledLearningLine)
+    : '';
+  if (!packet || packet.chipId !== 'domain-chip-prd-writing-proof-loop' || !distilledLearningLine) return null;
+  return {
+    chipId: packet.chipId,
+    distilledLearningLine,
+    detailUrl: packet.detailUrl,
+    freshnessLabel: packet.freshnessLabel
+  };
+}
+
+function appendEvidenceProof(reply: string, evidence: PrdFastPathEvidence | null): string {
+  if (!evidence) return reply;
+  return [
+    reply,
+    '',
+    `Loop lesson reused: ${evidence.distilledLearningLine}`,
+    'No benchmark or self-improvement loop was started for this PRD turn.',
+    `Evidence: ${evidence.detailUrl}`
+  ].join('\n');
+}
+
+export function evaluatePrdFastPath(text: string, options: { evidence?: PrdFastPathEvidence | null } = {}): PrdFastPathResult | null {
   if (!isDistilledPrdFastPathRequest(text)) return null;
   const reasons: string[] = [];
   let quickScore = 100;
@@ -232,7 +278,7 @@ export function evaluatePrdFastPath(text: string): PrdFastPathResult | null {
     mode = 'questions_only';
     quickScore = 88;
     reasons.push('claimed_approval_or_execution_without_evidence');
-  } else if (FULL_LOOP_PATTERN.test(text) || HIGH_RISK_PATTERN.test(text) || WEAK_FEEDBACK_PATTERN.test(text)) {
+  } else if ((FULL_LOOP_PATTERN.test(text) && !LOOP_ACTION_NEGATION_PATTERN.test(text)) || HIGH_RISK_PATTERN.test(text) || WEAK_FEEDBACK_PATTERN.test(text)) {
     mode = 'loop_mode';
     tokenMode = 'loop_mode';
     quickScore = 72;
@@ -253,11 +299,23 @@ export function evaluatePrdFastPath(text: string): PrdFastPathResult | null {
         ? loopModeReply()
         : draftReply(text, tokenMode);
 
-  return { mode, tokenMode, quickScore, reasons, reply };
+  return { mode, tokenMode, quickScore, reasons, reply: appendEvidenceProof(reply, options.evidence ?? null) };
 }
 
 export function renderDistilledPrdFastPathReply(text: string): string | null {
   return evaluatePrdFastPath(text)?.reply || null;
+}
+
+export async function renderDistilledPrdFastPathReplyWithEvidence(
+  text: string,
+  options: { fetchImpl?: LoopEngineeringFetchLike; timeoutMs?: number } = {}
+): Promise<string | null> {
+  const localResult = evaluatePrdFastPath(text);
+  if (!localResult) return null;
+  if (localResult.mode === 'refuse') return localResult.reply;
+  const packet = await fetchLoopEngineeringStatusPacket(PRD_WRITING_STATUS_PROMPT, options);
+  const evidence = evidenceFromPacket(packet);
+  return evaluatePrdFastPath(text, { evidence })?.reply || localResult.reply;
 }
 
 export interface PrdFastPathProbe {

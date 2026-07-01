@@ -490,6 +490,39 @@ test('Telegram handler routes live PRD Writing loop-state QA wording to Spawner 
   });
 });
 
+test('Telegram handler drafts future PRDs with Spawner distilled lesson and no loop rerun', async () => {
+  await withServer(async (baseUrl, hits) => {
+    try {
+      process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+      process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+      process.env.SPARK_BOT_TEST_MODE = '1';
+      process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+      process.env.SPAWNER_UI_URL = baseUrl;
+      process.env.SPAWNER_UI_PUBLIC_URL = baseUrl;
+
+      const indexModule: any = await import('../src/index');
+      const replies: string[] = [];
+      await indexModule.handleTextMessage(fakeCtx(
+        'Write a PRD for reducing invoice export failures for finance admins after CSV jobs time out. Use the PRD Writing domain chip if it fits, but do not run a benchmark, loop, schedule, activation, mission, or publication.',
+        replies,
+        { chat: 8319079055, user: 8319079055, message: 8464 }
+      ));
+
+      assert.equal(replies.length, 1);
+      assert.match(replies[0], /Fast PRD path: Invoice Export/i);
+      assert.match(replies[0], /Loop lesson reused: PRDs improved when acceptance criteria were tied to observable evidence, rollout risk, and owner decisions\./i);
+      assert.match(replies[0], /reuse this staged lesson without rerunning the full loop/i);
+      assert.match(replies[0], /No benchmark or self-improvement loop was started for this PRD turn\./i);
+      assert.match(replies[0], /Evidence: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-prd-writing-proof-loop/i);
+      assert.doesNotMatch(replies[0], /should use loop mode before a normal PRD draft/i);
+      assert.doesNotMatch(replies[0], /\b(?:I (?:activated|published|registered|scheduled|started|created)|mission)\b/i);
+      assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-prd-writing-proof-loop']);
+    } finally {
+      restoreEnv();
+    }
+  });
+});
+
 async function run() {
   for (const entry of tests) {
     await entry.fn();

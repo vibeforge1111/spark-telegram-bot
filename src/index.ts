@@ -62,7 +62,7 @@ import { runChipLoop } from './chipLoop';
 import { evaluateDailyScheduleFastPath } from './dailyScheduleFastPath';
 import { fetchLoopEngineeringStatusPacket, resolveLoopEngineeringChipId } from './loopEngineeringStatus';
 import { domainChipBenchmarkFollowupReplyExtra, handleNaturalDomainChipBenchmarkAutoloopFollowup, labelForTelegram } from './domainChipBenchmarkFollowup';
-import { renderDistilledPrdFastPathReply } from './prdWritingFastPath';
+import { renderDistilledPrdFastPathReplyWithEvidence } from './prdWritingFastPath';
 import { packageSpecializationPathLoop, readSpecializationPathLoopInsights, readSpecializationPathLoopStatus, resolveRecursiveStartTarget, runSpecializationPathAutoloop } from './pathLoop';
 import {
   isSparkQaOperatorKey,
@@ -9378,7 +9378,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   })
     ? parsedEarlyBuildIntent
     : null;
-  const distilledPrdReply = !earlyBuildIntent ? renderDistilledPrdFastPathReply(text) : null;
+  const distilledPrdReply = !earlyBuildIntent ? await renderDistilledPrdFastPathReplyWithEvidence(text) : null;
   if (distilledPrdReply) {
     await conversation.remember(user, text).catch(() => {});
     console.log(`[PrdWritingFastPath] route user=${userRef(ctx.from?.id)} textLen=${text.length}`);

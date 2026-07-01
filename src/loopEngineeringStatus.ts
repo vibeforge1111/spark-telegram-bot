@@ -41,7 +41,7 @@ export interface LoopEngineeringResultEvent {
   updatedAt: string | null;
 }
 
-type FetchLike = (url: string, init?: { signal?: AbortSignal }) => Promise<{
+export type LoopEngineeringFetchLike = (url: string, init?: { signal?: AbortSignal }) => Promise<{
   ok: boolean;
   status: number;
   json: () => Promise<any>;
@@ -323,7 +323,7 @@ function unavailablePacket(input: {
 
 export async function fetchLoopEngineeringStatusPacket(
   text: string,
-  options: { fetchImpl?: FetchLike; timeoutMs?: number } = {}
+  options: { fetchImpl?: LoopEngineeringFetchLike; timeoutMs?: number } = {}
 ): Promise<LoopEngineeringStatusPacket | null> {
   if (!isLoopEngineeringStatusRequest(text)) return null;
   const chipId = resolveLoopEngineeringChipId(text);
