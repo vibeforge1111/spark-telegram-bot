@@ -273,6 +273,10 @@ function loopEngineeringRunKind(text: string): 'benchmark' | 'loop' {
   return 'benchmark';
 }
 
+function isPrivateStarterCheckRequest(text: string): boolean {
+  return /\b(?:private\s+check|starter\s+check|local\s+check)\b/i.test(String(text || ''));
+}
+
 function renderSpawnerLoopEngineeringRunReply(
   result: Awaited<ReturnType<NonNullable<FollowupDeps['runLoopEngineering']>>>,
   chipKey: string,
@@ -326,7 +330,7 @@ export async function handleNaturalDomainChipBenchmarkAutoloopFollowup(
     `Natural Domain Chip benchmark/autoloop follow-up started for ${startTarget.chipKey}.`
   );
 
-  if (deps.runLoopEngineering) {
+  if (deps.runLoopEngineering && !isPrivateStarterCheckRequest(deps.text)) {
     const kind = loopEngineeringRunKind(deps.text);
     const result = await deps.runLoopEngineering({
       kind,

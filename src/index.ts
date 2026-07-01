@@ -9490,6 +9490,31 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
+  if (!earlyBuildIntent && isDomainChipNoActionAdvisoryQuestion(text)) {
+    const key = telegramPendingDomainChipKey(ctx.chat?.id, ctx.from?.id);
+    const lastCreated = await getLastCreatedDomainChip(key).catch(() => null);
+    const reply = renderDomainChipNoActionAdvisoryReply(
+      lastCreated?.chipKey ? labelForTelegram(lastCreated.chipKey) : 'this Domain Chip'
+    );
+    await conversation.remember(user, text).catch(() => {});
+    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, {
+      route: 'conversation.domain_chip_no_action_advisory',
+      intentKind: 'conversation.domain_chip_no_action_advisory',
+      command: 'telegram_domain_chip_no_action_advisory',
+      reasonSummary: 'Telegram answered a Domain Chip no-action advisory question; no creation, benchmark, autoloop, browsing, file edit, alert, publication, activation, or promotion was authorized.'
+    });
+    setTurnOutboundTraceContext(ctx, traceContext);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'conversation.domain_chip_no_action_advisory',
+      owner: 'spark-telegram-bot',
+      action: 'plain_chat.qa_boundary',
+      signal: 'domain_chip_no_action_advisory'
+    }), 'conversation.domain_chip_no_action_advisory', 'spark-telegram-bot', 'plain_chat.qa_boundary');
+    await ctx.reply(reply, outboundTraceExtra(traceContext));
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
   const loopEngineeringStatus = !earlyBuildIntent ? await fetchLoopEngineeringStatusPacket(text) : null;
   if (loopEngineeringStatus) {
     await conversation.remember(user, text).catch(() => {});
@@ -10121,31 +10146,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       action: 'plain_chat.qa_boundary',
       signal: 'domain_chip_failure_copy_no_action'
     }), 'conversation.domain_chip_failure_copy_no_action', 'spark-telegram-bot', 'plain_chat.qa_boundary');
-    await ctx.reply(reply, outboundTraceExtra(traceContext));
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
-    return;
-  }
-
-  if (!earlyBuildIntent && isDomainChipNoActionAdvisoryQuestion(text)) {
-    const key = telegramPendingDomainChipKey(ctx.chat?.id, ctx.from?.id);
-    const lastCreated = await getLastCreatedDomainChip(key).catch(() => null);
-    const reply = renderDomainChipNoActionAdvisoryReply(
-      lastCreated?.chipKey ? labelForTelegram(lastCreated.chipKey) : 'this Domain Chip'
-    );
-    await conversation.remember(user, text).catch(() => {});
-    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, {
-      route: 'conversation.domain_chip_no_action_advisory',
-      intentKind: 'conversation.domain_chip_no_action_advisory',
-      command: 'telegram_domain_chip_no_action_advisory',
-      reasonSummary: 'Telegram answered a Domain Chip no-action advisory question; no creation, benchmark, autoloop, browsing, file edit, alert, publication, activation, or promotion was authorized.'
-    });
-    setTurnOutboundTraceContext(ctx, traceContext);
-    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
-      route: 'conversation.domain_chip_no_action_advisory',
-      owner: 'spark-telegram-bot',
-      action: 'plain_chat.qa_boundary',
-      signal: 'domain_chip_no_action_advisory'
-    }), 'conversation.domain_chip_no_action_advisory', 'spark-telegram-bot', 'plain_chat.qa_boundary');
     await ctx.reply(reply, outboundTraceExtra(traceContext));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;

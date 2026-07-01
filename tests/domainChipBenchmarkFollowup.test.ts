@@ -117,6 +117,79 @@ await test('loop follow-up queues capped Spawner loop through command-result pay
   assert.doesNotMatch(reply, /accepted improvement|activated/i);
 });
 
+await test('private starter check runs local hooks even when Spawner bridge is available', async () => {
+  const originalEnv = { ...process.env };
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), 'spark-domain-chip-private-check-'));
+  try {
+    const chipsDir = path.join(tempDir, 'chips');
+    const chipRoot = path.join(chipsDir, 'domain-chip-vendor-compliance-intake');
+    mkdirSync(path.join(chipRoot, 'benchmark'), { recursive: true });
+    mkdirSync(path.join(chipRoot, 'reports'), { recursive: true });
+    writeFileSync(path.join(chipRoot, 'chip-runner.py'), [
+      'import json, pathlib, sys',
+      'cmd = sys.argv[1] if len(sys.argv) > 1 else ""',
+      'reports = pathlib.Path("reports")',
+      'reports.mkdir(exist_ok=True)',
+      'if cmd == "loop-round":',
+      '    (reports / "autoloop-round-001.json").write_text(json.dumps({"case_count": 14, "score_delta": 0.0, "round_status": "blocked", "promotion_blocked": True, "network_absorbable": False}))',
+      'elif cmd == "loop-gate-check":',
+      '    (reports / "loop-gate-check.json").write_text(json.dumps({"gate_status": "blocked", "promotion_blocked": True, "network_absorbable": False}))',
+      'elif cmd == "evaluate":',
+      '    (reports / "local-evaluate-smoke.json").write_text(json.dumps({"ok": True}))',
+      'elif cmd in {"watchtower-check", "rollback-check"}:',
+      '    (reports / f"{cmd}.json").write_text(json.dumps({"status": "blocked", "promotion_blocked": True}))',
+      'else:',
+      '    raise SystemExit(2)'
+    ].join('\n'));
+    process.env.SPARK_DOMAIN_CHIPS_DIR = chipsDir;
+
+    const replies: string[] = [];
+    const calls: any[] = [];
+    const handled = await handleNaturalDomainChipBenchmarkAutoloopFollowup({
+      ctx: { reply: async (reply: string) => { replies.push(reply); } },
+      text: 'run the private check',
+      decision: {
+        schema_version: 'spark.nlp.route_decision.v1',
+        route: 'recursive.start',
+        owner_system: 'spark-telegram-bot',
+        confidence: 'contextual',
+        action: 'recursive.command',
+        payload: { rawCommand: 'start domain-chip-vendor-compliance-intake rounds 1' },
+        context_source: 'hot_recent_turns',
+        matched_signals: ['natural_recursive_command'],
+        blocked_by: [],
+        requires_confirmation: true
+      },
+      rawCommand: 'start domain-chip-vendor-compliance-intake rounds 1',
+      authorize: () => ({ allow: true } as any),
+      replyAuthorityBlocked: async () => { replies.push('blocked'); },
+      sendTyping: async () => {},
+      recordNaturalExecution: () => {},
+      recordHarnessExecution: () => {},
+      runLoopEngineering: async (input) => {
+        calls.push(input);
+        return { success: false, error: 'Spawner should not be used for starter checks.' };
+      },
+      rememberAssistantReply: async () => {},
+      redact: (value) => value
+    });
+
+    const reply = replies.join('\n');
+    assert.equal(handled, true);
+    assert.equal(calls.length, 0);
+    assert.match(reply, /private starter check for Vendor Compliance Intake/i);
+    assert.match(reply, /14 practice checks ran/i);
+    assert.match(reply, /nothing was promoted, published, activated, sent, or absorbed/i);
+    assert.doesNotMatch(reply, /Spawner did not accept|Queued a private benchmark/i);
+  } finally {
+    for (const key of Object.keys(process.env)) {
+      if (!(key in originalEnv)) delete process.env[key];
+    }
+    Object.assign(process.env, originalEnv);
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 await test('benchmark follow-up failure reply hides local runner internals', async () => {
   const originalEnv = { ...process.env };
   const tempDir = mkdtempSync(path.join(os.tmpdir(), 'spark-domain-chip-loop-fail-'));
