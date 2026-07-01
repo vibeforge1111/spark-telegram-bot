@@ -393,6 +393,7 @@ async function run(): Promise<void> {
 
     assert.equal(calls.length, 1);
     assert.match(calls[0].url, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/benchmarks\/run$/);
+    assert.equal(calls[0].body.executeNow, undefined);
     assert.equal(calls[0].body.sourceSurface, 'telegram');
     assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.benchmark.run');
     assert.match(replies[0], /Queued a private benchmark mission/);
@@ -419,6 +420,29 @@ async function run(): Promise<void> {
     assert.match(replies[0], /evaluator evidence for review, not activation/i);
     assert.match(replies[0], /Spawner: http:\/\/127\.0\.0\.1:3333\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
     assert.doesNotMatch(replies[0], /approved|published/i);
+  });
+
+  await test('/loop benchmark execute aliases explicitly execute staged private benchmark', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+
+    for (const alias of ['execute', 'run', 'score']) {
+      const replies: string[] = [];
+      await indexModule.handleLoopCommand(fakeCtx(`/loop benchmark domain-chip-prd-writing-proof-loop ${alias}`, replies, { chat: 8319079055, user: 8319079055, message: 9080 + calls.length }));
+      assert.match(replies[0], /evaluator evidence for review, not activation/i);
+    }
+
+    assert.equal(calls.length, 3);
+    for (const call of calls) {
+      assert.equal(call.body.executeNow, true);
+      assert.equal(call.body.sourceSurface, 'telegram');
+      assert.equal(call.body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.benchmark.run');
+      assert.equal(call.body.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+      assert.equal(call.body.executionAuthority.tool_ledgers[0].authorization.restrictions.network_allowed, false);
+      assert.equal(call.body.executionAuthority.tool_ledgers[0].authorization.restrictions.publish_allowed, false);
+    }
   });
 
   await test('/loop run queues capped private loop rounds through Spawner command-result payload', async () => {
