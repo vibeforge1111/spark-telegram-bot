@@ -7867,7 +7867,9 @@ function renderLoopEngineeringCommandReply(result: { success: boolean; message?:
 export async function handleLoopCommand(ctx: any): Promise<unknown> {
   if (!requireAdmin(ctx)) return;
 
-  const raw = ctx.message.text.replace('/loop', '').trim();
+  const messageText = typeof ctx.message?.text === 'string' ? ctx.message.text : '';
+  const payloadText = typeof ctx.payload === 'string' ? ctx.payload.trim() : '';
+  const raw = payloadText || messageText.replace(/^\/loop(?:@[A-Za-z0-9_]+)?\b/i, '').trim();
   const parsedLoopEngineering = parseLoopEngineeringCommand(raw);
   const knownLoopEngineeringVerb = /^(?:list|chips|status|evidence|benchmark|bench|run|complete|bind|eval|review|case|benchmark-case|bench-case|distill|schedule|fire-schedule|fire_schedule|fire|activate)\b/i.test(raw);
   if (parsedLoopEngineering) {

@@ -48,6 +48,13 @@ function fakeCtx(text: string, replies: string[], ids = { chat: 8319079055, user
   };
 }
 
+function fakeCommandCtx(text: string, payload: string, replies: string[], ids = { chat: 8319079055, user: 8319079055, message: 9070 }) {
+  return {
+    ...fakeCtx(text, replies, ids),
+    payload
+  };
+}
+
 async function withLoopHandler() {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
   process.env.ADMIN_TELEGRAM_IDS = '8319079055';
@@ -278,6 +285,82 @@ async function run(): Promise<void> {
     assert.match(replies[0], /Separated evaluator review passed/);
     assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:3333\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
     assert.doesNotMatch(replies[0], /queued|started|activated|published/i);
+  });
+
+  await test('/loop status honors Telegraf payload args from live command handling', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+    globalThis.fetch = async (input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      assert.match(url, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop$/);
+      return Response.json({
+        ok: true,
+        chip: {
+          summary: {
+            id: 'domain-chip-prd-writing-proof-loop',
+            domain: 'PRD Writing',
+            activation: { liveTelegramProven: false }
+          },
+          readiness: {
+            label: 'Private candidate',
+            passCount: 8,
+            totalCount: 10,
+            nextAction: 'Run live Telegram proof.',
+            checks: []
+          },
+          events: []
+        }
+      }) as any;
+    };
+
+    try {
+      await indexModule.handleLoopCommand(fakeCommandCtx('/loop', 'status domain-chip-prd-writing-proof-loop', replies, { chat: 8319079055, user: 8319079055, message: 9070 }));
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    assert.equal(calls.length, 0);
+    assert.match(replies[0], /PRD Writing is private candidate/i);
+    assert.doesNotMatch(replies[0], /Usage:|Starting autoloop/i);
+  });
+
+  await test('/loop status strips bot username before parsing live command text', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+    globalThis.fetch = async () => Response.json({
+      ok: true,
+      chip: {
+        summary: {
+          id: 'domain-chip-prd-writing-proof-loop',
+          domain: 'PRD Writing',
+          activation: { liveTelegramProven: false }
+        },
+        readiness: {
+          label: 'Private candidate',
+          passCount: 8,
+          totalCount: 10,
+          nextAction: 'Run live Telegram proof.',
+          checks: []
+        },
+        events: []
+      }
+    }) as any;
+
+    try {
+      await indexModule.handleLoopCommand(fakeCtx('/loop@SparkRecursive_bot status domain-chip-prd-writing-proof-loop', replies, { chat: 8319079055, user: 8319079055, message: 9071 }));
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    assert.equal(calls.length, 0);
+    assert.match(replies[0], /PRD Writing is private candidate/i);
+    assert.doesNotMatch(replies[0], /Usage:|Starting autoloop/i);
   });
 
   await test('/loop benchmark queues private benchmark through Spawner command-result payload', async () => {
