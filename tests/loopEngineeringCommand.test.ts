@@ -362,8 +362,9 @@ async function run(): Promise<void> {
     assert.match(replies[0], /PRD Writing is private candidate/i);
     assert.match(replies[0], /7\/10 checks pass/);
     assert.match(replies[0], /Separated evaluator review passed/);
-    assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:3333\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
+    assert.match(replies[0], /Spawner: http:\/\/127\.0\.0\.1:3333\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
     assert.match(replies[0], /I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued\./);
+    assert.doesNotMatch(replies[0], /Loop results:|Activation proof:|Latest result:|Details:/i);
     assert.doesNotMatch(replies[0], /\b(?:started|activated|published)\b/i);
   });
 

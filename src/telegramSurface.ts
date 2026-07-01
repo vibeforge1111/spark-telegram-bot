@@ -113,6 +113,10 @@ export function scoreLoopEngineeringTelegramReadability(replyText: string): Tele
     score -= 2;
     issues.push('report_card_headings');
   }
+  if (/(?:Latest result|Loop results|Activation proof|Details):/i.test(text)) {
+    score -= 2;
+    issues.push('loop_packet_labels_visible');
+  }
   if (/Advanced PRD|router boundaries|DCL scaffold|external API calls?|raw command|trace id|local path/i.test(text)) {
     score -= 1;
     issues.push('internal_or_jargony_copy');

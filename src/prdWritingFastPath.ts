@@ -181,9 +181,9 @@ function refusalReply(): string {
 
 function loopModeReply(): string {
   return [
-    'This one should use loop mode before a normal PRD draft.',
+    'This one should use loop mode before a normal PRD draft. I would keep the fast path private until separated review proves the PRD is useful.',
     '',
-    'The request looks novel, high-risk, or repeatedly weak, so the fast path should stay private and run benchmark cases, adversarial probes, separated review, and a side-effect check before anyone treats the PRD as useful.'
+    'Next useful step: run benchmark cases, adversarial probes, and a side-effect check before anyone treats it as ready.'
   ].join('\n');
 }
 
@@ -254,7 +254,10 @@ function appendEvidenceProof(reply: string, evidence: PrdFastPathEvidence | null
     reply,
     '',
     `Loop lesson reused: ${evidence.distilledLearningLine}`,
-    `I did not start a benchmark or self-improvement loop for this PRD turn. Evidence: ${evidence.detailUrl}`
+    '',
+    'I did not start a benchmark or self-improvement loop for this PRD turn.',
+    '',
+    `Evidence: ${evidence.detailUrl}`
   ].join('\n');
 }
 

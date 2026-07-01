@@ -174,34 +174,42 @@ function formatEventWorkUnits(event: LoopEngineeringResultEvent): string | null 
   return null;
 }
 
-function renderEventLine(events: LoopEngineeringResultEvent[]): string {
-  if (!events.length) return 'I do not see loop result events in the Spawner packet yet.';
-  const parts = events.map((event) => {
-    const details: string[] = [];
-    const delta = formatDelta(event.utilityDelta);
-    if (delta) details.push(delta);
-    const units = formatEventWorkUnits(event);
-    if (units) details.push(units);
-    if (event.evaluatorSeparated) details.push('separated evaluator');
-    return `${event.label} ${event.status}${details.length ? ` (${details.join(', ')})` : ''}`;
-  });
-  return `Loop results: ${parts.join('; ')}.`;
+function renderShortEvent(event: LoopEngineeringResultEvent): string {
+  const details: string[] = [];
+  const delta = formatDelta(event.utilityDelta);
+  if (delta) details.push(delta);
+  const units = formatEventWorkUnits(event);
+  if (units) details.push(units);
+  return `${event.label} ${event.status}${details.length ? ` (${details.join(', ')})` : ''}`;
 }
 
-function renderLatestEventLine(event: LoopEngineeringResultEvent | null): string {
-  if (!event) return 'Latest result: I do not see a completed loop or benchmark event in the current Spawner packet yet.';
-  const delta = formatDelta(event.utilityDelta);
+function renderEvidenceBrief(events: LoopEngineeringResultEvent[], latest: LoopEngineeringResultEvent | null): string | null {
+  const latestKey = latest ? `${latest.eventType}:${latest.label}:${latest.updatedAt || ''}` : '';
+  const others = events
+    .filter((event) => `${event.eventType}:${event.label}:${event.updatedAt || ''}` !== latestKey)
+    .slice(0, 2);
+  if (!others.length) return null;
+  return `Other evidence: ${others.map(renderShortEvent).join('; ')}.`;
+}
+
+function renderLatestEventForTelegram(event: LoopEngineeringResultEvent | null): string {
+  if (!event) return 'Latest: I do not see a completed loop or benchmark event in Spawner yet.';
+  const status = String(event.status || '').trim();
+  const label = event.label.trim();
+  const firstSentence = status === 'passed' && /\b(?:completed|executed|queued|cancelled)\b/i.test(label)
+    ? `Latest: ${label}.`
+    : `Latest: ${label}${status ? ` ${status}` : ''}.`;
   const details: string[] = [];
   if (typeof event.previousScore === 'number' && typeof event.candidateScore === 'number') {
-    details.push(`${event.previousScore.toFixed(1)} -> ${event.candidateScore.toFixed(1)}`);
-  } else if (delta) {
-    details.push(delta);
+    details.push(`Score ${event.previousScore.toFixed(1)} -> ${event.candidateScore.toFixed(1)}`);
+  } else {
+    const delta = formatDelta(event.utilityDelta);
+    if (delta) details.push(`Delta ${delta}`);
   }
   const units = formatEventWorkUnits(event);
   if (units) details.push(units);
   if (event.evaluatorSeparated) details.push('separated evaluator');
-  if (event.updatedAt) details.push(event.updatedAt);
-  return `Latest result: ${event.label} ${event.status}${details.length ? ` (${details.join(', ')})` : ''}.`;
+  return details.length ? `${firstSentence} ${details.join('; ')}.` : firstSentence;
 }
 
 function readableBlockedCheck(check: LoopEngineeringStatusCheck): string {
@@ -218,15 +226,15 @@ function readableActionText(value: string): string {
   return value.replace(/operator_publication_approval_missing/g, 'operator publication approval missing');
 }
 
-function renderActivationProofLine(packet: Pick<LoopEngineeringStatusPacket, 'blockedChecks' | 'liveTelegramProven'>): string {
+function renderActivationForTelegram(packet: Pick<LoopEngineeringStatusPacket, 'blockedChecks' | 'liveTelegramProven'>): string {
   const blockers = packet.blockedChecks.map(readableBlockedCheck).filter(Boolean);
   if (packet.liveTelegramProven && blockers.length === 0) {
-    return 'Activation proof: live Telegram proof is present and I do not see readiness blockers in Spawner.';
+    return 'Live Telegram proof is present, and I do not see readiness blockers in Spawner.';
   }
   if (blockers.length) {
-    return `Activation proof: not live-approved yet; blockers I can prove are ${blockers.join(', ')}.`;
+    return `Activation is still blocked by ${blockers.join(', ')}.`;
   }
-  return 'Activation proof: no readiness blocker is listed in Spawner, but activation still needs scoped approval.';
+  return 'Activation still needs scoped approval before use.';
 }
 
 function timestampMs(value: unknown): number {
@@ -263,6 +271,12 @@ function freshnessLabelFromTimestamp(latestTimestamp: string, nowMs: number): st
   return `read from Spawner now; latest Spawner event timestamp is ${latestTimestamp}; freshness: stale (${formatAge(ageMs)}).`;
 }
 
+function renderFreshnessForTelegram(freshnessLabel: string): string {
+  const match = freshnessLabel.match(/latest Spawner event timestamp is ([^;]+);\s*freshness:\s*([^.]*)\./i);
+  if (match) return `Freshness: ${match[2]}. Latest Spawner event: ${match[1]}.`;
+  return `Freshness: ${freshnessLabel}`;
+}
+
 function currentScheduleFromChip(chip: any): { line: string | null; updatedAt: string | null } {
   const schedules = Array.isArray(chip?.schedules) ? chip.schedules : [];
   const latest = [...schedules]
@@ -289,6 +303,16 @@ function currentScheduleFromChip(chip: any): { line: string | null; updatedAt: s
     line: `Current schedule: ${status}, ${active}${timing ? ` (${timing})` : ''}.`,
     updatedAt
   };
+}
+
+function renderScheduleForTelegram(line: string | null): string | null {
+  if (!line) return null;
+  const match = line.match(/^Current schedule:\s*([^,]+),\s*([^(.]+)(?:\s*\(([^)]*)\))?\./i);
+  if (!match) return line;
+  const status = match[1].trim();
+  const active = match[2].trim();
+  const timing = match[3]?.trim();
+  return `Schedule: ${status} and ${active}${timing ? ` (${timing})` : ''}.`;
 }
 
 function distilledLearningLineFromChip(chip: any): string | null {
@@ -325,41 +349,44 @@ function wantsDistilledLearningLine(text: string): boolean {
   return /\b(?:what improved|improved|distilled|reuse|rerun|without rerun|without rerunning|next prds?)\b/.test(normalized);
 }
 
-function renderCompactReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>): string {
-  const lines = [
-    `${packet.domain} is ${packet.readinessLabel.toLowerCase()} (${packet.passCount}/${packet.totalCount} checks pass); ${packet.freshnessLabel}`,
-    renderLatestEventLine(packet.latestResultEvent),
-    renderEventLine(packet.topResultEvents),
-    renderActivationProofLine(packet),
-    ...(packet.currentScheduleLine ? [packet.currentScheduleLine] : []),
-    'I only read Spawner here; nothing was queued or changed.'
+function renderCompactReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>, text = ''): string {
+  const wantsDistillation = wantsDistilledLearningLine(text);
+  const stateLine = [
+    renderActivationForTelegram(packet),
+    renderScheduleForTelegram(packet.currentScheduleLine)
+  ].filter(Boolean).join(' ');
+  const learningOrEvidence = wantsDistillation
+    ? packet.distilledLearningLine || 'I do not see a reusable distilled lesson in Spawner yet.'
+    : renderEvidenceBrief(packet.topResultEvents, packet.latestResultEvent);
+  const paragraphs = [
+    `${packet.domain} is ${packet.readinessLabel.toLowerCase()}: ${packet.passCount}/${packet.totalCount} checks pass.`,
+    `${renderFreshnessForTelegram(packet.freshnessLabel)} ${renderLatestEventForTelegram(packet.latestResultEvent)}`,
+    stateLine,
+    learningOrEvidence,
+    'I only read Spawner here; nothing was queued or changed.',
+    `Spawner: ${packet.detailUrl}`
   ];
-  lines.push(`Details: ${packet.detailUrl}`);
-  return lines.join('\n');
+  return paragraphs.filter(Boolean).join('\n\n');
 }
 
 function renderReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>, text = ''): string {
   if (wantsCompactLatestReply(text)) {
-    const reply = renderCompactReply(packet);
-    if (!wantsDistilledLearningLine(text)) return reply;
-    const lines = reply.split('\n');
-    lines.splice(Math.max(2, lines.length - 2), 0, packet.distilledLearningLine || 'Distilled reuse: I do not see a reusable distilled lesson in Spawner yet.');
-    return lines.join('\n');
+    return renderCompactReply(packet, text);
   }
   const blockedLine = packet.blockedChecks.length
-    ? `The blockers I can prove are ${packet.blockedChecks.map(readableBlockedCheck).join(', ')}.`
-    : 'I do not see a blocker in the current readiness packet.';
-  const freshnessLine = `Freshness check: ${packet.freshnessLabel}`;
+    ? `Blocked by: ${packet.blockedChecks.map(readableBlockedCheck).join(', ')}.`
+    : 'I do not see a blocker in the current Spawner evidence.';
+  const freshnessLine = renderFreshnessForTelegram(packet.freshnessLabel);
   const scheduleAndDistillation = [
-    packet.currentScheduleLine,
+    renderScheduleForTelegram(packet.currentScheduleLine),
     wantsDistilledLearningLine(text) ? packet.distilledLearningLine || 'Distilled reuse: I do not see a reusable distilled lesson in Spawner yet.' : ''
   ].filter(Boolean).join(' ');
   return [
     `${packet.domain} is ${packet.readinessLabel.toLowerCase()}: ${packet.passCount}/${packet.totalCount} checks pass. ${blockedLine}`,
-    `${freshnessLine} ${renderLatestEventLine(packet.latestResultEvent)}`,
-    [renderActivationProofLine(packet), scheduleAndDistillation].filter(Boolean).join(' '),
-    `${renderEventLine(packet.topResultEvents)} I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued.`,
-    `Next safe step: ${readableActionText(packet.nextAction)} Details: ${packet.detailUrl}`
+    `${freshnessLine} ${renderLatestEventForTelegram(packet.latestResultEvent)}`,
+    [renderActivationForTelegram(packet), scheduleAndDistillation, renderEvidenceBrief(packet.topResultEvents, packet.latestResultEvent)].filter(Boolean).join(' '),
+    'I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued.',
+    `Next safe step: ${readableActionText(packet.nextAction)}\n\nSpawner: ${packet.detailUrl}`
   ].join('\n\n');
 }
 
@@ -410,7 +437,7 @@ function unavailablePacket(input: {
       'I did not queue any loop, benchmark, schedule, activation, or publication.',
       '',
       `Next safe step: ${nextAction}`,
-      `Details: ${detailUrl}`
+      `Spawner: ${detailUrl}`
     ].join('\n\n')
   };
 }
@@ -446,7 +473,7 @@ export async function fetchLoopEngineeringStatusPacket(
         'I can check Loop Engineering status, but I need the specific chip first.',
         'I only read Spawner evidence here; nothing will be queued, activated, or published.',
         '',
-        `Open the board: ${detailUrl}`
+        `Spawner: ${detailUrl}`
       ].join('\n\n')
     };
   }

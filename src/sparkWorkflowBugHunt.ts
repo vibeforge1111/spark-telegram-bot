@@ -34,12 +34,8 @@ export function renderSparkWorkflowBugHuntReply(text: string): string {
     'I will not start a mission from this wording.'
   ].join('\n');
   return [
-    'Treat this as QA planning, not a mission launch.',
+    'Treat this as QA planning, not a mission launch. I will not start a mission from this wording.',
     '',
-    'Focus the pass on route hijacks, no-execution boundaries, duplicate confirmations, no-edit probes, live Kanban/provider truth, missing mission ids, and Telegram composition.',
-    '',
-    'Next move: add failing regressions, hotfix the boundary, run focused tests, then prove it live in Telegram.',
-    '',
-    'I will not start a mission from this wording.'
+    'Focus the pass on route hijacks, no-execution boundaries, no-edit probes, duplicate confirmations, live truth, missing mission ids, and Telegram composition. Then add regressions, patch the boundary, and prove it live.'
   ].join('\n');
 }

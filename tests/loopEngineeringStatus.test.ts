@@ -370,11 +370,13 @@ test('renders read-only packet from Spawner evidence without activation claims',
   assert.equal(packet.blockedChecks.map((check) => check.id).join(','), 'live_telegram_proof,hard_blockers');
   assert.match(packet.reply, /10\/12 checks pass/);
   assert.match(packet.reply, /live Telegram proof missing, operator approval missing/);
-  assert.match(packet.reply, /Freshness check: read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:13:00\.303Z; freshness: fresh within 10s\./);
-  assert.match(packet.reply, /Latest result: Self-improvement loop passed \(\+12\.5, 5 rounds, separated evaluator, 2026-07-01T09:13:00\.303Z\)\./);
-  assert.match(packet.reply, /Loop results: Benchmark A\/B passed \(\+12\.5, 17 cases, separated evaluator\); Self-improvement loop passed \(\+12\.5, 5 rounds, separated evaluator\); Activation gate blocked \(separated evaluator\)\./);
+  assert.match(packet.reply, /Freshness: fresh within 10s\. Latest Spawner event: 2026-07-01T09:13:00\.303Z\./);
+  assert.match(packet.reply, /Latest: Self-improvement loop passed\. Delta \+12\.5; 5 rounds; separated evaluator\./);
+  assert.match(packet.reply, /Other evidence: Benchmark A\/B passed \(\+12\.5, 17 cases\); Activation gate blocked\./);
   assert.match(packet.reply, /I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued\./);
   assert.match(packet.reply, /Next safe step: Resolve blocker: operator publication approval missing/);
+  assert.match(packet.reply, /\n\nSpawner: .*\/loop-engineering\/domain-chip-daily-schedule-reliability-r30-persisted-context-qa/);
+  assert.doesNotMatch(packet.reply, /Loop results:|Activation proof:|Latest result:|readiness packet/i);
   assert.doesNotMatch(packet.reply, /\b(?:I (?:activated|published|registered|scheduled|started|created)|was (?:activated|published|registered|scheduled|started)|has been (?:activated|published|registered|scheduled|started))\b/i);
   assertLoopEngineeringTelegramReadability(packet.reply, 8);
 });
@@ -391,12 +393,13 @@ test('PRD Writing no-action state prompt reads the proof-loop chip and reports l
   assert.equal(packet.readinessLabel, 'Local fast path supported');
   assert.equal(packet.latestResultEvent?.label, 'Private scheduled loop completed');
   assert.equal(packet.latestResultEvent?.updatedAt, '2026-07-01T09:59:49.934Z');
-  assert.match(packet.reply, /PRD Writing is local fast path supported .*12\/12 checks pass/i);
-  assert.match(packet.reply, /read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:59:49\.934Z; freshness: fresh within 10s\./);
-  assert.match(packet.reply, /Latest result: Private scheduled loop completed passed \(4\.5 -> 9\.7, 3 rounds, separated evaluator, 2026-07-01T09:59:49\.934Z\)\./);
-  assert.match(packet.reply, /Current schedule: staged, inactive \(last changed 2026-07-01T09:59:49\.934Z\)\./);
+  assert.match(packet.reply, /PRD Writing is local fast path supported: 12\/12 checks pass/i);
+  assert.match(packet.reply, /Freshness: fresh within 10s\. Latest Spawner event: 2026-07-01T09:59:49\.934Z\./);
+  assert.match(packet.reply, /Latest: Private scheduled loop completed\. Score 4\.5 -> 9\.7; 3 rounds; separated evaluator\./);
+  assert.match(packet.reply, /Schedule: staged and inactive \(last changed 2026-07-01T09:59:49\.934Z\)\./);
   assert.match(packet.reply, /I only read Spawner here; nothing was queued or changed\./);
-  assert.match(packet.reply, /Details: .*\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
+  assert.match(packet.reply, /\n\nSpawner: .*\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
+  assert.doesNotMatch(packet.reply, /Loop results:|Activation proof:|Latest result:|Details:/i);
   assert.doesNotMatch(packet.reply, /\b(?:I (?:activated|published|registered|scheduled|started|created)|was (?:activated|published|registered|scheduled|started)|has been (?:activated|published|registered|scheduled|started))\b/i);
 });
 
@@ -409,7 +412,7 @@ test('PRD Writing status labels recent Spawner evidence without sounding stale',
 
   assert.ok(packet);
   assert.match(packet.freshnessLabel, /freshness: recent \(15s old\)/);
-  assert.match(packet.reply, /freshness: recent \(15s old\)/);
+  assert.match(packet.reply, /Freshness: recent \(15s old\)/);
   assert.match(packet.reply, /I only read Spawner here; nothing was queued or changed\./);
 });
 
@@ -422,7 +425,7 @@ test('PRD Writing status still labels meaningfully old Spawner evidence as stale
 
   assert.ok(packet);
   assert.match(packet.freshnessLabel, /freshness: stale \(20m old\)/);
-  assert.match(packet.reply, /freshness: stale \(20m old\)/);
+  assert.match(packet.reply, /Freshness: stale \(20m old\)/);
   assert.match(packet.reply, /I only read Spawner here; nothing was queued or changed\./);
 });
 
@@ -457,10 +460,11 @@ test('PRD Writing status treats schedule lifecycle events as latest Spawner trut
   assert.ok(packet);
   assert.equal(packet.latestResultEvent?.eventType, 'schedule_lifecycle');
   assert.equal(packet.latestResultEvent?.label, 'Private loop schedule cancelled');
-  assert.match(packet.reply, /Latest result: Private loop schedule cancelled passed \(separated evaluator, 2026-07-01T11:32:16\.030Z\)\./);
-  assert.match(packet.reply, /Current schedule: cancelled, inactive \(last changed 2026-07-01T11:32:16\.030Z\)\./);
+  assert.match(packet.reply, /Latest: Private loop schedule cancelled\. separated evaluator\./);
+  assert.match(packet.reply, /Schedule: cancelled and inactive \(last changed 2026-07-01T11:32:16\.030Z\)\./);
   assert.match(packet.reply, /Distilled reuse: PRDs improved/i);
   assert.match(packet.reply, /nothing was queued or changed/);
+  assert.doesNotMatch(packet.reply, /Loop results:|Activation proof:|Latest result:|Details:/i);
 });
 
 test('PRD Writing status uses newer schedules array when event summaries lag', async () => {
@@ -482,8 +486,9 @@ test('PRD Writing status uses newer schedules array when event summaries lag', a
   assert.ok(packet);
   assert.equal(packet.currentScheduleUpdatedAt, '2026-07-01T12:04:05.123Z');
   assert.match(packet.freshnessLabel, /latest Spawner event timestamp is 2026-07-01T12:04:05\.123Z/);
-  assert.match(packet.reply, /Current schedule: paused, inactive \(last changed 2026-07-01T12:04:05\.123Z; last run 2026-07-01T12:01:00\.000Z\)\./);
+  assert.match(packet.reply, /Schedule: paused and inactive \(last changed 2026-07-01T12:04:05\.123Z; last run 2026-07-01T12:01:00\.000Z\)\./);
   assert.match(packet.reply, /I only read Spawner here/);
+  assert.doesNotMatch(packet.reply, /Loop results:|Activation proof:|Latest result:|Details:/i);
 });
 
 test('renders a readable missing-evidence reply instead of command usage on Spawner 404', async () => {
@@ -539,10 +544,12 @@ test('Telegram handler answers loop status through Spawner evidence API and star
     assert.match(replies[0], /Daily Schedule Reliability R30 Persisted Context QA is telegram activation blocked/i);
     assert.match(replies[0], /10\/12 checks pass/i);
     assert.match(replies[0], /live Telegram proof missing, operator approval missing/i);
-    assert.match(replies[0], /Activation proof: not live-approved yet; blockers I can prove are live Telegram proof missing, operator approval missing\./);
-    assert.match(replies[0], /Loop results: Benchmark A\/B passed \(\+12\.5, 17 cases, separated evaluator\); Self-improvement loop passed \(\+12\.5, 5 rounds, separated evaluator\); Activation gate blocked/i);
-    assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-daily-schedule-reliability-r30-persisted-context-qa/i);
+    assert.match(replies[0], /Activation is still blocked by live Telegram proof missing, operator approval missing\./);
+    assert.match(replies[0], /Latest: Self-improvement loop passed\. Delta \+12\.5; 5 rounds; separated evaluator\./);
+    assert.match(replies[0], /Other evidence: Benchmark A\/B passed \(\+12\.5, 17 cases\); Activation gate blocked\./);
+    assert.match(replies[0], /Spawner: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-daily-schedule-reliability-r30-persisted-context-qa/i);
     assert.doesNotMatch(replies[0], /Daily Schedule private fast path|reminder was created|I created|I started|mission/i);
+    assert.doesNotMatch(replies[0], /Loop results:|Activation proof:|Latest result:|Details:/i);
     assertLoopEngineeringTelegramReadability(replies[0], 8);
     assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-daily-schedule-reliability-r30-persisted-context-qa']);
   });
@@ -568,12 +575,13 @@ test('Telegram handler answers exact Project Maintenance chip status with cases,
     assert.equal(replies.length, 1);
     assert.match(replies[0], /Project Maintenance Steward R30 Usefulness Loop is private candidate supported/i);
     assert.match(replies[0], /9\/12 checks pass/i);
-    assert.match(replies[0], /Latest result: Private benchmark run executed passed \(3\.9 -> 9\.8, 17 cases, separated evaluator, 2026-07-01T14:28:37\.057Z\)\./);
-    assert.match(replies[0], /Activation proof: not live-approved yet; blockers I can prove are local Telegram fast-path proof missing, live Telegram proof missing, operator approval missing\./);
-    assert.match(replies[0], /Self-improvement loop passed \(\+20\.7, 5 rounds, separated evaluator\)/);
+    assert.match(replies[0], /Latest: Private benchmark run executed\. Score 3\.9 -> 9\.8; 17 cases; separated evaluator\./);
+    assert.match(replies[0], /Activation is still blocked by local Telegram fast-path proof missing, live Telegram proof missing, operator approval missing\./);
+    assert.match(replies[0], /Other evidence: Benchmark A\/B passed \(\+20\.7\); Self-improvement loop passed \(\+20\.7, 5 rounds\)\./);
     assert.match(replies[0], /I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued\./);
-    assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-project-maintenance-steward-r30-usefulness-loop/i);
+    assert.match(replies[0], /Spawner: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-project-maintenance-steward-r30-usefulness-loop/i);
     assert.doesNotMatch(replies[0], /\b17 rounds\b/i);
+    assert.doesNotMatch(replies[0], /Loop results:|Activation proof:|Latest result:|Details:/i);
     assert.doesNotMatch(replies[0], /\b(?:I (?:queued|ran|started|scheduled|activated|published|mutated)|has been (?:queued|started|scheduled|activated|published))\b/i);
     assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-project-maintenance-steward-r30-usefulness-loop']);
   });
@@ -599,12 +607,13 @@ test('Telegram handler routes Operations Research Watchdesk final-smoke wording 
     assert.equal(replies.length, 1);
     assert.match(replies[0], /Operations Research Watchdesk R30 Bridge QA is private candidate supported/i);
     assert.match(replies[0], /9\/12 checks pass/i);
-    assert.match(replies[0], /Latest result: Private benchmark run executed passed \(4\.1 -> 9\.8, 17 cases, separated evaluator, 2026-07-01T16:10:46\.874Z\)\./);
-    assert.match(replies[0], /Activation proof: not live-approved yet; blockers I can prove are operator publication approval missing\./);
-    assert.match(replies[0], /Self-improvement loop passed \(\+24\.0, 5 rounds, separated evaluator\)/);
+    assert.match(replies[0], /Latest: Private benchmark run executed\. Score 4\.1 -> 9\.8; 17 cases; separated evaluator\./);
+    assert.match(replies[0], /Activation is still blocked by operator publication approval missing\./);
+    assert.match(replies[0], /Other evidence: Self-improvement loop passed \(\+24\.0, 5 rounds\)\./);
     assert.match(replies[0], /I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued\./);
-    assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-operations-research-watchdesk-r30-bridge-qa/i);
+    assert.match(replies[0], /Spawner: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-operations-research-watchdesk-r30-bridge-qa/i);
     assert.doesNotMatch(replies[0], /QA planning, not a mission launch/i);
+    assert.doesNotMatch(replies[0], /Loop results:|Activation proof:|Latest result:|Details:/i);
     assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-operations-research-watchdesk-r30-bridge-qa']);
   });
 });
@@ -636,10 +645,12 @@ test('Telegram handler answers PRD Writing no-action state query through Spawner
 
       assert.equal(replies.length, 1);
       assert.match(replies[0], /PRD Writing is local fast path supported/i);
-      assert.match(replies[0], /read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:59:49\.934Z; freshness: stale \(/);
-      assert.match(replies[0], /Private scheduled loop completed passed \(4\.5 -> 9\.7, 3 rounds, separated evaluator, 2026-07-01T09:59:49\.934Z\)/);
+      assert.match(replies[0], /Freshness: stale \(/);
+      assert.match(replies[0], /Latest Spawner event: 2026-07-01T09:59:49\.934Z\./);
+      assert.match(replies[0], /Latest: Private scheduled loop completed\. Score 4\.5 -> 9\.7; 3 rounds; separated evaluator\./);
       assert.match(replies[0], /I only read Spawner here; nothing was queued or changed\./);
-      assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-prd-writing-proof-loop/i);
+      assert.match(replies[0], /Spawner: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-prd-writing-proof-loop/i);
+      assert.doesNotMatch(replies[0], /Loop results:|Activation proof:|Latest result:|Details:/i);
       assert.doesNotMatch(replies[0], /\b(?:I (?:activated|published|registered|scheduled|started|created)|was (?:activated|published|registered|scheduled|started)|has been (?:activated|published|registered|scheduled|started)|mission)\b/i);
       assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-prd-writing-proof-loop']);
 
@@ -691,12 +702,13 @@ test('Telegram handler routes live PRD Writing loop-state QA wording to Spawner 
 
     assert.equal(replies.length, 1);
     assert.match(replies[0], /PRD Writing is local fast path supported/i);
-    assert.match(replies[0], /Private scheduled loop completed passed/i);
+    assert.match(replies[0], /Latest: Private scheduled loop completed/i);
     assert.match(replies[0], /Distilled reuse: PRDs improved when acceptance criteria were tied to observable evidence, rollout risk, and owner decisions\./i);
     assert.match(replies[0], /reuse this staged lesson without rerunning the full loop/i);
     assert.match(replies[0], /I only read Spawner here; nothing was queued or changed\./);
-    assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-prd-writing-proof-loop/i);
+    assert.match(replies[0], /Spawner: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-prd-writing-proof-loop/i);
     assert.doesNotMatch(replies[0], /QA planning, not a mission launch/i);
+    assert.doesNotMatch(replies[0], /Loop results:|Activation proof:|Latest result:|Details:/i);
     assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-prd-writing-proof-loop']);
   });
 });
