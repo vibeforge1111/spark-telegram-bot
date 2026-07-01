@@ -273,6 +273,34 @@ test('PRD Writing no-action state prompt reads the proof-loop chip and reports l
   assert.doesNotMatch(packet.reply, /\b(?:I (?:activated|published|registered|scheduled|started|created)|was (?:activated|published|registered|scheduled|started)|has been (?:activated|published|registered|scheduled|started))\b/i);
 });
 
+test('PRD Writing status treats schedule lifecycle events as latest Spawner truth', async () => {
+  const response: any = prdChipResponse();
+  response.chip.events.push({
+    eventType: 'schedule_lifecycle',
+    label: 'Private loop schedule cancelled',
+    status: 'passed',
+    previousScore: null,
+    candidateScore: null,
+    utilityDelta: null,
+    roundsObserved: null,
+    evaluatorSeparated: true,
+    nextAction: 'Schedule is terminal; create a new schedule for the next loop.',
+    updatedAt: '2026-07-01T11:32:16.030Z'
+  });
+  const fetchImpl = async () => Response.json(response) as any;
+  const packet = await fetchLoopEngineeringStatusPacket(
+    'Loop QA read-only check: latest PRD Writing loop state from Spawner? Include schedule status, fresh/stale, what improved, distilled reuse without rerun, and link. Do not mutate anything.',
+    { fetchImpl }
+  );
+
+  assert.ok(packet);
+  assert.equal(packet.latestResultEvent?.eventType, 'schedule_lifecycle');
+  assert.equal(packet.latestResultEvent?.label, 'Private loop schedule cancelled');
+  assert.match(packet.reply, /Latest result: Private loop schedule cancelled passed \(separated evaluator, 2026-07-01T11:32:16\.030Z\)\./);
+  assert.match(packet.reply, /Distilled reuse: PRDs improved/i);
+  assert.match(packet.reply, /nothing was queued or changed/);
+});
+
 test('renders a readable missing-evidence reply instead of command usage on Spawner 404', async () => {
   const fetchImpl = async () => new Response(JSON.stringify({ message: 'domain chip not found' }), {
     status: 404,

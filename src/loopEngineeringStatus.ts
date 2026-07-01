@@ -118,7 +118,8 @@ function topResultEvents(events: LoopEngineeringResultEvent[]): LoopEngineeringR
     watchtower_check: 3,
     rollback_check: 4,
     activation_gate: 5,
-    schedule_contract: 6
+    schedule_contract: 6,
+    schedule_lifecycle: 7
   };
   return [...events]
     .filter((event) => event.status === 'passed' || event.status === 'blocked' || event.status === 'failed')
@@ -134,7 +135,7 @@ function eventTimestampMs(event: LoopEngineeringResultEvent): number {
 
 function latestResultEvent(events: LoopEngineeringResultEvent[]): LoopEngineeringResultEvent | null {
   const relevant = events.filter((event) =>
-    ['benchmark_run', 'loop_batch', 'evaluator_review', 'watchtower_check', 'rollback_check', 'activation_gate', 'schedule_contract', 'schedule_created'].includes(event.eventType)
+    ['benchmark_run', 'loop_batch', 'evaluator_review', 'watchtower_check', 'rollback_check', 'activation_gate', 'schedule_contract', 'schedule_created', 'schedule_lifecycle'].includes(event.eventType)
   );
   const sorted = relevant.sort((a, b) => eventTimestampMs(b) - eventTimestampMs(a));
   return sorted[0] || null;
