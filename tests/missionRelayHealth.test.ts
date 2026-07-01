@@ -38,3 +38,34 @@ test('relay health stays ready for smoke mode without Telegram polling', () => {
   assert.equal(payload.ok, true);
   assert.equal(payload.runtime.telegramPolling, 'disabled');
 });
+
+test('relay health fails closed when Telegram polling records an error', () => {
+  setMissionRelayRuntimeStatus({
+    telegramPolling: 'error',
+    pollingStartedAt: '2026-06-29T15:09:00.000Z',
+    pollingLastErrorAt: '2026-06-29T15:10:00.000Z',
+    pollingLastError: 'Telegram token check failed: network timeout'
+  });
+
+  const payload = missionRelayHealthPayload();
+
+  assert.equal(payload.ok, false);
+  assert.equal(payload.runtime.telegramPolling, 'error');
+  assert.equal(payload.runtime.pollingLastErrorAt, '2026-06-29T15:10:00.000Z');
+  assert.equal(payload.runtime.pollingLastError, 'Telegram token check failed: network timeout');
+});
+
+test('relay health fails closed when Telegram polling stops after startup', () => {
+  setMissionRelayRuntimeStatus({
+    telegramPolling: 'stopped',
+    pollingStartedAt: '2026-06-29T15:09:00.000Z',
+    pollingStoppedAt: '2026-06-29T15:11:00.000Z',
+    pollingLastError: 'Telegram polling stopped'
+  });
+
+  const payload = missionRelayHealthPayload();
+
+  assert.equal(payload.ok, false);
+  assert.equal(payload.runtime.telegramPolling, 'stopped');
+  assert.equal(payload.runtime.pollingStoppedAt, '2026-06-29T15:11:00.000Z');
+});

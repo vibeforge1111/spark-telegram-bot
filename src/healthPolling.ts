@@ -8,7 +8,7 @@ import { requireRelaySecret, resolveTelegramLaunchConfig } from './launchMode';
 loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true, quiet: true });
 
 export function describeTelegramTokenError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = redactTelegramHealthError(error instanceof Error ? error.message : String(error));
   if (message.includes('404') || message.toLowerCase().includes('not found')) {
     return 'Telegram rejected BOT_TOKEN. Create or rotate the token in BotFather, then run `spark setup --bot-token <token>` or `spark fix telegram`.';
   }
@@ -18,14 +18,40 @@ export function describeTelegramTokenError(error: unknown): string {
   return `Telegram token check failed: ${message}`;
 }
 
+function redactTelegramHealthError(message: string): string {
+  return message
+    .replace(/bot\d+:[^/\s]+/g, 'bot[REDACTED]')
+    .replace(/\b\d{6,}:[A-Za-z0-9_-]+\b/g, '[REDACTED_TOKEN]');
+}
+
+function telegramHealthApiTimeoutMs(): number {
+  const parsed = Number.parseInt(process.env.SPARK_TELEGRAM_HEALTH_API_TIMEOUT_MS || '15000', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 15000;
+}
+
+async function withTelegramHealthTimeout<T>(label: string, promise: Promise<T>): Promise<T> {
+  const timeoutMs = telegramHealthApiTimeoutMs();
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function validateTelegramToken(token: string): Promise<string> {
   if (process.env.TELEGRAM_HEALTH_SKIP_API === '1') {
     return 'skipped';
   }
   const bot = new Telegraf(token);
   try {
-    const me = await bot.telegram.getMe();
-    await bot.telegram.getWebhookInfo();
+    const me = await withTelegramHealthTimeout('Telegram getMe', bot.telegram.getMe());
+    await withTelegramHealthTimeout('Telegram getWebhookInfo', bot.telegram.getWebhookInfo());
     return me.username ? `@${me.username}` : String(me.id);
   } catch (error) {
     throw new Error(describeTelegramTokenError(error));

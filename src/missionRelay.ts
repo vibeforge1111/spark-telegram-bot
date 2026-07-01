@@ -46,11 +46,11 @@ export interface MissionSubscription {
 
 export type TelegramRelayVerbosity = 'minimal' | 'normal' | 'verbose';
 export type TelegramMissionLinkPreference = 'none' | 'board' | 'canvas' | 'both';
-export type MissionRelayTelegramPollingState = 'starting' | 'active' | 'disabled';
+export type MissionRelayTelegramPollingState = 'starting' | 'active' | 'disabled' | 'error' | 'stopped';
 
 export interface MissionRelayRuntimeStatus {
-  telegramPolling?: MissionRelayTelegramPollingState;
-  pollingStartedAt?: string | null;
+  telegramPolling?: MissionRelayTelegramPollingState; pollingStartedAt?: string | null;
+  pollingLastErrorAt?: string | null; pollingLastError?: string | null; pollingStoppedAt?: string | null;
 }
 
 export interface MissionRelayHealthPayload extends Record<string, unknown> {
@@ -2252,7 +2252,7 @@ export function setMissionRelayRuntimeStatus(status: MissionRelayRuntimeStatus):
 
 export function missionRelayHealthPayload(): MissionRelayHealthPayload {
   const polling = relayRuntimeStatus.telegramPolling;
-  const ready = polling !== 'starting';
+  const ready = polling === 'active' || polling === 'disabled';
   return {
     ok: ready,
     service: 'spark-telegram-bot',

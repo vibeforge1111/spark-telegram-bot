@@ -29,14 +29,22 @@ export async function validateRelayRuntime(
     const payload = await response.json() as {
       relay?: { profile?: string; port?: number };
       pid?: number;
-      runtime?: { telegramPolling?: string; pollingActive?: boolean };
+      runtime?: {
+        telegramPolling?: string;
+        pollingActive?: boolean;
+        pollingLastErrorAt?: string | null;
+        pollingLastError?: string | null;
+        pollingStoppedAt?: string | null;
+      };
     };
     const pollingState = payload.runtime?.telegramPolling;
     if (!pollingState) {
       throw new Error('Telegram polling status is missing');
     }
-    if (pollingState !== 'active' && pollingState !== 'disabled_smoke') {
-      throw new Error(`Telegram polling is ${pollingState}`);
+    if (pollingState !== 'active' && pollingState !== 'disabled' && pollingState !== 'disabled_smoke') {
+      const lastError = payload.runtime?.pollingLastError ? `: ${payload.runtime.pollingLastError}` : '';
+      const stoppedAt = payload.runtime?.pollingStoppedAt ? ` at ${payload.runtime.pollingStoppedAt}` : '';
+      throw new Error(`Telegram polling is ${pollingState}${stoppedAt}${lastError}`);
     }
     const profile = payload.relay?.profile || telegramRelayIdentityFromEnv(env).profile;
     const port = payload.relay?.port || new URL(url).port;

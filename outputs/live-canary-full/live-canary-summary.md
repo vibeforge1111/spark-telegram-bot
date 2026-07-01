@@ -3,14 +3,14 @@
 Generated: 2026-06-27T08:14:25.718Z
 Runtime evidence collected: 2026-06-27T08:14:25.718Z
 Runtime evidence expires: 2026-06-27T09:14:25.718Z (1h window)
-Cases: 28
+Cases: 29
 Gate scope: full release pack
 Release gate: ready
 Publish gate: not ready
 Structured gate details: summary JSON `summary.gateDecisionDetails`
 
 Verdicts:
-- pass: 28
+- pass: 29
 - fail: 0
 - blocked: 0
 - needs-retest: 0

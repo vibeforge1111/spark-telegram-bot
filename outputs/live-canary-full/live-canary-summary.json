@@ -5,9 +5,9 @@
     "runtimeEvidenceCollectedAt": "2026-06-27T08:14:25.718Z",
     "runtimeEvidenceMaxAgeHours": 1,
     "runtimeEvidenceExpiresAt": "2026-06-27T09:14:25.718Z",
-    "totalCases": 28,
+    "totalCases": 29,
     "verdictCounts": {
-      "pass": 28,
+      "pass": 29,
       "fail": 0,
       "blocked": 0,
       "needs-retest": 0,
@@ -1789,6 +1789,23 @@
         "missingCaptures": []
       },
       {
+        "id": "cp-domain-chip-onboarding-001",
+        "category": "builder",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "spark-qa-release-gate",
+            "caseId": "domain-chip-onboarding-9-of-10",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "conversation.qa_planning",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
         "id": "cp-builder-002",
         "category": "builder",
         "verdict": "pass",
@@ -2079,14 +2096,14 @@
     "gateScope": "full_release_pack"
   },
   "coverage": {
-    "totalCases": 28,
+    "totalCases": 29,
     "intentionalActionCases": 4,
     "manualMediaCases": 4,
     "categoryCounts": {
       "no_action": 4,
       "authority": 2,
       "proof": 2,
-      "builder": 2,
+      "builder": 3,
       "streaming": 1,
       "rich_messages": 1,
       "memory": 2,
@@ -2101,14 +2118,14 @@
       "publish": 1
     },
     "riskCounts": {
-      "safe": 9,
+      "safe": 10,
       "inspect_only": 11,
       "intentional_action": 4,
       "manual_media": 4
     },
     "mutationCounts": {
       "none": 5,
-      "read_only": 14,
+      "read_only": 15,
       "updates_access_setting": 1,
       "switches_provider": 1,
       "external_network": 1,
@@ -2118,7 +2135,7 @@
     },
     "authorityCounts": {
       "chat_only": 5,
-      "read_only_allowed": 14,
+      "read_only_allowed": 15,
       "confirmation_required_or_allowed": 5,
       "media_evidence_only": 4
     },

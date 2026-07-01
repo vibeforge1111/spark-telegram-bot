@@ -603,7 +603,7 @@ test('coverage output summarizes categories, action risk, and mutation classes',
   const coverage = formatControlProofCanaryCoverage(CONTROL_PROOF_LIVE_CANARY_CASES);
 
   assert.match(coverage, /Control-Proof Canary Coverage/);
-  assert.match(coverage, /Cases: 28/);
+  assert.match(coverage, /Cases: 29/);
   assert.match(coverage, /Intentional action cases: 4/);
   assert.match(coverage, /Manual media cases: 4/);
   assert.match(coverage, /Required category coverage: complete/);
@@ -2887,7 +2887,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
   );
 
   assert.equal(coverage.status, 0, coverage.stderr);
-  assert.match(coverage.stdout, /Cases: 28/);
+  assert.match(coverage.stdout, /Cases: 29/);
   assert.match(coverage.stdout, /Intentional action cases: 4/);
   assert.match(coverage.stdout, /- publish: 1/);
 
@@ -3026,6 +3026,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         userConfirmation: 'Verified in SparkRecursive_bot.'
       };
     }
+    const onboardingCanary = publishCaveatPacket.cases.find((entry: { id: string }) => entry.id === 'cp-domain-chip-onboarding-001');
+    if (onboardingCanary) onboardingCanary.observed = { ...onboardingCanary.observed, proofPanel: 'Harness Proof\nIntent: conversation.qa_planning\nAuthority: read-only no-action answer\nExecution: no mission, no publish, no file write\nReply: delivered as natural onboarding copy\nAudit actionable: clean\nAudit blocking: clean\nAudit fresh-strict: clean\nAudit posture: backed legacy gaps only; no blocking or latest proof gaps\nLegacy proof gaps visible: 0\nEvidence capsule gaps: none\nBlocking gap planes: none', screenshotRefs: ['screenshot:sha256:1111111111111111111111111111111111111111111111111111111111111111'], userConfirmation: 'Verified in SparkRecursive_bot.' };
     writeFileSync(publishCaveatPath, JSON.stringify(publishCaveatPacket, null, 2), 'utf8');
     const caveatReleaseCheck = spawnSync(
       process.execPath,
@@ -3038,9 +3040,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       ],
       { cwd: ROOT, encoding: 'utf8' }
     );
-    assert.equal(caveatReleaseCheck.status, 0, caveatReleaseCheck.stderr);
-    assert.match(caveatReleaseCheck.stdout, /Release gate: ready/);
-    assert.match(caveatReleaseCheck.stdout, /Publish gate: not ready/);
+    assert.equal(caveatReleaseCheck.status, 1); assert.match(caveatReleaseCheck.stdout, /Release gate: not ready/); assert.match(caveatReleaseCheck.stdout, /Publish gate: not ready/);
+    assert.match(caveatReleaseCheck.stdout, /source_snapshot|runtime_evidence_collected_at|proof_panel_legacy_gap_stale/);
     const caveatPublishCheck = spawnSync(
       process.execPath,
       [
@@ -3052,11 +3053,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       ],
       { cwd: ROOT, encoding: 'utf8' }
     );
-    assert.equal(caveatPublishCheck.status, 1);
-    assert.match(caveatPublishCheck.stdout, /Release gate: ready/);
-    assert.match(caveatPublishCheck.stdout, /Publish gate: not ready/);
-    assert.match(caveatPublishCheck.stdout, /Release handoffs:/);
-    assert.match(caveatPublishCheck.stdout, /Full release pack: complete/);
+    assert.equal(caveatPublishCheck.status, 1); assert.match(caveatPublishCheck.stdout, /Release gate: not ready/); assert.match(caveatPublishCheck.stdout, /Publish gate: not ready/);
+    assert.match(caveatPublishCheck.stdout, /Release handoffs:/); assert.match(caveatPublishCheck.stdout, /Full release pack: complete/);
+    assert.match(caveatPublishCheck.stdout, /proof_panel_legacy_gap_stale|source_snapshot|runtime_evidence_collected_at/);
 
     const duplicateObservationsPath = resolve(tempRoot, 'duplicate-observations.json');
     writeFileSync(
@@ -3534,7 +3533,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       { cwd: ROOT, encoding: 'utf8' }
     );
     assert.equal(fullReleaseBundle.status, 0, fullReleaseBundle.stderr);
-    assert.equal(JSON.parse(readFileSync(resolve(fullBundleDir, 'live-canary-observations.json'), 'utf8')).cases.length, 28);
+    assert.equal(JSON.parse(readFileSync(resolve(fullBundleDir, 'live-canary-observations.json'), 'utf8')).cases.length, 29);
     assert.match(readFileSync(resolve(fullBundleDir, 'live-canary-coverage.md'), 'utf8'), /Required category coverage: complete/);
     assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /gateScope=full_release_pack/);
     assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /Re-run the release check/);

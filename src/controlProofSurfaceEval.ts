@@ -19,6 +19,12 @@ export type SurfaceEvalIssueCode =
   | 'paragraph_too_long'
   | 'proof_panel_on_natural_surface'
   | 'legacy_source_reference'
+  | 'domain_chip_onboarding_cramped'
+  | 'domain_chip_onboarding_internal_jargon'
+  | 'domain_chip_onboarding_missing_definition'
+  | 'domain_chip_onboarding_missing_next_action'
+  | 'domain_chip_onboarding_missing_privacy_boundary'
+  | 'domain_chip_onboarding_score_below_9'
   | 'unexpected_unchecked_reply_shape';
 
 export interface SurfaceEvalIssue {
@@ -32,6 +38,7 @@ export interface SurfaceEvalCaseResult {
   replyShape: string;
   checked: boolean;
   issueCodes: SurfaceEvalIssueCode[];
+  domainChipOnboardingScore?: number;
 }
 
 export interface SurfaceEvalResult {
@@ -49,6 +56,13 @@ const MAX_PARAGRAPH_WORDS = 70;
 const STATUS_ICON_PATTERN = /✅|⚠️|🟢|🟡|🔴|⚪|🛠️|✨/gu;
 const NATURAL_SURFACE_REPLY_SHAPES = new Set(['natural', 'media_reply', 'clarification']);
 const REPORT_CARD_LINE_PATTERN = /^(?:Mission|Provider|Move|Status|Result|Tasks|Relay):(?:\s+\S.*)?$/gim;
+const DOMAIN_CHIP_ONBOARDING_PATTERN = /\bdomain[-\s]+chip\b/i;
+const DOMAIN_CHIP_ONBOARDING_SIGNAL_PATTERN = /\b(?:I can (?:build|turn|make|create|explain)|A Domain Chip is|Reply\s+"go"|Before Spark can call|proof Spark needs|benchmark cases|Recommended path|Advanced PRD|DCL scaffold)\b/i;
+const DOMAIN_CHIP_INTERNAL_JARGON_PATTERN = /\b(?:Advanced PRD|router boundaries|activation notes|DCL scaffold|external API calls?|artifact manifest|adapter map|network_absorbable|canonical|promotion gate)\b/i;
+const DOMAIN_CHIP_DEFINITION_PATTERN = /\bDomain Chip is (?:a|an)\b/i;
+const DOMAIN_CHIP_NEXT_ACTION_PATTERN = /(?:\bReply\s+"go"|\b(?:tell me|choose|say|ask for)\b)/i;
+const DOMAIN_CHIP_PRIVACY_PATTERN = /\b(?:private|local|not publish|no publishing|no network|stays with you)\b/i;
+const DOMAIN_CHIP_DOMAIN_FIT_PATTERN = /\b(?:for this one|domain chip\b.{0,60}\bfor\b|for (?:pull requests?|prs?|security|release|review|research|operations?|startup|coaching|media|creative|coding|tooling)|target workflow|user'?s workflow|review checklist|good and risky examples|benchmark cases|first use case)\b/i;
 
 const ISSUE_RULES: Array<{ code: SurfaceEvalIssueCode; pattern: RegExp; detail: string }> = [
   {
@@ -116,6 +130,28 @@ function defaultObservationPath(repoRoot: string): string {
   return path.join(repoRoot, 'outputs', 'live-canary-full', 'live-canary-observations.json');
 }
 
+function isDomainChipOnboardingReply(text: string, replyShape: string): boolean {
+  return NATURAL_SURFACE_REPLY_SHAPES.has(replyShape) &&
+    DOMAIN_CHIP_ONBOARDING_PATTERN.test(text) &&
+    DOMAIN_CHIP_ONBOARDING_SIGNAL_PATTERN.test(text);
+}
+
+function domainChipOnboardingScore(text: string, replyShape: string): number | null {
+  if (!isDomainChipOnboardingReply(text, replyShape)) return null;
+
+  let score = 0;
+  if (DOMAIN_CHIP_DEFINITION_PATTERN.test(text)) score += 2;
+  if (DOMAIN_CHIP_DOMAIN_FIT_PATTERN.test(text)) score += 2;
+  if (DOMAIN_CHIP_PRIVACY_PATTERN.test(text)) score += 2;
+  if (DOMAIN_CHIP_NEXT_ACTION_PATTERN.test(text)) score += 2;
+
+  const paragraphs = text.split(/\n\n+/).map((entry) => entry.trim()).filter(Boolean);
+  if (paragraphs.length >= 2 && !/[^\n]\n[^\n]/.test(text)) score += 1;
+  if (!DOMAIN_CHIP_INTERNAL_JARGON_PATTERN.test(text)) score += 1;
+
+  return score;
+}
+
 function issueCodesForReply(text: string, replyShape: string): Array<Omit<SurfaceEvalIssue, 'caseId'>> {
   const issues: Array<Omit<SurfaceEvalIssue, 'caseId'>> = [];
   for (const rule of ISSUE_RULES) {
@@ -156,6 +192,32 @@ function issueCodesForReply(text: string, replyShape: string): Array<Omit<Surfac
     if (wordCount > MAX_PARAGRAPH_WORDS) {
       issues.push({ code: 'paragraph_too_long', detail: `Paragraph has ${wordCount} words; max is ${MAX_PARAGRAPH_WORDS}.` });
       break;
+    }
+  }
+
+  if (isDomainChipOnboardingReply(text, replyShape)) {
+    const paragraphs = text.split(/\n\n+/).map((entry) => entry.trim()).filter(Boolean);
+    if (/[^\n]\n[^\n]/.test(text) || paragraphs.length < 2) {
+      issues.push({ code: 'domain_chip_onboarding_cramped', detail: 'Domain Chip onboarding should use short separated paragraphs, not a dense route-style block.' });
+    }
+    if (DOMAIN_CHIP_INTERNAL_JARGON_PATTERN.test(text)) {
+      issues.push({ code: 'domain_chip_onboarding_internal_jargon', detail: 'Domain Chip onboarding exposes internal planning or release-gate jargon.' });
+    }
+    if (!DOMAIN_CHIP_DEFINITION_PATTERN.test(text)) {
+      issues.push({ code: 'domain_chip_onboarding_missing_definition', detail: 'Domain Chip onboarding should explain what a Domain Chip is for first-time users.' });
+    }
+    if (!DOMAIN_CHIP_NEXT_ACTION_PATTERN.test(text)) {
+      issues.push({ code: 'domain_chip_onboarding_missing_next_action', detail: 'Domain Chip onboarding needs one clear next action.' });
+    }
+    if (!DOMAIN_CHIP_PRIVACY_PATTERN.test(text)) {
+      issues.push({ code: 'domain_chip_onboarding_missing_privacy_boundary', detail: 'Domain Chip onboarding must state the private/local boundary before work starts.' });
+    }
+    const score = domainChipOnboardingScore(text, replyShape) || 0;
+    if (score < 9) {
+      issues.push({
+        code: 'domain_chip_onboarding_score_below_9',
+        detail: `Domain Chip onboarding scored ${score}/10; minimum clean score is 9/10.`
+      });
     }
   }
 
@@ -211,12 +273,14 @@ export function checkSurfaceEval(input: {
         caseIssues.push({ caseId: entry.id, ...issue });
       }
     }
+    const onboardingScore = reply ? domainChipOnboardingScore(reply, replyShape) : null;
     issues.push(...caseIssues);
     cases.push({
       caseId: entry.id,
       replyShape,
       checked: true,
-      issueCodes: caseIssues.map((issue) => issue.code)
+      issueCodes: caseIssues.map((issue) => issue.code),
+      ...(onboardingScore === null ? {} : { domainChipOnboardingScore: onboardingScore })
     });
   }
 
@@ -231,6 +295,7 @@ export function checkSurfaceEval(input: {
 }
 
 export function formatSurfaceEvalReport(result: SurfaceEvalResult): string {
+  const onboardingScoreCases = result.cases.filter((entry) => typeof entry.domainChipOnboardingScore === 'number');
   const lines = [
     'Control-proof surface eval',
     `Status: ${result.ok ? 'clean' : 'gaps found'}`,
@@ -239,6 +304,13 @@ export function formatSurfaceEvalReport(result: SurfaceEvalResult): string {
     `Skipped inspect cases: ${result.skippedCases}`,
     `Issues: ${result.issues.length}`
   ];
+
+  if (onboardingScoreCases.length) {
+    lines.push('', 'Domain Chip onboarding scores:');
+    for (const entry of onboardingScoreCases) {
+      lines.push(`- ${entry.caseId}: ${entry.domainChipOnboardingScore}/10`);
+    }
+  }
 
   if (result.issues.length) {
     lines.push('', 'Issue samples:');

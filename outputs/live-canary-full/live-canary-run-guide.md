@@ -2,7 +2,7 @@
 
 Run each Telegram block exactly as written. Then save the observed reply to a text file, keep the local screenshot capture, and run the matching record command with real values. The recorder stores screenshot files as stable digest refs.
 
-Observation packet: outputs/live-canary-full/live-canary-observations.json
+Observation packet: /Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json
 
 1. cp-noaction-001
 
@@ -18,7 +18,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-noaction-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-noaction-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: plain_chat.risk_profile
@@ -45,7 +45,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-noaction-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-noaction-002.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: plain_chat.routing_failure_class
@@ -72,7 +72,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-003 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-003-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-noaction-003.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-003 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-003-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-noaction-003.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: plain_chat.no_execution_boundary
@@ -99,7 +99,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-004 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-004-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-noaction-004.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-004 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-004-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-noaction-004.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: fresh_state.read_only_repair_status
@@ -126,7 +126,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-authority-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-authority-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-authority-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-authority-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-authority-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-authority-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: fresh_state.authority_answer
@@ -153,7 +153,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-authority-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-authority-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-authority-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-authority-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-authority-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-authority-002.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: fresh_state.live_status
@@ -180,7 +180,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-proof-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-proof-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-proof-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-proof-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-proof-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-proof-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: proof.inspect
@@ -207,7 +207,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-proof-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-proof-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-proof-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-proof-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-proof-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-proof-002.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: proof.inspect
@@ -234,7 +234,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-builder-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-builder-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-builder-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-builder-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-builder-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-builder-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: plain_conversation
@@ -247,7 +247,34 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-10. cp-builder-002
+10. cp-domain-chip-onboarding-001
+
+Telegram prompt:
+```text
+Quick QA no-action check: I am new to Domain Chips. Do not create, run, repair, or publish anything. In two short paragraphs, explain what proof Spark needs before it can call a Domain Chip good.
+```
+
+Proof inspection prompt:
+```text
+/proof
+```
+
+Record command:
+```bash
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-domain-chip-onboarding-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-domain-chip-onboarding-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-domain-chip-onboarding-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
+```
+
+Expected route: conversation.qa_planning
+Expected authority: read_only_allowed
+Expected mutation class: read_only
+Expected reply shape: natural
+Expected side effect: No domain chip, mission, repair, publish, or external action starts.
+Expected proof join: Telegram final answer has no-execution proof and the surface eval scores Domain Chip onboarding at 9/10 or higher.
+Capture proof panel: yes
+Capture screenshot: yes
+Capture user confirmation: yes
+
+11. cp-builder-002
 
 Telegram prompt:
 ```text
@@ -261,7 +288,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-builder-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-builder-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-builder-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-builder-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-builder-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-builder-002.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: builder_gateway.memory_diagnostic_boundary
@@ -274,7 +301,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-11. cp-streaming-001
+12. cp-streaming-001
 
 Telegram prompt:
 ```text
@@ -283,7 +310,7 @@ Telegram prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-streaming-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-streaming-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-streaming-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-streaming-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-streaming-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-streaming-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: streaming.status
@@ -296,7 +323,7 @@ Capture proof panel: no
 Capture screenshot: yes
 Capture user confirmation: yes
 
-12. cp-streaming-002
+13. cp-streaming-002
 
 Telegram prompt:
 ```text
@@ -305,7 +332,7 @@ Give me a two-line rich-message check: bold one word and include one short code 
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-streaming-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-streaming-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-streaming-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-streaming-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-streaming-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-streaming-002.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: plain_chat.rich_message_render
@@ -313,12 +340,12 @@ Expected authority: read_only_allowed
 Expected mutation class: read_only
 Expected reply shape: natural
 Expected side effect: No mutation.
-Expected proof join: Telegram delivery audit should carry request/trace for the reply.
+Expected proof join: Telegram final delivery should prove the rich-message reply came through the live Telegram profile path.
 Capture proof panel: no
 Capture screenshot: yes
 Capture user confirmation: yes
 
-13. cp-publish-001
+14. cp-publish-001
 
 Telegram prompt:
 ```text
@@ -327,7 +354,7 @@ Show current registry drift if any. Do not edit registry or release metadata.
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-publish-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-publish-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-publish-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-publish-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-publish-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-publish-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: registry_drift.read_only
@@ -340,7 +367,7 @@ Capture proof panel: no
 Capture screenshot: yes
 Capture user confirmation: yes
 
-14. cp-memory-001
+15. cp-memory-001
 
 Telegram prompt:
 ```text
@@ -354,7 +381,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-memory-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-memory-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-memory-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-memory-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-memory-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-memory-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: memory_recall
@@ -367,7 +394,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-15. cp-memory-002
+16. cp-memory-002
 
 Telegram prompt:
 ```text
@@ -381,7 +408,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-memory-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-memory-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-memory-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-memory-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-memory-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-memory-002.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: memory.doctor
@@ -394,7 +421,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-16. cp-access-001
+17. cp-access-001
 
 Telegram prompt:
 ```text
@@ -408,7 +435,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-access-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-access-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-access-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-access-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-access-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-access-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: access.capability_status
@@ -421,7 +448,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-17. cp-access-002
+18. cp-access-002
 
 Telegram prompt:
 ```text
@@ -435,7 +462,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-access-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-access-002-reply.txt' --access-changed <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-access-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-access-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-access-002-reply.txt' --access-changed <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-access-002.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: access.level_change
@@ -448,7 +475,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-18. cp-model-001
+19. cp-model-001
 
 Telegram prompt:
 ```text
@@ -462,7 +489,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-model-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-model-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-model-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-model-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-model-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-model-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: model_switch.boundary_explanation
@@ -475,7 +502,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-19. cp-model-002
+20. cp-model-002
 
 Telegram prompt:
 ```text
@@ -489,7 +516,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-model-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-model-002-reply.txt' --provider-changed <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-model-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-model-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-model-002-reply.txt' --provider-changed <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-model-002.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: model_switch.mission_provider
@@ -502,7 +529,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-20. cp-web-001
+21. cp-web-001
 
 Telegram prompt:
 ```text
@@ -516,7 +543,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-web-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-web-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-web-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-web-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-web-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-web-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: external_research.boundary
@@ -529,7 +556,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-21. cp-web-002
+22. cp-web-002
 
 Telegram prompt:
 ```text
@@ -543,7 +570,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-web-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-web-002-reply.txt' --external-network-called <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-web-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-web-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-web-002-reply.txt' --external-network-called <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-web-002.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: external_research.direct_or_clarify
@@ -556,7 +583,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-22. cp-spawner-001
+23. cp-spawner-001
 
 Telegram prompt:
 ```text
@@ -570,7 +597,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-spawner-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-spawner-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-spawner-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-spawner-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-spawner-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-spawner-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: spawner_build.ideation_boundary
@@ -583,7 +610,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-23. cp-spawner-002
+24. cp-spawner-002
 
 Telegram prompt:
 ```text
@@ -597,7 +624,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-spawner-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-spawner-002-reply.txt' --files-changed <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-spawner-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-spawner-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-spawner-002-reply.txt' --files-changed <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-spawner-002.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: spawner.build
@@ -610,7 +637,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-24. cp-mission-001
+25. cp-mission-001
 
 Telegram prompt:
 ```text
@@ -624,7 +651,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-mission-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-mission-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-mission-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-mission-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-mission-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-mission-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: spawner.run
@@ -637,7 +664,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-25. cp-media-001
+26. cp-media-001
 
 Telegram prompt:
 ```text
@@ -651,7 +678,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-media-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-media-001-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-media-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-media-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-media-001-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-media-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: media.image_boundary
@@ -664,7 +691,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-26. cp-media-002
+27. cp-media-002
 
 Telegram prompt:
 ```text
@@ -678,7 +705,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-media-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-media-002-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-media-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-media-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-media-002-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-media-002.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: media.image_analyze_or_boundary
@@ -691,7 +718,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-27. cp-voice-001
+28. cp-voice-001
 
 Telegram prompt:
 ```text
@@ -705,7 +732,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-voice-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-voice-001-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-voice-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-voice-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-voice-001-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-voice-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: media.voice_transcribe_or_boundary
@@ -718,7 +745,7 @@ Capture proof panel: yes
 Capture screenshot: yes
 Capture user confirmation: yes
 
-28. cp-audio-001
+29. cp-audio-001
 
 Telegram prompt:
 ```text
@@ -732,7 +759,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-audio-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-audio-001-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-audio-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
+npm run control:proof:canaries -- --observations '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-observations.json' --record-case cp-audio-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-audio-001-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-audio-001.png' --summary-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.md' --summary-json-out '/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: media.audio_transcribe_or_boundary

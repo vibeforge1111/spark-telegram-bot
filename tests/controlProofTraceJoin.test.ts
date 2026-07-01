@@ -690,6 +690,145 @@ test('live evidence mode ignores stale duplicate safe prompt rows once fresh mat
   });
 });
 
+test('live evidence mode ignores superseded route mismatches once fresh route evidence exists', () => {
+  withTempRoot((root) => {
+    const routeLedger = path.join(root, 'route-ledger.jsonl');
+    const finalAnswer = path.join(root, 'final-answer.jsonl');
+    const outbound = path.join(root, 'outbound.jsonl');
+    const staleMismatch = routeRow({
+      request_id: 'turn:stale-ideation',
+      trace_ref: 'trace:stale-ideation',
+      harness_proof_ref: 'turn:sha256:staleideation',
+      shadow_route: 'plain_chat',
+      executed_route: 'conversation.ideation',
+      executed_action: 'plain_chat.ideation',
+      outcome: 'mismatch',
+      delivery: 'selected',
+      recorded_at: '2026-06-26T00:00:00.000Z'
+    });
+    const freshMismatch = routeRow({
+      request_id: 'turn:fresh-mismatch',
+      trace_ref: 'trace:fresh-mismatch',
+      harness_proof_ref: 'turn:sha256:freshmismatch',
+      shadow_route: 'plain_chat',
+      executed_route: 'conversation.ideation',
+      executed_action: 'plain_chat.ideation',
+      outcome: 'mismatch',
+      delivery: 'selected',
+      recorded_at: '2026-06-26T02:19:00.000Z'
+    });
+    const freshIdeation = routeRow({
+      request_id: 'turn:fresh-ideation',
+      trace_ref: 'trace:fresh-ideation',
+      harness_proof_ref: 'turn:sha256:freshideation',
+      shadow_route: 'conversation.ideation',
+      executed_route: 'conversation.ideation',
+      executed_action: 'plain_chat.ideation',
+      outcome: 'matched',
+      delivery: 'selected',
+      recorded_at: '2026-06-26T02:20:00.000Z'
+    });
+    const freshSafeRows = safePromptRows().map((row) => ({
+      ...row,
+      recorded_at: '2026-06-26T02:20:00.000Z'
+    }));
+    const rows = [staleMismatch, freshMismatch, ...freshSafeRows, freshIdeation];
+    writeJsonl(routeLedger, rows);
+    writeJsonl(finalAnswer, proofRowsFor(rows));
+    writeJsonl(outbound, []);
+
+    const result = auditControlProofTraceJoins({
+      sparkHome: root,
+      naturalRouteLedger: routeLedger,
+      finalAnswerAudit: finalAnswer,
+      outboundAudit: outbound,
+      requireLiveEvidence: true,
+      minRouteRows: 4,
+      minNoActionRows: 4,
+      maxLiveEvidenceAgeMs: 60 * 60 * 1000,
+      generatedAt: '2026-06-26T02:30:00.000Z'
+    });
+    const report = formatControlProofTraceJoinReport(result);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.liveEvidenceReady, true);
+    assert.equal(result.routeMismatchRows, 0);
+    assert.equal(result.staleRouteRows, 0);
+    assert.equal(result.gapRows, 0);
+    assert.match(report, /Status: clean/);
+    assert.doesNotMatch(report, /route_mismatch/);
+    assert.doesNotMatch(report, /Gap samples:/);
+  });
+});
+
+test('live evidence mode treats stale joined ideation rows as legacy once fresh safe proof exists', () => {
+  withTempRoot((root) => {
+    const routeLedger = path.join(root, 'route-ledger.jsonl');
+    const finalAnswer = path.join(root, 'final-answer.jsonl');
+    const outbound = path.join(root, 'outbound.jsonl');
+    const staleIdeation = [
+      routeRow({
+        request_id: 'turn:old-ideation-matched',
+        trace_ref: 'trace:old-ideation-matched',
+        harness_proof_ref: 'turn:sha256:oldideationmatched',
+        shadow_route: 'conversation.ideation',
+        executed_route: 'conversation.ideation',
+        executed_action: 'plain_chat.ideation',
+        outcome: 'matched',
+        delivery: 'selected',
+        recorded_at: '2026-06-26T00:00:00.000Z'
+      }),
+      routeRow({
+        request_id: 'turn:old-ideation-mismatch',
+        trace_ref: 'trace:old-ideation-mismatch',
+        harness_proof_ref: 'turn:sha256:oldideationmismatch',
+        shadow_route: 'plain_chat',
+        executed_route: 'conversation.ideation',
+        executed_action: 'plain_chat.ideation',
+        outcome: 'mismatch',
+        delivery: 'selected',
+        recorded_at: '2026-06-26T00:01:00.000Z'
+      })
+    ];
+    const freshSafeRows = safePromptRows().map((row, index) => ({
+      ...row,
+      request_id: `turn:fresh-safe-proof-${index}`,
+      trace_ref: `trace:fresh-safe-proof-${index}`,
+      harness_proof_ref: `turn:sha256:freshsafeproof${index}`,
+      recorded_at: '2026-06-26T02:20:00.000Z'
+    }));
+    const rows = [...staleIdeation, ...freshSafeRows];
+    writeJsonl(routeLedger, rows);
+    writeJsonl(finalAnswer, proofRowsFor(rows));
+    writeJsonl(outbound, []);
+
+    const result = auditControlProofTraceJoins({
+      sparkHome: root,
+      naturalRouteLedger: routeLedger,
+      finalAnswerAudit: finalAnswer,
+      outboundAudit: outbound,
+      requireLiveEvidence: true,
+      minRouteRows: 4,
+      minNoActionRows: 4,
+      maxLiveEvidenceAgeMs: 60 * 60 * 1000,
+      generatedAt: '2026-06-26T02:30:00.000Z'
+    });
+    const report = formatControlProofTraceJoinReport(result);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.liveEvidenceReady, true);
+    assert.equal(result.joinedRows, 4);
+    assert.equal(result.noActionEvidenceRows, 4);
+    assert.equal(result.safePromptEvidenceRows, 4);
+    assert.equal(result.gapRows, 0);
+    assert.equal(result.routeMismatchRows, 0);
+    assert.equal(result.staleRouteRows, 0);
+    assert.match(report, /Status: clean/);
+    assert.doesNotMatch(report, /conversation\.ideation: route_mismatch/);
+    assert.doesNotMatch(report, /Gap samples:/);
+  });
+});
+
 test('safe prompt guide keeps route expectations outside Telegram prompt blocks', () => {
   const guide = formatLiveTraceSafePromptGuide();
 
