@@ -149,7 +149,7 @@ function recursiveContextSource(
   rawCommand: string
 ): NaturalRouteContextSource {
   if (/^(?:sessions|paths)\b/i.test(rawCommand)) return 'latest_message';
-  if (/\b(?:it|this|that|same|again|another|more|current|latest|readout|receipts|land|proof|approve|pass|round)\b/i.test(text)) {
+  if (/\b(?:it|this|that|same|again|another|more|current|latest|readout|receipts|land|proof|approve|pass|round|private\s+check|starter\s+check|local\s+check)\b/i.test(text)) {
     return hasRecentContext(context) ? 'hot_recent_turns' : 'workspace_sessions';
   }
   return context.recursiveTargets?.length ? 'workspace_sessions' : 'latest_message';

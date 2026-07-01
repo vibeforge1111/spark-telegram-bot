@@ -30,6 +30,28 @@ interface LoopConfig {
   timeoutMs: number;
 }
 
+export function formatChipLoopProcessError(error: unknown): string {
+  const err = error as { message?: unknown; stderr?: unknown };
+  const message = typeof err?.message === 'string' ? err.message : '';
+  const stderr = typeof err?.stderr === 'string' ? err.stderr : '';
+  const raw = `${message}\n${stderr}`.trim();
+  if (!raw) return 'Builder loop runner failed before it could return a result.';
+  if (
+    /\bCommand failed:/i.test(raw)
+    || /\bTraceback \(most recent call last\):/i.test(raw)
+    || /\bspark_intelligence\.cli\b/i.test(raw)
+    || /\s--(?:home|chip|rounds|suggest-limit)\b/i.test(raw)
+    || /\/Users\/|\/usr\/local|\\Users\\/i.test(raw)
+  ) {
+    return [
+      'Builder loop runner failed before it could complete.',
+      'The chip stayed private; nothing was promoted, published, activated, or absorbed.',
+      'Inspect the local loop status or trace for raw details.'
+    ].join(' ');
+  }
+  return raw.slice(-400);
+}
+
 function resolveConfig(): LoopConfig {
   const builderRepo = resolveBuilderRepoPath({ configuredRepo: process.env.SPARK_BUILDER_REPO });
   return {
@@ -53,11 +75,15 @@ export async function runChipLoop(chipKey: string, rounds: number, suggestLimit 
     '--suggest-limit', String(suggestLimit),
     '--json',
   ];
+  const builderSrc = path.join(config.builderRepo, 'src');
+  const pythonPath = process.env.PYTHONPATH
+    ? `${builderSrc}${path.delimiter}${process.env.PYTHONPATH}`
+    : builderSrc;
   try {
     const { stdout } = await execFileAsync(config.pythonCommand, args, withHiddenWindows({
       cwd: config.builderRepo,
       timeout: config.timeoutMs,
-      env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONPATH: pythonPath },
       maxBuffer: 10 * 1024 * 1024,
     }));
     const parsed = JSON.parse(stdout);
@@ -71,7 +97,6 @@ export async function runChipLoop(chipKey: string, rounds: number, suggestLimit 
       error: parsed.error ?? undefined,
     };
   } catch (err: any) {
-    const stderr = typeof err?.stderr === 'string' ? err.stderr.slice(-400) : '';
-    return { ok: false, error: err?.message ? `${err.message}${stderr ? ': ' + stderr : ''}` : 'loop exec failed' };
+    return { ok: false, error: formatChipLoopProcessError(err) };
   }
 }

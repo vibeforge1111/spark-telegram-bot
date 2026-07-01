@@ -1,7 +1,10 @@
 import { parseBuildIntent } from './buildIntent';
 import { domainChipLabsCreatorContractLines } from './domainChipLabsCreatorContract';
+import { isLoopEngineeringNoActionProofQuestion } from './loopEngineeringNoActionProof';
 import { isRouteConfidenceDefinitionQuestion } from './routeConfidenceQuestion';
 import type { ShippedProjectContext } from './shippedProjectContext';
+
+export { isSparkWorkflowBugHuntRequest, renderSparkWorkflowBugHuntReply } from './sparkWorkflowBugHunt';
 
 const COLLABORATIVE_IDEA_PATTERNS = [
   /\bhelp\s+me\s+(?:shape|think|figure|explore|brainstorm|develop)\b/i,
@@ -58,6 +61,16 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
   if (!trimmed) return false;
   if (HARD_EXECUTION_PATTERNS.some((pattern) => pattern.test(trimmed))) return false;
   if (isRouteConfidenceDefinitionQuestion(trimmed)) return false;
+  if (isLoopEngineeringNoActionProofQuestion(trimmed)) return false;
+  const domainChipPlanningOnly =
+    /\b(?:domain[-\s]*chip|chip)\b/i.test(trimmed) &&
+    (
+      /\b(?:do\s+not|don't|dont)\s+(?:build|create|make|scaffold|generate|start)\s+yet\b/i.test(trimmed) ||
+      /\bhelp\s+me\s+(?:shape|think|plan|scope|design|brainstorm)\b/i.test(trimmed) ||
+      /\bbefore\s+(?:creating|building|making|scaffolding|generating|starting)\b/i.test(trimmed)
+    );
+  if (domainChipPlanningOnly) return true;
+  if (/\b(?:build|create|make|scaffold|generate)\b.{0,40}\b(?:private\s+|local\s+|spark\s+)?domain[-\s]*chip\b/i.test(trimmed)) return false;
   const mentionsDomainChipArtifact = /\bdomain[-\s]*chip[-\w]*\b/i.test(trimmed);
   return (
     hasLocalOptionReference(trimmed) ||
@@ -490,7 +503,11 @@ export function parseNaturalChipCreateIntent(text: string): string | null {
     );
     brief = brief.replace(/^\s*i\s+(?:need|want|could\s+use|would\s+like)\s+/i, '');
     brief = brief.replace(/^\s*(?:a|an|another|new)\s+/i, '');
-    brief = brief.replace(/^\s*(?:domain[-\s]*)?chip\s+(?:(?:together\s+)?(?:for|to|around|about)\s+|called\s+|named\s+)?/i, '');
+    brief = brief.replace(
+      /^\s*(?:(?:private|local|starter|spark|advanced|custom)\s+)*(?:domain[-\s]*)?chip\s+(?:(?:starter\s+)?preview\s+(?:for|of)\s+|(?:together\s+)?(?:for|to|around|about)\s+|called\s+|named\s+)?/i,
+      ''
+    );
+    brief = brief.replace(/^\s*(?:starter\s+)?preview\s+(?:for|of)\s+/i, '');
     brief = brief.replace(/^\s*domain-chip-[\w-]+\s*[:,-]?\s*/i, '');
     brief = brief.replace(/^\s*(?:for|that|which|to|about)\s+/i, '');
     if (brief === before) break;
@@ -562,7 +579,7 @@ function normalizeCreatorMissionPrivacy(text: string): NaturalCreatorMissionInte
   if (/\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|share|ship|deploy)\b/i.test(text)) return 'local_only';
   if (/\b(?:no|not)\s+(?:publish|sharing|share|deploy)(?:ing)?\s+(?:yet|for\s+now|right\s+now)\b/i.test(text)) return 'local_only';
   if (/\b(?:private|local|locally|workspace only|personal workspace)\b/i.test(text)) return 'local_only';
-  if (/\b(?:github|pull\s+request|pr)\b/i.test(text)) return 'github_pr';
+  if (/\b(?:github|pull\s+request|pr)\b/i.test(text) && (/\b(?:publish|share|ship|deploy)\b/i.test(text) || /\b(?:open|create|draft|submit)\s+(?:a\s+)?(?:github\s+)?(?:pull\s+request|pr)\b/i.test(text))) return 'github_pr';
   if (/\b(?:swarm|network|shared|publish|public)\b/i.test(text)) return 'swarm_shared';
   return 'local_only';
 }
@@ -664,13 +681,13 @@ function qaOperatorCreatorBrief(text: string): string {
   const benchmarkLevelMatch = text.match(/\blevel\s+(10|[1-9])\b/i);
   if (/\btelegram\b/i.test(text)) focusParts.push('Telegram natural-language QA flows');
   if (/\b(?:workspace|swarm)\b/i.test(text)) focusParts.push('Spark Swarm Workspace sync and reporting');
-  if (/\b(?:spawner|canvas|kanban)\b/i.test(text)) focusParts.push('Spawner UI, Canvas, and Kanban creator missions');
+  if (/\b(?:spawner|canvas|kanban)\b/i.test(text)) focusParts.push('Spawner UI, Canvas, and Kanban Loop Engineering runs');
   if (/\b(?:auth|pairing|login)\b/i.test(text)) focusParts.push('auth pairing and failure-message quality');
   if (/\b(?:recursive|recursion|autoloop)\b/i.test(text)) focusParts.push('recursive autoloop reports and keep/revert decisions');
   if (/\b(?:benchmark|eval|test\s+suite)\b/i.test(text)) focusParts.push('richer benchmark packs with visible and held-out cases');
   const focus = focusParts.length > 0
     ? focusParts.join(', ')
-    : 'Telegram flows, Workspace reports, creator missions, recursive reports, Spawner UI, Canvas, Kanban, auth pairing, and specialization autoloops';
+    : 'Telegram flows, Workspace reports, Loop Engineering runs, recursive reports, Spawner UI, Canvas, Kanban, auth pairing, and specialization autoloops';
 
   return [
     'Improve Spark QA Operator as a private benchmarked specialization path with a gated autoloop.',
@@ -684,7 +701,7 @@ function qaOperatorCreatorBrief(text: string): string {
       : '',
     'Expand richer benchmark packs with visible cases, held-out cases, trap cases, scoring rubrics, and replayable evidence.',
     'Treat any higher-intelligence or tool-usage improvement claim as unproven until the benchmark pack shows a before/after gain and validation records the result.',
-    'Use Spark creator-system standards: creator intent, adapter map, domain chip, benchmark pack, specialization path, autoloop policy, evidence ladder, validation ledger, local/private boundary, and swarm/contribution_packet.json only when gates allow it.',
+    'Use Spark Loop Engineering standards: intent packet, adapter map, domain chip, benchmark pack, specialization path, autoloop policy, evidence ladder, validation ledger, local/private boundary, and swarm/contribution_packet.json only when gates allow it.',
     'Keep Telegram replies concise and put detailed evidence, traces, screenshots, and benchmark artifacts in Workspace.'
   ].filter(Boolean).join(' ');
 }
@@ -700,7 +717,7 @@ function normalizeCreatorMissionBrief(text: string, contextText = ''): string {
     ...domainChipLabsCreatorContractLines(),
     'Require explicit evidence for creator-intent.json, adapter-map.json, created-artifact-manifest.json, domain-chip/, benchmark/, specialization-path/, autoloop/policy.json, reports/evidence_ladder.md, reports/creator-mission-status.json, and swarm/contribution_packet.json before any publish or share step.',
     'Keep publication.network_absorbable=false unless future promotion gates and explicit operator approval allow it.',
-    'Use Spark creator-system standards: creator intent packet, artifact manifests, benchmark gates, evidence ladder, local/private boundary, rollback note, and review bundle only when gates allow it.'
+    'Use Spark Loop Engineering standards: intent packet, artifact manifests, benchmark gates, evidence ladder, local/private boundary, rollback note, and review bundle only when gates allow it.'
   ];
   return briefParts.filter(Boolean).join(' ');
 }
@@ -743,7 +760,7 @@ export function parseNaturalCreatorMissionIntent(text: string, context: NaturalC
     riskLevel: stageOnly ? 'medium' : privacyMode === 'swarm_shared' ? 'high' : normalizeCreatorMissionRisk(normalized),
     reason: qaOperator
       ? 'Spark QA Operator creator work needs benchmark packs, held-out checks, autoloop policy, and private Workspace evidence before any network sharing.'
-      : 'Creator-system work needs artifact manifests, benchmark gates, rollback notes, and review boundaries.'
+      : 'Loop Engineering work needs artifact manifests, benchmark gates, rollback notes, and review boundaries.'
   };
 }
 
@@ -819,7 +836,7 @@ function dynamicNaturalRecursiveTarget(text: string, targets: NaturalRecursiveCo
 }
 
 function hasRecursiveContextSignal(text: string): boolean {
-  return /\b(?:\/recursive|recursive|recursion|recursions|autoloop|loop|round|benchmark|compare|baseline|candidate|evidence|proof|receipts|held[-\s]?out|trap|template|packet|score|trace|review|decisions?|workspace|path:[A-Za-z0-9:_-]+|path_builder_chip_|path_benchmark_|path_domain_)\b/i.test(text);
+  return /\b(?:\/recursive|recursive|recursion|recursions|autoloop|loop|round|benchmark|compare|baseline|candidate|evidence|proof|receipts|held[-\s]?out|trap|template|packet|score|trace|review|decisions?|domain[-\s]*chip|private\s+check|starter\s+check|local\s+check|workspace|path:[A-Za-z0-9:_-]+|path_builder_chip_|path_benchmark_|path_domain_)\b/i.test(text);
 }
 
 function knownNaturalRecursiveTarget(text: string): NaturalRecursiveCommandTarget | null {
@@ -848,13 +865,49 @@ function knownNaturalRecursiveTarget(text: string): NaturalRecursiveCommandTarge
   return null;
 }
 
+function domainChipLabelFromKey(chipKey: string): string {
+  return chipKey
+    .replace(/^domain-chip-/i, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (match) => match.toUpperCase())
+    .trim() || 'Domain Chip';
+}
+
+function createdDomainChipTarget(text: string): NaturalRecursiveCommandTarget | null {
+  const match = text.match(/\bDomain Chip created:\s*(domain-chip-[a-z0-9][a-z0-9-]{1,100})\b/i);
+  const chipKey = match?.[1]?.toLowerCase();
+  if (!chipKey) return null;
+  return {
+    pathId: `path_builder_chip_${chipKey.replace(/-/g, '_')}`,
+    chipKey,
+    label: domainChipLabelFromKey(chipKey),
+    aliases: [chipKey, chipKey.replace(/^domain-chip-/, '')]
+  };
+}
+
+function provenLoopContextSignal(text: string): boolean {
+  return /\b(?:proven|benchmark(?:ed|s)?|benchmark-backed|baseline|candidate|score|scores|improve(?:d|ment)?|mean\s+scenario\s+score|held[-\s]?out|trap|reusable\s+template|loop\s+template|speciali[sz]ation\s+template)\b/i.test(text);
+}
+
 function newestContextualNaturalRecursiveTarget(
   recentMessages: string[],
   targets: NaturalRecursiveCommandTarget[] | undefined
 ): NaturalRecursiveCommandTarget | null {
-  for (const message of recentMessages.slice(-8).reverse()) {
+  const relevantMessages = recentMessages.slice(-8).reverse();
+  for (const message of relevantMessages) {
+    const trimmed = message.trim();
+    if (!trimmed || !hasRecursiveContextSignal(trimmed) || !provenLoopContextSignal(trimmed)) continue;
+    const known = knownNaturalRecursiveTarget(trimmed);
+    if (known) return known;
+    const dynamic = dynamicNaturalRecursiveTarget(trimmed, targets);
+    if (dynamic) return dynamic;
+  }
+
+  for (const message of relevantMessages) {
     const trimmed = message.trim();
     if (!trimmed || !hasRecursiveContextSignal(trimmed)) continue;
+    const createdChip = createdDomainChipTarget(trimmed);
+    if (createdChip) return createdChip;
     const known = knownNaturalRecursiveTarget(trimmed);
     if (known) return known;
     const dynamic = dynamicNaturalRecursiveTarget(trimmed, targets);
@@ -870,7 +923,7 @@ function naturalRecursiveTarget(text: string, context: NaturalRecursiveCommandCo
   if (dynamicDirect) return dynamicDirect;
 
   const normalized = text.replace(/\s+/g, ' ').trim();
-  const canUseContext = /\b(?:it|this|that|same|again|another|more|current|latest|loop|round|pass|iteration|benchmark|benchmarks|baseline|candidate|compare|held[-\s]?out|trap|report|readout|summary|status|trace|timeline|evidence|proof|trail|receipts|review|approve|approval|decisions?|blockers?|weakest|weak\s+spot|signal|changed|improved|improvement|got\s+better|became\s+better|package|packet|template|land|short\s+version|vibe|how'?s|how\s+is|where\s+are\s+we|where\s+did\s+we\s+land|keep\s+going|continue|keep\s+pushing|push\s+it|my\s+call|calls?\s+for\s+me|needs\s+me)\b/i.test(normalized);
+  const canUseContext = /\b(?:it|this|that|same|again|another|more|current|latest|loop|round|pass|iteration|benchmark|benchmarks|baseline|candidate|compare|held[-\s]?out|trap|report|readout|summary|status|trace|timeline|evidence|proof|trail|receipts|review|approve|approval|decisions?|blockers?|weakest|weak\s+spot|signal|changed|improved|improvement|got\s+better|became\s+better|private\s+check|starter\s+check|local\s+check|package|packet|template|land|short\s+version|vibe|how'?s|how\s+is|where\s+are\s+we|where\s+did\s+we\s+land|keep\s+going|continue|keep\s+pushing|push\s+it|my\s+call|calls?\s+for\s+me|needs\s+me)\b/i.test(normalized);
   if (!canUseContext) return null;
 
   const recentMessages = (context.recentMessages || [])
@@ -893,6 +946,9 @@ export function parseNaturalRecursiveCommandIntent(text: string, context: Natura
     return null;
   }
   if (isProviderRuntimeConfigQuestion(normalized)) {
+    return null;
+  }
+  if (isLoopEngineeringNoActionProofQuestion(normalized)) {
     return null;
   }
 
@@ -941,6 +997,7 @@ export function parseNaturalRecursiveCommandIntent(text: string, context: Natura
       /\b(?:improve|make\s+better)\b.*\b(?:qa\s+tester|qa\s+operator)\b.*\b(?:round|loop|iteration)\b/i.test(normalized) ||
       /\b(?:run|start)\s+(?:the\s+)?(?:baseline\s+)?benchmarks?\b/i.test(normalized) ||
       /\b(?:run|start)\s+(?:the\s+)?candidate\s+benchmarks?\b/i.test(normalized) ||
+      /\b(?:run|start|do|try)\s+(?:the\s+)?(?:private|starter|local)\s+check\b/i.test(normalized) ||
       /\b(?:apply|try|test)\s+(?:the\s+)?(?:improvement\s+)?candidate\b/i.test(normalized) ||
       /\b(?:run|start|do|try)\s+(?:another|one\s+more|a|one|same)\s+(?:round|pass|iteration|loop)\b/i.test(normalized) ||
       /\b(?:keep\s+going|continue|iterate\s+again|let\s+it\s+cook|keep\s+pushing|push\s+it\s+further|send\s+it\s+again|give\s+it\s+another\s+pass|one\s+more\s+pass)\b/i.test(normalized)) {
@@ -1528,19 +1585,6 @@ function isPersistentMemoryQualityEvaluationRequest(normalized: string): boolean
   );
 }
 
-export function isSparkWorkflowBugHuntRequest(text: string): boolean {
-  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
-  if (!normalized || parseBuildIntent(normalized)) {
-    return false;
-  }
-  if (isProductMemoryMissionBoundaryQuestion(normalized)) {
-    return false;
-  }
-  const qaLanguage = /\b(?:unit\s+tests?|qa|bug\s+hunt(?:er|ing)?|edge\s+cases?|regressions?|smoke\s+tests?|test\s+suite|comprehensive\s+tests?|trigger\s+bugs?|bug\s+hunter)\b/.test(normalized);
-  const sparkSurface = /\b(?:spawner|mission\s+control|mission\s+loop|telegram|relay|workflow|canvas|kanban|builder|route|routing)\b/.test(normalized);
-  return qaLanguage && sparkSurface;
-}
-
 export function isSparkThreadQaGoldenCaseRequest(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!normalized || parseBuildIntent(normalized)) {
@@ -1818,7 +1862,10 @@ export function isNoExecutionExplanationPrompt(text: string): boolean {
   if (!normalized || parseBuildIntent(normalized) || !isNoExecutionBoundary(normalized)) {
     return false;
   }
-	return (
+  if (parseNaturalChipCreateIntent(normalized)) {
+    return false;
+  }
+		return (
 		/\b(?:meta[-\s]*language|bug\s+report|qa\s+case|quoted|keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|not a request|not an instruction|not a command)\b/.test(normalized) ||
 		/\b(?:stay in chat|just explain|explain the boundary|explain the failure class|product concept|documentation|plain definition|what should the ui show|next useful improvement|startup operator|startup self[-\s]*improvement|mission ids?)\b/.test(normalized) ||
 		(
@@ -1826,35 +1873,6 @@ export function isNoExecutionExplanationPrompt(text: string): boolean {
 			/\b(?:evidence|proof|checks?|gate|require|required|before)\b/.test(normalized)
 		)
 	);
-}
-
-function isProductMemoryMissionBoundaryQuestion(normalized: string): boolean {
-  const mentionsProductMemory =
-    /\b(?:spark\s+thread\s+qa|thread\s+qa|product\s+polish|product[-\s]*memory|product\s+conversation)\b/.test(normalized);
-  const mentionsMissionState =
-    /\b(?:mission\s+control|mission\s+state|canvas|kanban|current\s+mission|mission\s+lane)\b/.test(normalized);
-  const asksBoundary =
-    /\b(?:when|should|difference|separate|mention|interrupt|intrude|leak|hijack|boundary|outrank)\b/.test(normalized);
-  return mentionsProductMemory && mentionsMissionState && asksBoundary;
-}
-
-export function renderSparkWorkflowBugHuntReply(_text: string): string {
-  return [
-    'Yes. I would treat this as a QA pass first, not a mission launch.',
-    '',
-    'Coverage',
-    '• route hijacks and no-execution boundaries',
-    '• duplicate “go” and pending-state leaks',
-    '• no-edit Spawner probes',
-    '• latest Kanban/provider truth',
-    '• Spawner-down cases with no fake mission id',
-    '• completion dedupe and Telegram composition clutter',
-    '',
-    'Move',
-    '• Add failing regressions, hotfix the boundary, run focused tests, then prove it live in Telegram.',
-    '',
-    'I will not start a mission from this wording.'
-  ].join('\n');
 }
 
 export function isDiagnosticsScanRequest(text: string): boolean {

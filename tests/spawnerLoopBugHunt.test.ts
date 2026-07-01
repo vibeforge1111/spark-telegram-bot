@@ -168,6 +168,7 @@ test('bug hunt: pending domain-chip drafts only accept explicit confirmation or 
   assert.equal(isDomainChipPendingDirection('yes create it'), true);
   assert.equal(isDomainChipPendingDirection('names with rationale and usage angle, make the vibe surreal'), true);
   assert.equal(isDomainChipPendingDirection('luxury sci-fi but still developer-friendly'), true);
+  assert.equal(isDomainChipPendingDirection('focus on the reviewer workflow, benchmark cases, held-out traps, and rollback'), true);
   assert.equal(
     isDomainChipPendingDirection('prepare a huge unit test and let us become bug hunters for Mission Control and Spawner workflow'),
     false
@@ -209,9 +210,9 @@ test('bug hunt: Spark workflow QA prompts get a local plan, not invented executi
   assert.equal(isSparkWorkflowBugHuntRequest(prompt), true);
   const reply = renderSparkWorkflowBugHuntReply(prompt);
 
-  assert.match(reply, /QA pass first, not a mission launch/);
+  assert.match(reply, /QA planning, not a mission launch/);
   assert.match(reply, /route hijacks/);
-  assert.match(reply, /no-edit Spawner probes/);
+  assert.match(reply, /no-edit probes/);
   assert.match(reply, /I will not start a mission from this wording\./);
   assert.doesNotMatch(reply, /read-only/i);
   assert.doesNotMatch(reply, /Prepared, but/i);
@@ -226,6 +227,18 @@ test('bug hunt: PRD Writing loop-state QA prompts yield to Loop Engineering stat
 test('bug hunt: Operations Research loop-state QA prompts yield to Loop Engineering status', () => {
   const prompt = 'Loop QA final smoke: read-only check latest Operations Research Watchdesk loop state from Spawner. Do not run a benchmark, loop, schedule, activation, mission, publication, or mutation. Confirm whether it matches the Spawner Operations Research control-plane truth and whether anything changed.';
   assert.equal(isSparkWorkflowBugHuntRequest(prompt), false);
+});
+
+test('bug hunt: success without mission id questions answer fail-closed directly', () => {
+  const prompt = 'QA no-action check: do not create, run, repair, publish, or start anything. If Mission Control answers success but gives no mission id for a /run request, should Spark treat that as started or fail closed?';
+  assert.equal(isSparkWorkflowBugHuntRequest(prompt), true);
+  const reply = renderSparkWorkflowBugHuntReply(prompt);
+
+  assert.match(reply, /Fail closed/);
+  assert.match(reply, /not a started run/);
+  assert.match(reply, /closure proof/);
+  assert.match(reply, /fresh mission id/);
+  assert.doesNotMatch(reply, /Coverage|QA pass first|Next move/i);
 });
 
 test('bug hunt: mission routing failure-class prompts stay short and non-executing', () => {

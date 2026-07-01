@@ -120,6 +120,22 @@ test('marks recursive starts as confirmation-worthy protected actions', () => {
   assert.equal(route.requires_confirmation, true);
 });
 
+test('routes Domain Chip private-check receipt phrase through hot recent turns', () => {
+  const route = decideNaturalRoute('run the private check', {
+    recentMessages: [
+      'Domain Chip created: domain-chip-daily-schedule-reliability-r30-staging-qa',
+      'Next: say "run the private check" or "run the benchmark for it" to run the starter check.'
+    ]
+  });
+
+  assert.equal(route.route, 'recursive.start');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.confidence, 'contextual');
+  assert.equal(route.context_source, 'hot_recent_turns');
+  assert.equal(route.payload.rawCommand, 'start domain-chip-daily-schedule-reliability-r30-staging-qa rounds 1');
+  assert.equal(route.requires_confirmation, true);
+});
+
 test('does not route generic planning text into recursive systems', () => {
   const route = decideNaturalRoute('where did we land?', {
     recentMessages: [
@@ -132,11 +148,11 @@ test('does not route generic planning text into recursive systems', () => {
   assert.deepEqual(route.blocked_by, ['no_matching_route']);
 });
 
-test('routes contextual creator-system follow-ups to Spawner creator missions', () => {
+test('routes contextual Loop Engineering follow-ups to Spawner mission lane', () => {
   const route = decideNaturalRoute('make this better with benchmarks, specialization path, and autoloops', {
     recentMessages: [
       'We are building Spark QA Operator for Telegram and Workspace quality.',
-      'It should improve recursive reports, creator missions, auth pairing, Canvas, and Kanban checks.'
+      'It should improve recursive reports, Loop Engineering runs, auth pairing, Canvas, and Kanban checks.'
     ]
   });
 
@@ -166,8 +182,8 @@ test('routes private benchmarked specialization staging without execution', () =
 test('routes Memory Doctor and answer-audit wording to Builder despite stale creator context', () => {
   const context = {
     recentMessages: [
-      'Planning Spark QA Operator benchmark path creator mission...',
-      'Creator plan ready. Build Spark QA Operator with a domain chip, benchmark pack, specialization path, and autoloop policy.'
+      'Planning Spark QA Operator benchmark path Loop Engineering run...',
+      'Loop Engineering plan ready. Build Spark QA Operator with a domain chip, benchmark pack, specialization path, and autoloop policy.'
     ]
   };
 

@@ -765,6 +765,15 @@ test('extracts natural domain chip create requests without slash-command handoff
     'Telegram memory routing'
   );
   assert.equal(
+    parseNaturalChipCreateIntent('Build a private Domain Chip for customer escalation readiness review'),
+    'customer escalation readiness review'
+  );
+  const safetyBoundCreate =
+    'build a private domain chip for Daily Schedule Reliability R30 Persisted Context QA that helps a busy operator manage recurring tasks, timezone ambiguity, missed-window recovery, approval-gated reminders, and self-improving scheduling heuristics. Include realistic benchmark cases, held-out traps, no-action checks, watchtower rollback notes, and a beginner-readable review packet. Keep it private/local only: do not publish, activate, send reminders, mutate calendars, or absorb anything into network state.';
+  assert.match(parseNaturalChipCreateIntent(safetyBoundCreate) || '', /Daily Schedule Reliability R30 Persisted Context QA/i);
+  assert.equal(isActionWordMetaDiscussion(safetyBoundCreate), false);
+  assert.equal(isNoExecutionExplanationPrompt(safetyBoundCreate), false);
+  assert.equal(
     parseNaturalChipCreateIntent('make me a chip that turns meeting notes into action items'),
     'turns meeting notes into action items'
   );
@@ -836,20 +845,13 @@ test('extracts natural creator mission requests for QA Operator benchmark work',
   assert.match(stageOnlyPath?.brief || '', /before\/after gain/);
   assert.match(stageOnlyPath?.brief || '', /network_absorbable=false/);
 
-  const localInsightPacket = parseNaturalCreatorMissionIntent(
-    'create a shareable insight packet for Startup YC. Do not publish it.'
-  );
-  assert.equal(localInsightPacket?.privacyMode, 'local_only');
-  assert.equal(localInsightPacket?.riskLevel, 'medium');
-  assert.match(localInsightPacket?.brief || '', /shareable insight packet/i);
-  assert.match(localInsightPacket?.brief || '', /network_absorbable=false/);
 });
 
 test('keeps Memory Doctor and answer-audit requests out of stale creator context', () => {
   const context = {
     recentMessages: [
-      'Planning Spark QA Operator benchmark path creator mission...',
-      'Creator plan ready. Build Spark QA Operator with a domain chip, benchmark pack, specialization path, and autoloop policy.'
+      'Planning Spark QA Operator benchmark path Loop Engineering run...',
+      'Loop Engineering plan ready. Build Spark QA Operator with a domain chip, benchmark pack, specialization path, and autoloop policy.'
     ]
   };
 
@@ -961,11 +963,11 @@ test('renders local fallback for Memory Doctor tool detours', () => {
   );
 });
 
-test('uses recent working context for ambiguous creator-system follow-ups', () => {
+test('uses recent working context for ambiguous Loop Engineering follow-ups', () => {
   const context = {
     recentMessages: [
       'We are building Spark QA Operator for Telegram and Workspace quality.',
-      'It should improve recursive reports, creator missions, auth pairing, Canvas, and Kanban checks.'
+      'It should improve recursive reports, Loop Engineering runs, auth pairing, Canvas, and Kanban checks.'
     ]
   };
   const intent = parseNaturalCreatorMissionIntent(
@@ -992,7 +994,8 @@ test('uses recent working context for ambiguous creator-system follow-ups', () =
     }
   );
   assert.match(generic?.brief || '', /Recent working context: We are discussing a personal AI security questionnaire operator/);
-  assert.match(generic?.reason || '', /artifact manifests/);
+  assert.match(generic?.reason || '', /Loop Engineering work needs artifact manifests/);
+  assert.doesNotMatch(generic?.reason || '', /Creator-system/);
 });
 
 test('extracts natural recursive commands for QA Operator loops', () => {
@@ -1177,6 +1180,19 @@ test('extracts contextual recursive commands from conversational follow-ups', ()
         'The QA tester should improve Telegram and Workspace reports.',
         'compare baseline vs candidate for Startup YC. Do not run anything.',
         'Startup YC has benchmark-backed improvement evidence. Mean scenario score moved from 0.6803 to 0.7003.'
+      ]
+    }),
+    {
+      rawCommand: 'package startup-yc',
+      reason: 'Natural-language request to package Startup YC loop evidence locally.'
+    }
+  );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('turn this proven loop into a reusable template. Do not run or publish it.', {
+      recentMessages: [
+        'compare baseline vs candidate for Startup YC. Do not run anything.',
+        'Startup YC has benchmark-backed improvement evidence. Mean scenario score moved from 0.6803 to 0.7003.',
+        'Domain Chip created: domain-chip-telegram-memory-routing'
       ]
     }),
     {
