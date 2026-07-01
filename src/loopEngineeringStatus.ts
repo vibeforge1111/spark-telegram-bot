@@ -310,14 +310,25 @@ function unavailablePacket(input: {
   chipId: string;
   publicBaseUrl: string;
   reason: string;
+  kind?: 'unreachable' | 'unreadable';
 }): LoopEngineeringStatusPacket {
   const detailUrl = `${input.publicBaseUrl}/loop-engineering/${encodeURIComponent(input.chipId)}`;
+  const isUnreachable = input.kind === 'unreachable';
+  const firstLine = isUnreachable
+    ? `I found the chip key ${input.chipId}, but Spawner is unavailable right now, so I cannot verify the latest state or freshness from Telegram.`
+    : `I found the chip key ${input.chipId}, but Spawner did not return a readable evidence packet for it yet.`;
+  const freshnessLabel = isUnreachable
+    ? 'Spawner is unavailable, so freshness could not be verified from Telegram.'
+    : 'Spawner evidence was not readable from Telegram.';
+  const nextAction = isUnreachable
+    ? 'Restart or open Spawner, then ask for status again.'
+    : 'Open Spawner or register the private chip evidence, then ask for status again.';
   return {
     route: 'loop_engineering.status',
     chipId: input.chipId,
     domain: input.chipId.replace(/^domain-chip-/, '').replace(/-/g, ' '),
     readinessLabel: 'Evidence unavailable',
-    freshnessLabel: 'Spawner evidence was not readable from Telegram.',
+    freshnessLabel,
     passCount: 0,
     totalCount: 1,
     resultEventCount: 0,
@@ -334,14 +345,14 @@ function unavailablePacket(input: {
     currentScheduleLine: null,
     currentScheduleUpdatedAt: null,
     distilledLearningLine: null,
-    nextAction: 'Open Spawner or register the private chip evidence, then ask for status again.',
+    nextAction,
     detailUrl,
     liveTelegramProven: false,
     reply: [
-      `I found the chip key ${input.chipId}, but Spawner did not return a readable evidence packet for it yet.`,
+      firstLine,
       'I did not queue any loop, benchmark, schedule, activation, or publication.',
       '',
-      `Next safe step: Open Spawner or register the private chip evidence, then ask for status again.`,
+      `Next safe step: ${nextAction}`,
       `Details: ${detailUrl}`
     ].join('\n')
   };
@@ -447,7 +458,8 @@ export async function fetchLoopEngineeringStatusPacket(
     return unavailablePacket({
       chipId,
       publicBaseUrl,
-      reason: 'Spawner could not be reached from Telegram.'
+      reason: 'Spawner could not be reached from Telegram.',
+      kind: 'unreachable'
     });
   } finally {
     clearTimeout(timeout);

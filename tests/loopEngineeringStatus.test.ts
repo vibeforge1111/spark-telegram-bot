@@ -385,7 +385,11 @@ test('renders a readable unreachable-Spawner reply instead of command usage', as
   assert.ok(packet);
   assert.equal(packet.readinessLabel, 'Evidence unavailable');
   assert.match(packet.blockedChecks[0]?.detail || '', /could not be reached/i);
-  assert.match(packet.reply, /did not return a readable evidence packet/i);
+  assert.match(packet.freshnessLabel, /freshness could not be verified/i);
+  assert.match(packet.reply, /Spawner is unavailable right now/i);
+  assert.match(packet.reply, /cannot verify the latest state or freshness/i);
+  assert.match(packet.reply, /Restart or open Spawner, then ask for status again/i);
+  assert.doesNotMatch(packet.reply, /register the private chip evidence/i);
   assert.doesNotMatch(packet.reply, /Usage: \/loop/i);
   assert.doesNotMatch(packet.reply, /\b(?:activated|published|registered|scheduled|started)\b/i);
 });
