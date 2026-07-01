@@ -145,6 +145,42 @@ function renderReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>): string
   ].join('\n');
 }
 
+function unavailablePacket(input: {
+  chipId: string;
+  publicBaseUrl: string;
+  reason: string;
+}): LoopEngineeringStatusPacket {
+  const detailUrl = `${input.publicBaseUrl}/loop-engineering/${encodeURIComponent(input.chipId)}`;
+  return {
+    route: 'loop_engineering.status',
+    chipId: input.chipId,
+    domain: input.chipId.replace(/^domain-chip-/, '').replace(/-/g, ' '),
+    readinessLabel: 'Evidence unavailable',
+    passCount: 0,
+    totalCount: 1,
+    resultEventCount: 0,
+    topResultEvents: [],
+    blockedChecks: [
+      {
+        id: 'spawner_evidence_unavailable',
+        label: 'Spawner evidence packet',
+        status: 'blocked',
+        detail: input.reason
+      }
+    ],
+    nextAction: 'Open Spawner or register the private chip evidence, then ask for status again.',
+    detailUrl,
+    liveTelegramProven: false,
+    reply: [
+      `I found the chip key ${input.chipId}, but Spawner did not return a readable evidence packet for it yet.`,
+      'I did not queue any loop, benchmark, schedule, activation, or publication.',
+      '',
+      `Next safe step: Open Spawner or register the private chip evidence, then ask for status again.`,
+      `Details: ${detailUrl}`
+    ].join('\n')
+  };
+}
+
 export async function fetchLoopEngineeringStatusPacket(
   text: string,
   options: { fetchImpl?: FetchLike; timeoutMs?: number } = {}
@@ -186,10 +222,21 @@ export async function fetchLoopEngineeringStatusPacket(
       signal: controller.signal
     });
     if (!response.ok) {
-      return null;
+      return unavailablePacket({
+        chipId,
+        publicBaseUrl,
+        reason: `Spawner returned HTTP ${response.status}.`
+      });
     }
     const body = await response.json();
     const chip = body?.chip;
+    if (!chip || typeof chip !== 'object') {
+      return unavailablePacket({
+        chipId,
+        publicBaseUrl,
+        reason: 'Spawner response did not include a chip evidence packet.'
+      });
+    }
     const summary = chip?.summary ?? {};
     const readiness = chip?.readiness ?? {};
     const checks = Array.isArray(readiness.checks) ? readiness.checks as LoopEngineeringStatusCheck[] : [];
@@ -215,7 +262,11 @@ export async function fetchLoopEngineeringStatusPacket(
       reply: renderReply(packetBase)
     };
   } catch {
-    return null;
+    return unavailablePacket({
+      chipId,
+      publicBaseUrl,
+      reason: 'Spawner could not be reached from Telegram.'
+    });
   } finally {
     clearTimeout(timeout);
   }

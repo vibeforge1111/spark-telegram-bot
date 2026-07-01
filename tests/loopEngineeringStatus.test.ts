@@ -147,6 +147,36 @@ test('renders read-only packet from Spawner evidence without activation claims',
   assert.doesNotMatch(packet.reply, /\b(?:activated|published|registered|scheduled|started)\b/i);
 });
 
+test('renders a readable missing-evidence reply instead of command usage on Spawner 404', async () => {
+  const fetchImpl = async () => new Response(JSON.stringify({ message: 'domain chip not found' }), {
+    status: 404,
+    headers: { 'content-type': 'application/json' }
+  }) as any;
+  const packet = await fetchLoopEngineeringStatusPacket('Loop Engineering status for domain-chip-prd-writing-proof-loop', { fetchImpl });
+
+  assert.ok(packet);
+  assert.equal(packet.readinessLabel, 'Evidence unavailable');
+  assert.equal(packet.blockedChecks[0]?.id, 'spawner_evidence_unavailable');
+  assert.match(packet.reply, /did not return a readable evidence packet/i);
+  assert.match(packet.reply, /I did not queue any loop, benchmark, schedule, activation, or publication/i);
+  assert.doesNotMatch(packet.reply, /Usage: \/loop/i);
+  assert.doesNotMatch(packet.reply, /\b(?:activated|published|registered|scheduled|started)\b/i);
+});
+
+test('renders a readable unreachable-Spawner reply instead of command usage', async () => {
+  const fetchImpl = async () => {
+    throw new Error('connect ECONNREFUSED');
+  };
+  const packet = await fetchLoopEngineeringStatusPacket('Loop Engineering status for domain-chip-prd-writing-proof-loop', { fetchImpl });
+
+  assert.ok(packet);
+  assert.equal(packet.readinessLabel, 'Evidence unavailable');
+  assert.match(packet.blockedChecks[0]?.detail || '', /could not be reached/i);
+  assert.match(packet.reply, /did not return a readable evidence packet/i);
+  assert.doesNotMatch(packet.reply, /Usage: \/loop/i);
+  assert.doesNotMatch(packet.reply, /\b(?:activated|published|registered|scheduled|started)\b/i);
+});
+
 test('Telegram handler answers loop status through Spawner evidence API and starts no work', async () => {
   await withServer(async (baseUrl, hits) => {
     process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
