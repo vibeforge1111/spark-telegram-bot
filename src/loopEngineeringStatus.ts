@@ -35,6 +35,7 @@ export interface LoopEngineeringResultEvent {
   previousScore: number | null;
   candidateScore: number | null;
   utilityDelta: number | null;
+  caseCount: number | null;
   roundsObserved: number | null;
   evaluatorSeparated: boolean;
   nextAction: string;
@@ -106,6 +107,7 @@ function resultEventFromValue(value: any): LoopEngineeringResultEvent | null {
     previousScore: numberOrNull(value.previousScore),
     candidateScore: numberOrNull(value.candidateScore),
     utilityDelta: numberOrNull(value.utilityDelta),
+    caseCount: numberOrNull(value.commandResult?.caseCount ?? value.caseCount),
     roundsObserved: numberOrNull(value.roundsObserved),
     evaluatorSeparated: value.evaluatorSeparated === true,
     nextAction: typeof value.nextAction === 'string' && value.nextAction.trim() ? value.nextAction.trim() : 'Inspect the event evidence.',
@@ -149,13 +151,24 @@ function formatDelta(value: number | null): string {
   return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
 }
 
+function formatEventWorkUnits(event: LoopEngineeringResultEvent): string | null {
+  if (event.eventType === 'benchmark_run') {
+    if (typeof event.caseCount === 'number') return `${event.caseCount} cases`;
+    if (typeof event.roundsObserved === 'number') return `${event.roundsObserved} cases`;
+    return null;
+  }
+  if (typeof event.roundsObserved === 'number') return `${event.roundsObserved} rounds`;
+  return null;
+}
+
 function renderEventLine(events: LoopEngineeringResultEvent[]): string {
   if (!events.length) return 'I do not see loop result events in the Spawner packet yet.';
   const parts = events.map((event) => {
     const details: string[] = [];
     const delta = formatDelta(event.utilityDelta);
     if (delta) details.push(delta);
-    if (typeof event.roundsObserved === 'number') details.push(`${event.roundsObserved} rounds`);
+    const units = formatEventWorkUnits(event);
+    if (units) details.push(units);
     if (event.evaluatorSeparated) details.push('separated evaluator');
     return `${event.label} ${event.status}${details.length ? ` (${details.join(', ')})` : ''}`;
   });
@@ -171,7 +184,8 @@ function renderLatestEventLine(event: LoopEngineeringResultEvent | null): string
   } else if (delta) {
     details.push(delta);
   }
-  if (typeof event.roundsObserved === 'number') details.push(`${event.roundsObserved} rounds`);
+  const units = formatEventWorkUnits(event);
+  if (units) details.push(units);
   if (event.evaluatorSeparated) details.push('separated evaluator');
   if (event.updatedAt) details.push(event.updatedAt);
   return `Latest result: ${event.label} ${event.status}${details.length ? ` (${details.join(', ')})` : ''}.`;

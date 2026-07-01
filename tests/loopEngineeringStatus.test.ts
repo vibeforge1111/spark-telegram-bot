@@ -79,7 +79,8 @@ function chipResponse() {
           previousScore: 74,
           candidateScore: 86.5,
           utilityDelta: 12.5,
-          roundsObserved: null,
+          roundsObserved: 17,
+          commandResult: { caseCount: 17 },
           evaluatorSeparated: true,
           nextAction: 'Use this benchmark as activation evidence.',
           updatedAt: '2026-07-01T09:10:00.000Z'
@@ -111,6 +112,60 @@ function chipResponse() {
       ]
     }
   };
+}
+
+function projectMaintenanceChipResponse() {
+  const response: any = chipResponse();
+  response.chip.summary.id = 'domain-chip-project-maintenance-steward-r30-usefulness-loop';
+  response.chip.summary.domain = 'Project Maintenance Steward R30 Usefulness Loop';
+  response.chip.readiness.label = 'Private candidate supported';
+  response.chip.readiness.passCount = 9;
+  response.chip.readiness.checks = [
+    { id: 'benchmark_ab', label: 'No-chip vs chip A/B', status: 'passed', detail: 'passed' },
+    { id: 'local_telegram_handler', label: 'Local Telegram fast path', status: 'missing', detail: 'missing handler proof' },
+    { id: 'live_telegram_proof', label: 'Live Telegram proof', status: 'blocked', detail: 'missing live proof' },
+    { id: 'hard_blockers', label: 'Hard blockers', status: 'blocked', detail: 'operator approval missing' }
+  ];
+  response.chip.events = [
+    {
+      eventType: 'benchmark_run',
+      label: 'Private benchmark run executed',
+      status: 'passed',
+      previousScore: 3.89,
+      candidateScore: 9.77,
+      utilityDelta: 5.88,
+      roundsObserved: 17,
+      commandResult: { caseCount: 17, action: 'benchmark_run_executed' },
+      evaluatorSeparated: true,
+      nextAction: 'Use this evaluator verdict as private evidence for a loop round or evaluator review; activation remains staged.',
+      updatedAt: '2026-07-01T14:28:37.057Z'
+    },
+    {
+      eventType: 'benchmark_run',
+      label: 'Benchmark A/B',
+      status: 'passed',
+      previousScore: 65.714286,
+      candidateScore: 86.428571,
+      utilityDelta: 20.714285,
+      roundsObserved: null,
+      evaluatorSeparated: true,
+      nextAction: 'Record evaluator review before distillation.',
+      updatedAt: '2026-06-30T09:32:00.916Z'
+    },
+    {
+      eventType: 'loop_batch',
+      label: 'Self-improvement loop',
+      status: 'passed',
+      previousScore: null,
+      candidateScore: 86.428571,
+      utilityDelta: 20.714285,
+      roundsObserved: 5,
+      evaluatorSeparated: true,
+      nextAction: 'Distill durable lessons into the runtime fast path.',
+      updatedAt: '2026-06-30T09:32:00.916Z'
+    }
+  ];
+  return response;
 }
 
 function prdChipResponse() {
@@ -203,6 +258,11 @@ async function withServer(fn: (baseUrl: string, hits: string[]) => Promise<void>
       res.end(JSON.stringify(prdChipResponse()));
       return;
     }
+    if (req.url?.startsWith('/api/loop-engineering/chips/domain-chip-project-maintenance-steward-r30-usefulness-loop')) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(projectMaintenanceChipResponse()));
+      return;
+    }
     res.writeHead(404, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ ok: false, error: 'not found' }));
   });
@@ -260,7 +320,7 @@ test('renders read-only packet from Spawner evidence without activation claims',
   assert.match(packet.reply, /Live Telegram proof, Hard blockers/);
   assert.match(packet.reply, /Freshness: read from Spawner now; latest Spawner event timestamp is 2026-07-01T09:13:00\.303Z; freshness: fresh within 10s\./);
   assert.match(packet.reply, /Latest result: Self-improvement loop passed \(\+12\.5, 5 rounds, separated evaluator, 2026-07-01T09:13:00\.303Z\)\./);
-  assert.match(packet.reply, /Loop results: Benchmark A\/B passed \(\+12\.5, separated evaluator\); Self-improvement loop passed \(\+12\.5, 5 rounds, separated evaluator\); Activation gate blocked \(separated evaluator\)\./);
+  assert.match(packet.reply, /Loop results: Benchmark A\/B passed \(\+12\.5, 17 cases, separated evaluator\); Self-improvement loop passed \(\+12\.5, 5 rounds, separated evaluator\); Activation gate blocked \(separated evaluator\)\./);
   assert.match(packet.reply, /I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued\./);
   assert.match(packet.reply, /Next safe step: Resolve blocker: operator_publication_approval_missing/);
   assert.doesNotMatch(packet.reply, /\b(?:I (?:activated|published|registered|scheduled|started|created)|was (?:activated|published|registered|scheduled|started)|has been (?:activated|published|registered|scheduled|started))\b/i);
@@ -411,10 +471,40 @@ test('Telegram handler answers loop status through Spawner evidence API and star
     assert.match(replies[0], /Daily Schedule Reliability R30 Persisted Context QA is telegram activation blocked/i);
     assert.match(replies[0], /10\/12 checks pass/i);
     assert.match(replies[0], /Live Telegram proof, Hard blockers/i);
-    assert.match(replies[0], /Loop results: Benchmark A\/B passed \(\+12\.5, separated evaluator\); Self-improvement loop passed \(\+12\.5, 5 rounds, separated evaluator\); Activation gate blocked/i);
+    assert.match(replies[0], /Loop results: Benchmark A\/B passed \(\+12\.5, 17 cases, separated evaluator\); Self-improvement loop passed \(\+12\.5, 5 rounds, separated evaluator\); Activation gate blocked/i);
     assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-daily-schedule-reliability-r30-persisted-context-qa/i);
     assert.doesNotMatch(replies[0], /Daily Schedule private fast path|reminder was created|I created|I started|mission/i);
     assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-daily-schedule-reliability-r30-persisted-context-qa']);
+  });
+});
+
+test('Telegram handler answers exact Project Maintenance chip status with cases, not rounds', async () => {
+  await withServer(async (baseUrl, hits) => {
+    process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+    process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+    process.env.SPARK_BOT_TEST_MODE = '1';
+    process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+    process.env.SPAWNER_UI_URL = baseUrl;
+    process.env.SPAWNER_UI_PUBLIC_URL = baseUrl;
+
+    const indexModule: any = await import('../src/index');
+    const replies: string[] = [];
+    await indexModule.handleTextMessage(fakeCtx(
+      'Loop QA cross-chip same-truth check: for domain-chip-project-maintenance-steward-r30-usefulness-loop / Project Maintenance Steward, read Spawner state only. Include latest private benchmark, case count, loop rounds, readiness, and link. Do not queue, run, schedule, activate, publish, or mutate anything.',
+      replies,
+      { chat: 8319079055, user: 8319079055, message: 8465 }
+    ));
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /Project Maintenance Steward R30 Usefulness Loop is private candidate supported/i);
+    assert.match(replies[0], /9\/12 checks pass/i);
+    assert.match(replies[0], /Latest result: Private benchmark run executed passed \(3\.9 -> 9\.8, 17 cases, separated evaluator, 2026-07-01T14:28:37\.057Z\)\./);
+    assert.match(replies[0], /Self-improvement loop passed \(\+20\.7, 5 rounds, separated evaluator\)/);
+    assert.match(replies[0], /I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued\./);
+    assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-project-maintenance-steward-r30-usefulness-loop/i);
+    assert.doesNotMatch(replies[0], /\b17 rounds\b/i);
+    assert.doesNotMatch(replies[0], /\b(?:I (?:queued|ran|started|scheduled|activated|published|mutated)|has been (?:queued|started|scheduled|activated|published))\b/i);
+    assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-project-maintenance-steward-r30-usefulness-loop']);
   });
 });
 
