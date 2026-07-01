@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -123,6 +123,19 @@ interface MissionBoardEntry {
   lastUpdated?: string;
   lastSummary?: string;
   taskName?: string | null;
+}
+
+interface ProviderMissionResult {
+  providerId?: string;
+  providerLabel?: string;
+  status?: string;
+  error?: string;
+  completedAt?: string;
+  startedAt?: string;
+}
+
+interface MissionProviderResultsState {
+  missions?: Record<string, ProviderMissionResult[]>;
 }
 
 const LEGACY_REGISTRY_PATH = resolveStatePath('.spark-spawner-missions.json');
@@ -1827,12 +1840,59 @@ export function formatProviderCompletionForTelegram(input: {
   return lines.join('\n');
 }
 
+const GENERIC_FAILURE_TEXT = new Set(['task failed.', 'mission failed.', 'unknown error']);
+
+function normalizedSpecificFailure(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const text = value.trim();
+  if (!text || GENERIC_FAILURE_TEXT.has(text.toLowerCase())) {
+    return null;
+  }
+  return text;
+}
+
+function resolveSpawnerStateDir(): string {
+  const configured = process.env.SPAWNER_STATE_DIR || process.env.SPARK_SPAWNER_STATE_DIR;
+  if (configured && configured.trim()) {
+    return configured.trim();
+  }
+  return path.join(os.homedir(), '.spark', 'state', 'spawner-ui');
+}
+
+function readKnownProviderFailure(missionId: string): { providerLabel: string; error: string } | null {
+  const providerResultsPath = path.join(resolveSpawnerStateDir(), 'mission-provider-results.json');
+  if (!existsSync(providerResultsPath)) {
+    return null;
+  }
+
+  try {
+    const state = JSON.parse(readFileSync(providerResultsPath, 'utf8')) as MissionProviderResultsState;
+    const results = Array.isArray(state.missions?.[missionId]) ? state.missions[missionId] : [];
+    const failed = [...results].reverse().find((result) => normalizedSpecificFailure(result?.error));
+    if (!failed) {
+      return null;
+    }
+    return {
+      providerLabel: failed.providerLabel || failed.providerId || 'provider',
+      error: normalizedSpecificFailure(failed.error) || 'unknown error'
+    };
+  } catch {
+    return null;
+  }
+}
+
 function extractProviderFailure(event: DeliverableRelayEvent): { providerLabel: string; error: string } {
   const data = event.data;
-  const error = data && typeof data === 'object' && typeof data.error === 'string' && data.error.trim()
-    ? data.error.trim()
-    : event.message?.trim() || 'unknown error';
-  return { providerLabel: providerLabelFrom(event), error };
+  const eventError = normalizedSpecificFailure(data?.error) || normalizedSpecificFailure(event.message);
+  if (!eventError) {
+    const knownFailure = readKnownProviderFailure(event.missionId);
+    if (knownFailure) {
+      return knownFailure;
+    }
+  }
+  return { providerLabel: providerLabelFrom(event), error: eventError || event.message?.trim() || 'unknown error' };
 }
 
 function relayEventKind(event: DeliverableRelayEvent): string | null {
@@ -1930,10 +1990,12 @@ export function formatProgressMessageForTelegram(
     case 'mission_completed':
       if (verbosity !== 'verbose') return null;
       return 'Build finished. Preparing the handoff summary.';
+    case 'task_failed':
     case 'mission_failed':
+      const failure = extractProviderFailure(event);
       return compactTelegramBlocks(
         voiceLine('failed', `${event.missionId}:failed`),
-        message ? clipText(stripMissionControlBoilerplate(message), 500) : null,
+        clipText(stripMissionControlBoilerplate(failure.error), 500),
         missionReferenceLines(event.missionId, links).join('\n')
       );
     default:
