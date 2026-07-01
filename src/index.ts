@@ -7616,6 +7616,7 @@ bot.command('chip', async (ctx) => {
 type LoopEngineeringBenchmarkCaseKind = 'visible' | 'held_out' | 'trap' | 'no_op' | 'regression';
 type LoopEngineeringScheduleMode = 'once' | 'interval' | 'fixed_time' | 'continuous' | 'round_count';
 type LoopEngineeringCompletionStatus = 'passed' | 'failed' | 'blocked';
+type LoopEngineeringScheduleLifecycleAction = 'pause' | 'resume' | 'cancel' | 'deactivate';
 
 type LoopEngineeringCommand =
   | { kind: 'list' }
@@ -7629,6 +7630,7 @@ type LoopEngineeringCommand =
   | { kind: 'case'; chipKey: string; caseKind: LoopEngineeringBenchmarkCaseKind; prompt: string; expectedBehavior: string; scoringRubricRef?: string; evidenceRefs: string[] }
   | { kind: 'schedule'; chipKey: string; rounds: number; mode: LoopEngineeringScheduleMode; intervalMinutes?: number; fixedLocalTime?: string; timezone?: string; name?: string; stopConditions: string[] }
   | { kind: 'fire-schedule'; chipKey: string; scheduleId: string }
+  | { kind: 'schedule-lifecycle'; chipKey: string; scheduleId: string; action: LoopEngineeringScheduleLifecycleAction }
   | { kind: 'activate'; chipKey: string; useCase: string; triggerPatterns: string[]; rollbackRef?: string };
 
 function loopEngineeringUsage(): string {
@@ -7645,6 +7647,7 @@ function loopEngineeringUsage(): string {
     '/loop distill <domain-chip-key> from <evaluatorEventId> lesson <lesson text>',
     '/loop schedule <domain-chip-key> rounds <n> [mode round_count|interval|fixed_time|continuous|once]',
     '/loop fire-schedule <domain-chip-key> <scheduleId>',
+    '/loop schedule-lifecycle <domain-chip-key> <scheduleId> <pause|resume|cancel|deactivate>',
     '/loop activate <domain-chip-key> use-case <use case> trigger <trigger text>'
   ].join('\n');
 }
@@ -7679,6 +7682,13 @@ function normalizeLoopScheduleMode(value: string | undefined): LoopEngineeringSc
 function normalizeLoopCompletionStatus(value: string | undefined): LoopEngineeringCompletionStatus | null {
   const clean = (value || '').toLowerCase();
   return clean === 'passed' || clean === 'failed' || clean === 'blocked' ? clean : null;
+}
+
+function normalizeLoopScheduleLifecycleAction(value: string | undefined): LoopEngineeringScheduleLifecycleAction | null {
+  const clean = (value || '').toLowerCase().replace('-', '_');
+  return clean === 'pause' || clean === 'resume' || clean === 'cancel' || clean === 'deactivate'
+    ? clean
+    : null;
 }
 
 function loopNumberAfter(text: string, keyword: string): number | undefined {
@@ -7853,6 +7863,14 @@ function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null
     const scheduleId = verb === 'fire' && parts[2] === 'schedule' ? parts[3] : parts[2];
     return chipKey && scheduleId ? { kind: 'fire-schedule', chipKey, scheduleId } : null;
   }
+  if (verb === 'schedule-lifecycle' || verb === 'schedule_lifecycle' || verb === 'pause-schedule' || verb === 'resume-schedule' || verb === 'cancel-schedule' || verb === 'deactivate-schedule') {
+    const parts = text.split(/\s+/);
+    const aliasAction = verb.match(/^(pause|resume|cancel|deactivate)[-_]schedule$/i)?.[1];
+    const chipKey = parts[1];
+    const scheduleId = parts[2];
+    const action = normalizeLoopScheduleLifecycleAction(aliasAction || parts[3]);
+    return chipKey && scheduleId && action ? { kind: 'schedule-lifecycle', chipKey, scheduleId, action } : null;
+  }
   if (verb === 'activate') {
     const match = text.match(/^activate\s+(\S+)\s+use-case\s+(.+?)(?:\s+trigger\s+(.+?))?(?:\s+rollback\s+(\S+))?$/i);
     if (!match) return null;
@@ -7877,6 +7895,7 @@ function loopEngineeringToolName(kind: LoopEngineeringCommand['kind']): string {
   if (kind === 'case') return 'spawner.loop_engineering.benchmark_case.stage';
   if (kind === 'schedule') return 'spawner.loop_engineering.schedule.stage';
   if (kind === 'fire-schedule') return 'spawner.loop_engineering.schedule.fire';
+  if (kind === 'schedule-lifecycle') return 'spawner.loop_engineering.schedule.lifecycle';
   return 'spawner.loop_engineering.activation.stage';
 }
 
@@ -7884,6 +7903,7 @@ function loopEngineeringMutationClass(kind: LoopEngineeringCommand['kind']): Spa
   if (kind === 'list' || kind === 'status') return 'read_only';
   if (kind === 'benchmark' || kind === 'run' || kind === 'fire-schedule') return 'launches_mission';
   if (kind === 'schedule') return 'creates_schedule';
+  if (kind === 'schedule-lifecycle') return 'writes_files';
   return 'writes_files';
 }
 
@@ -7920,7 +7940,11 @@ function renderLoopEngineeringListReply(result: Awaited<ReturnType<typeof spawne
 
 function renderLoopEngineeringCommandReply(result: { success: boolean; message?: string; inspectUrl?: string; error?: string }, action: string): string {
   if (!result.success) {
-    return `I tried to ${action}, but Spawner did not accept it yet. Nothing was activated or published.`;
+    const reason = redactText(result.error || '').trim();
+    return [
+      `I tried to ${action}, but Spawner did not accept it yet. Nothing was activated or published.`,
+      reason ? `Reason: ${reason}.` : ''
+    ].filter(Boolean).join('\n\n');
   }
   return [result.message || `Spawner accepted the ${action}.`, result.inspectUrl ? `Spawner: ${result.inspectUrl}` : '']
     .filter(Boolean)
@@ -7934,7 +7958,7 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
   const payloadText = typeof ctx.payload === 'string' ? ctx.payload.trim() : '';
   const raw = payloadText || messageText.replace(/^\/loop(?:@[A-Za-z0-9_]+)?\b/i, '').trim();
   const parsedLoopEngineering = parseLoopEngineeringCommand(raw);
-  const knownLoopEngineeringVerb = /^(?:list|chips|status|evidence|benchmark|bench|run|complete|bind|eval|review|case|benchmark-case|bench-case|distill|schedule|fire-schedule|fire_schedule|fire|activate)\b/i.test(raw);
+  const knownLoopEngineeringVerb = /^(?:list|chips|status|evidence|benchmark|bench|run|complete|bind|eval|review|case|benchmark-case|bench-case|distill|schedule|fire-schedule|fire_schedule|fire|schedule-lifecycle|schedule_lifecycle|pause-schedule|resume-schedule|cancel-schedule|deactivate-schedule|activate)\b/i.test(raw);
   if (parsedLoopEngineering) {
     if (parsedLoopEngineering.kind === 'invalid') {
       return ctx.reply(parsedLoopEngineering.message);
@@ -7953,14 +7977,19 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
       );
       return ctx.reply(packet?.reply || loopEngineeringUsage());
     }
-    const toolName = loopEngineeringToolName(parsedLoopEngineering.kind);
+    const toolName = parsedLoopEngineering.kind === 'schedule-lifecycle'
+      ? `spawner.loop_engineering.schedule.${parsedLoopEngineering.action}`
+      : loopEngineeringToolName(parsedLoopEngineering.kind);
+    const mutationClass = parsedLoopEngineering.kind === 'schedule-lifecycle' && parsedLoopEngineering.action === 'cancel'
+      ? 'deletes_schedule'
+      : loopEngineeringMutationClass(parsedLoopEngineering.kind);
     const authorization = telegramCommandActionAuthorityDecision(ctx, {
       commandName: 'loop',
       route: 'loop_engineering.command',
       text: ctx.message.text,
       toolName,
       ownerSystem: 'spawner-ui',
-      mutationClass: loopEngineeringMutationClass(parsedLoopEngineering.kind),
+      mutationClass,
       action: toolName,
       kind: 'slash_command'
     });
@@ -8075,6 +8104,16 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
       result = await spawner.fireLoopEngineeringSchedule({
         chipKey: parsedLoopEngineering.chipKey,
         scheduleId: parsedLoopEngineering.scheduleId,
+        sourceSurface: 'telegram',
+        requestId,
+        executionAuthority: authorization.governorDecision
+      });
+    } else if (parsedLoopEngineering.kind === 'schedule-lifecycle') {
+      actionLabel = `${parsedLoopEngineering.action} the private loop schedule`;
+      result = await spawner.updateLoopEngineeringScheduleLifecycle({
+        chipKey: parsedLoopEngineering.chipKey,
+        scheduleId: parsedLoopEngineering.scheduleId,
+        action: parsedLoopEngineering.action,
         sourceSurface: 'telegram',
         requestId,
         executionAuthority: authorization.governorDecision

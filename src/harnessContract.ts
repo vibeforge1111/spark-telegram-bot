@@ -259,7 +259,7 @@ function executionPolicyForDecision(
     canLaunchMission: !noExecution && /(?:spawner|mission|creator|domain_chip|loop_engineering|recursive\.start|startup\.answer_improvement_canary|natural_run|external_research)/.test(route),
     canWriteMemory: !noExecution && (route === 'memory.write' || route === 'memory.delete' || route === 'spark_wiki.promote' || route === 'spark.wiki' || route === 'spark.process' || route === 'spark.reflect' || route === 'route.probe'),
     canCreateSchedule: !noExecution && (/schedule\.create/.test(route) || route === 'loop_engineering.command'),
-    canDeleteSchedule: !noExecution && /schedule\.delete/.test(route),
+    canDeleteSchedule: !noExecution && (/schedule\.delete/.test(route) || route === 'loop_engineering.command'),
     canCreateChip: !noExecution && /(?:domain_chip|creator)/.test(route),
     canPublish: !noExecution && canPublish && /(?:publish|deploy|ship)/.test(route),
     canUseExternalNetwork: !noExecution && !decision.constraints.localOnly && (routeLooksExternal(route) || routeProbeExternalNetwork || route === 'natural_run')
@@ -353,6 +353,10 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
       'spawner.loop_engineering.benchmark_case.stage',
       'spawner.loop_engineering.schedule.stage',
       'spawner.loop_engineering.schedule.fire',
+      'spawner.loop_engineering.schedule.pause',
+      'spawner.loop_engineering.schedule.resume',
+      'spawner.loop_engineering.schedule.cancel',
+      'spawner.loop_engineering.schedule.deactivate',
       'spawner.loop_engineering.activation.stage'
     );
   }

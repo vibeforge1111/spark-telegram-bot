@@ -155,6 +155,17 @@ interface LoopEngineeringScheduleFireInput {
   executionAuthority?: unknown;
 }
 
+type LoopEngineeringScheduleLifecycleAction = 'pause' | 'resume' | 'cancel' | 'deactivate';
+
+interface LoopEngineeringScheduleLifecycleInput {
+  chipKey: string;
+  scheduleId: string;
+  action: LoopEngineeringScheduleLifecycleAction;
+  sourceSurface?: 'telegram' | 'spawner' | 'scheduler';
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
 interface LoopEngineeringCompletionInput {
   chipKey: string;
   eventId: string;
@@ -1613,6 +1624,29 @@ export const spawner = {
       requestId: input.requestId,
       target: chipKey,
       body: {
+        sourceSurface: input.sourceSurface || 'telegram',
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
+  },
+
+  async updateLoopEngineeringScheduleLifecycle(input: LoopEngineeringScheduleLifecycleInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    const scheduleId = input.scheduleId.trim();
+    if (!scheduleId) return { success: false, error: 'loop-engineering schedule id required' };
+    const action = input.action;
+    const mutationClass: HarnessCoreActionMutationClass = action === 'cancel' ? 'deletes_schedule' : 'writes_files';
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/schedules/${encodeURIComponent(scheduleId)}/lifecycle`,
+      toolName: `spawner.loop_engineering.schedule.${action}`,
+      mutationClass,
+      requestId: input.requestId,
+      target: `${chipKey}:${scheduleId}`,
+      body: {
+        action,
         sourceSurface: input.sourceSurface || 'telegram',
         ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
         ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})

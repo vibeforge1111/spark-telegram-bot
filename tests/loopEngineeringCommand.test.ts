@@ -224,6 +224,21 @@ function stubSpawner(calls: Array<{ url: string; body: any }>): void {
         }
       };
     }
+    if (url.includes('/schedules/') && url.includes('/lifecycle')) {
+      return {
+        data: {
+          ok: true,
+          schedule: { id: 'loopsched-prd', status: (body as any)?.action === 'cancel' ? 'cancelled' : 'paused', active: false },
+          event: { id: 'lee-schedule-lifecycle', eventType: 'schedule_lifecycle', status: 'passed' },
+          commandResult: {
+            action: `schedule_${(body as any)?.action}`,
+            eventId: 'lee-schedule-lifecycle',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: `Updated the private PRD Writing schedule: ${(body as any)?.action}.`
+          }
+        }
+      };
+    }
     if (url.includes('/schedules')) {
       return {
         data: {
@@ -323,7 +338,8 @@ async function run(): Promise<void> {
     assert.match(replies[0], /7\/10 checks pass/);
     assert.match(replies[0], /Separated evaluator review passed/);
     assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:3333\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
-    assert.doesNotMatch(replies[0], /queued|started|activated|published/i);
+    assert.match(replies[0], /I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued\./);
+    assert.doesNotMatch(replies[0], /\b(?:started|activated|published)\b/i);
   });
 
   await test('/loop status honors Telegraf payload args from live command handling', async () => {
@@ -565,6 +581,7 @@ async function run(): Promise<void> {
     assert.equal(calls.length, 1);
     assert.equal(calls[0].body.executeNow, true);
     assert.match(replies[0], /did not accept/i);
+    assert.match(replies[0], /Reason: Spawner did not return loop execution proof/i);
     assert.doesNotMatch(replies[0], /Ran 3 private loop rounds/i);
     assert.match(replies[0], /Nothing was activated or published/i);
   });
@@ -595,6 +612,7 @@ async function run(): Promise<void> {
     assert.equal(calls.length, 1);
     assert.equal(calls[0].body.executeNow, true);
     assert.match(replies[0], /did not accept/i);
+    assert.match(replies[0], /Reason: Spawner did not return benchmark execution proof/i);
     assert.doesNotMatch(replies[0], /Ran 1 private benchmark case/i);
     assert.match(replies[0], /Nothing was activated or published/i);
   });
@@ -703,6 +721,43 @@ async function run(): Promise<void> {
     assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
     assert.match(replies[0], /private capped loop/);
     assert.match(replies[0], /evaluator scoring is still required/i);
+  });
+
+  await test('/loop schedule-lifecycle pauses private schedules through Spawner', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleLoopCommand(fakeCtx('/loop schedule-lifecycle domain-chip-prd-writing-proof-loop loopsched-prd pause', replies, { chat: 8319079055, user: 8319079055, message: 9078 }));
+
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/schedules\/loopsched-prd\/lifecycle$/);
+    assert.equal(calls[0].body.action, 'pause');
+    assert.equal(calls[0].body.sourceSurface, 'telegram');
+    assert.equal(calls[0].body.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.schedule.pause');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+    assert.match(replies[0], /Updated the private PRD Writing schedule: pause/);
+  });
+
+  await test('/loop cancel-schedule uses delete-schedule authority through Spawner lifecycle', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleLoopCommand(fakeCtx('/loop cancel-schedule domain-chip-prd-writing-proof-loop loopsched-prd', replies, { chat: 8319079055, user: 8319079055, message: 9079 }));
+
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/schedules\/loopsched-prd\/lifecycle$/);
+    assert.equal(calls[0].body.action, 'cancel');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.schedule.cancel');
+    assert.equal(calls[0].body.executionAuthority.envelope.proposed_actions[0].action_type, 'schedule');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+    assert.match(replies[0], /Updated the private PRD Writing schedule: cancel/);
   });
 }
 

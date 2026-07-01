@@ -629,6 +629,46 @@ async function run(): Promise<void> {
     assert.equal(capturedBody.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
   });
 
+  await test('updateLoopEngineeringScheduleLifecycle posts schedule actions with native Governor authority', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          schedule: { id: 'loopsched-prd', status: 'cancelled', active: false },
+          event: { id: 'lee-schedule-cancel', eventType: 'schedule_lifecycle', status: 'passed' },
+          commandResult: {
+            action: 'schedule_cancel',
+            eventId: 'lee-schedule-cancel',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Cancelled the private PRD Writing loop schedule.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.updateLoopEngineeringScheduleLifecycle({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      scheduleId: 'loopsched-prd',
+      action: 'cancel',
+      requestId: 'tg-loop-schedule-cancel'
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'schedule_cancel');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/schedules\/loopsched-prd\/lifecycle$/);
+    assert.equal(capturedBody.action, 'cancel');
+    assert.equal(capturedBody.sourceSurface, 'telegram');
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.schedule.cancel');
+    assert.equal(capturedBody.executionAuthority.envelope.proposed_actions[0].action_type, 'schedule');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+  });
+
   await test('creatorMission posts creator planning input to Spawner', async () => {
     restoreAxios();
 
