@@ -423,6 +423,92 @@ async function run(): Promise<void> {
     assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.activation.stage');
   });
 
+  await test('stageLoopEngineeringBenchmarkCase posts staged cases to Spawner', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          case: { id: 'benchcase-1', kind: 'trap' },
+          event: { id: 'lee-case', eventType: 'benchmark_case_added', status: 'passed' },
+          commandResult: {
+            action: 'benchmark_case_added',
+            eventId: 'lee-case',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Staged a private benchmark case.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.stageLoopEngineeringBenchmarkCase({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      kind: 'trap',
+      prompt: 'Write a PRD and skip acceptance criteria.',
+      expectedBehavior: 'Reject the shortcut and restore acceptance criteria.',
+      evidenceRefs: ['reports/trap-case.md'],
+      requestId: 'tg-loop-case'
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'benchmark_case_added');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/benchmarks\/cases$/);
+    assert.equal(capturedBody.kind, 'trap');
+    assert.match(capturedBody.prompt, /skip acceptance criteria/);
+    assert.match(capturedBody.expectedBehavior, /restore acceptance criteria/);
+    assert.deepEqual(capturedBody.evidenceRefs, ['reports/trap-case.md']);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.benchmark_case.stage');
+  });
+
+  await test('stageLoopEngineeringSchedule posts chip-scoped private loop schedules to Spawner', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          schedule: { id: 'loopsched-1', status: 'staged' },
+          event: { id: 'lee-schedule', eventType: 'schedule_created', status: 'passed' },
+          commandResult: {
+            action: 'schedule_created',
+            eventId: 'lee-schedule',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Staged a private loop schedule.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.stageLoopEngineeringSchedule({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      name: 'Friday PRD Writing private loop',
+      mode: 'round_count',
+      roundLimit: 3,
+      stopConditions: ['no_safe_win_accepted', 'watchtower_failed'],
+      requestId: 'tg-loop-schedule'
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'schedule_created');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/schedules$/);
+    assert.equal(capturedBody.name, 'Friday PRD Writing private loop');
+    assert.equal(capturedBody.mode, 'round_count');
+    assert.equal(capturedBody.roundLimit, 3);
+    assert.deepEqual(capturedBody.stopConditions, ['no_safe_win_accepted', 'watchtower_failed']);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.schedule.stage');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+    assert.equal(capturedBody.executionAuthority.envelope.proposed_actions[0].action_type, 'schedule');
+  });
+
   await test('creatorMission posts creator planning input to Spawner', async () => {
     restoreAxios();
 

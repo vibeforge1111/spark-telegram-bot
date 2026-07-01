@@ -100,6 +100,30 @@ interface LoopEngineeringActivationInput {
   executionAuthority?: unknown;
 }
 
+interface LoopEngineeringBenchmarkCaseInput {
+  chipKey: string;
+  kind: 'visible' | 'held_out' | 'trap' | 'no_op' | 'regression';
+  prompt: string;
+  expectedBehavior: string;
+  scoringRubricRef?: string;
+  evidenceRefs?: string[];
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
+interface LoopEngineeringScheduleInput {
+  chipKey: string;
+  name?: string;
+  mode?: 'once' | 'interval' | 'fixed_time' | 'continuous' | 'round_count';
+  intervalMinutes?: number;
+  fixedLocalTime?: string;
+  timezone?: string;
+  roundLimit: number;
+  stopConditions?: string[];
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
 interface CreatorMissionInput {
   brief: string;
   requestId?: string;
@@ -1259,6 +1283,7 @@ async function postLoopEngineeringCommandResult(input: {
   chipKey: string;
   endpoint: string;
   toolName: string;
+  mutationClass?: HarnessCoreActionMutationClass;
   body: Record<string, unknown>;
   requestId?: string;
   target?: string;
@@ -1274,7 +1299,7 @@ async function postLoopEngineeringCommandResult(input: {
           source: 'telegram_loop_engineering_bridge',
           reason: `Telegram requested ${input.toolName} through Spawner.`,
           toolName: input.toolName,
-          mutationClass: 'writes_files',
+          mutationClass: input.mutationClass || 'writes_files',
           requestId: input.requestId,
           target: input.target || chipKey
         })
@@ -1429,6 +1454,51 @@ export const spawner = {
         ...(input.riskPolicy ? { riskPolicy: input.riskPolicy } : {}),
         ...(typeof input.approvalRequired === 'boolean' ? { approvalRequired: input.approvalRequired } : {}),
         ...(input.rollbackRef?.trim() ? { rollbackRef: input.rollbackRef.trim() } : {}),
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
+  },
+
+  async stageLoopEngineeringBenchmarkCase(input: LoopEngineeringBenchmarkCaseInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/benchmarks/cases`,
+      toolName: 'spawner.loop_engineering.benchmark_case.stage',
+      requestId: input.requestId,
+      target: chipKey,
+      body: {
+        kind: input.kind,
+        prompt: input.prompt,
+        expectedBehavior: input.expectedBehavior,
+        ...(input.scoringRubricRef?.trim() ? { scoringRubricRef: input.scoringRubricRef.trim() } : {}),
+        ...(input.evidenceRefs?.length ? { evidenceRefs: input.evidenceRefs } : {}),
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
+  },
+
+  async stageLoopEngineeringSchedule(input: LoopEngineeringScheduleInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/schedules`,
+      toolName: 'spawner.loop_engineering.schedule.stage',
+      mutationClass: 'creates_schedule',
+      requestId: input.requestId,
+      target: chipKey,
+      body: {
+        ...(input.name?.trim() ? { name: input.name.trim() } : {}),
+        mode: input.mode || 'round_count',
+        ...(typeof input.intervalMinutes === 'number' ? { intervalMinutes: input.intervalMinutes } : {}),
+        ...(input.fixedLocalTime?.trim() ? { fixedLocalTime: input.fixedLocalTime.trim() } : {}),
+        ...(input.timezone?.trim() ? { timezone: input.timezone.trim() } : {}),
+        roundLimit: input.roundLimit,
+        ...(input.stopConditions?.length ? { stopConditions: input.stopConditions } : {}),
         ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
         ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
       }

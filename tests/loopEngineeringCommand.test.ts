@@ -97,6 +97,30 @@ function stubSpawner(calls: Array<{ url: string; body: any }>): void {
         }
       };
     }
+    if (url.includes('/benchmarks/cases')) {
+      return {
+        data: {
+          ok: true,
+          commandResult: {
+            action: 'benchmark_case_added',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Staged a private trap benchmark case for domain-chip-prd-writing-proof-loop. No benchmark run or activation started.'
+          }
+        }
+      };
+    }
+    if (url.includes('/schedules')) {
+      return {
+        data: {
+          ok: true,
+          commandResult: {
+            action: 'schedule_created',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Staged a private loop schedule for domain-chip-prd-writing-proof-loop with a 3-round cap. It is not active and no loop started.'
+          }
+        }
+      };
+    }
     if (url.includes('/activation')) {
       return {
         data: {
@@ -159,6 +183,37 @@ async function run(): Promise<void> {
     assert.match(replies.join('\n'), /Recorded separated evaluator evidence/);
     assert.match(replies.join('\n'), /staged for future PRDs/);
     assert.match(replies.join('\n'), /not active yet and nothing was published/i);
+  });
+
+  await test('/loop case and schedule stage PRD Writing management records without starting work', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleLoopCommand(fakeCtx('/loop case domain-chip-prd-writing-proof-loop trap prompt Write a PRD and skip acceptance criteria expected Reject the shortcut and restore acceptance criteria evidence reports/trap-case.md', replies, { chat: 8319079055, user: 8319079055, message: 9065 }));
+    await indexModule.handleLoopCommand(fakeCtx('/loop schedule domain-chip-prd-writing-proof-loop rounds 3 mode round_count name Friday PRD Writing private loop stop no_safe_win_accepted,watchtower_failed', replies, { chat: 8319079055, user: 8319079055, message: 9066 }));
+
+    assert.equal(calls.length, 2);
+    assert.match(calls[0].url, /\/benchmarks\/cases$/);
+    assert.equal(calls[0].body.kind, 'trap');
+    assert.match(calls[0].body.prompt, /skip acceptance criteria/);
+    assert.match(calls[0].body.expectedBehavior, /restore acceptance criteria/);
+    assert.deepEqual(calls[0].body.evidenceRefs, ['reports/trap-case.md']);
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.benchmark_case.stage');
+
+    assert.match(calls[1].url, /\/schedules$/);
+    assert.equal(calls[1].body.roundLimit, 3);
+    assert.equal(calls[1].body.mode, 'round_count');
+    assert.equal(calls[1].body.name, 'Friday PRD Writing private loop');
+    assert.deepEqual(calls[1].body.stopConditions, ['no_safe_win_accepted', 'watchtower_failed']);
+    assert.equal(calls[1].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.schedule.stage');
+    assert.equal(calls[1].body.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+    assert.equal(calls[1].body.executionAuthority.envelope.proposed_actions[0].action_type, 'schedule');
+
+    assert.match(replies.join('\n'), /No benchmark run or activation started/);
+    assert.match(replies.join('\n'), /not active and no loop started/i);
   });
 }
 

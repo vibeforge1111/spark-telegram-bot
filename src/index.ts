@@ -7603,11 +7603,16 @@ bot.command('chip', async (ctx) => {
   await ctx.reply(lines.join('\n'));
 });
 
+type LoopEngineeringBenchmarkCaseKind = 'visible' | 'held_out' | 'trap' | 'no_op' | 'regression';
+type LoopEngineeringScheduleMode = 'once' | 'interval' | 'fixed_time' | 'continuous' | 'round_count';
+
 type LoopEngineeringCommand =
   | { kind: 'benchmark'; chipKey: string }
   | { kind: 'run'; chipKey: string; rounds: number }
   | { kind: 'eval'; chipKey: string; previousScore: number; candidateScore: number; roundsObserved?: number; evidenceRefs: string[] }
   | { kind: 'distill'; chipKey: string; sourceEvaluatorEventId: string; lessons: string[] }
+  | { kind: 'case'; chipKey: string; caseKind: LoopEngineeringBenchmarkCaseKind; prompt: string; expectedBehavior: string; scoringRubricRef?: string; evidenceRefs: string[] }
+  | { kind: 'schedule'; chipKey: string; rounds: number; mode: LoopEngineeringScheduleMode; intervalMinutes?: number; fixedLocalTime?: string; timezone?: string; name?: string; stopConditions: string[] }
   | { kind: 'activate'; chipKey: string; useCase: string; triggerPatterns: string[]; rollbackRef?: string };
 
 function loopEngineeringUsage(): string {
@@ -7616,10 +7621,36 @@ function loopEngineeringUsage(): string {
     'Spawner loop-engineering:',
     '/loop benchmark <domain-chip-key>',
     '/loop run <domain-chip-key> [rounds]',
+    '/loop case <domain-chip-key> <visible|held_out|trap|no_op|regression> prompt <prompt> expected <expected>',
     '/loop eval <domain-chip-key> <previousScore> <candidateScore> evidence <ref[,ref]>',
     '/loop distill <domain-chip-key> from <evaluatorEventId> lesson <lesson text>',
+    '/loop schedule <domain-chip-key> rounds <n> [mode round_count|interval|fixed_time|continuous|once]',
     '/loop activate <domain-chip-key> use-case <use case> trigger <trigger text>'
   ].join('\n');
+}
+
+function loopClause(text: string, keyword: string, followingKeywords: string[]): string | undefined {
+  const next = followingKeywords.map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const pattern = new RegExp(`\\s${keyword}\\s+(.+?)(?=\\s(?:${next})\\s+|$)`, 'i');
+  return text.match(pattern)?.[1]?.trim();
+}
+
+function loopTokenAfter(text: string, keyword: string): string | undefined {
+  return text.match(new RegExp(`\\s${keyword}\\s+(\\S+)`, 'i'))?.[1]?.trim();
+}
+
+function normalizeLoopBenchmarkCaseKind(value: string): LoopEngineeringBenchmarkCaseKind | null {
+  const clean = value.toLowerCase().replace('-', '_');
+  return clean === 'visible' || clean === 'held_out' || clean === 'trap' || clean === 'no_op' || clean === 'regression'
+    ? clean
+    : null;
+}
+
+function normalizeLoopScheduleMode(value: string | undefined): LoopEngineeringScheduleMode {
+  const clean = (value || 'round_count').toLowerCase().replace('-', '_');
+  return clean === 'once' || clean === 'interval' || clean === 'fixed_time' || clean === 'continuous' || clean === 'round_count'
+    ? clean
+    : 'round_count';
 }
 
 function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null {
@@ -7650,11 +7681,53 @@ function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null
       evidenceRefs
     };
   }
+  if (verb === 'case' || verb === 'benchmark-case' || verb === 'bench-case') {
+    const parts = text.split(/\s+/);
+    const chipKey = parts[1];
+    const caseKind = normalizeLoopBenchmarkCaseKind(parts[2] || '');
+    const prompt = loopClause(text, 'prompt', ['expected', 'rubric', 'evidence']);
+    const expectedBehavior = loopClause(text, 'expected', ['rubric', 'evidence']);
+    if (!chipKey || !caseKind || !prompt || !expectedBehavior) return null;
+    const scoringRubricRef = loopTokenAfter(text, 'rubric');
+    const evidenceRefs = (loopClause(text, 'evidence', []) || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return { kind: 'case', chipKey, caseKind, prompt, expectedBehavior, ...(scoringRubricRef ? { scoringRubricRef } : {}), evidenceRefs };
+  }
   if (verb === 'distill') {
     const match = text.match(/^distill\s+(\S+)\s+from\s+(\S+)\s+lesson\s+(.+)$/i);
     if (!match) return null;
     const lessons = match[3].split(/\s+lesson\s+/i).map((item) => item.trim()).filter(Boolean);
     return { kind: 'distill', chipKey: match[1], sourceEvaluatorEventId: match[2], lessons };
+  }
+  if (verb === 'schedule') {
+    const parts = text.split(/\s+/);
+    const chipKey = parts[1];
+    const inlineRounds = Number.parseInt(parts[2] || '', 10);
+    const rounds = Math.max(1, Math.min(25, Number.parseInt(loopTokenAfter(text, 'rounds') || '', 10) || inlineRounds || 3));
+    const mode = normalizeLoopScheduleMode(loopTokenAfter(text, 'mode'));
+    const intervalMinutes = Number.parseInt(loopTokenAfter(text, 'every') || '', 10);
+    const fixedLocalTime = loopTokenAfter(text, 'at');
+    const timezone = loopTokenAfter(text, 'tz') || loopTokenAfter(text, 'timezone');
+    const name = loopClause(text, 'name', ['stop']);
+    const stopConditions = (loopClause(text, 'stop', []) || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return chipKey
+      ? {
+          kind: 'schedule',
+          chipKey,
+          rounds,
+          mode,
+          ...(Number.isFinite(intervalMinutes) && intervalMinutes > 0 ? { intervalMinutes } : {}),
+          ...(fixedLocalTime ? { fixedLocalTime } : {}),
+          ...(timezone ? { timezone } : {}),
+          ...(name ? { name } : {}),
+          stopConditions
+        }
+      : null;
   }
   if (verb === 'activate') {
     const match = text.match(/^activate\s+(\S+)\s+use-case\s+(.+?)(?:\s+trigger\s+(.+?))?(?:\s+rollback\s+(\S+))?$/i);
@@ -7675,11 +7748,15 @@ function loopEngineeringToolName(kind: LoopEngineeringCommand['kind']): string {
   if (kind === 'run') return 'spawner.loop_engineering.loop.run';
   if (kind === 'eval') return 'spawner.loop_engineering.evaluator_review.record';
   if (kind === 'distill') return 'spawner.loop_engineering.distill.stage';
+  if (kind === 'case') return 'spawner.loop_engineering.benchmark_case.stage';
+  if (kind === 'schedule') return 'spawner.loop_engineering.schedule.stage';
   return 'spawner.loop_engineering.activation.stage';
 }
 
 function loopEngineeringMutationClass(kind: LoopEngineeringCommand['kind']): SparkHarnessMutationClass {
-  return kind === 'benchmark' || kind === 'run' ? 'launches_mission' : 'writes_files';
+  if (kind === 'benchmark' || kind === 'run') return 'launches_mission';
+  if (kind === 'schedule') return 'creates_schedule';
+  return 'writes_files';
 }
 
 function renderLoopEngineeringCommandReply(result: { success: boolean; message?: string; inspectUrl?: string; error?: string }, action: string): string {
@@ -7696,7 +7773,7 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
 
   const raw = ctx.message.text.replace('/loop', '').trim();
   const parsedLoopEngineering = parseLoopEngineeringCommand(raw);
-  const knownLoopEngineeringVerb = /^(?:benchmark|bench|run|eval|review|distill|activate)\b/i.test(raw);
+  const knownLoopEngineeringVerb = /^(?:benchmark|bench|run|eval|review|case|benchmark-case|bench-case|distill|schedule|activate)\b/i.test(raw);
   if (parsedLoopEngineering) {
     const toolName = loopEngineeringToolName(parsedLoopEngineering.kind);
     const authorization = telegramCommandActionAuthorityDecision(ctx, {
@@ -7754,6 +7831,30 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         runtimeNotes: 'Use these lessons as staged guidance only after activation review.',
         tokenBudgetHint: 'Try distilled guidance before rerunning the full loop.',
         sourceSurface: 'telegram',
+        requestId
+      });
+    } else if (parsedLoopEngineering.kind === 'case') {
+      actionLabel = 'stage the benchmark case';
+      result = await spawner.stageLoopEngineeringBenchmarkCase({
+        chipKey: parsedLoopEngineering.chipKey,
+        kind: parsedLoopEngineering.caseKind,
+        prompt: parsedLoopEngineering.prompt,
+        expectedBehavior: parsedLoopEngineering.expectedBehavior,
+        scoringRubricRef: parsedLoopEngineering.scoringRubricRef,
+        evidenceRefs: parsedLoopEngineering.evidenceRefs,
+        requestId
+      });
+    } else if (parsedLoopEngineering.kind === 'schedule') {
+      actionLabel = 'stage the private loop schedule';
+      result = await spawner.stageLoopEngineeringSchedule({
+        chipKey: parsedLoopEngineering.chipKey,
+        name: parsedLoopEngineering.name,
+        mode: parsedLoopEngineering.mode,
+        intervalMinutes: parsedLoopEngineering.intervalMinutes,
+        fixedLocalTime: parsedLoopEngineering.fixedLocalTime,
+        timezone: parsedLoopEngineering.timezone,
+        roundLimit: parsedLoopEngineering.rounds,
+        stopConditions: parsedLoopEngineering.stopConditions,
         requestId
       });
     } else {
