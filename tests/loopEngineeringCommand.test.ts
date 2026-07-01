@@ -424,6 +424,7 @@ async function run(): Promise<void> {
     assert.match(calls[2].url, /\/activation$/);
     assert.equal(calls[2].body.useCase, 'PRD Writing requests');
     assert.deepEqual(calls[2].body.triggerPatterns, ['write a PRD']);
+    assert.equal(calls[2].body.sourceSurface, 'telegram');
     assert.equal(calls[2].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.activation.stage');
 
     assert.match(replies.join('\n'), /Recorded separated evaluator evidence/);
@@ -472,6 +473,7 @@ async function run(): Promise<void> {
     assert.match(calls[0].body.prompt, /skip acceptance criteria/);
     assert.match(calls[0].body.expectedBehavior, /restore acceptance criteria/);
     assert.deepEqual(calls[0].body.evidenceRefs, ['reports/trap-case.md']);
+    assert.equal(calls[0].body.sourceSurface, 'telegram');
     assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.benchmark_case.stage');
 
     assert.match(calls[1].url, /\/schedules$/);
@@ -479,6 +481,7 @@ async function run(): Promise<void> {
     assert.equal(calls[1].body.mode, 'round_count');
     assert.equal(calls[1].body.name, 'Friday PRD Writing private loop');
     assert.deepEqual(calls[1].body.stopConditions, ['no_safe_win_accepted', 'watchtower_failed']);
+    assert.equal(calls[1].body.sourceSurface, 'telegram');
     assert.equal(calls[1].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.schedule.stage');
     assert.equal(calls[1].body.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
     assert.equal(calls[1].body.executionAuthority.envelope.proposed_actions[0].action_type, 'schedule');

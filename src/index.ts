@@ -7977,6 +7977,7 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         expectedBehavior: parsedLoopEngineering.expectedBehavior,
         scoringRubricRef: parsedLoopEngineering.scoringRubricRef,
         evidenceRefs: parsedLoopEngineering.evidenceRefs,
+        sourceSurface: 'telegram',
         requestId,
         executionAuthority: authorization.governorDecision
       });
@@ -7991,6 +7992,7 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         timezone: parsedLoopEngineering.timezone,
         roundLimit: parsedLoopEngineering.rounds,
         stopConditions: parsedLoopEngineering.stopConditions,
+        sourceSurface: 'telegram',
         requestId,
         executionAuthority: authorization.governorDecision
       });
@@ -8014,6 +8016,7 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         riskPolicy: 'review_packet',
         approvalRequired: true,
         rollbackRef: parsedLoopEngineering.rollbackRef,
+        sourceSurface: 'telegram',
         requestId,
         executionAuthority: authorization.governorDecision
       });

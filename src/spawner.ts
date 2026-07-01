@@ -115,6 +115,7 @@ interface LoopEngineeringActivationInput {
   riskPolicy?: 'low_only' | 'review_packet' | 'loop_mode_required';
   approvalRequired?: boolean;
   rollbackRef?: string;
+  sourceSurface?: 'telegram' | 'spawner';
   requestId?: string;
   executionAuthority?: unknown;
 }
@@ -126,6 +127,7 @@ interface LoopEngineeringBenchmarkCaseInput {
   expectedBehavior: string;
   scoringRubricRef?: string;
   evidenceRefs?: string[];
+  sourceSurface?: 'telegram' | 'spawner';
   requestId?: string;
   executionAuthority?: unknown;
 }
@@ -139,6 +141,7 @@ interface LoopEngineeringScheduleInput {
   timezone?: string;
   roundLimit: number;
   stopConditions?: string[];
+  sourceSurface?: 'telegram' | 'spawner';
   requestId?: string;
   executionAuthority?: unknown;
 }
@@ -1521,6 +1524,7 @@ export const spawner = {
         ...(input.riskPolicy ? { riskPolicy: input.riskPolicy } : {}),
         ...(typeof input.approvalRequired === 'boolean' ? { approvalRequired: input.approvalRequired } : {}),
         ...(input.rollbackRef?.trim() ? { rollbackRef: input.rollbackRef.trim() } : {}),
+        ...(input.sourceSurface ? { sourceSurface: input.sourceSurface } : {}),
         ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
         ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
       }
@@ -1542,6 +1546,7 @@ export const spawner = {
         expectedBehavior: input.expectedBehavior,
         ...(input.scoringRubricRef?.trim() ? { scoringRubricRef: input.scoringRubricRef.trim() } : {}),
         ...(input.evidenceRefs?.length ? { evidenceRefs: input.evidenceRefs } : {}),
+        ...(input.sourceSurface ? { sourceSurface: input.sourceSurface } : {}),
         ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
         ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
       }
@@ -1566,6 +1571,7 @@ export const spawner = {
         ...(input.timezone?.trim() ? { timezone: input.timezone.trim() } : {}),
         roundLimit: input.roundLimit,
         ...(input.stopConditions?.length ? { stopConditions: input.stopConditions } : {}),
+        ...(input.sourceSurface ? { sourceSurface: input.sourceSurface } : {}),
         ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
         ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
       }
