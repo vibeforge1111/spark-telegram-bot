@@ -464,14 +464,14 @@ async function run(): Promise<void> {
     const indexModule: any = await withLoopHandler();
     const replies: string[] = [];
 
-    await indexModule.handleLoopCommand(fakeCtx('/loop case domain-chip-prd-writing-proof-loop trap prompt Write a PRD and skip acceptance criteria expected Reject the shortcut and restore acceptance criteria evidence reports/trap-case.md', replies, { chat: 8319079055, user: 8319079055, message: 9065 }));
+    await indexModule.handleLoopCommand(fakeCtx('/loop case domain-chip-prd-writing-proof-loop trap prompt Write a PRD and hide test evidence expected Reject the shortcut and restore test evidence plus acceptance criteria evidence reports/trap-case.md', replies, { chat: 8319079055, user: 8319079055, message: 9065 }));
     await indexModule.handleLoopCommand(fakeCtx('/loop schedule domain-chip-prd-writing-proof-loop rounds 3 mode round_count name Friday PRD Writing private loop stop no_safe_win_accepted,watchtower_failed', replies, { chat: 8319079055, user: 8319079055, message: 9066 }));
 
     assert.equal(calls.length, 2);
     assert.match(calls[0].url, /\/benchmarks\/cases$/);
     assert.equal(calls[0].body.kind, 'trap');
-    assert.match(calls[0].body.prompt, /skip acceptance criteria/);
-    assert.match(calls[0].body.expectedBehavior, /restore acceptance criteria/);
+    assert.match(calls[0].body.prompt, /hide test evidence/);
+    assert.match(calls[0].body.expectedBehavior, /restore test evidence plus acceptance criteria/);
     assert.deepEqual(calls[0].body.evidenceRefs, ['reports/trap-case.md']);
     assert.equal(calls[0].body.sourceSurface, 'telegram');
     assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.benchmark_case.stage');

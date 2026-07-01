@@ -7639,6 +7639,9 @@ function loopEngineeringUsage(): string {
 }
 
 function loopClause(text: string, keyword: string, followingKeywords: string[]): string | undefined {
+  if (followingKeywords.length === 0) {
+    return text.match(new RegExp(`\\s${keyword}\\s+(.+)$`, 'i'))?.[1]?.trim();
+  }
   const next = followingKeywords.map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
   const pattern = new RegExp(`\\s${keyword}\\s+(.+?)(?=\\s(?:${next})\\s+|$)`, 'i');
   return text.match(pattern)?.[1]?.trim();
@@ -7740,11 +7743,15 @@ function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null
     const parts = text.split(/\s+/);
     const chipKey = parts[1];
     const caseKind = normalizeLoopBenchmarkCaseKind(parts[2] || '');
-    const prompt = loopClause(text, 'prompt', ['expected', 'rubric', 'evidence']);
-    const expectedBehavior = loopClause(text, 'expected', ['rubric', 'evidence']);
+    const prompt = loopClause(text, 'prompt', ['expected']);
+    const expectedRaw = loopClause(text, 'expected', []);
+    const expectedEvidenceMatch = expectedRaw?.match(/^(.+)\s+evidence\s+(.+)$/i);
+    const expectedWithoutEvidence = expectedEvidenceMatch ? expectedEvidenceMatch[1]?.trim() : expectedRaw;
+    const expectedRubricMatch = expectedWithoutEvidence?.match(/^(.+)\s+rubric\s+(\S+)$/i);
+    const expectedBehavior = expectedRubricMatch ? expectedRubricMatch[1]?.trim() : expectedWithoutEvidence;
     if (!chipKey || !caseKind || !prompt || !expectedBehavior) return null;
-    const scoringRubricRef = loopTokenAfter(text, 'rubric');
-    const evidenceRefs = (loopClause(text, 'evidence', []) || '')
+    const scoringRubricRef = expectedRubricMatch?.[2] || loopTokenAfter(text, 'rubric');
+    const evidenceRefs = (expectedEvidenceMatch?.[2] || '')
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
