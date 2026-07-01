@@ -96,7 +96,7 @@ export async function acquireGatewayOwnership(input: {
       const alive = existing.hostname !== os.hostname() || isProcessAlive(existing.pid);
       if (alive) {
         throw new Error(
-          `Gateway ownership already held by ${existing.ownerId} on ${existing.hostname} (pid ${existing.pid}). Stop that instance or wait for lease expiry.`
+          `Gateway ownership already held by another instance (id: ${existing.ownerId}). Stop that instance or wait for lease expiry.`
         );
       }
     }

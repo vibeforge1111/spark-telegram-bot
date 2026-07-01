@@ -3,6 +3,20 @@ export interface MemoryDoctorEvidenceTurn {
   text: string;
 }
 
+export interface MemoryDoctorEvidenceAuthority {
+  selectedIntent?: {
+    ownerSystem?: string | null;
+    action?: string | null;
+  } | null;
+  candidates?: Array<{
+    route?: string | null;
+  }> | null;
+}
+
+const EXPLICIT_MEMORY_DOCTOR_INVOCATION_PATTERN =
+  /^(?:please\s+)?(?:run|start|use|invoke|call|ask|open)\s+(?:the\s+)?(?:memory\s+)?(?:doctor|audit|diagnostic)\b/i;
+const MEMORY_DOCTOR_BLANKNESS_PATTERN =
+  /\b(?:what\s+happened|went\s+blank|go(?:t|ing)?\s+blank|blankness|lost\s+(?:the\s+)?context|dropped\s+(?:the\s+)?context|forgot\s+(?:the\s+)?context|not\s+remember(?:ing)?\s+what\s+we\s+were\s+talking\s+about)\b/i;
 const CONTEXTUAL_MEMORY_DOCTOR_PATTERN =
   /\b(?:what\s+happened|went\s+blank|go(?:t|ing)?\s+blank|blankness|lost\s+(?:the\s+)?context|dropped\s+(?:the\s+)?context|forgot\s+(?:the\s+)?context|not\s+remember(?:ing)?\s+what\s+we\s+were\s+talking\s+about|what\s+(?:was|did)\s+(?:my|your)\s+(?:last|previous)\s+(?:answer|response|reply|message)|did\s+you\s+(?:forget|lose|drop)\s+(?:my|the|what)\s+(?:context|message|conversation)|(?:run|check|show|diagnose|audit)\s+(?:the\s+)?memory\s+doctor)\b/i;
 
@@ -19,7 +33,25 @@ function normalizeEvidenceRole(role: string): 'user' | 'assistant' {
 }
 
 export function shouldAttachMemoryDoctorEvidence(text: string): boolean {
-  return CONTEXTUAL_MEMORY_DOCTOR_PATTERN.test(text.replace(/\s+/g, ' ').trim());
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  if (EXPLICIT_MEMORY_DOCTOR_INVOCATION_PATTERN.test(normalized)) return true;
+  if (CONTEXTUAL_MEMORY_DOCTOR_PATTERN.test(normalized)) return true;
+  return MEMORY_DOCTOR_BLANKNESS_PATTERN.test(normalized) &&
+    /\b(?:memory|context|recall|trace|audit|diagnos|doctor|why|what\s+happened|previous|last|turn|reply|answer)\b/i.test(normalized);
+}
+
+export function shouldAttachMemoryDoctorEvidenceWithAuthority(
+  text: string,
+  authority: MemoryDoctorEvidenceAuthority | null | undefined
+): boolean {
+  if (!shouldAttachMemoryDoctorEvidence(text)) return false;
+  const selectedRoute = String(authority?.candidates?.[0]?.route || '').trim();
+  const selectedOwner = String(authority?.selectedIntent?.ownerSystem || '').trim();
+  const selectedAction = String(authority?.selectedIntent?.action || '').trim();
+  return selectedRoute === 'memory.doctor' &&
+    selectedOwner === 'spark-intelligence-builder' &&
+    selectedAction === 'memory.doctor';
 }
 
 function sameNormalizedText(a: string, b: string): boolean {

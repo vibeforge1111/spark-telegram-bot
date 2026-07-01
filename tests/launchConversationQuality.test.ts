@@ -47,7 +47,7 @@ function test(name: string, fn: () => void): void {
   }
 }
 
-test('launch prompt keeps conversation style bounded away from memory authority', () => {
+test('launch prompt keeps conversation style governed by memory owner truth', () => {
   const prompt = buildSparkChatSystemPrompt(
     'Recent list: 1. memory timeline 2. recall audit board',
     'Older memory says the user likes architecture summaries.'
@@ -60,7 +60,9 @@ test('launch prompt keeps conversation style bounded away from memory authority'
   assert.match(prompt, /corrects your tone, format, or answer/);
   assert.match(prompt, /most recent list/);
   assert.match(prompt, /Memory must not override/);
-  assert.match(prompt, /Style hints are turn guidance, not durable memory/);
+  assert.match(prompt, /preferences can guide the current exchange immediately/);
+  assert.match(prompt, /unless the memory owner has confirmed a durable write/);
+  assert.match(prompt, /Do not present recent chat as durable memory/);
   assert.match(prompt, /Use Spark module names only when the user asks/);
   assert.match(prompt, /Do not offer to scaffold/);
 });
@@ -73,6 +75,8 @@ test('repo carries the Telegram composition standard as mergeable product guidan
   assert.match(standard, /Use dotted bullets/);
   assert.match(standard, /Do not combine icons with bullets/);
   assert.match(standard, /Put raw evidence behind Workspace, Decisions, Canvas, Board, logs, or trace links/);
+  assert.match(standard, /Keep memory\/source lane labels out of normal acknowledgement prose/);
+  assert.match(standard, /Got it, I will use that while we keep talking/);
   assert.match(standard, /Does it sound like Spark helping a person/);
 });
 
@@ -257,8 +261,8 @@ test('launch natural work replies pass the readability ergonomics vibe bar', () 
 
   assert.match(clarification, /Page\.\n\nRecommended starting point:/);
   assert.match(clarification, /presets\.\n\nSay "go" to start/);
-  assert.match(heartbeat, /^still shaping Paragraph Spacing Smoke Page\.\n\nI will keep this quiet until the canvas is ready or something needs attention\./m);
-  assert.match(stillRunning, /^still preparing Paragraph Spacing Smoke Page\. It is taking a little longer than usual, and I will send the canvas when it is ready\./m);
+  assert.match(heartbeat, /^<b>Still shaping Paragraph Spacing Smoke Page\.<\/b>\n\nI will keep this quiet until the canvas is ready or something needs attention\./m);
+  assert.match(stillRunning, /^<b>Still preparing Paragraph Spacing Smoke Page\.<\/b>\n\nIt is taking a little longer than usual\. I will send the canvas when it is ready\./m);
   assert.doesNotMatch(heartbeat, /🛠️|Canvas prep has been running/);
   assert.doesNotMatch(stillRunning, /🛠️|It has been shaping/);
 });

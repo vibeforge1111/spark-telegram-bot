@@ -68,6 +68,22 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
   const lower = detail.toLowerCase();
 
   if (
+    context === 'spawner' &&
+    (
+      lower.includes('prdbridgewrite routes require api key for non-local requests') ||
+      lower.includes('unauthorized prdbridgewrite request')
+    )
+  ) {
+    return {
+      category: 'spawner_bridge_auth',
+      userLine: 'Mission Control rejected Spark before the governed build request reached Spawner.',
+      detail,
+      check: 'Run /diagnose so Spark can check the Telegram-to-Spawner bridge and Mission Control health.',
+      repair: 'Operator fix: make sure Spark Recursive and Spawner share the same SPARK_BRIDGE_API_KEY, then restart both services.'
+    };
+  }
+
+  if (
     lower.includes('unauthorized') ||
     lower.includes('forbidden') ||
     lower.includes('invalid api') ||
@@ -286,10 +302,10 @@ export function renderSparkErrorReply(
   isAdmin: boolean = false
 ): string {
   const explanation = explainSparkError(error, context);
-  if (context === 'chat' && explanation.category === 'builder_or_memory') {
+  if (['chat', 'telegram', 'memory'].includes(context) && explanation.category === 'builder_or_memory') {
     return [
-      'Memory/Builder is degraded right now, so I should stay with the visible chat instead of switching into diagnostics.',
-      'Ask me the same thing again and I will answer from the current thread. Run /diagnose only when you want a health check.'
+      'Builder memory is shaky right now, so I should stay with the visible chat instead of switching into diagnostics.',
+      'Ask me the same thing again and I will answer from the current thread. Run /diagnose when you want the health check.'
     ].join('\n\n');
   }
   const lines = [

@@ -5,8 +5,11 @@ import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
 import { withHiddenWindows } from './hiddenProcess';
 import { resolveBuilderRepoPath } from './builderRepoPath';
+import { parsePositiveIntegerEnvValue } from './timeoutConfig';
+import { redactText } from './redaction';
 
 const execFileAsync = promisify(execFile);
+const DEFAULT_CHIP_LOOP_TIMEOUT_MS = 900000;
 
 export interface LoopResult {
   ok: boolean;
@@ -38,7 +41,7 @@ function resolveConfig(): LoopConfig {
     builderHome: path.resolve(
       process.env.SPARK_BUILDER_HOME || path.join(os.homedir(), '.spark', 'state', 'spark-intelligence')
     ),
-    timeoutMs: Number.parseInt(process.env.CHIP_LOOP_TIMEOUT_MS || '900000', 10) || 900000,
+    timeoutMs: parsePositiveIntegerEnvValue(process.env.CHIP_LOOP_TIMEOUT_MS, DEFAULT_CHIP_LOOP_TIMEOUT_MS),
   };
 }
 
@@ -71,7 +74,7 @@ export async function runChipLoop(chipKey: string, rounds: number, suggestLimit 
       error: parsed.error ?? undefined,
     };
   } catch (err: any) {
-    const stderr = typeof err?.stderr === 'string' ? err.stderr.slice(-400) : '';
+    const stderr = typeof err?.stderr === 'string' ? redactText(err.stderr.slice(-400)) : '';
     return { ok: false, error: err?.message ? `${err.message}${stderr ? ': ' + stderr : ''}` : 'loop exec failed' };
   }
 }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -51,7 +51,13 @@ async function main(): Promise<void> {
       parseNaturalRecursiveProposalIntent('can we share Startup YC with the network review lane?'),
       { target: 'startup-yc', submit: true }
     );
+    assert.deepEqual(
+      parseNaturalRecursiveProposalIntent('propose an improvement to Spark Telegram memory source-lane handling so restart questions stay conversational'),
+      { target: 'ad-hoc:spark-telegram-memory-source-lane-handling', submit: false }
+    );
     assert.equal(parseNaturalRecursiveProposalIntent('what happened with crypto trading?'), null);
+    assert.equal(parseNaturalRecursiveProposalIntent('should we propose an improvement to Spark Telegram memory later?'), null);
+    assert.equal(parseNaturalRecursiveProposalIntent('the report says propose an improvement to Spark Telegram memory'), null);
   });
 
   await test('recursive command export renders help through command path', async () => {
@@ -64,6 +70,31 @@ async function main(): Promise<void> {
     const ctx = fakeCtx('/recursive start');
     await handleRecursiveCommand(ctx);
     assert.equal(ctx.replies[0], 'Usage: /recursive start <targetKey> [rounds <n>]');
+  });
+
+  await test('recursive async start paths record final Harness Core ledgers', async () => {
+    const source = readFileSync(path.join(process.cwd(), 'src', 'index.ts'), 'utf-8');
+    const loopCommandBlock = source.slice(
+      source.indexOf("bot.command('loop'"),
+      source.indexOf('export async function handleSparkQaCommand')
+    );
+    assert.match(loopCommandBlock, /status:\s*'partial'[\s\S]*Recursive chip loop .* started asynchronously/);
+    assert.match(loopCommandBlock, /status:\s*'success'[\s\S]*completed .* round/);
+    assert.match(loopCommandBlock, /status:\s*'failure'[\s\S]*failed after asynchronous start/);
+    assert.match(loopCommandBlock, /status:\s*'failure'[\s\S]*crashed after asynchronous start/);
+
+    const recursiveHandlerStart = source.indexOf('export async function handleRecursiveCommand');
+    assert.notEqual(recursiveHandlerStart, -1);
+    const recursiveStartBranchStart = source.indexOf("if (parsed.action === 'start')", recursiveHandlerStart);
+    const recursiveStartBranchEnd = source.indexOf('return ctx.reply(renderRecursiveHelp())', recursiveStartBranchStart);
+    assert.notEqual(recursiveStartBranchStart, -1);
+    assert.notEqual(recursiveStartBranchEnd, -1);
+    const recursiveStartBlock = source.slice(recursiveStartBranchStart, recursiveStartBranchEnd);
+    assert.match(recursiveStartBlock, /status:\s*'partial'[\s\S]*started asynchronously/);
+    assert.match(recursiveStartBlock, /status:\s*'success'[\s\S]*completed successfully/);
+    assert.match(recursiveStartBlock, /status:\s*'partial'[\s\S]*Workspace sync failed/);
+    assert.match(recursiveStartBlock, /status:\s*'failure'[\s\S]*failed after asynchronous start/);
+    assert.match(recursiveStartBlock, /status:\s*'failure'[\s\S]*crashed after asynchronous start/);
   });
 
   await test('recursive sessions report local Builder loops without Workspace credentials', async () => {

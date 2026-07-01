@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { resolvePythonCommand } from '../src/pythonCommand';
+import { resolveDefaultPythonCommand, resolvePythonCommand } from '../src/pythonCommand';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -29,6 +29,15 @@ test('resolves SPARK_BUILDER_PYTHON to an absolute executable path', () => {
     writeFileSync(executable, '');
 
     assert.equal(resolvePythonCommand('python', dir), executable);
+  });
+});
+
+test('resolves the default Python command for the current platform', () => {
+  withTempDir((dir) => {
+    const executable = path.join(dir, process.platform === 'win32' ? 'python.exe' : 'python3');
+    writeFileSync(executable, '');
+
+    assert.equal(resolveDefaultPythonCommand(dir), executable);
   });
 });
 

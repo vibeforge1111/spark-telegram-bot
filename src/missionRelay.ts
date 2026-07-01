@@ -1,12 +1,22 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import type { Telegraf } from 'telegraf';
-import { conversation } from './conversation';
+import {
+  createHarnessCoreActionEnvelopeVNext,
+  createHarnessCoreAuthorizedGovernorDecision
+} from '@spark/harness-core';
+import { recordHarnessCoreExecutionLedger } from './harnessCoreLedger';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 import { relaySecretMatches, requireRelaySecret } from './launchMode';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
+import { redactIdentifier, redactText } from './redaction';
 import { recordShippedProjectFromMission } from './shippedProjectContext';
-import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
+import { spawnerAuthHeaders } from './spawnerAuth';
+import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl, resolveTelegramSpawnerSurfaceUrl } from './spawnerUrl';
+import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 
 const MISSION_LESSON_APPROVAL_PATH = resolveStatePath('.spark-mission-lesson-approvals.json');
 let relayRuntimeStatus: MissionRelayRuntimeStatus = {};
@@ -41,6 +51,15 @@ export interface MissionSubscription {
   relayPort?: number;
   relayProfile?: string;
   updateId?: number;
+  /**
+   * Governing authority linkage from the governed dispatch that registered
+   * this mission, so machine-origin relay notifications remain attributable
+   * to the Harness Core Governor decision that authorized the work.
+   */
+  governorDecisionId?: string;
+  governorTurnId?: string;
+  terminalStatus?: 'completed' | 'failed' | 'cancelled';
+  terminalAt?: string;
 }
 
 export type TelegramRelayVerbosity = 'minimal' | 'normal' | 'verbose';
@@ -50,6 +69,11 @@ export type MissionRelayTelegramPollingState = 'starting' | 'active' | 'disabled
 export interface MissionRelayRuntimeStatus {
   telegramPolling?: MissionRelayTelegramPollingState;
   pollingStartedAt?: string | null;
+  pollingLastGetUpdatesAttemptAt?: string | null;
+  pollingLastGetUpdatesOkAt?: string | null;
+  pollingGetUpdatesCount?: number;
+  pollingLastUpdateCount?: number;
+  pollingLastError?: string | null;
 }
 
 export interface MissionRelayHealthPayload extends Record<string, unknown> {
@@ -105,9 +129,12 @@ const LEGACY_REGISTRY_PATH = resolveStatePath('.spark-spawner-missions.json');
 const PREFERENCES_PATH = resolveStatePath('.spark-telegram-preferences.json');
 const deliveryCache = new Map<string, number>();
 const openTaskStartCache = new Map<string, { taskKey: string; timestamp: number }>();
+const OPEN_TASK_CACHE_TTL_MS = 10 * 60_000;
 const completionDeliveryCache = new Map<string, number>();
 const COMPLETION_CACHE_TTL_MS = 24 * 60 * 60_000;
 const completionDeliveryInFlight = new Set<string>();
+const verboseNarrationCounts = new Map<string, { count: number; updatedAt: number }>();
+const VERBOSE_NARRATION_CACHE_TTL_MS = 6 * 60 * 60_000;
 
 function pruneCompletionDeliveryCache(now = Date.now()): void {
   for (const [key, ts] of completionDeliveryCache) {
@@ -115,13 +142,33 @@ function pruneCompletionDeliveryCache(now = Date.now()): void {
   }
 }
 
-const verboseNarrationCounts = new Map<string, number>();
+function pruneOpenTaskStartCache(now = Date.now()): void {
+  for (const [key, entry] of openTaskStartCache) {
+    if (now - entry.timestamp > OPEN_TASK_CACHE_TTL_MS) openTaskStartCache.delete(key);
+  }
+}
+
+function pruneVerboseNarrationCounts(now = Date.now()): void {
+  for (const [key, entry] of verboseNarrationCounts) {
+    if (now - entry.updatedAt > VERBOSE_NARRATION_CACHE_TTL_MS) verboseNarrationCounts.delete(key);
+  }
+}
+
+function cleanupMissionNarrationCounts(missionId: string): void {
+  const prefix = `${missionId}:`;
+  for (const key of verboseNarrationCounts.keys()) {
+    if (key.startsWith(prefix)) verboseNarrationCounts.delete(key);
+  }
+}
+
 const cancelledMissionCache = new Map<string, number>();
 const pausedMissionCache = new Map<string, number>();
 const heartbeatTimers = new Map<string, ReturnType<typeof setInterval>>();
 const heartbeatLastMessages = new Map<string, string>();
 const registry = new Map<string, MissionSubscription>();
 const MISSION_STATE_CACHE_TTL_MS = 6 * 60 * 60_000;
+const REGISTRY_TTL_MS = 7 * 24 * 60 * 60_000;
+const TERMINAL_REGISTRY_TTL_MS = 24 * 60 * 60_000;
 let registryLoaded = false;
 let relayServer: Server | null = null;
 const RELAY_RATE_LIMIT_WINDOW_MS = 60_000;
@@ -163,12 +210,12 @@ export function getTelegramRelayIdentity(): { port: number; profile: string; url
 }
 
 function normalizeRelayPort(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 65535) {
     return Math.trunc(value);
   }
   if (typeof value === 'string' && value.trim()) {
     const parsed = Number(value.trim());
-    return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+    return Number.isFinite(parsed) && parsed > 0 && parsed <= 65535 ? Math.trunc(parsed) : null;
   }
   return null;
 }
@@ -316,8 +363,25 @@ async function loadRegistry(): Promise<void> {
         registry.set(entry.missionId, entry);
       }
     }
+    pruneRegistry();
   } catch (error) {
     console.warn('[MissionRelay] Failed to load registry:', error);
+  }
+}
+
+function pruneRegistry(now = Date.now()): void {
+  const cutoff = now - REGISTRY_TTL_MS;
+  const terminalCutoff = now - TERMINAL_REGISTRY_TTL_MS;
+  for (const [missionId, entry] of registry) {
+    const createdMs = Date.parse(entry.createdAt || '');
+    const terminalMs = Date.parse(entry.terminalAt || '');
+    if (
+      (Number.isFinite(terminalMs) && terminalMs < terminalCutoff) ||
+      !Number.isFinite(createdMs) ||
+      createdMs < cutoff
+    ) {
+      registry.delete(missionId);
+    }
   }
 }
 
@@ -343,7 +407,54 @@ export async function registerMissionRelay(input: MissionSubscription): Promise<
     relayProfile: input.relayProfile || getRelayProfile()
   };
   registry.set(input.missionId, subscription);
+  pruneRegistry();
   await persistRegistry();
+}
+
+export async function unregisterMissionRelay(missionId: string): Promise<void> {
+  const cleanMissionId = missionId.trim();
+  if (!cleanMissionId) return;
+  await loadRegistry();
+  registry.delete(cleanMissionId);
+  await persistRegistry();
+}
+
+async function markMissionRelayTerminal(
+  subscription: MissionSubscription,
+  status: NonNullable<MissionSubscription['terminalStatus']>,
+  timestamp: string | undefined
+): Promise<void> {
+  await loadRegistry();
+  const terminalAt = timestamp || new Date().toISOString();
+  registry.set(subscription.missionId, {
+    ...subscription,
+    terminalStatus: status,
+    terminalAt
+  });
+  pruneRegistry();
+  await persistRegistry();
+}
+
+/**
+ * Extracts the Governor decision/turn linkage from a governed dispatch
+ * execution authority (GovernorDecisionV1-shaped), so mission registrations
+ * carry the authority that authorized the work.
+ */
+export function governorLinkageFromExecutionAuthority(
+  value: unknown
+): Pick<MissionSubscription, 'governorDecisionId' | 'governorTurnId'> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const record = value as Record<string, unknown>;
+  const decisionId = typeof record.decision_id === 'string' && record.decision_id.trim()
+    ? record.decision_id.trim()
+    : null;
+  const turnId = typeof record.turn_id === 'string' && record.turn_id.trim()
+    ? record.turn_id.trim()
+    : null;
+  return {
+    ...(decisionId ? { governorDecisionId: decisionId } : {}),
+    ...(turnId ? { governorTurnId: turnId } : {})
+  };
 }
 
 function pruneCancelledMissionCache(now = Date.now()): void {
@@ -368,6 +479,7 @@ export function markMissionRelayCancelled(missionId: string): void {
   pruneCancelledMissionCache();
   cancelledMissionCache.set(normalized, Date.now());
   pausedMissionCache.delete(normalized);
+  cleanupMissionNarrationCounts(normalized);
   clearHeartbeatForMission(normalized);
 }
 
@@ -415,6 +527,7 @@ export function isMissionRelayPaused(missionId: string): boolean {
 export function shouldSuppressMissionHandoff(missionId: string): boolean {
   pruneCancelledMissionCache();
   prunePausedMissionCache();
+  pruneOpenTaskStartCache();
   const normalized = missionId.trim();
   return cancelledMissionCache.has(normalized) || pausedMissionCache.has(normalized);
 }
@@ -453,13 +566,29 @@ function shouldDeliverEvent(event: RelayWebhookPayload['event']): event is Deliv
 
 function stripThinkingAndMeta(text: string): string {
   let out = text;
-  out = out.replace(/<think[\s\S]*?<\/think>/gi, '');
+  out = out.replace(/<think[\s\S]*?(?:<\/think>|<\/thin>)/gi, '');
   out = out.replace(/<thinking[\s\S]*?<\/thinking>/gi, '');
+  out = stripDanglingThinkingBlocks(out);
   out = out.replace(/```(?:bash|shell|sh)?\s*curl\s+-X\s+POST[\s\S]*?(?:\/api\/events|\/spawner-events)[\s\S]*?```/gi, '');
   out = out.replace(/^\s*curl\s+-X\s+POST\b.*(?:\/api\/events|\/spawner-events).*(?:\r?\n)?/gim, '');
   out = out.replace(/^\s*\*?\*?Mission ID:?\*?\*?\s*\S+\s*\n+/gim, '');
   out = out.replace(/\n{3,}/g, '\n\n');
   return out.trim();
+}
+
+function stripDanglingThinkingBlocks(text: string): string {
+  return text.replace(/<(?:think|thinking)\b[^>]*>[\s\S]*$/gi, (match) => {
+    const finalAnswer = match.match(/\r?\n\s*\r?\n([\s\S]*)$/);
+    return finalAnswer ? finalAnswer[1] : '';
+  });
+}
+
+function exactOutputFromGoal(goal: string | undefined): string | null {
+  const text = (goal || '').trim();
+  if (!text) return null;
+  const match = text.match(/^(?:\/run\s+)?(?:say|reply|respond|return|output|print)\s+exactly\s+(.+)$/i);
+  if (!match) return null;
+  return match[1].trim().replace(/^["'`]+|["'`]+$/g, '').trim() || null;
 }
 
 const TELEGRAM_MESSAGE_LIMIT = 3800;
@@ -494,6 +623,10 @@ function spawnerUiUrl(): string {
 
 function spawnerPublicUrl(): string {
   return resolveSpawnerPublicUrl().replace(/\/+$/, '');
+}
+
+function spawnerTelegramSurfaceUrl(): string {
+  return resolveTelegramSpawnerSurfaceUrl().replace(/\/+$/, '');
 }
 
 export function buildMissionSurfaceLinks(
@@ -532,7 +665,7 @@ function shouldIncludeRequestedMissionControlLinks(goal?: string): boolean {
 
 function requestedMissionControlLinkLines(missionId: string, goal?: string): string[] {
   if (!shouldIncludeRequestedMissionControlLinks(goal)) return [];
-  const baseUrl = spawnerPublicUrl();
+  const baseUrl = spawnerTelegramSurfaceUrl();
   const missionQuery = `mission=${encodeURIComponent(missionId)}`;
   return [
     `Canvas: ${baseUrl}/canvas?${missionQuery}`,
@@ -601,14 +734,17 @@ function findMissionInBoard(board: Record<string, unknown>, missionId: string): 
   return null;
 }
 
+function spawnerFetchOptions(signal: AbortSignal): RequestInit {
+  const headers = spawnerAuthHeaders();
+  return Object.keys(headers).length > 0 ? { signal, headers } : { signal };
+}
+
 async function fetchMissionBoardEntry(missionId: string): Promise<MissionBoardEntry | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2500);
     try {
-      const response = await fetch(`${spawnerUiUrl()}/api/mission-control/board`, {
-        signal: controller.signal
-      });
+      const response = await fetch(`${spawnerUiUrl()}/api/mission-control/board`, spawnerFetchOptions(controller.signal));
       if (!response.ok) return null;
       const payload = asRecord(await response.json());
       const board = asRecord(payload?.board);
@@ -625,9 +761,7 @@ async function fetchMissionBoardEntry(missionId: string): Promise<MissionBoardEn
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2500);
     try {
-      const response = await fetch(`${spawnerUiUrl()}/api/mission-control/trace?mission=${encodeURIComponent(missionId)}`, {
-        signal: controller.signal
-      });
+      const response = await fetch(`${spawnerUiUrl()}/api/mission-control/trace?mission=${encodeURIComponent(missionId)}`, spawnerFetchOptions(controller.signal));
       if (!response.ok) return null;
       const payload = asRecord(await response.json());
       if (!payload) return null;
@@ -689,6 +823,53 @@ function firstString(record: Record<string, unknown> | null, keys: string[]): st
   return null;
 }
 
+function spawnerUiOwnerStatePath(filename: string): string {
+  const explicitStateDir = process.env.SPARK_SPAWNER_UI_STATE_DIR?.trim();
+  if (explicitStateDir) return path.join(explicitStateDir, filename);
+  const sparkHome = process.env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark');
+  return path.join(sparkHome, 'state', 'spawner-ui', filename);
+}
+
+function protectedProviderSummaryPlaceholder(text: string): boolean {
+  const normalized = compactWhitespace(text).toLowerCase();
+  return /\bprovider\s+summary\b/.test(normalized) && /\brequires\b/.test(normalized) && /\b(?:control\s+)?auth(?:orization)?\b/.test(normalized);
+}
+
+function usableProviderText(record: Record<string, unknown> | null): string {
+  if (!record) return '';
+  const response = firstString(record, ['response', 'summary', 'result']);
+  if (response && !protectedProviderSummaryPlaceholder(response)) return response;
+
+  const responseSummary = firstString(record, ['responseSummary']);
+  const redacted = record.responseRedacted === true || typeof record.responseRedaction === 'string';
+  if (responseSummary && !redacted && !protectedProviderSummaryPlaceholder(responseSummary)) {
+    return responseSummary;
+  }
+  return '';
+}
+
+function selectCompletedProviderResult(results: Array<Record<string, unknown> | null>): Record<string, unknown> | null {
+  const records = results.filter((entry): entry is Record<string, unknown> => Boolean(entry));
+  return (
+    records.find((entry) => String(entry.status || '').toLowerCase() === 'completed' && usableProviderText(entry)) ||
+    records.find((entry) => usableProviderText(entry)) ||
+    null
+  );
+}
+
+async function readMissionProviderResultFromOwnerState(missionId: string): Promise<Record<string, unknown> | null> {
+  try {
+    const raw = await readFile(spawnerUiOwnerStatePath('mission-provider-results.json'), 'utf-8');
+    const payload = asRecord(JSON.parse(raw));
+    const missions = asRecord(payload?.missions);
+    const entries = missions ? missions[missionId] : null;
+    const results = Array.isArray(entries) ? entries.map(asRecord) : [];
+    return selectCompletedProviderResult(results);
+  } catch {
+    return null;
+  }
+}
+
 async function fetchMissionCompletionSummary(
   missionId: string,
   options: MissionCompletionFetchOptions = {}
@@ -701,30 +882,31 @@ async function fetchMissionCompletionSummary(
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3000);
       try {
-        const response = await fetch(`${spawnerUiUrl()}/api/mission-control/trace?mission=${encodeURIComponent(missionId)}`, {
-          signal: controller.signal
-        });
+        const response = await fetch(`${spawnerUiUrl()}/api/mission-control/trace?mission=${encodeURIComponent(missionId)}`, spawnerFetchOptions(controller.signal));
         if (!response.ok) continue;
         const payload = asRecord(await response.json());
         if (!payload) continue;
         const phase = typeof payload.phase === 'string' ? payload.phase.toLowerCase() : '';
-        const providerSummary = typeof payload.providerSummary === 'string' ? payload.providerSummary.trim() : '';
-        const providerResults = Array.isArray(payload.providerResults) ? payload.providerResults.map(asRecord).filter(Boolean) : [];
-        const completedProvider =
-          providerResults.find((entry) => String(entry?.status || '').toLowerCase() === 'completed') ||
-          providerResults.find((entry) => typeof entry?.summary === 'string' && entry.summary.trim());
-        const resultSummary = completedProvider && typeof completedProvider.summary === 'string'
-          ? completedProvider.summary.trim()
+        if (phase !== 'completed') continue;
+        const rawProviderSummary = typeof payload.providerSummary === 'string' ? payload.providerSummary.trim() : '';
+        const providerSummary = rawProviderSummary && !protectedProviderSummaryPlaceholder(rawProviderSummary)
+          ? rawProviderSummary
           : '';
-        const responseText = providerSummary || resultSummary;
-        if (phase !== 'completed' || !responseText) continue;
+        const providerResults = Array.isArray(payload.providerResults) ? payload.providerResults.map(asRecord).filter(Boolean) : [];
+        const completedProvider = selectCompletedProviderResult(providerResults);
+        const localProvider = providerSummary || usableProviderText(completedProvider)
+          ? null
+          : await readMissionProviderResultFromOwnerState(missionId);
+        const responseText = providerSummary || usableProviderText(completedProvider) || usableProviderText(localProvider);
+        if (!responseText) continue;
 
         const projectLineage = asRecord(payload.projectLineage);
         const projectPath = firstString(projectLineage, ['projectPath', 'project_path']);
         const previewUrl = firstString(projectLineage, ['previewUrl', 'preview_url']);
         const openLink = await readyProjectOpenLink(previewUrl, projectPath);
-        const providerLabel = completedProvider && typeof completedProvider.providerId === 'string'
-          ? completedProvider.providerId
+        const providerRecord = completedProvider || localProvider;
+        const providerLabel = providerRecord && typeof providerRecord.providerId === 'string'
+          ? providerRecord.providerId
           : 'provider';
         return {
           providerLabel,
@@ -740,6 +922,32 @@ async function fetchMissionCompletionSummary(
     }
   }
   return null;
+}
+
+function canonicalPrdCompletionFromRelayEvent(
+  event: DeliverableRelayEvent,
+  subscription: MissionSubscription
+): MissionCompletionSummary | null {
+  const data = asRecord(event.data);
+  if (!data || data.canonicalResultAvailable !== true) return null;
+  const requestId = requestIdFromEvent(event) || subscription.requestId?.trim();
+  if (!requestId) return null;
+  const providerLabel =
+    relayStringField(event.data, 'provider') ||
+    relayStringField(event.data, 'providerLabel') ||
+    event.source ||
+    'spawner';
+  return {
+    providerLabel,
+    response: JSON.stringify({
+      status: 'completed',
+      summary: 'Spawner recorded the canonical PRD result artifact for this governed build.',
+      verification: [
+        'Governor-authorized Spawner request reached the canonical artifact handoff.',
+        'Telegram relay accepted only the registered mission/request/trace binding.'
+      ]
+    })
+  };
 }
 
 function isProviderLevelCompletionEvent(event: DeliverableRelayEvent): boolean {
@@ -785,6 +993,7 @@ async function sendFetchedCompletionSummary(
   completionDeliveryInFlight.add(event.missionId);
   try {
     clearHeartbeatForMission(event.missionId);
+    cleanupMissionNarrationCounts(event.missionId);
     const message = formatProviderCompletionForTelegram({
       providerLabel: completion.providerLabel,
       response: completion.response,
@@ -804,6 +1013,7 @@ async function sendFetchedCompletionSummary(
         missionRelayTraceExtra(subscription, event, 'mission_completion')
       );
     }
+    recordMissionRelayMachineOriginNotification(subscription, event, 'mission_completion', chunks.length);
     completionDeliveryCache.set(event.missionId, Date.now());
     await saveCompletionDeliveryCache();
     await handleMissionCompletionMemory(bot, chatId, subscription, event, completion.providerLabel, completion.response);
@@ -824,12 +1034,35 @@ function scheduleDelayedCompletionSummary(
     void (async () => {
       if (completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
       const completion = await fetchMissionCompletionSummary(event.missionId, { attempts: 12, delayMs: 5000 });
-      if (!completion || completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
-      await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
-    })().catch((err) => {
-      console.error('[CompletionSummary] delivery failed:', err);
+      const canonicalCompletion = completion || canonicalPrdCompletionFromRelayEvent(event, subscription);
+      if (!canonicalCompletion || completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
+      await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, canonicalCompletion);
+    })().catch((error) => {
+      console.warn(formatCompletionSummaryDeliveryFailureLog(event.missionId, error));
     });
   }, 1000);
+}
+
+function safeCompletionSummaryErrorDetail(error: unknown): string {
+  if (error instanceof Error) {
+    const prefix = error.name && error.name !== 'Error' ? `${error.name}: ` : '';
+    return redactText(`${prefix}${error.message || 'unknown error'}`);
+  }
+  if (typeof error === 'string') return redactText(error);
+  if (error && typeof error === 'object') {
+    try {
+      return redactText(JSON.stringify(error));
+    } catch {
+      return redactText(String(error));
+    }
+  }
+  return redactText(String(error ?? 'unknown error'));
+}
+
+function formatCompletionSummaryDeliveryFailureLog(missionId: string, error: unknown): string {
+  const missionRef = redactIdentifier(missionId, 'mission');
+  const detail = safeCompletionSummaryErrorDetail(error).trim() || 'unknown error';
+  return `[CompletionSummary] delivery failed mission=${missionRef} error=${detail}`;
 }
 
 function humanizeProviderLabel(label: string): string {
@@ -864,6 +1097,33 @@ function clipText(text: string, maxLength: number): string {
   const compact = compactWhitespace(text);
   if (compact.length <= maxLength) return compact;
   return `${compact.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+function looksLikeCompletionReport(text: string): boolean {
+  return /(?:^|\n)\s*(?:commit pushed|what changed|changed|verification|validation|remaining|working tree)\s*:/i.test(text) ||
+    /\b(?:committed and pushed|pushed to github|origin\/main|working tree is clean)\b/i.test(text);
+}
+
+function looksLikeSourceGroundedBrief(text: string): boolean {
+  const normalized = text.trim();
+  if (!normalized) return false;
+  const numberedFindings = (normalized.match(/(?:^|\n)\s*\d+\.\s+/g) || []).length;
+  const urls = (normalized.match(/https?:\/\/\S+/g) || []).length;
+  return urls >= 1 && (numberedFindings >= 2 || /\bsource(?:s)?\s*:/i.test(normalized));
+}
+
+function detailedCompletionReportText(text: string): string {
+  return text
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function completionSummaryText(text: string, maxLength: number): string {
+  return looksLikeCompletionReport(text) ? detailedCompletionReportText(text) : clipText(text, maxLength);
 }
 
 const VOICE_LINES = {
@@ -947,6 +1207,18 @@ function providerCompletionLooksBlocked(text: string): boolean {
     /\bunknown error\b/.test(normalized) ||
     /\bcould not finish\b/.test(normalized) ||
     /\b(?:mission|run|step)\s+failed\b/.test(normalized)
+  );
+}
+
+function providerCompletionLooksStaged(text: string): boolean {
+  const normalized = compactWhitespace(text).toLowerCase();
+  if (!normalized) return false;
+  return (
+    /\b(?:mission|run|board)\s+(?:is\s+|shows\s+the\s+mission\s+in\s+)?`?created`?\b/.test(normalized) ||
+    /\b(?:tasks?|steps?)\s+queued\b/.test(normalized) && /\b(?:created|canvas_ready|0%)\b/.test(normalized) ||
+    /\bexecution\s+(?:is\s+)?(?:still\s+)?pending\b/.test(normalized) ||
+    /\bqueued,\s*not\s+completed\b/.test(normalized) ||
+    /\bcanvas_ready\b/.test(normalized) && /\b0%\b/.test(normalized)
   );
 }
 
@@ -1143,7 +1415,34 @@ function previewLinkFromEvent(event: DeliverableRelayEvent): string | null {
   return relayStringField(event.data, 'previewUrl') || relayStringField(event.data, 'preview_url');
 }
 
+function isPrivateOrReservedHost(hostname: string): boolean {
+  const lower = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (['127.0.0.1', 'localhost', '::1', '0.0.0.0', '::'].includes(lower)) return true;
+  if (lower.startsWith('10.')) return true;
+  if (lower.startsWith('172.')) {
+    const second = parseInt(lower.split('.')[1], 10);
+    if (second >= 16 && second <= 31) return true;
+  }
+  if (lower.startsWith('192.168.')) return true;
+  if (lower.startsWith('169.254.')) return true;
+  // IPv6 unique-local (fc00::/7) and link-local (fe80::/10)
+  if (/^f[cd][0-9a-f]*:/.test(lower)) return true;
+  if (/^fe[89ab][0-9a-f]*:/.test(lower)) return true;
+  // IPv4-mapped IPv6 (::ffff:a.b.c.d) — re-check the embedded v4 literal
+  const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return isPrivateOrReservedHost(mapped[1]);
+  if (lower === 'metadata.google.internal' || lower === 'metadata.google.com') return true;
+  if (lower.endsWith('.internal') || lower.endsWith('.local')) return true;
+  return false;
+}
+
 async function httpPreviewIsReachable(url: string): Promise<boolean> {
+  try {
+    const parsed = new URL(url);
+    if (isPrivateOrReservedHost(parsed.hostname)) return false;
+  } catch {
+    return false;
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
   const uiKey = process.env.SPARK_UI_API_KEY?.trim();
@@ -1250,6 +1549,17 @@ function summarizeVerificationChecks(checks: string[]): string {
   if (hasBuild) return 'Checked it; the build passed.';
   if (hasVisual) return 'Checked it; the app opened cleanly.';
   return 'Checked it; the important checks passed.';
+}
+
+function summarizeStagedVerificationChecks(checks: string[]): string {
+  const joined = checks.join(' ').toLowerCase();
+  if (/\bfailed\b|\bfail\b|\berror\b|\bmissing\b|\bblocked\b/.test(joined)) {
+    return 'The handoff is staged, but one check still needs attention.';
+  }
+  if (/\bcanvas_ready\b|\bcanvas is ready\b|\bcreated\b|\bqueued\b/.test(joined)) {
+    return 'Canvas is ready; queued, not completed.';
+  }
+  return 'Staged the handoff; execution is still pending.';
 }
 
 function extractFreeformLeadSummary(text: string): string | null {
@@ -1359,6 +1669,14 @@ export function formatProviderCompletionForTelegram(input: {
   if (!parsed) {
     const clean = stripVisibleMissionReferences(stripMarkdownFileLinks(stripThinkingAndMeta(input.response)));
     const cleanWithoutProvider = clean.replace(/^(?:Z\.AI|ZAI|Claude|Codex|MiniMax|GLM)(?:\s+GLM)?\s*:\s*/i, '').trim();
+    const exactGoalOutput = exactOutputFromGoal(input.goal);
+    if ((!clean || !cleanWithoutProvider) && exactGoalOutput) {
+      return [
+        voiceLine('completed', `${input.missionId}:${provider}:exact-output`),
+        '',
+        exactGoalOutput
+      ].join('\n');
+    }
     if (!clean) {
       const openLink = input.openLink ? normalizePreviewLink(input.openLink, null) : null;
       if (openLink) {
@@ -1412,8 +1730,15 @@ export function formatProviderCompletionForTelegram(input: {
     const checks = extractSectionBullets(input.response, /^Verification passed:/i, 4);
     const lead = extractFreeformLeadSummary(input.response);
     const completionKind = providerCompletionKind(null, clean);
-    const lines = [voiceLine(completionKind, `${input.missionId}:${provider}:freeform`)];
+    const staged = completionKind !== 'failed' && providerCompletionLooksStaged(input.response);
+    const lines = [staged
+      ? '🛠️ Staged the handoff; execution is still pending.'
+      : voiceLine(completionKind, `${input.missionId}:${provider}:freeform`)
+    ];
     const failureLines = completionKind === 'failed' ? freeformFailureLines(input.response) : [];
+    if (completionKind === 'completed' && (looksLikeCompletionReport(clean) || looksLikeSourceGroundedBrief(clean)) && !openLink) {
+      return compactTelegramBlocks(lines[0], detailedCompletionReportText(cleanWithoutProvider));
+    }
     if (failureLines.length > 0) {
       lines.push('', 'What blocked it', ...failureLines.map((line) => `• ${line}`));
     } else if (lead) {
@@ -1438,7 +1763,7 @@ export function formatProviderCompletionForTelegram(input: {
       if (verbosity === 'verbose') {
         lines.push('', 'Quality checks', ...checks.map((item) => `• ${item}`));
       } else {
-        lines.push('', summarizeVerificationChecks(checks));
+        lines.push('', staged ? summarizeStagedVerificationChecks(checks) : summarizeVerificationChecks(checks));
       }
     }
     if (openLink) lines.push('', nextPolishLine(input.missionId));
@@ -1471,7 +1796,7 @@ export function formatProviderCompletionForTelegram(input: {
 
   const lines: string[] = [voiceLine(completionKind, `${input.missionId}:${provider}:structured`)];
   if (summary) {
-    lines.push('', clipText(summary, verbosity === 'verbose' ? 700 : 420));
+    lines.push('', completionSummaryText(summary, verbosity === 'verbose' ? 700 : 420));
   } else if (input.goal) {
     lines.push('', `Goal: ${clipText(input.goal, 260)}`);
   }
@@ -1617,12 +1942,13 @@ export function formatProgressMessageForTelegram(
 }
 
 function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
+  const now = Date.now();
+  pruneOpenTaskStartCache(now);
   const providerKey = typeof event.data?.provider === 'string' && event.data.provider
     ? event.data.provider
     : event.source || 'none';
   const eventIdentity = event.taskId || event.taskName || event.message || 'mission';
   const signature = `${event.missionId}:${event.type}:${eventIdentity}:${providerKey}`;
-  const now = Date.now();
   const openTaskKey = `${event.missionId}:${providerKey}`;
   if (event.type === 'task_completed' || event.type === 'task_failed' || event.type === 'task_cancelled') {
     openTaskStartCache.delete(openTaskKey);
@@ -1712,6 +2038,28 @@ export function resetMissionRelayRegistryForTests(): void {
   registryLoaded = false;
 }
 
+export function missionRelayCacheSizesForTests(): {
+  delivery: number;
+  openTaskStart: number;
+  completionDelivery: number;
+  verboseNarration: number;
+  registry: number;
+} {
+  return {
+    delivery: deliveryCache.size,
+    openTaskStart: openTaskStartCache.size,
+    completionDelivery: completionDeliveryCache.size,
+    verboseNarration: verboseNarrationCounts.size,
+    registry: registry.size
+  };
+}
+
+export function pruneMissionRelayCachesForTests(now = Date.now()): void {
+  pruneOpenTaskStartCache(now);
+  pruneVerboseNarrationCounts(now);
+  pruneRegistry(now);
+}
+
 function claimVerboseNarrationSlot(
   event: DeliverableRelayEvent,
   chatId: string | number,
@@ -1723,12 +2071,15 @@ function claimVerboseNarrationSlot(
   if (['mission_started', 'mission_completed', 'mission_failed', 'task_failed', 'task_cancelled'].includes(event.type)) {
     return true;
   }
+  const now = Date.now();
+  pruneVerboseNarrationCounts(now);
   const key = `${event.missionId}:${chatId}`;
-  const count = verboseNarrationCounts.get(key) || 0;
+  const existing = verboseNarrationCounts.get(key);
+  const count = existing?.count || 0;
   if (count >= 3) {
     return false;
   }
-  verboseNarrationCounts.set(key, count + 1);
+  verboseNarrationCounts.set(key, { count: count + 1, updatedAt: now });
   return true;
 }
 
@@ -1749,6 +2100,17 @@ export async function sendFetchedCompletionSummaryForTests(
   completion: MissionCompletionSummary
 ): Promise<number> {
   return sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
+}
+
+export function fetchMissionCompletionSummaryForTests(
+  missionId: string,
+  options?: MissionCompletionFetchOptions
+): Promise<MissionCompletionSummary | null> {
+  return fetchMissionCompletionSummary(missionId, options);
+}
+
+export function formatCompletionSummaryDeliveryFailureLogForTests(missionId: string, error: unknown): string {
+  return formatCompletionSummaryDeliveryFailureLog(missionId, error);
 }
 
 export function resolveReadyProjectOpenLinkForTests(
@@ -1772,8 +2134,7 @@ export function heartbeatIntervalMsForTests(verbosity: TelegramRelayVerbosity): 
 }
 
 function heartbeatStaleMs(): number {
-  const parsed = Number.parseInt(process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS || '', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_HEARTBEAT_STALE_MS;
+  return parsePositiveIntegerEnvValue(process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS, DEFAULT_HEARTBEAT_STALE_MS);
 }
 
 function isTerminalMissionStatus(status: string | undefined | null): boolean {
@@ -1941,25 +2302,6 @@ function clearHeartbeatForMission(missionId: string): void {
   }
 }
 
-async function registerFromEventIfPresent(event: DeliverableRelayEvent): Promise<void> {
-  if (registry.has(event.missionId)) return;
-  const data = event.data && typeof event.data === 'object' ? event.data : {};
-  const identity = relayIdentityFromEvent(event);
-  if (!identity.chatId || !identity.userId) return;
-
-  await registerMissionRelay({
-    missionId: event.missionId,
-    chatId: identity.chatId,
-    userId: identity.userId,
-    requestId: typeof data.requestId === 'string' && data.requestId.trim() ? data.requestId.trim() : event.missionId,
-    traceRef: traceRefFromEvent(event),
-    goal: typeof data.goal === 'string' && data.goal.trim() ? data.goal.trim() : event.message || event.missionId,
-    createdAt: new Date().toISOString(),
-    relayPort: relayTargetFromEvent(event).port || undefined,
-    relayProfile: relayTargetFromEvent(event).profile || undefined
-  });
-}
-
 async function handleMissionCompletionMemory(
   bot: Telegraf,
   chatId: number,
@@ -2107,21 +2449,11 @@ export async function approvePendingMissionLesson(userId: string | number, remem
   const lesson = selection ? approval.candidates[selectedIndex] : text.replace(/^lesson:\s*/i, '').trim();
   if (!lesson) return null;
 
-  const numericUserId = Number(normalizedUserId);
-  if (!Number.isFinite(numericUserId)) return null;
-  const note = [
-    `Approved mission lesson from Spawner mission ${approval.missionId} via ${humanizeProviderLabel(approval.providerLabel)}.`,
-    `Lesson: ${clipText(lesson, 700)}`,
-    `Source refs: ${approval.sourceRefs.join(', ')}.`,
-    `Goal: ${clipText(approval.goal, 220)}`
-  ].join(' ');
-  await conversation.learnAboutUser({ id: numericUserId }, note);
-
-  delete pendingByUserId[normalizedUserId];
-  await writeMissionLessonApprovalState({ pendingByUserId });
   return [
-    `Saved mission lesson: ${clipText(lesson, 700)}`,
-    `Source: mission ${approval.missionId}`
+    'I did not save that mission lesson into Telegram-local memory.',
+    `Lesson still pending: ${clipText(lesson, 700)}`,
+    `Source: mission ${approval.missionId}`,
+    'Durable mission lessons need the Builder/domain-chip memory route.'
   ].join('\n');
 }
 
@@ -2225,6 +2557,110 @@ export function relayIdentityMismatchPayload(): Record<string, unknown> {
   };
 }
 
+/**
+ * Machine-origin binding policy for /spawner-events:
+ * inbound Spawner callbacks may notify Telegram only when they bind to a
+ * mission that a governed Telegram dispatch registered with this relay.
+ * Back-compat: registrations without requestId/traceRef bind on missionId
+ * alone, and events that omit requestId/traceRef bind on missionId alone;
+ * an event that carries a requestId/traceRef differing from the registered
+ * one is refused fail-closed.
+ */
+export type MissionRelayBindingRefusalReason =
+  | 'mission_id_mismatch'
+  | 'request_id_mismatch'
+  | 'trace_ref_mismatch';
+
+export function missionRelayBindingRefusalReason(
+  event: DeliverableRelayEvent,
+  subscription: MissionSubscription
+): MissionRelayBindingRefusalReason | null {
+  if (event.missionId !== subscription.missionId) {
+    return 'mission_id_mismatch';
+  }
+  const registeredRequestId = subscription.requestId?.trim();
+  const eventRequestId = requestIdFromEvent(event);
+  if (registeredRequestId && eventRequestId && eventRequestId !== registeredRequestId) {
+    return 'request_id_mismatch';
+  }
+  const registeredTraceRef = subscription.traceRef?.trim();
+  const eventTraceRef = traceRefFromEvent(event);
+  if (registeredTraceRef && eventTraceRef && eventTraceRef !== registeredTraceRef) {
+    return 'trace_ref_mismatch';
+  }
+  return null;
+}
+
+export function missionRelayUnboundEventPayload(reason: string): Record<string, unknown> {
+  return {
+    ok: false,
+    error: 'machine_origin_event_not_bound',
+    reason,
+    message: 'Machine-origin Spawner events must bind to a mission registered by a governed Telegram dispatch before any Telegram notification is sent.'
+  };
+}
+
+function logMissionRelayBindingRefusal(event: DeliverableRelayEvent, reason: string): void {
+  console.warn(`[MissionRelay] refused machine-origin event ${JSON.stringify({
+    refusal: reason,
+    eventType: event.type,
+    mission: redactIdentifier(event.missionId, 'mission')
+  })}`);
+}
+
+const MISSION_RELAY_NOTIFY_TOOL = 'mission_relay.notify';
+
+/**
+ * Records an accepted machine-origin event -> Telegram sendMessage delivery
+ * in the existing Harness Core tool ledger, attributed to the Governor
+ * decision that authorized the governed dispatch which registered the mission.
+ */
+function recordMissionRelayMachineOriginNotification(
+  subscription: MissionSubscription,
+  event: DeliverableRelayEvent,
+  replyKind: string,
+  chunkCount: number
+): void {
+  try {
+    const decisionId = subscription.governorDecisionId?.trim() || 'unrecorded_legacy_registration';
+    const turnId = subscription.governorTurnId?.trim() || 'unrecorded_legacy_registration';
+    const bindingSummary = [
+      `Machine-origin mission relay notification (${replyKind}) for ${event.type} event on mission ${event.missionId}`,
+      `bound to governed dispatch decision_id ${decisionId}, turn_id ${turnId}, requestId ${subscription.requestId}`,
+      subscription.traceRef ? `traceRef ${subscription.traceRef}` : ''
+    ].filter(Boolean).join('; ');
+    const envelope = createHarnessCoreActionEnvelopeVNext({
+      surface: 'telegram',
+      ownerSystem: 'spark-telegram-bot',
+      toolName: MISSION_RELAY_NOTIFY_TOOL,
+      mutationClass: 'none',
+      source: 'spark-telegram-bot/mission-relay-machine-origin',
+      reason: bindingSummary,
+      requestId: subscription.requestId,
+      actorKind: 'human',
+      actorIdRef: 'telegram-human',
+      target: event.missionId,
+      riskTier: 'low'
+    });
+    const decision = createHarnessCoreAuthorizedGovernorDecision({
+      envelope,
+      tool_name: MISSION_RELAY_NOTIFY_TOOL,
+      reply_instruction: 'Record only the bound machine-origin mission relay notification; this grants no execution, mutation, or routing authority.'
+    });
+    const action = decision.envelope.proposed_actions[0];
+    const authorization = decision.authorizations[0];
+    if (!action || !authorization) return;
+    recordHarnessCoreExecutionLedger({
+      bundle: { envelope: decision.envelope, action, authorization },
+      toolName: MISSION_RELAY_NOTIFY_TOOL,
+      status: 'success',
+      summary: `${bindingSummary}; delivered ${chunkCount} Telegram message${chunkCount === 1 ? '' : 's'}.`
+    });
+  } catch (error) {
+    console.warn('[MissionRelay] failed to record machine-origin notification ledger:', error);
+  }
+}
+
 export function setMissionRelayRuntimeStatus(status: MissionRelayRuntimeStatus): void {
   relayRuntimeStatus = { ...status };
 }
@@ -2288,20 +2724,28 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       return;
     }
 
-    await registerFromEventIfPresent(event);
-
     let subscription = registry.get(event.missionId);
     if (!subscription) {
       await refreshRegistry();
       subscription = registry.get(event.missionId);
     }
     if (!subscription) {
-      writeJson(res, 202, { ok: true, ignored: 'unknown_mission' });
+      // Machine-origin events must bind to a mission registered by a governed
+      // dispatch; free-standing callbacks are refused fail-closed.
+      logMissionRelayBindingRefusal(event, 'unregistered_mission');
+      writeJson(res, 403, missionRelayUnboundEventPayload('unregistered_mission'));
       return;
     }
 
     if (!relayEventMatchesSubscription(event, subscription)) {
       writeJson(res, 403, relayIdentityMismatchPayload());
+      return;
+    }
+
+    const bindingRefusal = missionRelayBindingRefusalReason(event, subscription);
+    if (bindingRefusal) {
+      logMissionRelayBindingRefusal(event, bindingRefusal);
+      writeJson(res, 403, missionRelayUnboundEventPayload(bindingRefusal));
       return;
     }
 
@@ -2323,6 +2767,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       if (event.type === 'mission_cancelled') {
         const alreadySuppressed = shouldSuppressMissionHandoff(event.missionId);
         markMissionRelayCancelled(event.missionId);
+        await markMissionRelayTerminal(subscription, 'cancelled', event.timestamp);
         if (!alreadySuppressed) {
           const links = buildMissionSurfaceLinks(event.missionId, linkPreference, undefined, requestIdFromEvent(event));
           await bot.telegram.sendMessage(
@@ -2330,6 +2775,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
             formatMissionRelayStateMessageForTelegram({ state: 'cancelled', missionId: event.missionId, links }),
             missionRelayTraceExtra(subscription, event, 'mission_cancelled')
           );
+          recordMissionRelayMachineOriginNotification(subscription, event, 'mission_cancelled', 1);
         }
         writeJson(res, 200, { ok: true, cancelled: true });
         return;
@@ -2345,6 +2791,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
             formatMissionRelayStateMessageForTelegram({ state: 'paused', missionId: event.missionId, links }),
             missionRelayTraceExtra(subscription, event, 'mission_paused')
           );
+          recordMissionRelayMachineOriginNotification(subscription, event, 'mission_paused', 1);
         }
         writeJson(res, 200, { ok: true, paused: true });
         return;
@@ -2360,18 +2807,26 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
             formatMissionRelayStateMessageForTelegram({ state: 'resumed', missionId: event.missionId, links }),
             missionRelayTraceExtra(subscription, event, 'mission_resumed')
           );
+          recordMissionRelayMachineOriginNotification(subscription, event, 'mission_resumed', 1);
         }
         writeJson(res, 200, { ok: true, resumed: true });
         return;
       }
 
 	      if (event.type === 'mission_completed' || isProviderLevelCompletionEvent(event)) {
+          cleanupMissionNarrationCounts(event.missionId);
+          await markMissionRelayTerminal(subscription, 'completed', event.timestamp);
+          const canonicalCompletion = canonicalPrdCompletionFromRelayEvent(event, subscription);
 	        const completion = completionDeliveryCache.has(event.missionId)
 	          ? null
-	          : await fetchMissionCompletionSummary(event.missionId);
-	        if (completion) {
-	          const chunks = await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
-	          writeJson(res, 200, { ok: true, chunks, completionFetched: true });
+	          : await fetchMissionCompletionSummary(
+                event.missionId,
+                canonicalCompletion ? { attempts: 1, delayMs: 250 } : {}
+              );
+          const completionToSend = completion || canonicalCompletion;
+	        if (completionToSend) {
+	          const chunks = await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completionToSend);
+	          writeJson(res, 200, { ok: true, chunks, completionFetched: Boolean(completion), canonicalPrdFallback: !completion && Boolean(canonicalCompletion) });
 	          return;
 	        }
 	        scheduleDelayedCompletionSummary(bot, chatId, subscription, event, verbosity);
@@ -2382,10 +2837,12 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       if (event.type === 'task_completed') {
         const extracted = extractProviderResponse(event);
         if (extracted) {
+          await markMissionRelayTerminal(subscription, 'completed', event.timestamp);
           if (shouldSuppressMissionHandoff(event.missionId)) {
             writeJson(res, 200, { ok: true, suppressed: true });
             return;
           }
+          cleanupMissionNarrationCounts(event.missionId);
           clearHeartbeatForMission(event.missionId);
           const hasProjectLink = !!(previewLinkFromEvent(event) || projectPathFromEvent(event));
           const openLink = hasProjectLink ? await readyProjectOpenLinkFromEvent(event) : undefined;
@@ -2408,6 +2865,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
               missionRelayTraceExtra(subscription, event, 'mission_completion')
             );
           }
+          recordMissionRelayMachineOriginNotification(subscription, event, 'mission_completion', chunks.length);
           await handleMissionCompletionMemory(bot, chatId, subscription, event, extracted.providerLabel, extracted.response);
           writeJson(res, 200, { ok: true, chunks: chunks.length });
           return;
@@ -2427,12 +2885,15 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
           ),
           missionRelayTraceExtra(subscription, event, 'mission_failed')
         );
+        recordMissionRelayMachineOriginNotification(subscription, event, 'mission_failed', 1);
         writeJson(res, 200, { ok: true });
         return;
       }
 
 	      if (event.type === 'mission_failed') {
+        cleanupMissionNarrationCounts(event.missionId);
         clearHeartbeatForMission(event.missionId);
+        await markMissionRelayTerminal(subscription, 'failed', event.timestamp);
       } else {
         scheduleHeartbeat(bot, chatId, event, subscription, verbosity);
       }
@@ -2456,6 +2917,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
           missionRelayTraceExtra(subscription, event, 'mission_progress')
         );
       }
+      recordMissionRelayMachineOriginNotification(subscription, event, 'mission_progress', chunks.length);
       writeJson(res, 200, { ok: true, chunks: chunks.length });
     } catch (error) {
       console.error('[MissionRelay] Failed to deliver Telegram update:', error);
@@ -2472,4 +2934,13 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
   });
 
   return { port };
+}
+
+export async function stopMissionRelayForTests(): Promise<void> {
+  const server = relayServer;
+  relayServer = null;
+  if (!server) return;
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve());
+  });
 }

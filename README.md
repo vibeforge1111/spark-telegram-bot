@@ -14,6 +14,7 @@ Current installer rule:
 Launch v1 uses Telegram long polling only. Webhook ingress is intentionally disabled until the hosted gateway path is hardened and reintroduced behind a deliberate migration.
 Gateway startup acquires a durable same-host ownership lease for the bot token, with heartbeat and stale-lock recovery, so a second local gateway instance refuses to start against the same token.
 Gateway state location is now configurable with `SPARK_GATEWAY_STATE_DIR`, so a hosted deployment can mount persistent state outside the repo working tree.
+The local `.spark-gateway-state.db` is a short-lived cold-start fallback only. By default the gateway ignores rows older than 24 hours and logs a warning instead of restoring stale conversation or mission snapshots. Set `SPARK_GATEWAY_STATE_DB_ALLOW_STALE_FALLBACK=1` only for an intentional recovery, and use `SPARK_GATEWAY_STATE_DB_MAX_AGE_HOURS` to tune the freshness window.
 
 ## What It Does
 
@@ -133,9 +134,31 @@ Bridge env:
 - `SPARK_BUILDER_TIMEOUT_MS`
 - `SPARK_CONTEXT_BRIDGE_TIMEOUT_MS`
 
-Default behavior is `auto`, which looks for the release-installed Builder source first, then legacy installed and checkout fallbacks, plus the standard Spark home at `~/.spark/state/spark-intelligence`. If the Builder bridge is unavailable, the bot falls back to the local `conversation + llm` path unless you set `SPARK_BUILDER_BRIDGE_MODE=required`.
+Default behavior is `auto`, which looks for the active installed Builder source first, then checkout fallbacks, plus the standard Spark home at `~/.spark/state/spark-intelligence`. If the Builder bridge is unavailable, the bot falls back to the local `conversation + llm` path unless you set `SPARK_BUILDER_BRIDGE_MODE=required`.
 
-Spark CLI starter installs set `SPARK_BUILDER_REPO` explicitly so the bot can find Builder from `~/.spark/modules/spark-intelligence-builder-release/source`.
+Spark CLI starter installs set `SPARK_BUILDER_REPO` explicitly so the bot can find Builder from `~/.spark/modules/spark-intelligence-builder/source`.
+
+### Agent Environment Files
+
+Spark agents can load their own local env files from `~/.spark/config/agents/`.
+Use this for optional user-owned API keys that should belong to a Spark agent,
+not to a premium domain chip.
+
+Load order for Telegram:
+
+- `~/.spark/config/agents/spark-common.env`
+- `~/.spark/config/agents/spark-telegram-bot.env`
+- `~/.spark/config/agents/spark-telegram-bot.<profile>.env`
+
+For basic X post reads, set:
+
+```bash
+SPARK_X_BEARER_TOKEN=...
+```
+
+That enables simple Spark-owned X reads from the Telegram agent. It is separate
+from `domain-chip-xcontent` / XContent, which remains the premium content
+strategy, scoring, variant, and optimization lane.
 
 ### Agent Style Preference Sync
 
@@ -152,9 +175,10 @@ Users can ask what interaction preferences Spark is using for them. The gateway 
 
 This path deliberately does not write to `domain-chip-memory`, does not mutate global `spark-character`, and does not change human trait-memory overlays. Set `SPARK_AGENT_PERSONA_BUILDER_SYNC=0` to disable the Builder sync while leaving local hot preferences intact.
 
-Operator check:
+Operator check (run from this package directory; installed modules use `~/.spark/modules/spark-telegram-bot/source`):
 
 ```bash
+# From ~/.spark/modules/spark-telegram-bot/source in an installed Spark module.
 npm run health:polling
 ```
 
@@ -202,19 +226,37 @@ is the execution plane behind the gateway.
    generates this for bundled installs.
 5. Keep `TELEGRAM_GATEWAY_MODE=polling`.
 6. Start `spawner-ui` if you want `/run`, `/mission`, and `/board` to work. For hosted two-service deploys, set `SPAWNER_UI_URL` to the private spawner-ui service URL, set this bot's `TELEGRAM_RELAY_URL` to its private `/spawner-events` URL, and put the same callback URL in spawner-ui `MISSION_CONTROL_WEBHOOK_URLS`. `SPARK_SPAWNER_URL` is accepted as a legacy alias for `SPAWNER_UI_URL`.
-7. Start `spark-intelligence-builder` if you want the Builder bridge instead of
+7. Optional: put user-owned agent API keys in `~/.spark/config/agents/`, for example `SPARK_X_BEARER_TOKEN` in `spark-telegram-bot.env` for basic X reads.
+8. Start `spark-intelligence-builder` if you want the Builder bridge instead of
    the local fallback conversation path.
-8. Start the bot:
+9. Start the bot:
 
 ```bash
 npm run dev
 ```
 
-Then verify local launch config:
+Then verify local launch config from the same package directory:
 
 ```bash
+# From ~/.spark/modules/spark-telegram-bot/source in an installed Spark module.
 npm run health:polling
 ```
+
+## Deploy To The Live Mirror
+
+For local Spark installs, deploy the Telegram gateway with one guarded command
+from the source checkout:
+
+```bash
+npm run restart:safe
+```
+
+The command rebuilds `dist/`, syncs the declared runtime files into the live
+mirror, runs the strict runtime drift check, and only then restarts the
+`spark-recursive` Telegram profile through `spark.cmd`. If the check prints
+`DRIFT`, do not restart from stale output. Read the listed paths, rerun
+`npm run build:sync`, and repeat `npm run sync:check:strict` until it prints
+`[check] runtime in sync.`
 
 ## Railway / Docker
 

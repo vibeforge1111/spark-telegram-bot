@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { spawnHidden, withHiddenWindows } from './hiddenProcess';
+import { spawnHidden, withHiddenWindows, resolveWindowsCommand, windowsCmdShimArgs, windowsPowerShellShimArgs } from './hiddenProcess';
 import { redactText } from './redaction';
 
 const execFileAsync = promisify(execFile);
@@ -169,6 +169,11 @@ function buttonForAction(actionId: SparkAccessActionId): { text: string; callbac
   };
 }
 
+function localTerminalCommandForAccessAction(actionId: SparkAccessActionId): string {
+  const args = SPARK_ACCESS_ACTIONS[actionId].command.filter((arg) => arg !== '--json');
+  return ['spark', ...args].join(' ');
+}
+
 export async function runSparkAccessAction(
   actionId: SparkAccessActionId,
   runner: SparkCommandRunner = defaultSparkCommandRunner
@@ -181,7 +186,33 @@ export async function runSparkAccessActionDetailed(
   runner: SparkCommandRunner = defaultSparkCommandRunner
 ): Promise<SparkAccessActionExecution> {
   const action = SPARK_ACCESS_ACTIONS[actionId];
-  const result = await runner(action.command, action.timeoutMs);
+  let result: { stdout: string; stderr: string };
+  try {
+    result = await runner(action.command, action.timeoutMs);
+  } catch (error) {
+    const anyError = error as { stdout?: unknown; stderr?: unknown; message?: unknown };
+    const output = redactText([
+      anyError.stdout,
+      anyError.stderr,
+      anyError.message,
+    ].filter(Boolean).map(String).join('\n').trim());
+    const needsLocalApproval = /non-interactive|interactive terminal|requires?.*confirmation|needs confirmation before continuing|Approval phrase:/i.test(output);
+    const localCommand = localTerminalCommandForAccessAction(actionId);
+    const reply = needsLocalApproval
+      ? [
+          'Spark could not change the Level 5 service lane from this Telegram process because the Spark CLI requires a trusted local confirmation.',
+          `Run \`${localCommand}\` in a trusted local terminal, type the Spark approval phrase there, then restart Spark Live if the command asks you to. The Telegram chat access setting can still be lowered separately.`
+        ].join('\n')
+      : [`Spark access action failed: ${action.id}`, output || 'No output.'].join('\n');
+    return {
+      reply,
+      payload: {
+        ok: false,
+        error: needsLocalApproval ? 'non_interactive_confirmation_required' : 'command_failed'
+      },
+      needsSparkRestart: false,
+    };
+  }
   const payload = parseSparkJson(result.stdout);
   if (!payload) {
     const output = redactText([result.stdout, result.stderr].filter(Boolean).join('\n').trim());
@@ -198,10 +229,26 @@ export async function runSparkAccessActionDetailed(
   };
 }
 
+// Resolve the spark CLI the same way runSparkCli does, so access actions work on Windows.
+// Bare execFile('spark') ENOENTs on Windows (the CLI is spark.cmd, and execFile does not apply
+// PATHEXT or use a shell), which is why level5_enable / workspace_setup failed with "spawn spark
+// ENOENT". Honor SPARK_CLI_COMMAND/SPARK_CLI_PATH, else resolve 'spark' against PATH+PATHEXT.
+function resolveSparkCliForAccessActions(): string {
+  const explicit = process.env.SPARK_CLI_COMMAND?.trim() || process.env.SPARK_CLI_PATH?.trim();
+  if (explicit) return explicit;
+  return resolveWindowsCommand('spark');
+}
+
 async function defaultSparkCommandRunner(args: string[], timeoutMs: number): Promise<{ stdout: string; stderr: string }> {
+  const resolved = resolveSparkCliForAccessActions();
+  const [command, commandArgs] = process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolved)
+    ? [process.env.ComSpec || 'cmd.exe', windowsCmdShimArgs(resolved, args)]
+    : process.platform === 'win32' && /\.ps1$/i.test(resolved)
+      ? ['powershell.exe', windowsPowerShellShimArgs(resolved, args)]
+      : [resolved, args];
   const { stdout, stderr } = await execFileAsync(
-    'spark',
-    args,
+    command,
+    commandArgs,
     withHiddenWindows({
       timeout: timeoutMs,
       maxBuffer: 1024 * 1024,

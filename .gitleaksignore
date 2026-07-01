@@ -1,0 +1,5 @@
+9205f575f19305935ac82ad982eadcdf35793c61:tests/test_chip_loop_redact.test.ts:generic-api-key:25
+5951eae2528c636a4568b8eed73b8785fc09432b:tests/redaction.test.ts:private-key:34
+5951eae2528c636a4568b8eed73b8785fc09432b:tests/redaction.test.ts:generic-api-key:20
+5951eae2528c636a4568b8eed73b8785fc09432b:tests/redaction.test.ts:generic-api-key:39
+10eb9cb3eeb85a66558a3eaa7aba705adecb47e9:tests/launchMode.test.ts:generic-api-key:44

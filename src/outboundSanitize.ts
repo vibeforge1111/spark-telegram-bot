@@ -21,16 +21,35 @@ const EM_DASH_FAMILY = [
 export const TELEGRAM_HARD_MESSAGE_LIMIT = 4096;
 export const TELEGRAM_SAFE_MESSAGE_LIMIT = 3600;
 
+function isDashPunctuation(ch: string): boolean {
+  return ch !== '-' && (/\p{Dash_Punctuation}/u.test(ch) || ch === '\u2212');
+}
+
+export function stripFormatControls(text: string): string {
+  if (!text) return text;
+  return text.replace(/\p{Cf}/gu, '');
+}
+
 export function replaceEmDashes(text: string, replacement: string = ' - '): string {
   if (!text) return text;
-  let out = text;
-  for (const ch of EM_DASH_FAMILY) {
-    out = out.split(ch).join(replacement);
+  const trimLeft = replacement.startsWith(' ');
+  const trimRight = replacement.endsWith(' ');
+  const out: string[] = [];
+  for (let index = 0; index < text.length; index += 1) {
+    const ch = text[index];
+    if (isDashPunctuation(ch) || EM_DASH_FAMILY.includes(ch)) {
+      if (trimLeft && out.length > 0 && (out[out.length - 1] === ' ' || out[out.length - 1] === '\t')) {
+        out.pop();
+      }
+      out.push(replacement);
+      if (trimRight && index + 1 < text.length && (text[index + 1] === ' ' || text[index + 1] === '\t')) {
+        index += 1;
+      }
+    } else {
+      out.push(ch);
+    }
   }
-  while (out.indexOf('  ') !== -1) {
-    out = out.split('  ').join(' ');
-  }
-  return out;
+  return out.join('');
 }
 
 export function stripMarkdownEmphasis(text: string): string {
@@ -60,8 +79,19 @@ export function rewriteSpawnerSurfaceStandaloneQuestion(text: string): string {
     );
 }
 
+export function collapseTelegramHorizontalRules(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/(?:^|\n)[ \t]*(?:[-*_]){3,}[ \t]*(?=\n|$)/g, '\n\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
 export function sanitizeOutbound(text: string): string {
-  return redactText(rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(text))));
+  return redactText(
+    rewriteSpawnerSurfaceStandaloneQuestion(
+      collapseTelegramHorizontalRules(stripMarkdownEmphasis(replaceEmDashes(stripFormatControls(text))))
+    )
+  );
 }
 
 function splitExistingNumberedChunks(text: string, maxChars: number): string[] | null {

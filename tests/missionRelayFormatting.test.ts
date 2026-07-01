@@ -1,33 +1,44 @@
 import assert from 'node:assert/strict';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
   approvePendingMissionLesson,
   buildMissionLessonCandidates,
   buildMissionSurfaceLinks,
+  claimVerboseNarrationSlotForTests,
   formatMissionHeartbeatForTelegram,
   formatProgressMessageForTelegram,
   getTelegramRelayIdentity,
+  fetchMissionCompletionSummaryForTests,
   formatProviderCompletionForTelegram,
   formatMissionRelayStateMessageForTelegram,
   isCompletionDeliveryCachedForTests,
   isMissionRelayPaused,
+  markLatestMissionRelayCancelledForChat,
   markMissionRelayCancelled,
   markMissionRelayPaused,
   markMissionRelayResumed,
+  missionRelayBindingRefusalReason,
+  missionRelayCacheSizesForTests,
   normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
+  pruneMissionRelayCachesForTests,
+  registerMissionRelay,
   relayEventMatchesSubscription,
   resetMissionRelayDeliveryStateForTests,
+  resetMissionRelayRegistryForTests,
   resolveReadyProjectOpenLinkForTests,
   sendFetchedCompletionSummaryForTests,
   shouldAcknowledgeRelayWithoutTelegramDelivery,
   shouldAcceptRelayEventForThisBot,
   shouldSkipDuplicateForTests,
   shouldSuppressMissionHandoff,
-  shouldStopMissionHeartbeat
+  shouldStopMissionHeartbeat,
+  startMissionRelay,
+  stopMissionRelayForTests
 } from '../src/missionRelay';
+import { readHarnessCoreToolLedger } from '../src/harnessCoreLedger';
 import { resetJsonStateForTests } from '../src/jsonState';
 
 function test(name: string, fn: () => void): void {
@@ -182,6 +193,37 @@ test('no-edit probe completions include requested Mission Control inspect links'
   assert.doesNotMatch(message, /^Mission: spark-1778935217687$/m);
 });
 
+test('requested Mission Control inspect links stay on the native Telegram surface', () => {
+  const originalInternalUrl = process.env.SPAWNER_UI_URL;
+  const originalPublicUrl = process.env.SPAWNER_UI_PUBLIC_URL;
+  const originalSurfaceUrl = process.env.SPAWNER_TELEGRAM_SURFACE_URL;
+  process.env.SPAWNER_UI_URL = 'http://127.0.0.1:3333';
+  process.env.SPAWNER_UI_PUBLIC_URL = 'https://mission.sparkswarm.ai';
+  delete process.env.SPAWNER_TELEGRAM_SURFACE_URL;
+
+  try {
+    const message = formatProviderCompletionForTelegram({
+      providerLabel: 'codex',
+      missionId: 'mission-local-canvas',
+      verbosity: 'normal',
+      goal: 'Share Canvas/Kanban/View Execution for this Spawner run.',
+      response: 'Codex: SPARK_LINK_SURFACE_OK'
+    });
+
+    assert.match(message, /Canvas: http:\/\/127\.0\.0\.1:3333\/canvas\?mission=mission-local-canvas/);
+    assert.match(message, /Kanban: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-local-canvas/);
+    assert.doesNotMatch(message, /mission\.sparkswarm\.ai/);
+    assert.doesNotMatch(message, /spark-live\/login/);
+  } finally {
+    if (originalInternalUrl === undefined) delete process.env.SPAWNER_UI_URL;
+    else process.env.SPAWNER_UI_URL = originalInternalUrl;
+    if (originalPublicUrl === undefined) delete process.env.SPAWNER_UI_PUBLIC_URL;
+    else process.env.SPAWNER_UI_PUBLIC_URL = originalPublicUrl;
+    if (originalSurfaceUrl === undefined) delete process.env.SPAWNER_TELEGRAM_SURFACE_URL;
+    else process.env.SPAWNER_TELEGRAM_SURFACE_URL = originalSurfaceUrl;
+  }
+});
+
 test('formats structured provider failures without raw JSON noise', () => {
   const message = formatProviderCompletionForTelegram({
     providerLabel: 'codex',
@@ -284,6 +326,44 @@ test('strips hidden reasoning and relay plumbing from freeform provider results'
   assert.doesNotMatch(message, /curl -X POST/);
   assert.doesNotMatch(message, /Mission ID/);
 });
+
+test('strips truncated MiniMax thinking from exact-output mission results', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'minimax',
+    missionId: 'spark-minimax-exact-output',
+    verbosity: 'normal',
+    response: [
+      '<think>The user says: "say exactly OK" The user wrote:',
+      '[Skill tier: PRO - full Spark-skill catalog available for /api/h70-skills/<id> loading when Spark Pro proof present',
+      '** User wants "say exactly OK". There is no closing tag because the relay preview truncated this reasoning.',
+      '',
+      'OK'
+    ].join('\n')
+  });
+
+  assert.match(message, /OK/);
+  assert.doesNotMatch(message, /<think>/i);
+  assert.doesNotMatch(message, /Skill tier/i);
+  assert.doesNotMatch(message, /user says/i);
+});
+
+test('recovers exact-output goal when MiniMax only returns thinking text', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'minimax',
+    missionId: 'spark-minimax-empty-after-thinking',
+    verbosity: 'normal',
+    goal: 'say exactly OK',
+    response: [
+      'minimax: <think>The user says: "say exactly OK".',
+      'The user requests a direct response of OK.'
+    ].join('\n')
+  });
+
+  assert.match(message, /OK/);
+  assert.doesNotMatch(message, /minimax:\s*$/i);
+  assert.doesNotMatch(message, /<think>/i);
+  assert.doesNotMatch(message, /user says/i);
+});
 test('summarizes freeform Codex build output without dumping file links', () => {
   const message = formatProviderCompletionForTelegram({
     providerLabel: 'codex',
@@ -316,6 +396,77 @@ test('summarizes freeform Codex build output without dumping file links', () => 
   assert.doesNotMatch(message, /\[index\.html\]/);
   assert.doesNotMatch(message, /<\/c\/Users/);
   assert.doesNotMatch(message, /Mission: mission-orbit/);
+});
+
+test('keeps report-shaped completion text from ending mid-report', () => {
+  const middle = Array.from({ length: 36 }, (_, index) => `coverage detail ${index + 1}`).join(', ');
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'mission-report-tail',
+    verbosity: 'normal',
+    response: [
+      'Codex: Pulled latest, continued the reliability work, committed, and pushed to GitHub origin/main.',
+      '',
+      'Commit pushed: abc1234 Add reliability coverage',
+      '',
+      middle,
+      '',
+      'What changed:',
+      '- Added cache cleanup regression coverage.',
+      '- Confirmed the final report reaches the end.'
+    ].join('\n')
+  });
+
+  assert.match(message, /Commit pushed: abc1234 Add reliability coverage/);
+  assert.match(message, /coverage detail 36/);
+  assert.match(message, /What changed:/);
+  assert.match(message, /Confirmed the final report reaches the end\./);
+  assert.doesNotMatch(message, /\.\.\.$/);
+});
+
+test('keeps source-grounded research briefs instead of only the heading', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'mission-research-brief',
+    verbosity: 'normal',
+    response: [
+      'Latest public AI coding-agent brief:',
+      '',
+      '1. OpenAI Codex is being pushed as an enterprise coding agent.',
+      'https://openai.com/index/gartner-2026-agentic-coding-leader/',
+      '',
+      '2. GitHub is turning Copilot into an agent hub.',
+      'https://github.blog/news-insights/company-news/pick-your-agent-use-claude-and-codex-on-agent-hq/',
+      '',
+      'Spark angle: keep authority and evidence boundaries first-class.'
+    ].join('\n')
+  });
+
+  assert.match(message, /Latest public AI coding-agent brief:/);
+  assert.match(message, /OpenAI Codex is being pushed/);
+  assert.match(message, /GitHub is turning Copilot/);
+  assert.match(message, /https:\/\/github\.blog\/news-insights/);
+  assert.match(message, /Spark angle/);
+  assert.ok(message.length > 250, message);
+});
+
+test('keeps structured report summaries long enough for Telegram chunking', () => {
+  const middle = Array.from({ length: 60 }, (_, index) => `report detail ${index + 1}`).join(', ');
+  const tail = 'What changed: the final result tail reached Telegram.';
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'mission-structured-report-tail',
+    verbosity: 'normal',
+    response: JSON.stringify({
+      status: 'completed',
+      summary: `Commit pushed: abc1234. ${middle}. ${tail}`
+    })
+  });
+
+  assert.match(message, /Commit pushed: abc1234/);
+  assert.match(message, /report detail 60/);
+  assert.match(message, /final result tail reached Telegram/);
+  assert.doesNotMatch(message, /\.\.\.$/);
 });
 
 test('summarizes inline verification without leaking command text', () => {
@@ -1096,6 +1247,21 @@ test('stops mission heartbeats for terminal or stale runs', () => {
   }), false);
 });
 
+test('heartbeat stale env rejects unit suffixes instead of truncating', () => {
+  const originalValue = process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS;
+  process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS = '5m';
+
+  try {
+    assert.equal(shouldStopMissionHeartbeat({
+      elapsedMs: 10,
+      snapshot: { missionId: 'spark-unit-suffix', status: 'running' }
+    }), false);
+  } finally {
+    if (originalValue === undefined) delete process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS;
+    else process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS = originalValue;
+  }
+});
+
 test('cancelled missions suppress delayed build handoffs', () => {
   resetMissionRelayDeliveryStateForTests();
   assert.equal(shouldSuppressMissionHandoff('mission-123'), false);
@@ -1222,6 +1388,61 @@ test('requires relay events to match registered Telegram identity', () => {
   }, subscription), false);
 });
 
+test('binds machine-origin relay events to the governed mission registration', () => {
+  const subscription = {
+    missionId: 'spark-bound-1',
+    chatId: '12345',
+    userId: '67890',
+    requestId: 'req-bound-1',
+    traceRef: 'trace-bound-1',
+    goal: 'Bind machine-origin callbacks',
+    createdAt: new Date().toISOString(),
+    governorDecisionId: 'decision:bound-1',
+    governorTurnId: 'turn:bound-1'
+  };
+
+  assert.equal(missionRelayBindingRefusalReason({
+    type: 'progress',
+    missionId: 'spark-bound-1',
+    data: { requestId: 'req-bound-1', traceRef: 'trace-bound-1' }
+  }, subscription), null);
+
+  // Back-compat: events that omit requestId/traceRef still bind on missionId.
+  assert.equal(missionRelayBindingRefusalReason({
+    type: 'progress',
+    missionId: 'spark-bound-1'
+  }, subscription), null);
+
+  assert.equal(missionRelayBindingRefusalReason({
+    type: 'progress',
+    missionId: 'spark-other',
+    data: { requestId: 'req-bound-1' }
+  }, subscription), 'mission_id_mismatch');
+
+  assert.equal(missionRelayBindingRefusalReason({
+    type: 'progress',
+    missionId: 'spark-bound-1',
+    data: { requestId: 'req-forged' }
+  }, subscription), 'request_id_mismatch');
+
+  assert.equal(missionRelayBindingRefusalReason({
+    type: 'progress',
+    missionId: 'spark-bound-1',
+    data: { requestId: 'req-bound-1', traceRef: 'trace-forged' }
+  }, subscription), 'trace_ref_mismatch');
+
+  // Back-compat: registrations without requestId/traceRef bind on missionId alone.
+  assert.equal(missionRelayBindingRefusalReason({
+    type: 'progress',
+    missionId: 'spark-bound-1',
+    data: { requestId: 'req-anything', traceRef: 'trace-anything' }
+  }, {
+    ...subscription,
+    requestId: '',
+    traceRef: undefined
+  }), null);
+});
+
 test('suppresses hosted preview generation progress in Telegram', () => {
   const message = formatProgressMessageForTelegram(
     {
@@ -1294,6 +1515,77 @@ test('reports this relay identity from env', () => {
   }
 });
 
+test('falls back from relay ports above the TCP upper bound', () => {
+  const originalPort = process.env.TELEGRAM_RELAY_PORT;
+  process.env.TELEGRAM_RELAY_PORT = '70000';
+
+  try {
+    assert.equal(getTelegramRelayIdentity().port, 8788);
+  } finally {
+    if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
+    else process.env.TELEGRAM_RELAY_PORT = originalPort;
+  }
+});
+
+test('prunes stale open task start cache entries', () => {
+  const originalNow = Date.now;
+  let now = 1_000_000;
+  Date.now = () => now;
+  try {
+    resetMissionRelayDeliveryStateForTests();
+    assert.equal(shouldSkipDuplicateForTests({
+      type: 'task_started',
+      missionId: 'mission-open-task-ttl',
+      taskName: 'Build first screen',
+      source: 'codex',
+      data: { provider: 'codex' }
+    }), false);
+    assert.equal(missionRelayCacheSizesForTests().openTaskStart, 1);
+
+    now += 10 * 60_000 + 1;
+    assert.equal(shouldSkipDuplicateForTests({
+      type: 'progress',
+      missionId: 'mission-open-task-ttl',
+      message: 'still working',
+      source: 'codex',
+      data: { provider: 'codex' }
+    }), false);
+    assert.equal(missionRelayCacheSizesForTests().openTaskStart, 0);
+  } finally {
+    Date.now = originalNow;
+    resetMissionRelayDeliveryStateForTests();
+  }
+});
+
+test('prunes stale verbose narration counters and keeps active caps', () => {
+  const originalNow = Date.now;
+  let now = 2_000_000;
+  Date.now = () => now;
+  const event = {
+    type: 'progress' as const,
+    missionId: 'mission-verbose-ttl',
+    message: 'useful progress',
+    source: 'codex'
+  };
+
+  try {
+    resetMissionRelayDeliveryStateForTests();
+    assert.equal(claimVerboseNarrationSlotForTests(event, 12345, 'verbose'), true);
+    assert.equal(claimVerboseNarrationSlotForTests(event, 12345, 'verbose'), true);
+    assert.equal(claimVerboseNarrationSlotForTests(event, 12345, 'verbose'), true);
+    assert.equal(claimVerboseNarrationSlotForTests(event, 12345, 'verbose'), false);
+    assert.equal(missionRelayCacheSizesForTests().verboseNarration, 1);
+
+    now += 6 * 60 * 60_000 + 1;
+    pruneMissionRelayCachesForTests(now);
+    assert.equal(missionRelayCacheSizesForTests().verboseNarration, 0);
+    assert.equal(claimVerboseNarrationSlotForTests(event, 12345, 'verbose'), true);
+  } finally {
+    Date.now = originalNow;
+    resetMissionRelayDeliveryStateForTests();
+  }
+});
+
 async function asyncTest(name: string, fn: () => Promise<void>): Promise<void> {
   try {
     await fn();
@@ -1305,6 +1597,37 @@ async function asyncTest(name: string, fn: () => Promise<void>): Promise<void> {
 }
 
 void (async () => {
+  await asyncTest('plain no-build correction can suppress the latest relay handoff for the chat', async () => {
+    resetMissionRelayDeliveryStateForTests();
+    const originalPort = process.env.TELEGRAM_RELAY_PORT;
+    const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
+    try {
+      process.env.TELEGRAM_RELAY_PORT = '8789';
+      process.env.SPARK_TELEGRAM_PROFILE = 'primary';
+      const missionId = `mission-no-build-correction-${Date.now()}`;
+      await registerMissionRelay({
+        missionId,
+        chatId: '8319079055',
+        userId: '8319079055',
+        requestId: 'tg-build-correction',
+        goal: 'Accidental fast build',
+        createdAt: new Date().toISOString(),
+        relayPort: 8789,
+        relayProfile: 'primary'
+      });
+
+      const suppressed = await markLatestMissionRelayCancelledForChat('8319079055', '8319079055');
+      assert.equal(suppressed, missionId);
+      assert.equal(shouldSuppressMissionHandoff(missionId), true);
+    } finally {
+      if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
+      else process.env.TELEGRAM_RELAY_PORT = originalPort;
+      if (originalProfile === undefined) delete process.env.SPARK_TELEGRAM_PROFILE;
+      else process.env.SPARK_TELEGRAM_PROFILE = originalProfile;
+      resetMissionRelayDeliveryStateForTests();
+    }
+  });
+
   await asyncTest('rejects unreachable preview links before Telegram completion handoff', async () => {
     const originalFetch = globalThis.fetch;
     try {
@@ -1318,6 +1641,361 @@ void (async () => {
       assert.equal(link, null);
     } finally {
       globalThis.fetch = originalFetch;
+    }
+  });
+
+  await asyncTest('prunes stale mission registry entries on registration', async () => {
+    const originalStateDir = process.env.SPARK_GATEWAY_STATE_DIR;
+    try {
+      resetJsonStateForTests();
+      resetMissionRelayRegistryForTests();
+      process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-mission-registry-ttl-test-'));
+      await registerMissionRelay({
+        missionId: 'mission-stale-registry',
+        chatId: '12345',
+        userId: '67890',
+        requestId: 'req-stale-registry',
+        goal: 'Stale mission.',
+        createdAt: new Date(Date.now() - 8 * 24 * 60 * 60_000).toISOString()
+      });
+      await registerMissionRelay({
+        missionId: 'mission-fresh-registry',
+        chatId: '12345',
+        userId: '67890',
+        requestId: 'req-fresh-registry',
+        goal: 'Fresh mission.',
+        createdAt: new Date().toISOString()
+      });
+
+      assert.equal(missionRelayCacheSizesForTests().registry, 1);
+    } finally {
+      resetMissionRelayRegistryForTests();
+      resetJsonStateForTests();
+      if (originalStateDir === undefined) delete process.env.SPARK_GATEWAY_STATE_DIR;
+      else process.env.SPARK_GATEWAY_STATE_DIR = originalStateDir;
+    }
+  });
+
+  await asyncTest('prunes completed mission registry entries after terminal retention window', async () => {
+    const originalStateDir = process.env.SPARK_GATEWAY_STATE_DIR;
+    const now = Date.now();
+    try {
+      resetJsonStateForTests();
+      resetMissionRelayRegistryForTests();
+      process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-mission-terminal-ttl-test-'));
+      await registerMissionRelay({
+        missionId: 'mission-terminal-old',
+        chatId: '12345',
+        userId: '67890',
+        requestId: 'req-terminal-old',
+        goal: 'Old completed mission.',
+        createdAt: new Date(now - 2 * 24 * 60 * 60_000).toISOString(),
+        terminalStatus: 'completed',
+        terminalAt: new Date(now - 25 * 60 * 60_000).toISOString()
+      });
+      await registerMissionRelay({
+        missionId: 'mission-terminal-fresh',
+        chatId: '12345',
+        userId: '67890',
+        requestId: 'req-terminal-fresh',
+        goal: 'Fresh completed mission.',
+        createdAt: new Date(now - 2 * 24 * 60 * 60_000).toISOString(),
+        terminalStatus: 'completed',
+        terminalAt: new Date(now - 2 * 60 * 60_000).toISOString()
+      });
+
+      pruneMissionRelayCachesForTests(now);
+
+      assert.equal(missionRelayCacheSizesForTests().registry, 1);
+    } finally {
+      resetMissionRelayRegistryForTests();
+      resetJsonStateForTests();
+      if (originalStateDir === undefined) delete process.env.SPARK_GATEWAY_STATE_DIR;
+      else process.env.SPARK_GATEWAY_STATE_DIR = originalStateDir;
+    }
+  });
+
+  await asyncTest('fetches Spawner completion summaries with control auth headers', async () => {
+    const originalFetch = globalThis.fetch;
+    const originalSpawnerUrl = process.env.SPAWNER_UI_URL;
+    const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
+    const originalMcpKey = process.env.MCP_API_KEY;
+    const originalEventsKey = process.env.EVENTS_API_KEY;
+    const originalUiKey = process.env.SPARK_UI_API_KEY;
+    try {
+      process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+      process.env.SPARK_BRIDGE_API_KEY = 'trace-read-secret';
+      delete process.env.MCP_API_KEY;
+      delete process.env.EVENTS_API_KEY;
+      delete process.env.SPARK_UI_API_KEY;
+
+      let capturedUrl = '';
+      let capturedHeaders: RequestInit['headers'] | undefined;
+      globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        capturedUrl = String(input);
+        capturedHeaders = init?.headers;
+        return new Response(JSON.stringify({
+          phase: 'completed',
+          providerSummary: 'Built via authenticated trace readback.',
+          providerResults: [
+            {
+              providerId: 'codex',
+              status: 'completed',
+              summary: 'Fallback provider result.'
+            }
+          ],
+          projectLineage: {}
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        });
+      }) as typeof fetch;
+
+      const completion = await fetchMissionCompletionSummaryForTests('mission-auth-readback');
+      const headers = capturedHeaders as Record<string, string>;
+
+      assert.match(capturedUrl, /\/api\/mission-control\/trace\?mission=mission-auth-readback$/);
+      assert.equal(headers['x-api-key'], 'trace-read-secret');
+      assert.equal(headers['x-spawner-ui-key'], 'trace-read-secret');
+      assert.equal(completion?.providerLabel, 'codex');
+      assert.equal(completion?.response, 'Built via authenticated trace readback.');
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalSpawnerUrl === undefined) delete process.env.SPAWNER_UI_URL;
+      else process.env.SPAWNER_UI_URL = originalSpawnerUrl;
+      if (originalBridgeKey === undefined) delete process.env.SPARK_BRIDGE_API_KEY;
+      else process.env.SPARK_BRIDGE_API_KEY = originalBridgeKey;
+      if (originalMcpKey === undefined) delete process.env.MCP_API_KEY;
+      else process.env.MCP_API_KEY = originalMcpKey;
+      if (originalEventsKey === undefined) delete process.env.EVENTS_API_KEY;
+      else process.env.EVENTS_API_KEY = originalEventsKey;
+      if (originalUiKey === undefined) delete process.env.SPARK_UI_API_KEY;
+      else process.env.SPARK_UI_API_KEY = originalUiKey;
+    }
+  });
+
+  await asyncTest('uses owner provider result when trace summary is a protected control-auth placeholder', async () => {
+    const originalFetch = globalThis.fetch;
+    const originalSpawnerUrl = process.env.SPAWNER_UI_URL;
+    const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
+    const originalSparkHome = process.env.SPARK_HOME;
+    try {
+      const sparkHome = await mkdtemp(path.join(os.tmpdir(), 'spark-mission-provider-owner-state-'));
+      const ownerStateDir = path.join(sparkHome, 'state', 'spawner-ui');
+      await mkdir(ownerStateDir, { recursive: true });
+      await writeFile(path.join(ownerStateDir, 'mission-provider-results.json'), JSON.stringify({
+        missions: {
+          'mission-owner-readback': [
+            {
+              providerId: 'codex',
+              status: 'completed',
+              response: 'OWNER_RESEARCH_BRIEF_OK',
+              completedAt: '2026-06-18T20:15:04.153Z'
+            }
+          ]
+        }
+      }));
+      process.env.SPARK_HOME = sparkHome;
+      process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+      process.env.SPARK_BRIDGE_API_KEY = 'trace-read-secret';
+
+      globalThis.fetch = (async () => new Response(JSON.stringify({
+        phase: 'completed',
+        providerSummary: 'Provider summary requires control auth.',
+        providerResults: [],
+        projectLineage: {}
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })) as typeof fetch;
+
+      const completion = await fetchMissionCompletionSummaryForTests('mission-owner-readback', { attempts: 1 });
+
+      assert.equal(completion?.providerLabel, 'codex');
+      assert.equal(completion?.response, 'OWNER_RESEARCH_BRIEF_OK');
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalSpawnerUrl === undefined) delete process.env.SPAWNER_UI_URL;
+      else process.env.SPAWNER_UI_URL = originalSpawnerUrl;
+      if (originalBridgeKey === undefined) delete process.env.SPARK_BRIDGE_API_KEY;
+      else process.env.SPARK_BRIDGE_API_KEY = originalBridgeKey;
+      if (originalSparkHome === undefined) delete process.env.SPARK_HOME;
+      else process.env.SPARK_HOME = originalSparkHome;
+    }
+  });
+
+  await asyncTest('does not deliver protected provider summary placeholder without owner result', async () => {
+    const originalFetch = globalThis.fetch;
+    const originalSpawnerUrl = process.env.SPAWNER_UI_URL;
+    const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
+    const originalSparkHome = process.env.SPARK_HOME;
+    try {
+      process.env.SPARK_HOME = await mkdtemp(path.join(os.tmpdir(), 'spark-mission-provider-empty-state-'));
+      process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+      process.env.SPARK_BRIDGE_API_KEY = 'trace-read-secret';
+
+      globalThis.fetch = (async () => new Response(JSON.stringify({
+        phase: 'completed',
+        providerSummary: 'Provider summary requires control auth.',
+        providerResults: [],
+        projectLineage: {}
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })) as typeof fetch;
+
+      const completion = await fetchMissionCompletionSummaryForTests('mission-no-owner-readback', { attempts: 1 });
+
+      assert.equal(completion, null);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalSpawnerUrl === undefined) delete process.env.SPAWNER_UI_URL;
+      else process.env.SPAWNER_UI_URL = originalSpawnerUrl;
+      if (originalBridgeKey === undefined) delete process.env.SPARK_BRIDGE_API_KEY;
+      else process.env.SPARK_BRIDGE_API_KEY = originalBridgeKey;
+      if (originalSparkHome === undefined) delete process.env.SPARK_HOME;
+      else process.env.SPARK_HOME = originalSparkHome;
+    }
+  });
+
+  await asyncTest('delivers canonical PRD fallback completion when trace has no provider summary', async () => {
+    const originalFetch = globalThis.fetch;
+    const originalStateDir = process.env.SPARK_GATEWAY_STATE_DIR;
+    const originalPort = process.env.TELEGRAM_RELAY_PORT;
+    const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
+    const originalSecret = process.env.TELEGRAM_RELAY_SECRET;
+    const originalSpawnerUrl = process.env.SPAWNER_UI_URL;
+    const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
+    const originalLedgerPath = process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+    const originalLedgerEnabled = process.env.SPARK_HARNESS_CORE_LEDGER;
+    const originalPromptEnv = process.env.SPARK_MISSION_LESSON_PROMPTS;
+    const relaySecret = 'canonical-prd-fallback-secret-0123456789';
+    try {
+      resetJsonStateForTests();
+      resetMissionRelayRegistryForTests();
+      resetMissionRelayDeliveryStateForTests();
+      const stateDir = await mkdtemp(path.join(os.tmpdir(), 'spark-canonical-prd-relay-test-'));
+      const ledgerPath = path.join(stateDir, 'canonical-prd-relay-ledger.jsonl');
+      process.env.SPARK_GATEWAY_STATE_DIR = stateDir;
+      process.env.TELEGRAM_RELAY_PORT = '18792';
+      process.env.SPARK_TELEGRAM_PROFILE = 'primary';
+      process.env.TELEGRAM_RELAY_SECRET = relaySecret;
+      process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+      process.env.SPARK_BRIDGE_API_KEY = 'trace-read-secret';
+      process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+      delete process.env.SPARK_HARNESS_CORE_LEDGER;
+      delete process.env.SPARK_MISSION_LESSON_PROMPTS;
+
+      const sent: Array<{ chatId: number; message: string; extra?: Record<string, unknown> }> = [];
+      const bot = {
+        telegram: {
+          sendMessage: async (chatId: number, message: string, extra?: Record<string, unknown>) => {
+            sent.push({ chatId, message, extra });
+          }
+        }
+      };
+      const { port } = await startMissionRelay(bot as any);
+      let traceFetches = 0;
+      globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        const url = String(input);
+        if (url.startsWith(`http://127.0.0.1:${port}/`)) {
+          return originalFetch(input, init);
+        }
+        if (url.startsWith('http://stub-spawner.test/api/mission-control/trace')) {
+          traceFetches += 1;
+          return new Response(JSON.stringify({
+            phase: 'completed',
+            providerSummary: null,
+            providerResults: [],
+            projectLineage: {}
+          }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          });
+        }
+        throw new Error(`unexpected fetch ${url}`);
+      }) as typeof fetch;
+
+      await registerMissionRelay({
+        missionId: 'mission-canonical-prd-fallback',
+        chatId: '424242',
+        userId: '424242',
+        requestId: 'tg-build-canonical-prd-fallback',
+        traceRef: 'trace:spawner-prd:mission-canonical-prd-fallback',
+        goal: 'Build a canonical PRD fallback proof.',
+        createdAt: new Date().toISOString(),
+        governorDecisionId: 'decision:canonical-prd-fallback',
+        governorTurnId: 'turn:canonical-prd-fallback'
+      });
+
+      const response = await fetch(`http://127.0.0.1:${port}/spawner-events`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-spark-telegram-relay-secret': relaySecret
+        },
+        body: JSON.stringify({
+          type: 'mission_event',
+          event: {
+            type: 'mission_completed',
+            missionId: 'mission-canonical-prd-fallback',
+            source: 'spawner-ui',
+            data: {
+              requestId: 'tg-build-canonical-prd-fallback',
+              traceRef: 'trace:spawner-prd:mission-canonical-prd-fallback',
+              provider: 'deterministic-fast-lane',
+              canonicalResultAvailable: true,
+              resultFileName: 'tg-build-canonical-prd-fallback.json'
+            }
+          }
+        })
+      });
+      const body = await response.json() as Record<string, unknown>;
+
+      assert.equal(response.status, 200);
+      assert.equal(body.ok, true);
+      assert.equal(body.canonicalPrdFallback, true);
+      assert.equal(body.completionFetched, false);
+      assert.equal(traceFetches, 1);
+      assert.equal(sent.length, 1);
+      assert.equal(sent[0].chatId, 424242);
+      assert.match(sent[0].message, /canonical PRD result artifact/);
+      assert.doesNotMatch(sent[0].message, /chatId|424242|trace:spawner-prd/);
+      assert.deepEqual(sent[0].extra?.__sparkTraceContext, {
+        route: 'mission_relay',
+        command: 'mission_relay',
+        replyKind: 'mission_completion',
+        requestId: 'tg-build-canonical-prd-fallback',
+        traceRef: 'trace:spawner-prd:mission-canonical-prd-fallback',
+        missionId: 'mission-canonical-prd-fallback'
+      });
+
+      const ledger = readHarnessCoreToolLedger(ledgerPath);
+      assert.ok(ledger.some((record) => record.tool_name === 'mission_relay.notify' && record.result.status === 'success'));
+    } finally {
+      await stopMissionRelayForTests();
+      globalThis.fetch = originalFetch;
+      resetMissionRelayRegistryForTests();
+      resetMissionRelayDeliveryStateForTests();
+      resetJsonStateForTests();
+      if (originalStateDir === undefined) delete process.env.SPARK_GATEWAY_STATE_DIR;
+      else process.env.SPARK_GATEWAY_STATE_DIR = originalStateDir;
+      if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
+      else process.env.TELEGRAM_RELAY_PORT = originalPort;
+      if (originalProfile === undefined) delete process.env.SPARK_TELEGRAM_PROFILE;
+      else process.env.SPARK_TELEGRAM_PROFILE = originalProfile;
+      if (originalSecret === undefined) delete process.env.TELEGRAM_RELAY_SECRET;
+      else process.env.TELEGRAM_RELAY_SECRET = originalSecret;
+      if (originalSpawnerUrl === undefined) delete process.env.SPAWNER_UI_URL;
+      else process.env.SPAWNER_UI_URL = originalSpawnerUrl;
+      if (originalBridgeKey === undefined) delete process.env.SPARK_BRIDGE_API_KEY;
+      else process.env.SPARK_BRIDGE_API_KEY = originalBridgeKey;
+      if (originalLedgerPath === undefined) delete process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+      else process.env.SPARK_HARNESS_CORE_LEDGER_PATH = originalLedgerPath;
+      if (originalLedgerEnabled === undefined) delete process.env.SPARK_HARNESS_CORE_LEDGER;
+      else process.env.SPARK_HARNESS_CORE_LEDGER = originalLedgerEnabled;
+      if (originalPromptEnv === undefined) delete process.env.SPARK_MISSION_LESSON_PROMPTS;
+      else process.env.SPARK_MISSION_LESSON_PROMPTS = originalPromptEnv;
     }
   });
 
@@ -1653,7 +2331,7 @@ void (async () => {
     }
   });
 
-  await asyncTest('mission lesson approval writes only the approved lesson', async () => {
+  await asyncTest('mission lesson approval does not write Telegram-local memory', async () => {
     resetJsonStateForTests();
     process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-mission-lesson-test-'));
     resetMissionRelayDeliveryStateForTests();
@@ -1689,10 +2367,132 @@ void (async () => {
     const reply = await approvePendingMissionLesson(subscription.userId, '2');
 
     assert.ok(reply);
-    assert.match(reply || '', /Saved mission lesson/);
+    assert.match(reply || '', /did not save that mission lesson into Telegram-local memory/i);
+    assert.match(reply || '', /Durable mission lessons need the Builder\/domain-chip memory route/);
     assert.match(reply || '', /Source: mission spark-lesson-approval/);
     assert.doesNotMatch(reply || '', /Completed Spawner mission/);
     const secondReply = await approvePendingMissionLesson(subscription.userId, '1');
-    assert.equal(secondReply, null);
+    assert.match(secondReply || '', /did not save that mission lesson into Telegram-local memory/i);
+  });
+
+  await asyncTest('mission relay webhook refuses unbound machine-origin events and ledgers bound deliveries', async () => {
+    const originalStateDir = process.env.SPARK_GATEWAY_STATE_DIR;
+    const originalPort = process.env.TELEGRAM_RELAY_PORT;
+    const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
+    const originalSecret = process.env.TELEGRAM_RELAY_SECRET;
+    const originalLedgerPath = process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+    const originalLedgerEnabled = process.env.SPARK_HARNESS_CORE_LEDGER;
+    const originalSmokeMode = process.env.TELEGRAM_SMOKE_MODE;
+    const relaySecret = 'relay-binding-test-secret-0123456789';
+    try {
+      resetJsonStateForTests();
+      resetMissionRelayRegistryForTests();
+      resetMissionRelayDeliveryStateForTests();
+      const stateDir = await mkdtemp(path.join(os.tmpdir(), 'spark-mission-relay-binding-test-'));
+      const ledgerPath = path.join(stateDir, 'relay-machine-origin-ledger.jsonl');
+      process.env.SPARK_GATEWAY_STATE_DIR = stateDir;
+      process.env.TELEGRAM_RELAY_PORT = '18791';
+      process.env.SPARK_TELEGRAM_PROFILE = 'primary';
+      process.env.TELEGRAM_RELAY_SECRET = relaySecret;
+      process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+      delete process.env.SPARK_HARNESS_CORE_LEDGER;
+      delete process.env.TELEGRAM_SMOKE_MODE;
+
+      const sent: Array<{ chatId: number; message: string }> = [];
+      const bot = {
+        telegram: {
+          sendMessage: async (chatId: number, message: string) => {
+            sent.push({ chatId, message });
+          }
+        }
+      };
+      const { port } = await startMissionRelay(bot as any);
+      const postEvent = async (event: Record<string, unknown>) => {
+        const response = await fetch(`http://127.0.0.1:${port}/spawner-events`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-spark-telegram-relay-secret': relaySecret
+          },
+          body: JSON.stringify({ type: 'mission_event', event })
+        });
+        return { status: response.status, body: await response.json() as Record<string, unknown> };
+      };
+
+      const unknown = await postEvent({ type: 'mission_started', missionId: 'mission-binding-unknown' });
+      assert.equal(unknown.status, 403);
+      assert.equal(unknown.body.error, 'machine_origin_event_not_bound');
+      assert.equal(unknown.body.reason, 'unregistered_mission');
+      assert.equal(sent.length, 0);
+
+      await registerMissionRelay({
+        missionId: 'mission-binding-bound',
+        chatId: '424242',
+        userId: '424242',
+        requestId: 'req-binding-bound',
+        traceRef: 'trace-binding-bound',
+        goal: 'Governed binding test mission.',
+        createdAt: new Date().toISOString(),
+        governorDecisionId: 'decision:governed-dispatch-test',
+        governorTurnId: 'turn:governed-dispatch-test'
+      });
+
+      const forgedRequest = await postEvent({
+        type: 'mission_started',
+        missionId: 'mission-binding-bound',
+        data: { requestId: 'req-binding-forged' }
+      });
+      assert.equal(forgedRequest.status, 403);
+      assert.equal(forgedRequest.body.error, 'machine_origin_event_not_bound');
+      assert.equal(forgedRequest.body.reason, 'request_id_mismatch');
+      assert.equal(sent.length, 0);
+
+      const forgedTrace = await postEvent({
+        type: 'mission_started',
+        missionId: 'mission-binding-bound',
+        data: { requestId: 'req-binding-bound', traceRef: 'trace-binding-forged' }
+      });
+      assert.equal(forgedTrace.status, 403);
+      assert.equal(forgedTrace.body.reason, 'trace_ref_mismatch');
+      assert.equal(sent.length, 0);
+
+      const bound = await postEvent({
+        type: 'mission_started',
+        missionId: 'mission-binding-bound',
+        data: { requestId: 'req-binding-bound', traceRef: 'trace-binding-bound' }
+      });
+      assert.equal(bound.status, 200);
+      assert.equal(bound.body.ok, true);
+      assert.equal(sent.length, 1);
+      assert.equal(sent[0].chatId, 424242);
+
+      const ledger = readHarnessCoreToolLedger(ledgerPath);
+      const notification = ledger.find((record) => record.tool_name === 'mission_relay.notify');
+      assert.ok(notification, 'expected a mission_relay.notify ledger record after bound delivery');
+      assert.equal(notification!.result.status, 'success');
+      assert.match(notification!.result.summary, /machine-origin/i);
+      assert.match(notification!.result.summary, /decision:governed-dispatch-test/);
+      assert.match(notification!.result.summary, /turn:governed-dispatch-test/);
+      assert.match(notification!.result.summary, /mission-binding-bound/);
+    } finally {
+      await stopMissionRelayForTests();
+      resetMissionRelayRegistryForTests();
+      resetMissionRelayDeliveryStateForTests();
+      resetJsonStateForTests();
+      if (originalStateDir === undefined) delete process.env.SPARK_GATEWAY_STATE_DIR;
+      else process.env.SPARK_GATEWAY_STATE_DIR = originalStateDir;
+      if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
+      else process.env.TELEGRAM_RELAY_PORT = originalPort;
+      if (originalProfile === undefined) delete process.env.SPARK_TELEGRAM_PROFILE;
+      else process.env.SPARK_TELEGRAM_PROFILE = originalProfile;
+      if (originalSecret === undefined) delete process.env.TELEGRAM_RELAY_SECRET;
+      else process.env.TELEGRAM_RELAY_SECRET = originalSecret;
+      if (originalLedgerPath === undefined) delete process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+      else process.env.SPARK_HARNESS_CORE_LEDGER_PATH = originalLedgerPath;
+      if (originalLedgerEnabled === undefined) delete process.env.SPARK_HARNESS_CORE_LEDGER;
+      else process.env.SPARK_HARNESS_CORE_LEDGER = originalLedgerEnabled;
+      if (originalSmokeMode === undefined) delete process.env.TELEGRAM_SMOKE_MODE;
+      else process.env.TELEGRAM_SMOKE_MODE = originalSmokeMode;
+    }
   });
 })();

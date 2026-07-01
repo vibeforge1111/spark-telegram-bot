@@ -5,11 +5,13 @@ import path from 'node:path';
 import { decideNaturalRoute } from '../src/naturalRouteDecision';
 import {
   appendNaturalRouteExecutionRecord,
+  appendNaturalRouteExecutionRecordSync,
   createNaturalRouteExecutionRecord,
   formatNaturalRouteLedgerSummary,
   naturalRouteLedgerPath,
   parseNaturalRouteExecutionLedger,
   shouldWriteNaturalRouteLedger,
+  shouldWriteNaturalRouteLedgerSynchronously,
   summarizeNaturalRouteExecutionRecords
 } from '../src/naturalRouteLedger';
 
@@ -78,12 +80,24 @@ async function run(): Promise<void> {
     assert.match(formatNaturalRouteLedgerSummary(summary), /memory\.write->spawner\.build: 1/);
   });
 
-  await test('writes and parses JSONL only when explicitly configured', async () => {
+  await test('writes and parses JSONL unless explicitly disabled', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'spark-natural-route-ledger-'));
     const filePath = path.join(dir, 'route-ledger.jsonl');
     try {
-      assert.equal(shouldWriteNaturalRouteLedger({} as NodeJS.ProcessEnv), false);
+      assert.equal(shouldWriteNaturalRouteLedger({} as NodeJS.ProcessEnv), true);
       assert.equal(shouldWriteNaturalRouteLedger({ SPARK_NATURAL_ROUTE_LEDGER: '1' } as NodeJS.ProcessEnv), true);
+      assert.equal(shouldWriteNaturalRouteLedger({ SPARK_NATURAL_ROUTE_LEDGER: '0' } as NodeJS.ProcessEnv), false);
+      assert.equal(shouldWriteNaturalRouteLedger({ SPARK_BOT_TEST_MODE: '1' } as NodeJS.ProcessEnv), false);
+      assert.equal(shouldWriteNaturalRouteLedger({
+        SPARK_BOT_TEST_MODE: '1',
+        SPARK_NATURAL_ROUTE_LEDGER_PATH: filePath
+      } as NodeJS.ProcessEnv), true);
+      assert.equal(shouldWriteNaturalRouteLedgerSynchronously({} as NodeJS.ProcessEnv), false);
+      assert.equal(shouldWriteNaturalRouteLedgerSynchronously({ SPARK_NATURAL_ROUTE_LEDGER_STRICT: '1' } as NodeJS.ProcessEnv), true);
+      assert.equal(shouldWriteNaturalRouteLedgerSynchronously({
+        SPARK_BOT_TEST_MODE: '1',
+        SPARK_NATURAL_ROUTE_LEDGER_PATH: filePath
+      } as NodeJS.ProcessEnv), true);
       assert.equal(naturalRouteLedgerPath({ SPARK_NATURAL_ROUTE_LEDGER_PATH: filePath } as NodeJS.ProcessEnv), filePath);
 
       const decision = decideNaturalRoute('search your wiki for Telegram route mistakes');
@@ -99,9 +113,35 @@ async function run(): Promise<void> {
       assert.equal(parsed.length, 1);
       assert.equal(parsed[0].shadow_route, 'spark_wiki.query');
       assert.equal(parsed[0].shadow_signals.includes('spark_wiki_query'), true);
+
+      appendNaturalRouteExecutionRecordSync(record, filePath);
+      const parsedAfterSync = parseNaturalRouteExecutionLedger(await readFile(filePath, 'utf-8'));
+      assert.equal(parsedAfterSync.length, 2);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+
+  await test('skips malformed JSONL lines without crashing', () => {
+    const validRecord = createNaturalRouteExecutionRecord({
+      decision: decideNaturalRoute('search your wiki for Telegram route mistakes'),
+      executedRoute: 'spark_wiki.query',
+      executedOwner: 'spark-intelligence-builder',
+      executedAction: 'spark_wiki.query'
+    });
+    const validLine = JSON.stringify(validRecord);
+    const jsonl = [
+      validLine,
+      'not valid json {{{',
+      '',
+      validLine,
+      'also broken json }}}',
+      validLine
+    ].join('\n');
+
+    const parsed = parseNaturalRouteExecutionLedger(jsonl);
+    assert.equal(parsed.length, 3);
+    assert.equal(parsed[0].shadow_route, validRecord.shadow_route);
   });
 }
 

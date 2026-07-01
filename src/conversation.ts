@@ -9,6 +9,7 @@ import {
   renderConversationFrameDiagnostics,
   updateRollingConversationFrameState,
   type ConversationFrame,
+  type ConversationTurn,
   type RollingConversationFrameState
 } from './conversationFrame';
 
@@ -21,13 +22,17 @@ export function parseTelegramUserIds(raw: string | undefined): number[] {
     .filter((id) => Number.isSafeInteger(id) && id > 0);
 }
 
-const ADMIN_IDS: number[] = parseTelegramUserIds(process.env.ADMIN_TELEGRAM_IDS);
+function currentAdminIds(): number[] {
+  return parseTelegramUserIds(process.env.ADMIN_TELEGRAM_IDS);
+}
 
-const ALLOWED_IDS: number[] = (
-  parseTelegramUserIds(process.env.ALLOWED_TELEGRAM_IDS || process.env.TELEGRAM_ALLOWED_USER_IDS)
-);
+function currentAllowedIds(): number[] {
+  return parseTelegramUserIds(process.env.ALLOWED_TELEGRAM_IDS || process.env.TELEGRAM_ALLOWED_USER_IDS);
+}
 
-const PUBLIC_CHAT_ENABLED = process.env.TELEGRAM_PUBLIC_CHAT_ENABLED === '1';
+function publicChatEnabled(): boolean {
+  return process.env.TELEGRAM_PUBLIC_CHAT_ENABLED === '1';
+}
 
 interface TelegramUser {
   id: number;
@@ -67,6 +72,11 @@ export interface ResolvedOptionReference {
 export interface RecentConversationTurn {
   role: 'user' | 'assistant';
   text: string;
+}
+
+export interface RecentMemoryDirective {
+  note: string;
+  sourceText: string;
 }
 
 const ORDINAL_WORDS: Record<string, number> = {
@@ -164,6 +174,76 @@ function userFacingMemoryContent(text: string): string {
   return cleaned;
 }
 
+function isPollutedInstructionMemoryLine(text: string): boolean {
+  const normalized = text
+    .replace(/^Spark:\s*/i, '')
+    .replace(/^[_*~`(\s]+|[_*~`)\s]+$/g, '')
+    .toLowerCase()
+    .trim();
+  return (
+    normalized.startsWith('saved instruction') ||
+    normalized.startsWith('saved preference') ||
+    normalized.startsWith('saved to memory') ||
+    normalized.includes('will apply to future replies')
+  );
+}
+
+function isMemoryWriteTranscriptResidueLine(text: string): boolean {
+  const normalized = compactLine(text)
+    .replace(/^[_*~`(\s]+|[_*~`)\s]+$/g, '')
+    .toLowerCase();
+  return (
+    /^user:\s*\/remember\b/.test(normalized) ||
+    /^user:\s*(?:please\s+)?(?:remember|save|store)\s+(?:this|that)?\s*[:,-]?/.test(normalized) ||
+    /^user:\s*(?:please\s+)?(?:save|store)\s+(?:this|that)?\s+(?:to\s+)?memory\b/.test(normalized) ||
+    /^user:\s*memory (?:update|note)\b/.test(normalized) ||
+    /^spark:\s*(?:i remember this:|noted:)/.test(normalized) ||
+    /^spark:\s*you told me\b/.test(normalized)
+  );
+}
+
+function extractRecentMemoryDirective(text: string): string | null {
+  const line = compactLine(text).replace(/^User:\s*/i, '').trim();
+  const memoryUpdate = line.match(/^memory update\s*:\s*(.+?)(?:\s+please\s+save\s+this\b.*)?$/i)?.[1]?.trim();
+  if (memoryUpdate) return userFacingMemoryContent(memoryUpdate);
+
+  const explicit = line.match(
+    /^(?:spark,?\s*)?(?:please\s+|can\s+you\s+|could\s+you\s+)?(?:remember|save|store)\s+(?:this|that|it)?\s*(?:as\s+[^:]{1,80})?\s*[:,-]?\s*(.+)$/i
+  )?.[1]?.trim();
+  if (!explicit) return null;
+
+  const cleaned = explicit
+    .replace(/\b(?:please\s+)?(?:save|store|remember)\s+(?:this|that|it)\b.*$/i, '')
+    .replace(/\bthis\s+turn\s+is\s+only\s+a\s+memory\s+update\b.*$/i, '')
+    .trim();
+  return cleaned ? userFacingMemoryContent(cleaned) : null;
+}
+
+function isContextualRecentLine(text: string): boolean {
+  return !isPollutedInstructionMemoryLine(text) && !isMemoryWriteTranscriptResidueLine(text);
+}
+
+function isContextualTurn(turn: ConversationTurn | RecentConversationTurn): boolean {
+  const prefix = turn.role === 'assistant'
+    ? 'Spark'
+    : turn.role === 'user'
+      ? 'User'
+      : turn.role;
+  return isContextualRecentLine(`${prefix}: ${turn.text}`);
+}
+
+function sanitizeRollingFrameState(state: RollingConversationFrameState): RollingConversationFrameState {
+  const hotTurns = state.hotTurns.filter(isContextualTurn);
+  const warmSummary = /\b(?:remember this|please remember|save this|store this|memory update|memory note|asked spark to remember)\b/i.test(state.warmSummary)
+    ? ''
+    : state.warmSummary;
+  return {
+    ...state,
+    hotTurns,
+    warmSummary
+  };
+}
+
 export function optionOrdinalFromText(text: string): number | null {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   const numeric = normalized.match(/(?:\b(?:no\.?|number|option)\s*|#\s*)([1-9]\d*)\b/);
@@ -249,18 +329,19 @@ export class ConversationMemory {
   private readonly maxRecent = 40;
   private readonly maxNotes = 20;
   private loaded = false;
+  private loadingPromise: Promise<void> | null = null;
   private readonly statePath = resolveStatePath('.spark-conversation-memory.json');
 
   isAdmin(user: TelegramUser): boolean {
-    return ADMIN_IDS.includes(user.id);
+    return currentAdminIds().includes(user.id);
   }
 
   isAllowed(user: TelegramUser): boolean {
-    return PUBLIC_CHAT_ENABLED || this.isAdmin(user) || ALLOWED_IDS.includes(user.id);
+    return publicChatEnabled() || this.isAdmin(user) || currentAllowedIds().includes(user.id);
   }
 
   hasAnyOperatorConfigured(): boolean {
-    return ADMIN_IDS.length > 0 || ALLOWED_IDS.length > 0 || PUBLIC_CHAT_ENABLED;
+    return currentAdminIds().length > 0 || currentAllowedIds().length > 0 || publicChatEnabled();
   }
 
   private userKey(user: TelegramUser): number {
@@ -269,6 +350,13 @@ export class ConversationMemory {
 
   private async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
+    if (this.loadingPromise) return this.loadingPromise;
+    this.loadingPromise = this._doLoad();
+    await this.loadingPromise;
+    this.loadingPromise = null;
+  }
+
+  private async _doLoad(): Promise<void> {
     const snapshot = await readJsonFile<ConversationSnapshot>(this.statePath);
     if (snapshot?.recentByUser) {
       for (const [key, value] of Object.entries(snapshot.recentByUser)) {
@@ -334,12 +422,19 @@ export class ConversationMemory {
     for (const [key, value] of this.frameStateByUser.entries()) {
       frameStateByUser[String(key)] = value;
     }
-    await writeJsonAtomic(this.statePath, {
-      recentByUser: this.recordFromMap(this.recentByUser),
-      notesByUser: this.recordFromMap(this.notesByUser),
-      interruptedByUser,
-      frameStateByUser
-    });
+    try {
+      await writeJsonAtomic(this.statePath, {
+        recentByUser: this.recordFromMap(this.recentByUser),
+        notesByUser: this.recordFromMap(this.notesByUser),
+        interruptedByUser,
+        frameStateByUser
+      });
+    } catch (error) {
+      // Diagnostic only: callers already swallow persist() rejections, so this
+      // makes the failure visible in logs without changing control flow.
+      console.error('[ConversationMemory] persist failed:', error);
+      throw error;
+    }
   }
 
   private async pushBounded(map: Map<number, string[]>, key: number, value: string, limit: number): Promise<void> {
@@ -355,13 +450,17 @@ export class ConversationMemory {
 
   async remember(user: TelegramUser, message: string): Promise<Memory | null> {
     await this.pushBounded(this.recentByUser, this.userKey(user), `User: ${message}`, this.maxRecent);
-    await this.updateRollingFrame(user, 'user', message);
+    if (isContextualRecentLine(`User: ${message}`)) {
+      await this.updateRollingFrame(user, 'user', message);
+    }
     return null;
   }
 
   async rememberAssistantReply(user: TelegramUser, message: string): Promise<Memory | null> {
     await this.pushBounded(this.recentByUser, this.userKey(user), `Spark: ${message}`, this.maxRecent);
-    await this.updateRollingFrame(user, 'assistant', message);
+    if (isContextualRecentLine(`Spark: ${message}`)) {
+      await this.updateRollingFrame(user, 'assistant', message);
+    }
     return null;
   }
 
@@ -379,7 +478,8 @@ export class ConversationMemory {
   }
 
   async learnAboutUser(user: TelegramUser, insight: string): Promise<Memory | null> {
-    await this.pushBounded(this.notesByUser, this.userKey(user), insight, this.maxNotes);
+    void user;
+    void insight;
     return null;
   }
 
@@ -431,55 +531,16 @@ export class ConversationMemory {
   }
 
   async storePreference(user: TelegramUser, preference: string): Promise<Memory | null> {
-    await this.pushBounded(this.notesByUser, this.userKey(user), `Preference: ${preference}`, this.maxNotes);
+    void user;
+    void preference;
     return null;
   }
 
   async recall(user: TelegramUser, query: string, limit: number = 5): Promise<Memory[]> {
-    await this.ensureLoaded();
-    const key = this.userKey(user);
-    const queryText = normalizeMemorySearchText(query);
-    const queryTokens = memorySearchTokens(query);
-    if (!queryText && queryTokens.length === 0) return [];
-
-    const recallNoise = (text: string): boolean => {
-      const lower = text.toLowerCase();
-      return (
-        /^user:\s*\/recall\b/.test(lower) ||
-        /^user:\s*what do you remember about\b/.test(lower) ||
-        /^spark:\s*i remember this:/.test(lower) ||
-        /^user:\s*please remember this:/.test(lower) ||
-        lower.includes("don't currently have saved entity state") ||
-        lower.includes('do not currently have saved entity state')
-      );
-    };
-
-    const candidates = [
-      ...(this.notesByUser.get(key) || []).map((content, index) => ({ content, source: 'note', index })),
-      ...(this.recentByUser.get(key) || []).filter((content) => !recallNoise(content)).map((content, index) => ({ content, source: 'recent', index }))
-    ];
-    const minTokenMatches = queryTokens.length <= 2 ? queryTokens.length : Math.max(2, Math.ceil(queryTokens.length * 0.5));
-
-    return candidates
-      .map((candidate) => {
-        const normalized = normalizeMemorySearchText(candidate.content);
-        const tokenMatches = queryTokens.filter((token) => normalized.includes(token)).length;
-        const exactMatch = Boolean(queryTokens.length > 0 && queryText && normalized.includes(queryText));
-        const score = (exactMatch ? queryTokens.length + 3 : 0) + tokenMatches + (candidate.source === 'note' ? 1 : 0);
-        return { ...candidate, tokenMatches, exactMatch, score };
-      })
-      .filter((candidate) => candidate.exactMatch || (queryTokens.length > 0 && candidate.tokenMatches >= minTokenMatches))
-      .sort((a, b) => b.score - a.score || b.index - a.index)
-      .slice(0, Math.max(1, limit))
-      .map((candidate, index) => ({
-        memory_id: `telegram-${candidate.source}-${candidate.index}`,
-        content: userFacingMemoryContent(candidate.content),
-        temporal_level: 0,
-        salience: Math.max(1, candidate.score - index),
-        content_type: candidate.source,
-        created_at: undefined
-      }))
-      .filter((memory) => memory.content.length > 0);
+    void user;
+    void query;
+    void limit;
+    return [];
   }
 
   async recallRecent(_user: TelegramUser, _limit: number = 5): Promise<Memory[]> {
@@ -489,13 +550,16 @@ export class ConversationMemory {
   async getContext(user: TelegramUser, _currentMessage: string): Promise<string> {
     await this.ensureLoaded();
     const key = this.userKey(user);
-    const notes = this.notesByUser.get(key) || [];
+    const notes = (this.notesByUser.get(key) || []).filter((note) => /^Agent interaction preference \[[a-z_]+\]:/i.test(note));
     const recent = this.recentByUser.get(key) || [];
     const lines: string[] = [];
 
     if (notes.length > 0) {
-      lines.push('Session notes from this chat:');
-      for (const note of notes) {
+      const cleanNotes = notes.filter((note) => !isPollutedInstructionMemoryLine(note));
+      if (cleanNotes.length > 0) {
+        lines.push('Session notes from this chat:');
+      }
+      for (const note of cleanNotes) {
         lines.push(`- ${note}`);
       }
     }
@@ -509,8 +573,11 @@ export class ConversationMemory {
     }
 
     if (recent.length > 0) {
-      lines.push('Recent Telegram turns:');
-      for (const item of recent.slice(-12)) {
+      const cleanRecent = recent.filter(isContextualRecentLine).slice(-12);
+      if (cleanRecent.length > 0) {
+        lines.push('Recent Telegram turns:');
+      }
+      for (const item of cleanRecent) {
         lines.push(`- ${item}`);
       }
     }
@@ -524,6 +591,7 @@ export class ConversationMemory {
     const recent = this.recentByUser.get(key) || [];
     return recent
       .filter((item) => !/^Spark:\s*/i.test(item))
+      .filter(isContextualRecentLine)
       .slice(-Math.max(1, limit))
       .map((item) => item.replace(/^User:\s*/i, '').trim())
       .filter(Boolean);
@@ -534,6 +602,7 @@ export class ConversationMemory {
     const key = this.userKey(user);
     const recent = this.recentByUser.get(key) || [];
     return recent
+      .filter(isContextualRecentLine)
       .slice(-Math.max(1, limit))
       .map((item) => {
         const assistant = item.match(/^Spark:\s*(.+)$/is);
@@ -544,6 +613,15 @@ export class ConversationMemory {
         return { role: 'user' as const, text: (userMatch?.[1] || item).trim() };
       })
       .filter((turn) => turn.text.length > 0);
+  }
+
+  async getRecentMemoryDirectives(user: TelegramUser, limit: number = 8): Promise<RecentMemoryDirective[]> {
+    await this.ensureLoaded();
+    void user;
+    void limit;
+    // Raw "remember/save" turns are transcript residue until Builder/domain-chip memory accepts them.
+    // Telegram-local context can support conversation, but it must not masquerade as durable recall.
+    return [];
   }
 
   async resolveRecentOptionReference(user: TelegramUser, text: string): Promise<ResolvedOptionReference | null> {
@@ -573,7 +651,7 @@ export class ConversationMemory {
   async getConversationFrame(user: TelegramUser, currentMessage: string): Promise<ConversationFrame> {
     await this.ensureLoaded();
     const key = this.userKey(user);
-    const state = this.frameStateByUser.get(key) || emptyRollingConversationFrameState();
+    const state = sanitizeRollingFrameState(this.frameStateByUser.get(key) || emptyRollingConversationFrameState());
     if (state.hotTurns.length > 0 || state.warmSummary || state.artifacts.length > 0) {
       return buildConversationFrameFromState(currentMessage, state);
     }
@@ -598,6 +676,18 @@ export class ConversationMemory {
 
   async isAvailable(): Promise<boolean> {
     return true;
+  }
+
+  async resetUser(user: TelegramUser, keepNotes: boolean = false): Promise<void> {
+    await this.ensureLoaded();
+    const key = this.userKey(user);
+    this.recentByUser.delete(key);
+    this.interruptedByUser.delete(key);
+    this.frameStateByUser.delete(key);
+    if (!keepNotes) {
+      this.notesByUser.delete(key);
+    }
+    await this.persist();
   }
 }
 

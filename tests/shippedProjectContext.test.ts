@@ -55,9 +55,11 @@ async function main(): Promise<void> {
       requestId: 'tg-build-8319079055-3709-1778354076476',
       goal: 'Build a polished static browser app called Mission Control Reliability Desk.',
       providerLabel: 'codex',
-      response: 'completed without a text response',
-      projectPath: 'C:/Users/USER/.spark/workspaces/mission-1778354076476-mission-control-reliability-desk',
-      previewUrl: 'http://127.0.0.1:3333/preview/reliability/index.html'
+      response: JSON.stringify({
+        summary: 'completed without a text response',
+        project_path: 'C:/Users/USER/.spark/workspaces/mission-1778354076476-mission-control-reliability-desk',
+        preview_url: 'http://127.0.0.1:3333/preview/reliability/index.html'
+      })
     });
 
     const latest = await shippedProjectContext.getLatestShippedProjectContext('8319079055');

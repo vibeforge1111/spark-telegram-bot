@@ -91,6 +91,40 @@ void (async () => {
     assert.match(formatSparkAccessAutomaticRestartNotice('level5_disable'), /\/access/);
   });
 
+  await test('returns a useful Telegram-safe message when CLI requires interactive access confirmation', async () => {
+    const result = await runSparkAccessActionDetailed('level5_disable', async () => {
+      const error = new Error('Command failed: spark access disable-level5 --json') as Error & { stderr?: string };
+      error.stderr = [
+        'Spark blocked a sensitive action because this shell is non-interactive.',
+        'Run the command again in an interactive terminal so Spark can ask for confirmation.'
+      ].join('\n');
+      throw error;
+    });
+
+    assert.equal(result.payload?.ok, false);
+    assert.match(result.reply, /local confirmation/i);
+    assert.match(result.reply, /spark access disable-level5/);
+    assert.doesNotMatch(result.reply, /configuration problem/i);
+  });
+
+  await test('treats local Spark approval prompts as second-channel confirmation blocks', async () => {
+    const result = await runSparkAccessActionDetailed('level5_enable', async () => {
+      const error = new Error('Command failed: spark access setup --level 5 --enable-high-agency --json') as Error & { stdout?: string };
+      error.stdout = [
+        'Spark needs confirmation before continuing.',
+        'Class: identity_access_mutation',
+        'Type exactly: approve level 5 access',
+        'Approval phrase:'
+      ].join('\n');
+      throw error;
+    });
+
+    assert.equal(result.payload?.ok, false);
+    assert.equal(result.payload?.error, 'non_interactive_confirmation_required');
+    assert.match(result.reply, /trusted local confirmation/i);
+    assert.match(result.reply, /spark access setup --level 5 --enable-high-agency/);
+  });
+
   await test('formats Docker smoke as no-secret sandbox evidence', () => {
     const reply = formatSparkAccessActionReply('docker_smoke', {
       ok: true,

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  filterAllowedMissionProviders,
   resolveChatDefaultProvider,
   resolveKnownChatProviderId,
   resolveMissionDefaultProvider
@@ -66,6 +67,19 @@ test('uses explicit Telegram mission override before other mission defaults', ()
   } as NodeJS.ProcessEnv;
 
   assert.equal(resolveMissionDefaultProvider(env), 'minimax');
+});
+
+test('mission provider allowlist skips disallowed configured providers', () => {
+  const env = {
+    BOT_DEFAULT_PROVIDER: 'zai',
+    DEFAULT_MISSION_PROVIDER: 'zai',
+    SPARK_MISSION_LLM_PROVIDER: 'zai',
+    SPARK_ALLOWED_LLM_PROVIDERS: 'codex'
+  } as NodeJS.ProcessEnv;
+
+  assert.equal(resolveChatDefaultProvider(env), 'not_configured');
+  assert.equal(resolveMissionDefaultProvider(env), 'codex');
+  assert.deepEqual(filterAllowedMissionProviders(['zai', 'codex'], env), ['codex']);
 });
 
 test('does not invent a chat provider when provider env values are unknown', () => {

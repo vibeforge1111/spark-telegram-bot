@@ -57,3 +57,15 @@ export function resolvePythonCommand(rawValue?: string, envPath = process.env.PA
   }
   return raw;
 }
+
+export function resolveDefaultPythonCommand(envPath = process.env.PATH || ''): string {
+  const candidates = process.platform === 'win32' ? ['python', 'py', 'python3'] : ['python3', 'python'];
+  for (const candidate of candidates) {
+    try {
+      return resolvePythonCommand(candidate, envPath);
+    } catch {
+      // Keep searching platform defaults.
+    }
+  }
+  return process.platform === 'win32' ? 'python' : 'python3';
+}
