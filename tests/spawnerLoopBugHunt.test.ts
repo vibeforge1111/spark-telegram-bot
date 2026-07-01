@@ -218,6 +218,11 @@ test('bug hunt: Spark workflow QA prompts get a local plan, not invented executi
   assert.doesNotMatch(reply, /tests\/missionControlSpawnerWorkflow/i);
 });
 
+test('bug hunt: PRD Writing loop-state QA prompts yield to Loop Engineering status', () => {
+  const prompt = 'Loop QA read-only check: latest PRD Writing loop state from Spawner? Include schedule status, fresh/stale, what improved, distilled reuse without rerun, and link. Do not mutate anything.';
+  assert.equal(isSparkWorkflowBugHuntRequest(prompt), false);
+});
+
 test('bug hunt: mission routing failure-class prompts stay short and non-executing', () => {
   const prompt = 'I am asking about a bug in mission routing. Do not launch a mission; just explain the likely failure class in one or two natural sentences.';
   assert.equal(isMissionRoutingFailureClassQuestion(prompt), true);

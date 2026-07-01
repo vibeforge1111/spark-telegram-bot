@@ -159,6 +159,21 @@ function prdChipResponse() {
           nextAction: 'Record evaluator review or distill only accepted scheduled-loop lessons; activation remains staged.',
           updatedAt: '2026-07-01T09:59:49.934Z'
         }
+      ],
+      distillations: [
+        {
+          id: 'distill-prd-1',
+          chipKey: 'domain-chip-prd-writing-proof-loop',
+          sourceEvaluatorEventId: 'lee-evaluator-prd-1',
+          lessons: ['PRDs improved when acceptance criteria were tied to observable evidence, rollout risk, and owner decisions.'],
+          runtimeNotes: 'Use the distilled PRD checklist before rerunning the full loop.',
+          tokenBudgetHint: 'Next matching PRDs can reuse this staged lesson without rerunning the full loop unless the user asks for fresh evidence.',
+          status: 'staged',
+          evidenceRefs: ['control-plane:distillations:distill-prd-1'],
+          createdAt: '2026-07-01T10:02:00.000Z',
+          updatedAt: '2026-07-01T10:02:00.000Z',
+          lastEventId: 'lee-distill-prd-1'
+        }
       ]
     }
   };
@@ -195,6 +210,7 @@ test('detects explicit loop engineering status requests without hijacking chip c
   assert.equal(isLoopEngineeringStatusRequest('What is the Loop Engineering readiness for the Daily Schedule chip?'), true);
   assert.equal(isLoopEngineeringStatusRequest('Why is the daily schedule domain chip blocked from activation?'), true);
   assert.equal(isLoopEngineeringStatusRequest('For QA: what is the latest PRD Writing loop-engineering state from Spawner/control-plane right now? Do not run, mutate, publish, activate, schedule, or start anything.'), true);
+  assert.equal(isLoopEngineeringStatusRequest('Loop QA read-only check: latest PRD Writing loop state from Spawner? Include schedule status, fresh/stale, what improved, distilled reuse without rerun, and link. Do not mutate anything.'), true);
   assert.equal(isLoopEngineeringStatusRequest('Build a private Domain Chip for daily schedule reliability.'), false);
   assert.equal(isLoopEngineeringStatusRequest('Remind me tomorrow at 9am Dubai time.'), false);
 });
@@ -371,6 +387,35 @@ test('Telegram handler answers PRD Writing no-action state query through Spawner
       rmSync(tempHome, { recursive: true, force: true });
       restoreEnv();
     }
+  });
+});
+
+test('Telegram handler routes live PRD Writing loop-state QA wording to Spawner status, not QA planning', async () => {
+  await withServer(async (baseUrl, hits) => {
+    process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+    process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+    process.env.SPARK_BOT_TEST_MODE = '1';
+    process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+    process.env.SPAWNER_UI_URL = baseUrl;
+    process.env.SPAWNER_UI_PUBLIC_URL = baseUrl;
+
+    const indexModule: any = await import('../src/index');
+    const replies: string[] = [];
+    await indexModule.handleTextMessage(fakeCtx(
+      'Loop QA read-only check: latest PRD Writing loop state from Spawner? Include schedule status, fresh/stale, what improved, distilled reuse without rerun, and link. Do not mutate anything.',
+      replies,
+      { chat: 8319079055, user: 8319079055, message: 8463 }
+    ));
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /PRD Writing is local fast path supported/i);
+    assert.match(replies[0], /Private scheduled loop completed passed/i);
+    assert.match(replies[0], /Distilled reuse: PRDs improved when acceptance criteria were tied to observable evidence, rollout risk, and owner decisions\./i);
+    assert.match(replies[0], /reuse this staged lesson without rerunning the full loop/i);
+    assert.match(replies[0], /I only read Spawner here; nothing was queued or changed\./);
+    assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-prd-writing-proof-loop/i);
+    assert.doesNotMatch(replies[0], /QA planning, not a mission launch/i);
+    assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-prd-writing-proof-loop']);
   });
 });
 

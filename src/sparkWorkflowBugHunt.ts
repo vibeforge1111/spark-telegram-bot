@@ -1,4 +1,5 @@
 import { parseBuildIntent } from './buildIntent';
+import { isLoopEngineeringStatusRequest } from './loopEngineeringStatus';
 import { isLoopEngineeringNoActionProofQuestion, renderLoopEngineeringNoActionProofReply } from './loopEngineeringNoActionProof';
 
 function isProductMemoryMissionBoundaryQuestion(normalized: string): boolean {
@@ -12,6 +13,7 @@ export function isSparkWorkflowBugHuntRequest(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!normalized) return false;
   if (isLoopEngineeringNoActionProofQuestion(normalized)) return true;
+  if (isLoopEngineeringStatusRequest(normalized)) return false;
   if (parseBuildIntent(normalized)) return false;
   if (isProductMemoryMissionBoundaryQuestion(normalized)) return false;
   const qaLanguage = /\b(?:unit\s+tests?|qa|bug\s+hunt(?:er|ing)?|edge\s+cases?|regressions?|smoke\s+tests?|test\s+suite|comprehensive\s+tests?|trigger\s+bugs?|bug\s+hunter)\b/.test(normalized);

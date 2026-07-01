@@ -19,6 +19,7 @@ export interface LoopEngineeringStatusPacket {
   latestResultEvent: LoopEngineeringResultEvent | null;
   topResultEvents: LoopEngineeringResultEvent[];
   blockedChecks: LoopEngineeringStatusCheck[];
+  distilledLearningLine: string | null;
   nextAction: string;
   detailUrl: string;
   liveTelegramProven: boolean;
@@ -62,7 +63,10 @@ function normalizeText(text: string): string {
 export function isLoopEngineeringStatusRequest(text: string): boolean {
   const normalized = normalizeText(text);
   if (!normalized) return false;
-  if (!LOOP_STATUS_PATTERN.test(normalized)) return false;
+  const prdLoopStateStatus = PRD_ALIAS_PATTERN.test(normalized) &&
+    /\b(?:loop|schedule|spawner|control[-\s]?plane)\b/i.test(normalized) &&
+    /\b(?:latest|current|state|status|fresh|stale|improved|distilled|reuse|rerun|link|read[-\s]?only)\b/i.test(normalized);
+  if (!LOOP_STATUS_PATTERN.test(normalized) && !prdLoopStateStatus) return false;
   if (MUTATING_ACTION_PATTERN.test(normalized) && !STATUS_WORD_PATTERN.test(normalized)) return false;
   if (/\b(?:build|create|scaffold)\b[\s\S]{0,80}\bdomain[-\s]?chip\b/i.test(normalized)) return false;
   return true;
@@ -169,6 +173,23 @@ function renderLatestEventLine(event: LoopEngineeringResultEvent | null): string
   return `Latest result: ${event.label} ${event.status}${details.length ? ` (${details.join(', ')})` : ''}.`;
 }
 
+function distilledLearningLineFromChip(chip: any): string | null {
+  const distillations = Array.isArray(chip?.distillations) ? chip.distillations : [];
+  const latest = [...distillations]
+    .filter((item) => item && typeof item === 'object' && item.status !== 'rejected')
+    .sort((a, b) => Date.parse(String(b.updatedAt || b.createdAt || '')) - Date.parse(String(a.updatedAt || a.createdAt || '')))[0];
+  if (!latest) return null;
+  const lesson = Array.isArray(latest.lessons)
+    ? latest.lessons.find((item: unknown): item is string => typeof item === 'string' && Boolean(item.trim()))
+    : '';
+  const cleanLesson = String(lesson || '').trim();
+  const tokenHint = typeof latest.tokenBudgetHint === 'string' && latest.tokenBudgetHint.trim()
+    ? latest.tokenBudgetHint.trim()
+    : 'reuse this lesson before rerunning the full loop when the PRD request fits the same case shape.';
+  if (!cleanLesson) return `Distilled reuse: Spawner has a reusable lesson staged; ${tokenHint}`;
+  return `Distilled reuse: ${cleanLesson} ${tokenHint}`;
+}
+
 function wantsCompactLatestReply(text: string): boolean {
   const normalized = normalizeText(text).toLowerCase();
   return (
@@ -181,17 +202,29 @@ function wantsCompactLatestReply(text: string): boolean {
   );
 }
 
+function wantsDistilledLearningLine(text: string): boolean {
+  const normalized = normalizeText(text).toLowerCase();
+  return /\b(?:what improved|improved|distilled|reuse|rerun|without rerun|without rerunning|next prds?)\b/.test(normalized);
+}
+
 function renderCompactReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>): string {
-  return [
+  const lines = [
     `${packet.domain} is ${packet.readinessLabel.toLowerCase()} (${packet.passCount}/${packet.totalCount} checks pass); ${packet.freshnessLabel}`,
     renderLatestEventLine(packet.latestResultEvent),
-    'I only read Spawner here; nothing was queued or changed.',
-    `Details: ${packet.detailUrl}`
-  ].join('\n');
+    'I only read Spawner here; nothing was queued or changed.'
+  ];
+  lines.push(`Details: ${packet.detailUrl}`);
+  return lines.join('\n');
 }
 
 function renderReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>, text = ''): string {
-  if (wantsCompactLatestReply(text)) return renderCompactReply(packet);
+  if (wantsCompactLatestReply(text)) {
+    const reply = renderCompactReply(packet);
+    if (!wantsDistilledLearningLine(text)) return reply;
+    const lines = reply.split('\n');
+    lines.splice(Math.max(2, lines.length - 2), 0, packet.distilledLearningLine || 'Distilled reuse: I do not see a reusable distilled lesson in Spawner yet.');
+    return lines.join('\n');
+  }
   const blockedLine = packet.blockedChecks.length
     ? `The blockers I can prove are ${packet.blockedChecks.map((check) => check.label).join(', ')}.`
     : 'I do not see a blocker in the current readiness packet.';
@@ -199,6 +232,7 @@ function renderReply(packet: Omit<LoopEngineeringStatusPacket, 'reply'>, text = 
     `${packet.domain} is ${packet.readinessLabel.toLowerCase()}: ${packet.passCount}/${packet.totalCount} checks pass. ${blockedLine}`,
     `Freshness: ${packet.freshnessLabel}`,
     renderLatestEventLine(packet.latestResultEvent),
+    ...(wantsDistilledLearningLine(text) ? [packet.distilledLearningLine || 'Distilled reuse: I do not see a reusable distilled lesson in Spawner yet.'] : []),
     renderEventLine(packet.topResultEvents),
     'I only read Spawner here; no loop, benchmark, schedule, activation, or publication was queued.',
     '',
@@ -232,6 +266,7 @@ function unavailablePacket(input: {
         detail: input.reason
       }
     ],
+    distilledLearningLine: null,
     nextAction: 'Open Spawner or register the private chip evidence, then ask for status again.',
     detailUrl,
     liveTelegramProven: false,
@@ -266,6 +301,7 @@ export async function fetchLoopEngineeringStatusPacket(
       latestResultEvent: null,
       topResultEvents: [],
       blockedChecks: [],
+      distilledLearningLine: null,
       nextAction: 'Name a specific domain chip, such as Daily Schedule Reliability, so I can read its evidence packet.',
       detailUrl,
       liveTelegramProven: false,
@@ -325,6 +361,7 @@ export async function fetchLoopEngineeringStatusPacket(
       latestResultEvent: latestEvent,
       topResultEvents: topResultEvents(events),
       blockedChecks: topBlockedChecks(checks),
+      distilledLearningLine: distilledLearningLineFromChip(chip),
       nextAction: String(readiness.nextAction || summary.nextAction || 'Inspect the chip evidence before taking action.'),
       detailUrl: `${publicBaseUrl}/loop-engineering/${encodeURIComponent(chipId)}`,
       liveTelegramProven: Boolean(summary.activation?.liveTelegramProven)
