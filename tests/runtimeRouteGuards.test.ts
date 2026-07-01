@@ -35,3 +35,17 @@ test('routes fresh Spark health questions to live diagnostics', () => {
     false
   );
 });
+
+test('does not treat health inside a build target as a live health question', () => {
+  const originalRoot = process.env.SPARK_PROJECT_ROOT;
+  process.env.SPARK_PROJECT_ROOT = String.raw`C:\Dev\projects`;
+  try {
+    const prompt = String.raw`Continue mission-1780080376626, but do not make another dashboard-only prototype. Build the real backend for the Telegram group scoring bot. Create a full local project at: C:\Dev\projects\telegram-health-bot Include API routes, persistence, scoring logic, and a runnable local setup.`;
+
+    assert.equal(isLiveSparkHealthQuestion(prompt), false);
+    assert.equal(shouldAnswerSparkRepairRequest(prompt), false);
+  } finally {
+    if (originalRoot === undefined) delete process.env.SPARK_PROJECT_ROOT;
+    else process.env.SPARK_PROJECT_ROOT = originalRoot;
+  }
+});

@@ -561,7 +561,7 @@ export function decideNaturalRoute(
 
   if (
     buildIntent &&
-    !isNoExecutionBoundary(normalized) &&
+    (!isNoExecutionBoundary(normalized) || concreteBuildBrief) &&
     (!harnessArchitectureQuestion || concreteBuildBrief) &&
     ((!earlyCreatorMission && !conversationalIdeation) || concreteStandaloneBuildBrief)
   ) {

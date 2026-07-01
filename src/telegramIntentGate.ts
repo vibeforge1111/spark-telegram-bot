@@ -206,6 +206,9 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   if (constraints.noExecution && isExplicitSpawnerNoEditMissionRequest(normalized)) {
     constraints.noExecution = false;
   }
+  if (constraints.noExecution && isExplicitSpawnerBuildRequest(normalized)) {
+    constraints.noExecution = false;
+  }
 
   constraints.noPublish = [
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|share|deploy|ship)\b/,
@@ -317,11 +320,11 @@ function isExplicitSpawnerBuildRequest(text: string): boolean {
   const buildIntent = parseBuildIntent(text);
   if (
     !normalized ||
-    (isNoExecutionBoundary(normalized) && !explicitNoEditMission) ||
     isScheduleDeleteRequest(normalized) ||
     isCreatorBenchmarkPackRequest(normalized)
   ) return false;
   if (buildIntent && !domainChipCreateRequest) return true;
+  if (isNoExecutionBoundary(normalized) && !explicitNoEditMission) return false;
   if (
     (shouldPreferConversationalIdeation(normalized) && !explicitNoEditMission) ||
     domainChipCreateRequest

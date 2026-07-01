@@ -51,6 +51,7 @@ async function test(name: string, fn: AsyncTest): Promise<void> {
 const originalPost = axios.post;
 const originalGet = axios.get;
 const originalEnv = {
+	BOT_TOKEN: process.env.BOT_TOKEN,
 	BOT_DEFAULT_TIER: process.env.BOT_DEFAULT_TIER,
 	BOT_PRO_USER_IDS: process.env.BOT_PRO_USER_IDS,
 	ADMIN_TELEGRAM_IDS: process.env.ADMIN_TELEGRAM_IDS,
@@ -64,6 +65,7 @@ const originalEnv = {
 	SPARK_BOT_TEST_MODE: process.env.SPARK_BOT_TEST_MODE,
 	SPARK_FINAL_ANSWER_GATE_AUDIT_PATH: process.env.SPARK_FINAL_ANSWER_GATE_AUDIT_PATH,
 	SPARK_GATEWAY_STATE_DIR: process.env.SPARK_GATEWAY_STATE_DIR,
+	SPARK_PROJECT_ROOT: process.env.SPARK_PROJECT_ROOT,
 	SPARK_HARNESS_CORE_LEDGER: process.env.SPARK_HARNESS_CORE_LEDGER,
 	SPARK_HARNESS_CORE_LEDGER_PATH: process.env.SPARK_HARNESS_CORE_LEDGER_PATH,
 	SPARK_HOME: process.env.SPARK_HOME,
@@ -366,6 +368,7 @@ async function callHandleBuildIntent(opts: {
 	process.env.SPARK_BOT_TEST_MODE = '1';
 	process.env.SPARK_CLARIFICATION_COPY_LLM = '0';
 	process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+	process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123456:test-token';
 	// Stub the access-policy gate so the test does not require a real
 	// Spark access profile to be loaded. We assume sparkAccessAllows would
 	// pass for an admin tester; the production path runs the real gate.
@@ -642,6 +645,45 @@ async function run(): Promise<void> {
 		assert.equal(subscription.userId, '8319079055');
 		assert.equal(subscription.requestId, writeCall!.body.requestId);
 		assert.equal(subscription.traceRef, writeCall!.body.traceRef);
+
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('health in build target path does not trigger live health answer', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123456:test-token';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_PROJECT_ROOT = String.raw`C:\Dev\projects`;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			if (url.includes('/api/prd-bridge/write')) {
+				return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'codex', started: true } } };
+			}
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({ data: { pending: false } });
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 556, replies);
+		ctx.message.text = String.raw`Continue mission-1780080376626, but do not make another dashboard-only prototype. Build the real backend for the Telegram group scoring bot. Create a full local project at: C:\Dev\projects\telegram-health-bot Include API routes, persistence, scoring logic, and a runnable local setup.`;
+
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const writeCall = captured.find((c) => c.url.includes('/api/prd-bridge/write'));
+		assert.ok(writeCall, `expected /api/prd-bridge/write; replies=${JSON.stringify(replies)}`);
+		assert.equal(writeCall!.body.buildMode, 'advanced_prd');
+		assert.match(writeCall!.body.content, /Target workspace\/project path: `C:\\Dev\\projects\\telegram-health-bot`/);
+		assert.doesNotMatch(replies.join('\n'), /Spark is healthy right now|fresh runtime state|No repair action needed/i);
+		assert.ok(!captured.some((c) => c.url.includes('/api/spark/run')), 'build prompt must not fall through to generic Spark runtime');
 
 		restoreAxios();
 		restoreEnv();
