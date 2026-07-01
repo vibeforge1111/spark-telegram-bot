@@ -7611,7 +7611,7 @@ type LoopEngineeringCommand =
   | { kind: 'list' }
   | { kind: 'status'; chipQuery: string }
   | { kind: 'benchmark'; chipKey: string; executeNow?: boolean; benchmarkCaseIds?: string[] }
-  | { kind: 'run'; chipKey: string; rounds: number }
+  | { kind: 'run'; chipKey: string; rounds: number; executeNow?: boolean; benchmarkCaseIds?: string[] }
   | { kind: 'complete'; chipKey: string; eventId: string; status: LoopEngineeringCompletionStatus; previousScore?: number; candidateScore?: number; roundsObserved?: number; evidenceRefs: string[]; sourceRef?: string; evaluatorVerdictRef?: string }
   | { kind: 'eval'; chipKey: string; previousScore: number; candidateScore: number; roundsObserved?: number; evidenceRefs: string[] }
   | { kind: 'distill'; chipKey: string; sourceEvaluatorEventId: string; lessons: string[] }
@@ -7627,7 +7627,7 @@ function loopEngineeringUsage(): string {
     '/loop list',
     '/loop status <domain-chip-key or chip name>',
     '/loop benchmark <domain-chip-key> [now] [case <case-id[,case-id]>]',
-    '/loop run <domain-chip-key> [rounds]',
+    '/loop run <domain-chip-key> [rounds] [now] [case <case-id[,case-id]>]',
     '/loop complete <domain-chip-key> event <eventId> <passed|failed|blocked> previous <score> candidate <score> evidence <ref[,ref]>',
     '/loop case <domain-chip-key> <visible|held_out|trap|no_op|regression> prompt <prompt> expected <expected>',
     '/loop eval <domain-chip-key> <previousScore> <candidateScore> evidence <ref[,ref]>',
@@ -7678,6 +7678,14 @@ function loopNumberAfter(text: string, keyword: string): number | undefined {
   return Number.isFinite(value) ? value : undefined;
 }
 
+function loopBenchmarkCaseIds(text: string): string[] {
+  const caseMatch = text.match(/\scases?\s+(.+)$/i);
+  return (caseMatch?.[1] || '')
+    .split(/[,\s]+/)
+    .map((item) => item.trim())
+    .filter((item) => /^benchcase-[a-z0-9-]+$/i.test(item));
+}
+
 function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null {
   const text = raw.trim();
   if (!text) return null;
@@ -7693,11 +7701,7 @@ function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null
     const parts = text.split(/\s+/);
     const chipKey = parts[1];
     const executeNow = parts.slice(2).some((part) => /^(?:now|execute|run|score)$/i.test(part));
-    const caseMatch = text.match(/\scases?\s+(.+)$/i);
-    const benchmarkCaseIds = (caseMatch?.[1] || '')
-      .split(/[,\s]+/)
-      .map((item) => item.trim())
-      .filter((item) => /^benchcase-[a-z0-9-]+$/i.test(item));
+    const benchmarkCaseIds = loopBenchmarkCaseIds(text);
     return chipKey
       ? {
           kind: 'benchmark',
@@ -7711,7 +7715,17 @@ function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null
     const parts = text.split(/\s+/);
     const chipKey = parts[1];
     const rounds = Math.max(1, Math.min(25, Number.parseInt(parts[2] || '3', 10) || 3));
-    return chipKey ? { kind: 'run', chipKey, rounds } : null;
+    const executeNow = parts.slice(2).some((part) => /^(?:now|execute|score)$/i.test(part));
+    const benchmarkCaseIds = loopBenchmarkCaseIds(text);
+    return chipKey
+      ? {
+          kind: 'run',
+          chipKey,
+          rounds,
+          ...(executeNow ? { executeNow } : {}),
+          ...(benchmarkCaseIds.length ? { benchmarkCaseIds } : {})
+        }
+      : null;
   }
   if (verb === 'complete' || verb === 'bind') {
     const match = text.match(/^(?:complete|bind)\s+(\S+)(?:\s+event)?\s+(\S+)\s+(passed|failed|blocked)\b/i);
@@ -7944,11 +7958,15 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         executionAuthority: authorization.governorDecision
       });
     } else if (parsedLoopEngineering.kind === 'run') {
-      actionLabel = 'queue the capped private loop';
+      actionLabel = parsedLoopEngineering.executeNow ? 'run the capped private loop' : 'queue the capped private loop';
       result = await spawner.runLoopEngineeringLoop({
         chipKey: parsedLoopEngineering.chipKey,
-        objective: `Run a capped private self-improvement loop for ${labelForTelegram(parsedLoopEngineering.chipKey)}.`,
+        objective: parsedLoopEngineering.executeNow
+          ? `Execute a capped private self-improvement loop for ${labelForTelegram(parsedLoopEngineering.chipKey)} with separated evaluator evidence.`
+          : `Run a capped private self-improvement loop for ${labelForTelegram(parsedLoopEngineering.chipKey)}.`,
         roundLimit: parsedLoopEngineering.rounds,
+        executeNow: parsedLoopEngineering.executeNow === true,
+        benchmarkCaseIds: parsedLoopEngineering.benchmarkCaseIds,
         sourceSurface: 'telegram',
         requestId,
         executionAuthority: authorization.governorDecision

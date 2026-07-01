@@ -1287,8 +1287,8 @@ async function runLoopEngineeringSpawnerAction(
       {
         ...(input.objective?.trim() ? { objective: input.objective.trim() } : {}),
         ...(kind === 'loop' && typeof input.roundLimit === 'number' ? { roundLimit: input.roundLimit } : {}),
-        ...(kind === 'benchmark' && input.benchmarkCaseIds?.length ? { benchmarkCaseIds: input.benchmarkCaseIds } : {}),
-        ...(kind === 'benchmark' && input.executeNow ? { executeNow: true } : {}),
+        ...(input.benchmarkCaseIds?.length ? { benchmarkCaseIds: input.benchmarkCaseIds } : {}),
+        ...(input.executeNow ? { executeNow: true } : {}),
         sourceSurface: input.sourceSurface || 'telegram',
         ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
         executionAuthority: input.executionAuthority ?? governorDecisionAuthority({

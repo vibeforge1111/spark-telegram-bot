@@ -125,6 +125,26 @@ function stubSpawner(calls: Array<{ url: string; body: any }>): void {
       };
     }
     if (url.includes('/loops/run')) {
+      if ((body as any)?.executeNow === true) {
+        return {
+          data: {
+            ok: true,
+            commandResult: {
+              action: 'loop_run_executed',
+              missionId: 'spark-loop-prd-executed',
+              eventId: 'lee-loop-prd-executed',
+              loopRunId: 'looprun-lee-loop-prd-executed',
+              previousScore: 4.3,
+              candidateScore: 9.7,
+              utilityDelta: 5.4,
+              caseCount: 1,
+              roundsObserved: 3,
+              inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+              userMessage: 'Ran 3 private loop rounds for domain-chip-prd-writing-proof-loop on 1 case: 4.3 -> 9.7. This is evaluator evidence for distillation review, not activation.'
+            }
+          }
+        };
+      }
       return {
         data: {
           ok: true,
@@ -474,12 +494,37 @@ async function run(): Promise<void> {
     assert.match(calls[0].url, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/loops\/run$/);
     assert.equal(calls[0].body.sourceSurface, 'telegram');
     assert.equal(calls[0].body.roundLimit, 5);
+    assert.equal(calls[0].body.executeNow, undefined);
     assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.loop.run');
     assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
     assert.match(replies[0], /Queued a capped private loop/);
     assert.match(replies[0], /separated evaluator evidence/i);
     assert.match(replies[0], /Spawner: http:\/\/127\.0\.0\.1:3333\/loop-engineering\/domain-chip-prd-writing-proof-loop/);
     assert.doesNotMatch(replies[0], /approved|activated|published/i);
+  });
+
+  await test('/loop run now executes selected clean benchmark cases through Spawner', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleLoopCommand(fakeCtx('/loop run domain-chip-prd-writing-proof-loop 3 now case benchcase-clean-prd-001', replies, { chat: 8319079055, user: 8319079055, message: 9074 }));
+
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/loops\/run$/);
+    assert.equal(calls[0].body.executeNow, true);
+    assert.equal(calls[0].body.roundLimit, 3);
+    assert.deepEqual(calls[0].body.benchmarkCaseIds, ['benchcase-clean-prd-001']);
+    assert.equal(calls[0].body.sourceSurface, 'telegram');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.loop.run');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].authorization.restrictions.network_allowed, false);
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].authorization.restrictions.publish_allowed, false);
+    assert.match(replies[0], /Ran 3 private loop rounds/);
+    assert.match(replies[0], /evaluator evidence for distillation review, not activation/i);
+    assert.doesNotMatch(replies[0], /approved|published/i);
   });
 
   await test('/loop eval, distill, and activate drive PRD Writing evidence chain through Spawner', async () => {
