@@ -7603,18 +7603,192 @@ bot.command('chip', async (ctx) => {
   await ctx.reply(lines.join('\n'));
 });
 
-bot.command('loop', async (ctx) => {
+type LoopEngineeringCommand =
+  | { kind: 'benchmark'; chipKey: string }
+  | { kind: 'run'; chipKey: string; rounds: number }
+  | { kind: 'eval'; chipKey: string; previousScore: number; candidateScore: number; roundsObserved?: number; evidenceRefs: string[] }
+  | { kind: 'distill'; chipKey: string; sourceEvaluatorEventId: string; lessons: string[] }
+  | { kind: 'activate'; chipKey: string; useCase: string; triggerPatterns: string[]; rollbackRef?: string };
+
+function loopEngineeringUsage(): string {
+  return [
+    'Usage: /loop <chip_key> [rounds]',
+    'Spawner loop-engineering:',
+    '/loop benchmark <domain-chip-key>',
+    '/loop run <domain-chip-key> [rounds]',
+    '/loop eval <domain-chip-key> <previousScore> <candidateScore> evidence <ref[,ref]>',
+    '/loop distill <domain-chip-key> from <evaluatorEventId> lesson <lesson text>',
+    '/loop activate <domain-chip-key> use-case <use case> trigger <trigger text>'
+  ].join('\n');
+}
+
+function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null {
+  const text = raw.trim();
+  if (!text) return null;
+  const [verbRaw] = text.split(/\s+/, 1);
+  const verb = verbRaw.toLowerCase();
+  if (verb === 'benchmark' || verb === 'bench') {
+    const chipKey = text.split(/\s+/)[1];
+    return chipKey ? { kind: 'benchmark', chipKey } : null;
+  }
+  if (verb === 'run') {
+    const parts = text.split(/\s+/);
+    const chipKey = parts[1];
+    const rounds = Math.max(1, Math.min(25, Number.parseInt(parts[2] || '3', 10) || 3));
+    return chipKey ? { kind: 'run', chipKey, rounds } : null;
+  }
+  if (verb === 'eval' || verb === 'review') {
+    const match = text.match(/^(?:eval|review)\s+(\S+)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)(?:\s+rounds\s+(\d+))?\s+evidence\s+(.+)$/i);
+    if (!match) return null;
+    const evidenceRefs = match[5].split(',').map((item) => item.trim()).filter(Boolean);
+    return {
+      kind: 'eval',
+      chipKey: match[1],
+      previousScore: Number(match[2]),
+      candidateScore: Number(match[3]),
+      ...(match[4] ? { roundsObserved: Math.max(1, Number.parseInt(match[4], 10) || 1) } : {}),
+      evidenceRefs
+    };
+  }
+  if (verb === 'distill') {
+    const match = text.match(/^distill\s+(\S+)\s+from\s+(\S+)\s+lesson\s+(.+)$/i);
+    if (!match) return null;
+    const lessons = match[3].split(/\s+lesson\s+/i).map((item) => item.trim()).filter(Boolean);
+    return { kind: 'distill', chipKey: match[1], sourceEvaluatorEventId: match[2], lessons };
+  }
+  if (verb === 'activate') {
+    const match = text.match(/^activate\s+(\S+)\s+use-case\s+(.+?)(?:\s+trigger\s+(.+?))?(?:\s+rollback\s+(\S+))?$/i);
+    if (!match) return null;
+    return {
+      kind: 'activate',
+      chipKey: match[1],
+      useCase: match[2].trim(),
+      triggerPatterns: match[3] ? match[3].split(',').map((item) => item.trim()).filter(Boolean) : [],
+      ...(match[4] ? { rollbackRef: match[4].trim() } : {})
+    };
+  }
+  return null;
+}
+
+function loopEngineeringToolName(kind: LoopEngineeringCommand['kind']): string {
+  if (kind === 'benchmark') return 'spawner.loop_engineering.benchmark.run';
+  if (kind === 'run') return 'spawner.loop_engineering.loop.run';
+  if (kind === 'eval') return 'spawner.loop_engineering.evaluator_review.record';
+  if (kind === 'distill') return 'spawner.loop_engineering.distill.stage';
+  return 'spawner.loop_engineering.activation.stage';
+}
+
+function loopEngineeringMutationClass(kind: LoopEngineeringCommand['kind']): SparkHarnessMutationClass {
+  return kind === 'benchmark' || kind === 'run' ? 'launches_mission' : 'writes_files';
+}
+
+function renderLoopEngineeringCommandReply(result: { success: boolean; message?: string; inspectUrl?: string; error?: string }, action: string): string {
+  if (!result.success) {
+    return `I tried to ${action}, but Spawner did not accept it yet. Nothing was activated or published.`;
+  }
+  return [result.message || `Spawner accepted the ${action}.`, result.inspectUrl ? `Spawner: ${result.inspectUrl}` : '']
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+export async function handleLoopCommand(ctx: any): Promise<unknown> {
   if (!requireAdmin(ctx)) return;
 
   const raw = ctx.message.text.replace('/loop', '').trim();
+  const parsedLoopEngineering = parseLoopEngineeringCommand(raw);
+  const knownLoopEngineeringVerb = /^(?:benchmark|bench|run|eval|review|distill|activate)\b/i.test(raw);
+  if (parsedLoopEngineering) {
+    const toolName = loopEngineeringToolName(parsedLoopEngineering.kind);
+    const authorization = telegramCommandActionAuthorityDecision(ctx, {
+      commandName: 'loop',
+      route: 'loop_engineering.command',
+      text: ctx.message.text,
+      toolName,
+      ownerSystem: 'spawner-ui',
+      mutationClass: loopEngineeringMutationClass(parsedLoopEngineering.kind),
+      action: toolName,
+      kind: 'slash_command'
+    });
+    if (!authorization.allow) {
+      await replyTelegramCommandAuthorityBlocked(ctx);
+      return;
+    }
+    await safeSendChatAction(ctx, 'typing');
+    const requestId = `tg-loop-${Date.now()}`;
+    let result: Awaited<ReturnType<typeof spawner.runLoopEngineeringBenchmark>>;
+    let actionLabel = 'run loop-engineering action';
+    if (parsedLoopEngineering.kind === 'benchmark') {
+      actionLabel = 'queue the private benchmark';
+      result = await spawner.runLoopEngineeringBenchmark({
+        chipKey: parsedLoopEngineering.chipKey,
+        objective: `Run a private benchmark for ${labelForTelegram(parsedLoopEngineering.chipKey)} with separated evaluator evidence.`,
+        sourceSurface: 'telegram',
+        requestId
+      });
+    } else if (parsedLoopEngineering.kind === 'run') {
+      actionLabel = 'queue the capped private loop';
+      result = await spawner.runLoopEngineeringLoop({
+        chipKey: parsedLoopEngineering.chipKey,
+        objective: `Run a capped private self-improvement loop for ${labelForTelegram(parsedLoopEngineering.chipKey)}.`,
+        roundLimit: parsedLoopEngineering.rounds,
+        sourceSurface: 'telegram',
+        requestId
+      });
+    } else if (parsedLoopEngineering.kind === 'eval') {
+      actionLabel = 'record the separated evaluator review';
+      result = await spawner.recordLoopEngineeringEvaluatorReview({
+        chipKey: parsedLoopEngineering.chipKey,
+        previousScore: parsedLoopEngineering.previousScore,
+        candidateScore: parsedLoopEngineering.candidateScore,
+        roundsObserved: parsedLoopEngineering.roundsObserved,
+        evidenceRefs: parsedLoopEngineering.evidenceRefs,
+        sourceSurface: 'telegram',
+        requestId
+      });
+    } else if (parsedLoopEngineering.kind === 'distill') {
+      actionLabel = 'stage the evaluator-backed distillation';
+      result = await spawner.distillLoopEngineeringLessons({
+        chipKey: parsedLoopEngineering.chipKey,
+        sourceEvaluatorEventId: parsedLoopEngineering.sourceEvaluatorEventId,
+        lessons: parsedLoopEngineering.lessons,
+        runtimeNotes: 'Use these lessons as staged guidance only after activation review.',
+        tokenBudgetHint: 'Try distilled guidance before rerunning the full loop.',
+        sourceSurface: 'telegram',
+        requestId
+      });
+    } else {
+      actionLabel = 'stage activation';
+      result = await spawner.stageLoopEngineeringActivation({
+        chipKey: parsedLoopEngineering.chipKey,
+        useCase: parsedLoopEngineering.useCase,
+        surfaces: ['telegram', 'spawner'],
+        mode: 'suggested',
+        triggerPatterns: parsedLoopEngineering.triggerPatterns,
+        riskPolicy: 'review_packet',
+        approvalRequired: true,
+        rollbackRef: parsedLoopEngineering.rollbackRef,
+        requestId
+      });
+    }
+    recordTelegramHarnessCoreExecution(authorization, {
+      toolName,
+      status: result.success ? 'success' : 'failure',
+      summary: result.success
+        ? `Loop Engineering command ${parsedLoopEngineering.kind} accepted for ${parsedLoopEngineering.chipKey}.`
+        : `Loop Engineering command ${parsedLoopEngineering.kind} failed for ${parsedLoopEngineering.chipKey}: ${redactText(result.error || 'unknown error')}.`
+    });
+    return ctx.reply(renderLoopEngineeringCommandReply(result, actionLabel));
+  }
+  if (knownLoopEngineeringVerb) {
+    return ctx.reply(loopEngineeringUsage());
+  }
+
   const parts = raw.split(/\s+/).filter(Boolean);
   const chipKey = parts[0];
   const rounds = Math.max(1, Math.min(10, Number.parseInt(parts[1] ?? '3', 10) || 3));
 
   if (!chipKey) {
-    return ctx.reply('Usage: /loop <chip_key> [rounds]\n' +
-      'Runs a recursive self-improving loop: each round calls the chip\'s suggest hook for candidates, then evaluates them.\n' +
-      'Example: /loop startup-yc 3');
+    return ctx.reply(loopEngineeringUsage());
   }
 
   const authorization = telegramCommandActionAuthorityDecision(ctx, {
@@ -7685,7 +7859,9 @@ bot.command('loop', async (ctx) => {
       await ctx.telegram.sendMessage(chatId, renderTelegramError('Loop crashed', err));
     }
   })();
-});
+}
+
+bot.command('loop', handleLoopCommand);
 
 export async function handleSparkQaCommand(ctx: any, rawOverride?: string): Promise<unknown> {
   if (!requireAdmin(ctx)) return;

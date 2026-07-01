@@ -40,6 +40,7 @@ export type DeterministicRouteId =
   | 'pending_task.recovery'
   | 'local_workspace.inspect'
   | 'mission_updates.preference'
+  | 'loop_engineering.command'
   | 'sparkqa.status'
   | 'sparkqa.run'
   | 'sparkqa.benchmark'
@@ -83,6 +84,7 @@ const INTERRUPTIVE_ROUTES = new Set<DeterministicRouteId>([
   'pending_task.recovery',
   'local_workspace.inspect',
   'mission_updates.preference',
+  'loop_engineering.command',
   'sparkqa.run',
   'sparkqa.benchmark',
   'sparkqa.pause',
