@@ -347,6 +347,7 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
     tools.push(
       'spawner.loop_engineering.benchmark.run',
       'spawner.loop_engineering.loop.run',
+      'spawner.loop_engineering.event.complete',
       'spawner.loop_engineering.evaluator_review.record',
       'spawner.loop_engineering.distill.stage',
       'spawner.loop_engineering.benchmark_case.stage',

@@ -112,6 +112,20 @@ function stubSpawner(calls: Array<{ url: string; body: any }>): void {
         }
       };
     }
+    if (url.includes('/events/') && url.includes('/complete')) {
+      return {
+        data: {
+          ok: true,
+          event: { id: 'lee-loop-prd', eventType: 'loop_batch', status: 'passed' },
+          commandResult: {
+            action: 'run_completion_bound',
+            eventId: 'lee-loop-prd',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Bound evaluator-backed completion for domain-chip-prd-writing-proof-loop. The run is recorded as passed, but activation still needs staged approval.'
+          }
+        }
+      };
+    }
     if (url.includes('/distill')) {
       return {
         data: {
@@ -283,6 +297,31 @@ async function run(): Promise<void> {
     assert.match(replies.join('\n'), /Recorded separated evaluator evidence/);
     assert.match(replies.join('\n'), /staged for future PRDs/);
     assert.match(replies.join('\n'), /not active yet and nothing was published/i);
+  });
+
+  await test('/loop complete binds PRD Writing loop results through Spawner evidence ledger', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleLoopCommand(fakeCtx('/loop complete domain-chip-prd-writing-proof-loop event lee-loop-prd passed previous 6.0 candidate 8.4 rounds 3 evidence reports/prd-eval.json source mission-control:spark-loop-prd verdict reports/prd-verdict.json', replies, { chat: 8319079055, user: 8319079055, message: 9067 }));
+
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/api\/loop-engineering\/events\/lee-loop-prd\/complete$/);
+    assert.equal(calls[0].body.chipKey, 'domain-chip-prd-writing-proof-loop');
+    assert.equal(calls[0].body.status, 'passed');
+    assert.equal(calls[0].body.previousScore, 6);
+    assert.equal(calls[0].body.candidateScore, 8.4);
+    assert.equal(calls[0].body.roundsObserved, 3);
+    assert.equal(calls[0].body.evaluatorSeparated, true);
+    assert.deepEqual(calls[0].body.evidenceRefs, ['reports/prd-eval.json']);
+    assert.equal(calls[0].body.sourceRef, 'mission-control:spark-loop-prd');
+    assert.equal(calls[0].body.evaluatorVerdictRef, 'reports/prd-verdict.json');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.event.complete');
+    assert.match(replies[0], /Bound evaluator-backed completion/);
+    assert.match(replies[0], /activation still needs staged approval/i);
   });
 
   await test('/loop case and schedule stage PRD Writing management records without starting work', async () => {

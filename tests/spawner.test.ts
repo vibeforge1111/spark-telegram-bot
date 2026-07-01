@@ -301,6 +301,56 @@ async function run(): Promise<void> {
     assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.loop.run');
   });
 
+  await test('completeLoopEngineeringRun binds evaluator-backed completion events through Spawner', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          event: { id: 'lee-loop-2', eventType: 'loop_batch', status: 'passed' },
+          commandResult: {
+            action: 'run_completion_bound',
+            launchedMission: false,
+            missionId: 'spark-loop-2',
+            eventId: 'lee-loop-2',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Bound evaluator-backed completion for domain-chip-prd-writing-proof-loop.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.completeLoopEngineeringRun({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      eventId: 'lee-loop-2',
+      status: 'passed',
+      previousScore: 6,
+      candidateScore: 8.4,
+      roundsObserved: 3,
+      evidenceRefs: ['reports/prd-eval.json'],
+      sourceRef: 'mission-control:spark-loop-2',
+      evaluatorVerdictRef: 'reports/prd-verdict.json',
+      requestId: 'tg-loop-complete'
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'run_completion_bound');
+    assert.equal(result.missionId, 'spark-loop-2');
+    assert.equal(result.inspectUrl, 'http://127.0.0.1:3333/loop-engineering/domain-chip-prd-writing-proof-loop');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/events\/lee-loop-2\/complete$/);
+    assert.equal(capturedBody.chipKey, 'domain-chip-prd-writing-proof-loop');
+    assert.equal(capturedBody.status, 'passed');
+    assert.equal(capturedBody.evaluatorSeparated, true);
+    assert.deepEqual(capturedBody.evidenceRefs, ['reports/prd-eval.json']);
+    assert.equal(capturedBody.evaluatorVerdictRef, 'reports/prd-verdict.json');
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.event.complete');
+  });
+
   await test('listLoopEngineeringChips reads Spawner Loop Engineering registry', async () => {
     restoreAxios();
     let capturedUrl = '';

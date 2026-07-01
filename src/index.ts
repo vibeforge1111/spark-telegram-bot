@@ -7605,12 +7605,14 @@ bot.command('chip', async (ctx) => {
 
 type LoopEngineeringBenchmarkCaseKind = 'visible' | 'held_out' | 'trap' | 'no_op' | 'regression';
 type LoopEngineeringScheduleMode = 'once' | 'interval' | 'fixed_time' | 'continuous' | 'round_count';
+type LoopEngineeringCompletionStatus = 'passed' | 'failed' | 'blocked';
 
 type LoopEngineeringCommand =
   | { kind: 'list' }
   | { kind: 'status'; chipQuery: string }
   | { kind: 'benchmark'; chipKey: string }
   | { kind: 'run'; chipKey: string; rounds: number }
+  | { kind: 'complete'; chipKey: string; eventId: string; status: LoopEngineeringCompletionStatus; previousScore?: number; candidateScore?: number; roundsObserved?: number; evidenceRefs: string[]; sourceRef?: string; evaluatorVerdictRef?: string }
   | { kind: 'eval'; chipKey: string; previousScore: number; candidateScore: number; roundsObserved?: number; evidenceRefs: string[] }
   | { kind: 'distill'; chipKey: string; sourceEvaluatorEventId: string; lessons: string[] }
   | { kind: 'case'; chipKey: string; caseKind: LoopEngineeringBenchmarkCaseKind; prompt: string; expectedBehavior: string; scoringRubricRef?: string; evidenceRefs: string[] }
@@ -7625,6 +7627,7 @@ function loopEngineeringUsage(): string {
     '/loop status <domain-chip-key or chip name>',
     '/loop benchmark <domain-chip-key>',
     '/loop run <domain-chip-key> [rounds]',
+    '/loop complete <domain-chip-key> event <eventId> <passed|failed|blocked> previous <score> candidate <score> evidence <ref[,ref]>',
     '/loop case <domain-chip-key> <visible|held_out|trap|no_op|regression> prompt <prompt> expected <expected>',
     '/loop eval <domain-chip-key> <previousScore> <candidateScore> evidence <ref[,ref]>',
     '/loop distill <domain-chip-key> from <evaluatorEventId> lesson <lesson text>',
@@ -7657,6 +7660,19 @@ function normalizeLoopScheduleMode(value: string | undefined): LoopEngineeringSc
     : 'round_count';
 }
 
+function normalizeLoopCompletionStatus(value: string | undefined): LoopEngineeringCompletionStatus | null {
+  const clean = (value || '').toLowerCase();
+  return clean === 'passed' || clean === 'failed' || clean === 'blocked' ? clean : null;
+}
+
+function loopNumberAfter(text: string, keyword: string): number | undefined {
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = text.match(new RegExp(`\\b${escaped}\\s+([0-9]+(?:\\.[0-9]+)?)`, 'i'));
+  if (!match) return undefined;
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : undefined;
+}
+
 function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null {
   const text = raw.trim();
   if (!text) return null;
@@ -7677,6 +7693,33 @@ function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null
     const chipKey = parts[1];
     const rounds = Math.max(1, Math.min(25, Number.parseInt(parts[2] || '3', 10) || 3));
     return chipKey ? { kind: 'run', chipKey, rounds } : null;
+  }
+  if (verb === 'complete' || verb === 'bind') {
+    const match = text.match(/^(?:complete|bind)\s+(\S+)(?:\s+event)?\s+(\S+)\s+(passed|failed|blocked)\b/i);
+    if (!match) return null;
+    const status = normalizeLoopCompletionStatus(match[3]);
+    if (!status) return null;
+    const evidenceRefs = (loopClause(text, 'evidence', ['source', 'verdict']) || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const previousScore = loopNumberAfter(text, 'previous');
+    const candidateScore = loopNumberAfter(text, 'candidate');
+    const roundsObserved = loopNumberAfter(text, 'rounds');
+    const sourceRef = loopTokenAfter(text, 'source');
+    const evaluatorVerdictRef = loopTokenAfter(text, 'verdict');
+    return {
+      kind: 'complete',
+      chipKey: match[1],
+      eventId: match[2],
+      status,
+      ...(typeof previousScore === 'number' ? { previousScore } : {}),
+      ...(typeof candidateScore === 'number' ? { candidateScore } : {}),
+      ...(typeof roundsObserved === 'number' ? { roundsObserved: Math.max(1, Math.trunc(roundsObserved)) } : {}),
+      evidenceRefs,
+      ...(sourceRef ? { sourceRef } : {}),
+      ...(evaluatorVerdictRef ? { evaluatorVerdictRef } : {})
+    };
   }
   if (verb === 'eval' || verb === 'review') {
     const match = text.match(/^(?:eval|review)\s+(\S+)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)(?:\s+rounds\s+(\d+))?\s+evidence\s+(.+)$/i);
@@ -7757,6 +7800,7 @@ function loopEngineeringToolName(kind: LoopEngineeringCommand['kind']): string {
   if (kind === 'list' || kind === 'status') return 'spawner.loop_engineering.read';
   if (kind === 'benchmark') return 'spawner.loop_engineering.benchmark.run';
   if (kind === 'run') return 'spawner.loop_engineering.loop.run';
+  if (kind === 'complete') return 'spawner.loop_engineering.event.complete';
   if (kind === 'eval') return 'spawner.loop_engineering.evaluator_review.record';
   if (kind === 'distill') return 'spawner.loop_engineering.distill.stage';
   if (kind === 'case') return 'spawner.loop_engineering.benchmark_case.stage';
@@ -7816,7 +7860,7 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
 
   const raw = ctx.message.text.replace('/loop', '').trim();
   const parsedLoopEngineering = parseLoopEngineeringCommand(raw);
-  const knownLoopEngineeringVerb = /^(?:list|chips|status|evidence|benchmark|bench|run|eval|review|case|benchmark-case|bench-case|distill|schedule|activate)\b/i.test(raw);
+  const knownLoopEngineeringVerb = /^(?:list|chips|status|evidence|benchmark|bench|run|complete|bind|eval|review|case|benchmark-case|bench-case|distill|schedule|activate)\b/i.test(raw);
   if (parsedLoopEngineering) {
     if (parsedLoopEngineering.kind === 'list') {
       await safeSendChatAction(ctx, 'typing');
@@ -7866,6 +7910,21 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         objective: `Run a capped private self-improvement loop for ${labelForTelegram(parsedLoopEngineering.chipKey)}.`,
         roundLimit: parsedLoopEngineering.rounds,
         sourceSurface: 'telegram',
+        requestId
+      });
+    } else if (parsedLoopEngineering.kind === 'complete') {
+      actionLabel = 'bind the evaluator-backed completion';
+      result = await spawner.completeLoopEngineeringRun({
+        chipKey: parsedLoopEngineering.chipKey,
+        eventId: parsedLoopEngineering.eventId,
+        status: parsedLoopEngineering.status,
+        previousScore: parsedLoopEngineering.previousScore,
+        candidateScore: parsedLoopEngineering.candidateScore,
+        roundsObserved: parsedLoopEngineering.roundsObserved,
+        evaluatorSeparated: true,
+        evidenceRefs: parsedLoopEngineering.evidenceRefs,
+        sourceRef: parsedLoopEngineering.sourceRef,
+        evaluatorVerdictRef: parsedLoopEngineering.evaluatorVerdictRef,
         requestId
       });
     } else if (parsedLoopEngineering.kind === 'eval') {

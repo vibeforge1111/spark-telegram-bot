@@ -143,6 +143,25 @@ interface LoopEngineeringScheduleInput {
   executionAuthority?: unknown;
 }
 
+interface LoopEngineeringCompletionInput {
+  chipKey: string;
+  eventId: string;
+  missionId?: string;
+  status: 'passed' | 'failed' | 'blocked';
+  previousScore?: number;
+  candidateScore?: number;
+  utilityDelta?: number;
+  roundsObserved?: number;
+  evaluatorSeparated?: boolean;
+  evidenceRefs?: string[];
+  sourceRef?: string;
+  evaluatorVerdictRef?: string;
+  scheduleId?: string;
+  nextAction?: string;
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
 interface CreatorMissionInput {
   brief: string;
   requestId?: string;
@@ -1539,6 +1558,38 @@ export const spawner = {
         ...(input.timezone?.trim() ? { timezone: input.timezone.trim() } : {}),
         roundLimit: input.roundLimit,
         ...(input.stopConditions?.length ? { stopConditions: input.stopConditions } : {}),
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
+  },
+
+  async completeLoopEngineeringRun(input: LoopEngineeringCompletionInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    const eventId = input.eventId.trim();
+    if (!eventId) return { success: false, error: 'loop-engineering event id required' };
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/events/${encodeURIComponent(eventId)}/complete`,
+      toolName: 'spawner.loop_engineering.event.complete',
+      requestId: input.requestId,
+      target: chipKey,
+      body: {
+        chipKey,
+        eventId,
+        status: input.status,
+        ...(input.missionId?.trim() ? { missionId: input.missionId.trim() } : {}),
+        ...(typeof input.previousScore === 'number' ? { previousScore: input.previousScore } : {}),
+        ...(typeof input.candidateScore === 'number' ? { candidateScore: input.candidateScore } : {}),
+        ...(typeof input.utilityDelta === 'number' ? { utilityDelta: input.utilityDelta } : {}),
+        ...(typeof input.roundsObserved === 'number' ? { roundsObserved: input.roundsObserved } : {}),
+        evaluatorSeparated: input.evaluatorSeparated !== false,
+        ...(input.evidenceRefs?.length ? { evidenceRefs: input.evidenceRefs } : {}),
+        ...(input.sourceRef?.trim() ? { sourceRef: input.sourceRef.trim() } : {}),
+        ...(input.evaluatorVerdictRef?.trim() ? { evaluatorVerdictRef: input.evaluatorVerdictRef.trim() } : {}),
+        ...(input.scheduleId?.trim() ? { scheduleId: input.scheduleId.trim() } : {}),
+        ...(input.nextAction?.trim() ? { nextAction: input.nextAction.trim() } : {}),
         ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
         ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
       }
