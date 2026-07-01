@@ -60,6 +60,19 @@ function isMissionProviderSwitchPreservingChatProvider(normalized: string): bool
   return switchesMissionProvider && preservesChatProvider && !stopsMissionProvider;
 }
 
+function isLoopEngineeringScheduleLifecycleRequest(normalized: string): boolean {
+  if (/\b(?:do not|don't|dont|please don't|please dont|no need to|without|not)\b.{0,80}\b(?:pause|resume|activate|deactivate|cancel|delete|remove|mutate|change)\b/.test(normalized)) return false;
+  if (/\b(?:read[-\s]?only|no[-\s]?mutation|do not mutate|don't mutate|dont mutate)\b/.test(normalized)) return false;
+  const hasLoopEngineeringContext =
+    /\b(?:loop[-\s]+engineering|prd\s+writing|product\s+requirements?|domain[-\s]?chip|domain\s+chip|spawner)\b/.test(normalized);
+  const hasScheduleContext = /\b(?:schedule|scheduled|timer|recurring|loop|loopsched-[a-z0-9_-]+)\b/.test(normalized);
+  const hasLifecycleAction = (
+    /\b(?:pause|hold|resume|reactivate|activate|deactivate|disable|turn\s+off|turn\s+on|cancel|delete|remove|kill)\b.{0,80}\b(?:schedule|scheduled|timer|recurring|loop|loopsched-[a-z0-9_-]+)\b/.test(normalized) ||
+    /\b(?:schedule|scheduled|timer|recurring|loop|loopsched-[a-z0-9_-]+)\b.{0,80}\b(?:pause|hold|resume|reactivate|activate|deactivate|disable|turn\s+off|turn\s+on|cancel|delete|remove|kill)\b/.test(normalized)
+  );
+  return hasLoopEngineeringContext && hasScheduleContext && hasLifecycleAction;
+}
+
 export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentConstraintsV2 {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   const constraints = emptyConstraints();
@@ -93,6 +106,9 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
     constraints.noExecution = false;
   }
   if (constraints.noExecution && isMissionProviderSwitchPreservingChatProvider(normalized)) {
+    constraints.noExecution = false;
+  }
+  if (constraints.noExecution && isLoopEngineeringScheduleLifecycleRequest(normalized)) {
     constraints.noExecution = false;
   }
 

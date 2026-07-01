@@ -60,7 +60,7 @@ import {
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
 import { evaluateDailyScheduleFastPath } from './dailyScheduleFastPath';
-import { fetchLoopEngineeringStatusPacket } from './loopEngineeringStatus';
+import { fetchLoopEngineeringStatusPacket, resolveLoopEngineeringChipId } from './loopEngineeringStatus';
 import { domainChipBenchmarkFollowupReplyExtra, handleNaturalDomainChipBenchmarkAutoloopFollowup, labelForTelegram } from './domainChipBenchmarkFollowup';
 import { renderDistilledPrdFastPathReply } from './prdWritingFastPath';
 import { packageSpecializationPathLoop, readSpecializationPathLoopInsights, readSpecializationPathLoopStatus, resolveRecursiveStartTarget, runSpecializationPathAutoloop } from './pathLoop';
@@ -7951,6 +7951,84 @@ function renderLoopEngineeringCommandReply(result: { success: boolean; message?:
     .join('\n\n');
 }
 
+type NaturalLoopEngineeringScheduleLifecycleIntent = {
+  chipKey: string;
+  scheduleId?: string;
+  action: LoopEngineeringScheduleLifecycleAction;
+};
+
+type LoopEngineeringScheduleCandidate = {
+  id: string;
+  name?: string;
+  status?: string;
+  active?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  lastRunAt?: string;
+};
+
+function parseNaturalLoopEngineeringScheduleLifecycleIntent(text: string): NaturalLoopEngineeringScheduleLifecycleIntent | null {
+  const normalized = text.replace(/[‘’]/g, "'").replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+  const lower = normalized.toLowerCase();
+  if (/\b(?:do not|don't|dont|no need to|without|not)\b.{0,80}\b(?:pause|resume|activate|deactivate|cancel|delete|remove|mutate|change)\b/.test(lower)) return null;
+  if (/\b(?:read[-\s]?only|no[-\s]?mutation|do not mutate|don't mutate|dont mutate)\b/.test(lower)) return null;
+  if (!/\b(?:schedule|scheduled|timer|recurring|loop)\b/.test(lower)) return null;
+  if (!/\b(?:loop[-\s]+engineering|prd\s+writing|product\s+requirements?|domain[-\s]?chip|domain\s+chip|chip|spawner)\b/.test(lower)) return null;
+
+  const chipKey = resolveLoopEngineeringChipId(normalized);
+  if (!chipKey) return null;
+
+  let action: LoopEngineeringScheduleLifecycleAction | null = null;
+  if (/\b(?:cancel|delete|remove|kill)\b.{0,80}\b(?:schedule|scheduled|timer|recurring|loop)\b|\b(?:schedule|scheduled|timer|recurring|loop)\b.{0,80}\b(?:cancel|delete|remove|kill)\b/.test(lower)) {
+    action = 'cancel';
+  } else if (/\b(?:deactivate|disable|turn\s+off)\b.{0,80}\b(?:schedule|scheduled|timer|recurring|loop)\b|\b(?:schedule|scheduled|timer|recurring|loop)\b.{0,80}\b(?:deactivate|disable|turn\s+off)\b/.test(lower)) {
+    action = 'deactivate';
+  } else if (/\b(?:resume|reactivate|activate|turn\s+on)\b.{0,80}\b(?:schedule|scheduled|timer|recurring|loop)\b|\b(?:schedule|scheduled|timer|recurring|loop)\b.{0,80}\b(?:resume|reactivate|activate|turn\s+on)\b/.test(lower)) {
+    action = 'resume';
+  } else if (/\b(?:pause|hold)\b.{0,80}\b(?:schedule|scheduled|timer|recurring|loop)\b|\b(?:schedule|scheduled|timer|recurring|loop)\b.{0,80}\b(?:pause|hold)\b/.test(lower)) {
+    action = 'pause';
+  }
+  if (!action) return null;
+
+  const scheduleId = normalized.match(/\bloopsched-[A-Za-z0-9_-]+\b/)?.[0];
+  return { chipKey, action, ...(scheduleId ? { scheduleId } : {}) };
+}
+
+function scheduleCandidateTimestampMs(schedule: LoopEngineeringScheduleCandidate): number {
+  return Math.max(
+    Date.parse(String(schedule.updatedAt || '')) || 0,
+    Date.parse(String(schedule.lastRunAt || '')) || 0,
+    Date.parse(String(schedule.createdAt || '')) || 0
+  );
+}
+
+function scheduleCandidateActionable(schedule: LoopEngineeringScheduleCandidate, action: LoopEngineeringScheduleLifecycleAction): boolean {
+  const status = String(schedule.status || '').toLowerCase();
+  if (!schedule.id) return false;
+  if (status === 'cancelled') return false;
+  if (action === 'cancel') return true;
+  if (status === 'deactivated') return false;
+  if (action === 'pause') return schedule.active === true;
+  if (action === 'resume') return schedule.active !== true && (status === 'paused' || status === 'staged' || status === 'inactive' || !status);
+  if (action === 'deactivate') return true;
+  return false;
+}
+
+function latestNaturalLoopEngineeringSchedule(chip: Record<string, unknown>): LoopEngineeringScheduleCandidate | null {
+  const schedules = Array.isArray(chip.schedules) ? chip.schedules : [];
+  return schedules
+    .filter((item): item is LoopEngineeringScheduleCandidate => Boolean(item && typeof item === 'object' && typeof (item as any).id === 'string'))
+    .sort((a, b) => scheduleCandidateTimestampMs(b) - scheduleCandidateTimestampMs(a))[0] || null;
+}
+
+function loopEngineeringRequestIdFromAuthorization(authorization: TelegramActionAuthorityResult, fallback: string): string {
+  const authorityRequestUri = authorization.harnessCore?.action?.args_ref?.path_or_uri;
+  return typeof authorityRequestUri === 'string' && authorityRequestUri.trim()
+    ? decodeURIComponent(authorityRequestUri.split('/').pop() || '') || fallback
+    : fallback;
+}
+
 export async function handleLoopCommand(ctx: any): Promise<unknown> {
   if (!requireAdmin(ctx)) return;
 
@@ -9307,6 +9385,109 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'domain_chip.prd_writing_fast_path', 'spark-telegram-bot', 'prd_writing.fast_path');
     await ctx.reply(distilledPrdReply);
     await conversation.rememberAssistantReply(user, distilledPrdReply).catch(() => {});
+    return;
+  }
+  const naturalLoopLifecycle = !earlyBuildIntent && conversation.isAdmin(ctx.from)
+    ? parseNaturalLoopEngineeringScheduleLifecycleIntent(text)
+    : null;
+  if (naturalLoopLifecycle) {
+    await conversation.remember(user, text).catch(() => {});
+    const toolName = `spawner.loop_engineering.schedule.${naturalLoopLifecycle.action}`;
+    const mutationClass: SparkHarnessMutationClass = naturalLoopLifecycle.action === 'cancel' ? 'deletes_schedule' : 'writes_files';
+    const authorization = telegramCommandActionAuthorityDecision(ctx, {
+      commandName: 'loop',
+      route: 'loop_engineering.command',
+      text,
+      toolName,
+      ownerSystem: 'spawner-ui',
+      mutationClass,
+      action: toolName,
+      kind: 'slash_command'
+    });
+    if (!authorization.allow) {
+      await replyTelegramCommandAuthorityBlocked(ctx);
+      return;
+    }
+    await safeSendChatAction(ctx, 'typing');
+    const chipLookup = naturalLoopLifecycle.scheduleId
+      ? null
+      : await spawner.getLoopEngineeringChip(naturalLoopLifecycle.chipKey);
+    const selectedSchedule = naturalLoopLifecycle.scheduleId
+      ? { id: naturalLoopLifecycle.scheduleId }
+      : chipLookup?.success && chipLookup.chip
+        ? latestNaturalLoopEngineeringSchedule(chipLookup.chip)
+        : null;
+    if (!selectedSchedule?.id || !scheduleCandidateActionable(selectedSchedule, naturalLoopLifecycle.action)) {
+      const detailUrl = chipLookup?.inspectUrl || `http://127.0.0.1:3333/loop-engineering/${encodeURIComponent(naturalLoopLifecycle.chipKey)}`;
+      const scheduleState = selectedSchedule?.id
+        ? ` The current schedule is ${String(selectedSchedule.status || 'unknown').replace(/_/g, ' ')} and ${selectedSchedule.active === true ? 'active' : 'inactive'}.`
+        : '';
+      const reply = [
+        `I can ${naturalLoopLifecycle.action} a private loop schedule, but I could not find an actionable current schedule for ${labelForTelegram(naturalLoopLifecycle.chipKey)} in Spawner.${scheduleState} Nothing was changed.`,
+        chipLookup?.error ? `Reason: ${redactText(chipLookup.error)}.` : '',
+        `Spawner: ${detailUrl}`
+      ].filter(Boolean).join('\n\n');
+      recordNaturalRouteExecution(
+        ctx,
+        finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+          route: 'loop_engineering.command',
+          owner: 'spawner-ui',
+          action: `loop_engineering.schedule.${naturalLoopLifecycle.action}`,
+          signal: 'natural_loop_schedule_lifecycle'
+        }),
+        'loop_engineering.command',
+        'spawner-ui',
+        `loop_engineering.schedule.${naturalLoopLifecycle.action}.no_target`
+      );
+      recordTelegramHarnessCoreExecution(authorization, {
+        toolName,
+        status: 'not_started',
+        summary: `Natural Loop Engineering lifecycle request had no actionable schedule target for ${naturalLoopLifecycle.chipKey}.`
+      });
+      await ctx.reply(reply);
+      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      return;
+    }
+    const requestId = loopEngineeringRequestIdFromAuthorization(authorization, turnIntentEnvelope.turnId || `tg-loop-${Date.now()}`);
+    const result = await spawner.updateLoopEngineeringScheduleLifecycle({
+      chipKey: naturalLoopLifecycle.chipKey,
+      scheduleId: selectedSchedule.id,
+      action: naturalLoopLifecycle.action,
+      sourceSurface: 'telegram',
+      requestId,
+      executionAuthority: authorization.governorDecision
+    });
+    recordNaturalRouteExecution(
+      ctx,
+      finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+        route: 'loop_engineering.command',
+        owner: 'spawner-ui',
+        action: `loop_engineering.schedule.${naturalLoopLifecycle.action}`,
+        signal: 'natural_loop_schedule_lifecycle'
+      }),
+      'loop_engineering.command',
+      'spawner-ui',
+      `loop_engineering.schedule.${naturalLoopLifecycle.action}`
+    );
+    recordTelegramHarnessCoreExecution(authorization, {
+      toolName,
+      status: result.success ? 'success' : 'failure',
+      summary: result.success
+        ? `Natural Loop Engineering lifecycle request ${naturalLoopLifecycle.action} accepted for ${naturalLoopLifecycle.chipKey}.`
+        : `Natural Loop Engineering lifecycle request ${naturalLoopLifecycle.action} failed for ${naturalLoopLifecycle.chipKey}: ${redactText(result.error || 'unknown error')}.`
+    });
+    const reply = renderLoopEngineeringCommandReply(result, `${naturalLoopLifecycle.action} the current private loop schedule`);
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_loop_engineering_schedule_lifecycle', [
+      {
+        source: 'spawner-ui',
+        role: 'loop_engineering_schedule_authority',
+        freshness: 'live_probed',
+        sourceRef: result.inspectUrl || chipLookup?.inspectUrl || `/loop-engineering/${naturalLoopLifecycle.chipKey}`,
+        summary: `Telegram resolved and requested ${naturalLoopLifecycle.action} for schedule ${selectedSchedule.id} through Spawner.`
+      }
+    ]);
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
   const loopEngineeringStatus = !earlyBuildIntent ? await fetchLoopEngineeringStatusPacket(text) : null;

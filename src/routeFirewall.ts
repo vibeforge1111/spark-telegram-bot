@@ -272,6 +272,19 @@ function isExplicitSparkQaPause(normalized: string): boolean {
     /\b(?:loop|autoloop|rounds?)\b/.test(normalized);
 }
 
+function isExplicitLoopEngineeringScheduleLifecycle(normalized: string): boolean {
+  if (/\b(?:do not|don't|dont|please don't|please dont|no need to|without|not)\b.{0,80}\b(?:pause|resume|activate|deactivate|cancel|delete|remove|mutate|change)\b/.test(normalized)) return false;
+  if (/\b(?:read[-\s]?only|no[-\s]?mutation|do not mutate|don't mutate|dont mutate)\b/.test(normalized)) return false;
+  const hasLoopEngineeringContext =
+    /\b(?:loop[-\s]+engineering|prd\s+writing|product\s+requirements?|domain[-\s]?chip|domain\s+chip|spawner)\b/.test(normalized);
+  const hasScheduleContext = /\b(?:schedule|scheduled|timer|recurring|loop|loopsched-[a-z0-9_-]+)\b/.test(normalized);
+  const hasLifecycleAction = (
+    /\b(?:pause|hold|resume|reactivate|activate|deactivate|disable|turn\s+off|turn\s+on|cancel|delete|remove|kill)\b.{0,80}\b(?:schedule|scheduled|timer|recurring|loop|loopsched-[a-z0-9_-]+)\b/.test(normalized) ||
+    /\b(?:schedule|scheduled|timer|recurring|loop|loopsched-[a-z0-9_-]+)\b.{0,80}\b(?:pause|hold|resume|reactivate|activate|deactivate|disable|turn\s+off|turn\s+on|cancel|delete|remove|kill)\b/.test(normalized)
+  );
+  return hasLoopEngineeringContext && hasScheduleContext && hasLifecycleAction;
+}
+
 function isExplicitExternalResearch(normalized: string): boolean {
   return (
     /\b(?:look\s+(?:at|into)|research|inspect|compare|study|analy[sz]e|dig\s+(?:into|deep\s+into))\b/.test(normalized) &&
@@ -467,6 +480,9 @@ export function evaluateDeterministicRoute(route: DeterministicRouteId, text: st
   if (route === 'sparkqa.pause' && isExplicitSparkQaPause(normalized)) {
     return { allow: true, reason: 'explicit_sparkqa_pause', confidence: 'explicit' };
   }
+  if (route === 'loop_engineering.command' && isExplicitLoopEngineeringScheduleLifecycle(normalized)) {
+    return { allow: true, reason: 'explicit_loop_engineering_schedule_lifecycle', confidence: 'explicit' };
+  }
   if (route === 'recursive.start' && /\b(?:run|start|launch|kick\s+off|do)\b.*\b(?:recursive|recursion|loop|round|autoloop)\b/.test(normalized)) {
     return { allow: true, reason: 'explicit_recursive_start', confidence: 'explicit' };
   }
@@ -558,7 +574,8 @@ export function shouldUseRouteArbiter(
     'explicit_external_research',
     'bounded_operator_probe',
     'explicit_sparkqa_run',
-    'explicit_sparkqa_pause'
+    'explicit_sparkqa_pause',
+    'explicit_loop_engineering_schedule_lifecycle'
   ].includes(verdict.reason)) {
     return false;
   }

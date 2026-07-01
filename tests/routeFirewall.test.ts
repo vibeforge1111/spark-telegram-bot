@@ -152,6 +152,23 @@ test('allows Spark QA pause control even when it blocks more rounds', () => {
   assert.equal(verdict.confidence, 'explicit');
 });
 
+test('allows explicit Loop Engineering schedule lifecycle without treating pause as chat-only', () => {
+  const verdict = evaluateDeterministicRoute(
+    'loop_engineering.command',
+    'Please pause the current PRD Writing loop schedule in Spawner.'
+  );
+  const blocked = evaluateDeterministicRoute(
+    'loop_engineering.command',
+    'Do not pause the current PRD Writing loop schedule; just tell me status.'
+  );
+
+  assert.equal(verdict.allow, true);
+  assert.equal(verdict.reason, 'explicit_loop_engineering_schedule_lifecycle');
+  assert.equal(verdict.confidence, 'explicit');
+  assert.equal(blocked.allow, false);
+  assert.equal(blocked.reason, 'no_execution_boundary');
+});
+
 test('blocks capability-evaluation discussion from self-improvement execution', () => {
   const samples = [
     'Tell me the best way to evaluate a build capability before using it.',

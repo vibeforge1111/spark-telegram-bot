@@ -16,6 +16,7 @@ async function test(name: string, fn: AsyncTest): Promise<void> {
 const originalPost = axios.post;
 const originalGet = axios.get;
 const originalFetch = globalThis.fetch;
+let stubLoopEngineeringSchedules: any[] | null = null;
 const originalEnv = {
   ADMIN_TELEGRAM_IDS: process.env.ADMIN_TELEGRAM_IDS,
   BOT_TOKEN: process.env.BOT_TOKEN,
@@ -30,6 +31,7 @@ function restoreEnv(): void {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
   }
+  stubLoopEngineeringSchedules = null;
 }
 
 function fakeCtx(text: string, replies: string[], ids = { chat: 8319079055, user: 8319079055, message: 9061 }) {
@@ -67,6 +69,29 @@ async function withLoopHandler() {
 
 function stubSpawner(calls: Array<{ url: string; body: any }>): void {
   (axios as any).get = async (url: string) => {
+    if (url.includes('/api/loop-engineering/chips/domain-chip-prd-writing-proof-loop')) {
+      return {
+        data: {
+          ok: true,
+          chip: {
+            summary: {
+              id: 'domain-chip-prd-writing-proof-loop',
+              domain: 'PRD Writing'
+            },
+            schedules: stubLoopEngineeringSchedules || [
+              {
+                id: 'loopsched-prd-current',
+                name: 'PRD Writing current private loop',
+                status: 'staged',
+                active: true,
+                createdAt: '2026-07-01T12:00:00.000Z',
+                updatedAt: '2026-07-01T12:10:00.000Z'
+              }
+            ]
+          }
+        }
+      };
+    }
     if (url.includes('/api/loop-engineering/chips')) {
       return {
         data: {
@@ -758,6 +783,114 @@ async function run(): Promise<void> {
     assert.equal(calls[0].body.executionAuthority.envelope.proposed_actions[0].action_type, 'schedule');
     assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
     assert.match(replies[0], /Updated the private PRD Writing schedule: cancel/);
+  });
+
+  await test('natural PRD Writing schedule pause resolves current schedule and mutates through Spawner lifecycle', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleTextMessage(fakeCtx('Please pause the current PRD Writing loop schedule in Spawner.', replies, { chat: 8319079055, user: 8319079055, message: 9080 }));
+
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/schedules\/loopsched-prd-current\/lifecycle$/);
+    assert.equal(calls[0].body.action, 'pause');
+    assert.equal(calls[0].body.sourceSurface, 'telegram');
+    assert.equal(calls[0].body.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.schedule.pause');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+    assert.match(replies[0], /Updated the private PRD Writing schedule: pause/);
+  });
+
+  await test('natural PRD Writing schedule resume resolves paused current schedule through Spawner lifecycle', async () => {
+    restoreEnv();
+    stubLoopEngineeringSchedules = [
+      {
+        id: 'loopsched-prd-paused-current',
+        name: 'PRD Writing paused current private loop',
+        status: 'paused',
+        active: false,
+        createdAt: '2026-07-01T12:00:00.000Z',
+        updatedAt: '2026-07-01T12:20:00.000Z'
+      }
+    ];
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleTextMessage(fakeCtx('Please resume the current PRD Writing loop schedule in Spawner.', replies, { chat: 8319079055, user: 8319079055, message: 9081 }));
+
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/schedules\/loopsched-prd-paused-current\/lifecycle$/);
+    assert.equal(calls[0].body.action, 'resume');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.schedule.resume');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+    assert.match(replies[0], /Updated the private PRD Writing schedule: resume/);
+  });
+
+  await test('natural PRD Writing schedule cancel uses delete authority through current schedule', async () => {
+    restoreEnv();
+    stubLoopEngineeringSchedules = [
+      {
+        id: 'loopsched-prd-cancel-current',
+        name: 'PRD Writing cancellable current private loop',
+        status: 'paused',
+        active: false,
+        createdAt: '2026-07-01T12:00:00.000Z',
+        updatedAt: '2026-07-01T12:30:00.000Z'
+      }
+    ];
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleTextMessage(fakeCtx('Please cancel the current PRD Writing loop schedule in Spawner.', replies, { chat: 8319079055, user: 8319079055, message: 9082 }));
+
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/schedules\/loopsched-prd-cancel-current\/lifecycle$/);
+    assert.equal(calls[0].body.action, 'cancel');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.schedule.cancel');
+    assert.equal(calls[0].body.executionAuthority.envelope.proposed_actions[0].action_type, 'schedule');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+    assert.match(replies[0], /Updated the private PRD Writing schedule: cancel/);
+  });
+
+  await test('natural PRD Writing resume does not skip cancelled current schedule to mutate older staged schedules', async () => {
+    restoreEnv();
+    stubLoopEngineeringSchedules = [
+      {
+        id: 'loopsched-prd-cancelled-current',
+        name: 'PRD Writing cancelled current private loop',
+        status: 'cancelled',
+        active: false,
+        createdAt: '2026-07-01T12:00:00.000Z',
+        updatedAt: '2026-07-01T12:40:00.000Z'
+      },
+      {
+        id: 'loopsched-prd-older-staged',
+        name: 'Older staged PRD Writing loop',
+        status: 'staged',
+        active: false,
+        createdAt: '2026-07-01T11:00:00.000Z',
+        updatedAt: '2026-07-01T11:30:00.000Z'
+      }
+    ];
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleTextMessage(fakeCtx('Please resume the current PRD Writing loop schedule in Spawner.', replies, { chat: 8319079055, user: 8319079055, message: 9083 }));
+
+    assert.equal(calls.length, 0);
+    assert.match(replies[0], /could not find an actionable current schedule/i);
+    assert.match(replies[0], /current schedule is cancelled and inactive/i);
+    assert.match(replies[0], /Nothing was changed/i);
+    assert.doesNotMatch(replies[0], /Updated the private PRD Writing schedule/i);
   });
 }
 

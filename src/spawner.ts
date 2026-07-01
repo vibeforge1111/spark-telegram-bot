@@ -82,6 +82,13 @@ interface LoopEngineeringChipListResult {
   error?: string;
 }
 
+interface LoopEngineeringChipDetailResult {
+  success: boolean;
+  chip?: Record<string, unknown>;
+  inspectUrl?: string;
+  error?: string;
+}
+
 interface LoopEngineeringEvaluatorReviewInput {
   chipKey: string;
   previousScore: number;
@@ -1490,6 +1497,27 @@ export const spawner = {
         success: false,
         inspectUrl: absoluteSpawnerUrl('/loop-engineering'),
         error: err?.response?.data?.error || err?.message || 'Loop Engineering chip list failed'
+      };
+    }
+  },
+
+  async getLoopEngineeringChip(chipKeyInput: string): Promise<LoopEngineeringChipDetailResult> {
+    const chipKey = safeDomainChipKey(chipKeyInput);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    try {
+      const res = await axios.get(`${SPAWNER_UI_URL}/api/loop-engineering/chips/${encodeURIComponent(chipKey)}`, spawnerAxiosOptions(10000));
+      const chip = res.data?.chip && typeof res.data.chip === 'object' ? res.data.chip : null;
+      return {
+        success: Boolean(res.data?.ok && chip),
+        ...(chip ? { chip } : {}),
+        inspectUrl: absoluteSpawnerUrl(`/loop-engineering/${encodeURIComponent(chipKey)}`),
+        ...(chip ? {} : { error: res.data?.error || 'Spawner did not return a chip evidence packet.' })
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        inspectUrl: absoluteSpawnerUrl(`/loop-engineering/${encodeURIComponent(chipKey)}`),
+        error: err?.response?.data?.error || err?.message || 'Loop-engineering chip lookup failed'
       };
     }
   },
