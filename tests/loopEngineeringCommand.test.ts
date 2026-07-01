@@ -150,6 +150,20 @@ function stubSpawner(calls: Array<{ url: string; body: any }>): void {
         }
       };
     }
+    if (url.includes('/schedules/') && url.includes('/fire')) {
+      return {
+        data: {
+          ok: true,
+          commandResult: {
+            action: 'schedule_loop_queued',
+            eventId: 'lee-scheduled-loop',
+            missionId: 'spark-loop-scheduled',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Fired PRD Writing scheduled loop as a private capped loop. No recurring timer was enabled and evaluator scoring is still required.'
+          }
+        }
+      };
+    }
     if (url.includes('/schedules')) {
       return {
         data: {
@@ -353,6 +367,24 @@ async function run(): Promise<void> {
 
     assert.match(replies.join('\n'), /No benchmark run or activation started/);
     assert.match(replies.join('\n'), /not active and no loop started/i);
+  });
+
+  await test('/loop fire-schedule queues a private scheduled loop through Spawner', async () => {
+    restoreEnv();
+    const calls: Array<{ url: string; body: any }> = [];
+    stubSpawner(calls);
+    const indexModule: any = await withLoopHandler();
+    const replies: string[] = [];
+
+    await indexModule.handleLoopCommand(fakeCtx('/loop fire-schedule domain-chip-prd-writing-proof-loop loopsched-prd', replies, { chat: 8319079055, user: 8319079055, message: 9068 }));
+
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/schedules\/loopsched-prd\/fire$/);
+    assert.equal(calls[0].body.sourceSurface, 'telegram');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.schedule.fire');
+    assert.equal(calls[0].body.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+    assert.match(replies[0], /private capped loop/);
+    assert.match(replies[0], /evaluator scoring is still required/i);
   });
 }
 

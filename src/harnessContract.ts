@@ -352,6 +352,7 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
       'spawner.loop_engineering.distill.stage',
       'spawner.loop_engineering.benchmark_case.stage',
       'spawner.loop_engineering.schedule.stage',
+      'spawner.loop_engineering.schedule.fire',
       'spawner.loop_engineering.activation.stage'
     );
   }

@@ -143,6 +143,14 @@ interface LoopEngineeringScheduleInput {
   executionAuthority?: unknown;
 }
 
+interface LoopEngineeringScheduleFireInput {
+  chipKey: string;
+  scheduleId: string;
+  sourceSurface?: 'telegram' | 'spawner' | 'scheduler';
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
 interface LoopEngineeringCompletionInput {
   chipKey: string;
   eventId: string;
@@ -1558,6 +1566,26 @@ export const spawner = {
         ...(input.timezone?.trim() ? { timezone: input.timezone.trim() } : {}),
         roundLimit: input.roundLimit,
         ...(input.stopConditions?.length ? { stopConditions: input.stopConditions } : {}),
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
+  },
+
+  async fireLoopEngineeringSchedule(input: LoopEngineeringScheduleFireInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    const scheduleId = input.scheduleId.trim();
+    if (!scheduleId) return { success: false, error: 'loop-engineering schedule id required' };
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/schedules/${encodeURIComponent(scheduleId)}/fire`,
+      toolName: 'spawner.loop_engineering.schedule.fire',
+      mutationClass: 'launches_mission',
+      requestId: input.requestId,
+      target: chipKey,
+      body: {
+        sourceSurface: input.sourceSurface || 'telegram',
         ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
         ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
       }

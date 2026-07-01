@@ -7617,6 +7617,7 @@ type LoopEngineeringCommand =
   | { kind: 'distill'; chipKey: string; sourceEvaluatorEventId: string; lessons: string[] }
   | { kind: 'case'; chipKey: string; caseKind: LoopEngineeringBenchmarkCaseKind; prompt: string; expectedBehavior: string; scoringRubricRef?: string; evidenceRefs: string[] }
   | { kind: 'schedule'; chipKey: string; rounds: number; mode: LoopEngineeringScheduleMode; intervalMinutes?: number; fixedLocalTime?: string; timezone?: string; name?: string; stopConditions: string[] }
+  | { kind: 'fire-schedule'; chipKey: string; scheduleId: string }
   | { kind: 'activate'; chipKey: string; useCase: string; triggerPatterns: string[]; rollbackRef?: string };
 
 function loopEngineeringUsage(): string {
@@ -7632,6 +7633,7 @@ function loopEngineeringUsage(): string {
     '/loop eval <domain-chip-key> <previousScore> <candidateScore> evidence <ref[,ref]>',
     '/loop distill <domain-chip-key> from <evaluatorEventId> lesson <lesson text>',
     '/loop schedule <domain-chip-key> rounds <n> [mode round_count|interval|fixed_time|continuous|once]',
+    '/loop fire-schedule <domain-chip-key> <scheduleId>',
     '/loop activate <domain-chip-key> use-case <use case> trigger <trigger text>'
   ].join('\n');
 }
@@ -7782,6 +7784,12 @@ function parseLoopEngineeringCommand(raw: string): LoopEngineeringCommand | null
         }
       : null;
   }
+  if (verb === 'fire-schedule' || verb === 'fire_schedule' || verb === 'fire') {
+    const parts = text.split(/\s+/);
+    const chipKey = parts[1];
+    const scheduleId = verb === 'fire' && parts[2] === 'schedule' ? parts[3] : parts[2];
+    return chipKey && scheduleId ? { kind: 'fire-schedule', chipKey, scheduleId } : null;
+  }
   if (verb === 'activate') {
     const match = text.match(/^activate\s+(\S+)\s+use-case\s+(.+?)(?:\s+trigger\s+(.+?))?(?:\s+rollback\s+(\S+))?$/i);
     if (!match) return null;
@@ -7805,12 +7813,13 @@ function loopEngineeringToolName(kind: LoopEngineeringCommand['kind']): string {
   if (kind === 'distill') return 'spawner.loop_engineering.distill.stage';
   if (kind === 'case') return 'spawner.loop_engineering.benchmark_case.stage';
   if (kind === 'schedule') return 'spawner.loop_engineering.schedule.stage';
+  if (kind === 'fire-schedule') return 'spawner.loop_engineering.schedule.fire';
   return 'spawner.loop_engineering.activation.stage';
 }
 
 function loopEngineeringMutationClass(kind: LoopEngineeringCommand['kind']): SparkHarnessMutationClass {
   if (kind === 'list' || kind === 'status') return 'read_only';
-  if (kind === 'benchmark' || kind === 'run') return 'launches_mission';
+  if (kind === 'benchmark' || kind === 'run' || kind === 'fire-schedule') return 'launches_mission';
   if (kind === 'schedule') return 'creates_schedule';
   return 'writes_files';
 }
@@ -7860,7 +7869,7 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
 
   const raw = ctx.message.text.replace('/loop', '').trim();
   const parsedLoopEngineering = parseLoopEngineeringCommand(raw);
-  const knownLoopEngineeringVerb = /^(?:list|chips|status|evidence|benchmark|bench|run|complete|bind|eval|review|case|benchmark-case|bench-case|distill|schedule|activate)\b/i.test(raw);
+  const knownLoopEngineeringVerb = /^(?:list|chips|status|evidence|benchmark|bench|run|complete|bind|eval|review|case|benchmark-case|bench-case|distill|schedule|fire-schedule|fire_schedule|fire|activate)\b/i.test(raw);
   if (parsedLoopEngineering) {
     if (parsedLoopEngineering.kind === 'list') {
       await safeSendChatAction(ctx, 'typing');
@@ -7971,6 +7980,14 @@ export async function handleLoopCommand(ctx: any): Promise<unknown> {
         timezone: parsedLoopEngineering.timezone,
         roundLimit: parsedLoopEngineering.rounds,
         stopConditions: parsedLoopEngineering.stopConditions,
+        requestId
+      });
+    } else if (parsedLoopEngineering.kind === 'fire-schedule') {
+      actionLabel = 'fire the private loop schedule';
+      result = await spawner.fireLoopEngineeringSchedule({
+        chipKey: parsedLoopEngineering.chipKey,
+        scheduleId: parsedLoopEngineering.scheduleId,
+        sourceSurface: 'telegram',
         requestId
       });
     } else {

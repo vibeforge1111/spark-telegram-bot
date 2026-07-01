@@ -589,6 +589,46 @@ async function run(): Promise<void> {
     assert.equal(capturedBody.executionAuthority.envelope.proposed_actions[0].action_type, 'schedule');
   });
 
+  await test('fireLoopEngineeringSchedule posts private schedule fires to Spawner with loop authority', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          event: { id: 'lee-scheduled-loop', eventType: 'loop_batch', status: 'queued' },
+          mission: { id: 'spark-loop-scheduled' },
+          commandResult: {
+            action: 'schedule_loop_queued',
+            launchedMission: true,
+            missionId: 'spark-loop-scheduled',
+            eventId: 'lee-scheduled-loop',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Fired PRD Writing scheduled loop as a private capped loop.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.fireLoopEngineeringSchedule({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      scheduleId: 'loopsched-prd',
+      requestId: 'tg-loop-schedule-fire'
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'schedule_loop_queued');
+    assert.equal(result.missionId, 'spark-loop-scheduled');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/schedules\/loopsched-prd\/fire$/);
+    assert.equal(capturedBody.sourceSurface, 'telegram');
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.schedule.fire');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+  });
+
   await test('creatorMission posts creator planning input to Spawner', async () => {
     restoreAxios();
 
