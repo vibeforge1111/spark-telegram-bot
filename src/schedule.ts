@@ -35,13 +35,14 @@ export function humanizeCron(cron: string): string {
     if (/^\d+$/.test(hour) && /^\d+$/.test(minute)) return `Daily at ${formatTime12(+hour, +minute)}`;
   }
   if (/^\d+$/.test(minute) && /^\d+$/.test(hour) && dom === '*' && month === '*' && /^\d$/.test(dow)) {
-    return `Every ${DOW[+dow]} at ${formatTime12(+hour, +minute)}`;
+    return `Every ${DOW[+dow % 7]} at ${formatTime12(+hour, +minute)}`;
   }
   if (/^\d+$/.test(minute) && /^\d+$/.test(hour) && /^\d+$/.test(dom) && month === '*' && dow === '*') {
     return `Monthly on day ${dom} at ${formatTime12(+hour, +minute)}`;
   }
   if (/^\d+$/.test(minute) && /^\d+$/.test(hour) && /^\d+$/.test(dom) && /^\d+$/.test(month) && dow === '*') {
-    return `Yearly on ${MON[+month - 1]} ${dom} at ${formatTime12(+hour, +minute)}`;
+    const monthIdx = Math.max(0, Math.min(11, +month - 1));
+    return `Yearly on ${MON[monthIdx]} ${dom} at ${formatTime12(+hour, +minute)}`;
   }
   return `Custom: ${cron}`;
 }
