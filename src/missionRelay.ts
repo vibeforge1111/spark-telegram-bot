@@ -279,6 +279,22 @@ async function readTelegramRelayPreferences(): Promise<TelegramRelayPreferences>
   return (await readJsonFile<TelegramRelayPreferences>(PREFERENCES_PATH)) || {};
 }
 
+// Serialize preference read-modify-write so a verbosity update and a mission-link
+// update arriving back-to-back from the same chat do not race on the shared
+// snapshot — without this chain the slower writer's spread overwrites the
+// faster writer's field and that field is silently dropped.
+let preferenceUpdateChain: Promise<void> = Promise.resolve();
+function updateTelegramRelayPreferences(
+  mutate: (current: TelegramRelayPreferences) => TelegramRelayPreferences
+): Promise<void> {
+  const next = preferenceUpdateChain.then(async () => {
+    const preferences = await readTelegramRelayPreferences();
+    await writeJsonAtomic(PREFERENCES_PATH, mutate(preferences));
+  });
+  preferenceUpdateChain = next.catch(() => undefined);
+  return next;
+}
+
 export async function getTelegramRelayVerbosity(chatId: string | number): Promise<TelegramRelayVerbosity> {
   const preferences = await readTelegramRelayPreferences();
   const configured = preferences.relayVerbosityByChatId?.[String(chatId)];
@@ -295,28 +311,26 @@ export async function setTelegramRelayVerbosity(
   chatId: string | number,
   verbosity: TelegramRelayVerbosity
 ): Promise<void> {
-  const preferences = await readTelegramRelayPreferences();
-  await writeJsonAtomic(PREFERENCES_PATH, {
+  await updateTelegramRelayPreferences((preferences) => ({
     ...preferences,
     relayVerbosityByChatId: {
       ...(preferences.relayVerbosityByChatId || {}),
       [String(chatId)]: verbosity
     }
-  });
+  }));
 }
 
 export async function setTelegramMissionLinkPreference(
   chatId: string | number,
   preference: TelegramMissionLinkPreference
 ): Promise<void> {
-  const preferences = await readTelegramRelayPreferences();
-  await writeJsonAtomic(PREFERENCES_PATH, {
+  await updateTelegramRelayPreferences((preferences) => ({
     ...preferences,
     missionLinksByChatId: {
       ...(preferences.missionLinksByChatId || {}),
       [String(chatId)]: preference
     }
-  });
+  }));
 }
 
 export function describeTelegramRelayVerbosity(verbosity: TelegramRelayVerbosity): string {
