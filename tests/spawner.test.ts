@@ -1201,6 +1201,48 @@ async function run(): Promise<void> {
     assert.match(result.message, /• cancelled: 0/);
   });
 
+  await test('board fetch failures return a bounded public-safe message', async () => {
+    restoreAxios();
+    (axios as any).get = async () => {
+      const error: any = new Error('connect ECONNREFUSED C:\\Users\\Private\\spawner-state\\board.json token sk-very-private-token-value');
+      error.response = {
+        data: {
+          error: 'Mission Control failed at C:\\Users\\Private\\spawner-state\\board.json with token sk-very-private-token-value'
+        }
+      };
+      throw error;
+    };
+
+    const result = await spawner.board();
+
+    assert.equal(result.success, false);
+    assert.equal(result.message, 'Spawner board is unavailable right now. Run /diagnose to check the local Spawner service.');
+    assert.doesNotMatch(result.message, /C:\\Users\\Private/);
+    assert.doesNotMatch(result.message, /sk-very-private-token-value/);
+    assert.doesNotMatch(result.message, /Mission Control failed/);
+  });
+
+  await test('natural board summary fetch failures return a bounded public-safe message', async () => {
+    restoreAxios();
+    (axios as any).get = async () => {
+      const error: any = new Error('read failed at C:\\Users\\Private\\mission-control.json token sk-very-private-token-value');
+      error.response = {
+        data: {
+          error: 'Mission Control failed at C:\\Users\\Private\\mission-control.json with token sk-very-private-token-value'
+        }
+      };
+      throw error;
+    };
+
+    const result = await spawner.latestProviderSummary();
+
+    assert.equal(result.success, false);
+    assert.equal(result.message, 'Spawner board is unavailable right now. Run /diagnose to check the local Spawner service.');
+    assert.doesNotMatch(result.message, /C:\\Users\\Private/);
+    assert.doesNotMatch(result.message, /sk-very-private-token-value/);
+    assert.doesNotMatch(result.message, /Mission Control failed/);
+  });
+
   await test('board renders readable active mission titles instead of raw ids', async () => {
     (axios as any).get = async () => ({
       data: {
