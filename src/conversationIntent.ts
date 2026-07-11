@@ -447,7 +447,10 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
 
   const asksCapabilityChange =
     /\b(?:add|install|enable|connect|wire|integrate|give|build|create|scaffold|develop|ship|set\s+up|schedule|automate|make|change|upgrade|improve)\b/i.test(normalized) &&
-    /\b(?:capabilit(?:y|ies)|functionality|abilit(?:y|ies)|skills?|integrations?|access|permissions?|tools?|routes?|systems?|brain|memory|memories|reports?|daily\s+reports?|email|emails|gmail|calendar|inbox|voice|speech|notifications?|reminders?|workflow|workflows?|browser|browse|files?|filesystem|agents?)\b/i.test(normalized);
+    // Spark-intrinsic capability nouns only. Generic "systems" / "workflow(s)" were
+    // removed because they double as ordinary user-owned things ("the checkout workflow",
+    // "the systems at my office") and wrongly triggered a Builder self-improvement plan.
+    /\b(?:capabilit(?:y|ies)|functionality|abilit(?:y|ies)|skills?|integrations?|access|permissions?|tools?|routes?|brain|memory|memories|reports?|daily\s+reports?|email|emails|gmail|calendar|inbox|voice|speech|notifications?|reminders?|browser|browse|files?|filesystem|agents?)\b/i.test(normalized);
   if (mentionsSparkSelf && asksCapabilityChange) {
     return `Improve Spark capability safely: ${normalized.replace(/[?.!]+$/, '').trim()}. Treat this as a capability proposal: identify the owner system, required permissions, safe probe, human approval boundary, rollback path, and smallest implementation/eval before claiming it is live.`;
   }
