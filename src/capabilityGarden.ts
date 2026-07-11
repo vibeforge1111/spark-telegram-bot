@@ -1,6 +1,11 @@
+import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
+import { withHiddenWindows } from './hiddenProcess';
+
+const execFileAsync = promisify(execFile);
 
 export type CapabilityGardenSummary = {
   present: boolean;
@@ -72,6 +77,75 @@ export function summarizeCapabilityCatalog(payload: unknown): CapabilityGardenSu
   };
 }
 
+export type SparkOsCompileAttempt = {
+  attempted: boolean;
+  succeeded: boolean;
+  detail: string;
+};
+
+export type SparkOsCompileRunner = (
+  args: string[]
+) => Promise<{ code: number; stdout: string; stderr: string }>;
+
+const NO_COMPILE_ATTEMPT: SparkOsCompileAttempt = {
+  attempted: false,
+  succeeded: false,
+  detail: ''
+};
+
+export async function runSparkOsCompile(
+  runner: SparkOsCompileRunner = defaultSparkOsCompileRunner
+): Promise<SparkOsCompileAttempt> {
+  try {
+    const { code, stdout, stderr } = await runner(['os', 'compile']);
+    const detail = [stdout, stderr].map((value) => String(value || '').trim()).filter(Boolean).join('\n');
+    if (code === 0) {
+      return {
+        attempted: true,
+        succeeded: true,
+        detail: detail || 'spark os compile finished successfully.'
+      };
+    }
+    return {
+      attempted: true,
+      succeeded: false,
+      detail: detail || `spark os compile exited with code ${code}.`
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      attempted: true,
+      succeeded: false,
+      detail: `spark os compile failed: ${message}`
+    };
+  }
+}
+
+function childProcessText(value: unknown): string {
+  if (Buffer.isBuffer(value)) {
+    return value.toString('utf8');
+  }
+  return typeof value === 'string' ? value : '';
+}
+
+async function defaultSparkOsCompileRunner(args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+  try {
+    const { stdout, stderr } = await execFileAsync('spark', args, withHiddenWindows({
+      timeout: 120_000,
+      maxBuffer: 1024 * 1024
+    }));
+    return { code: 0, stdout: String(stdout || ''), stderr: String(stderr || '') };
+  } catch (error: unknown) {
+    const err = error as NodeJS.ErrnoException & { stdout?: unknown; stderr?: unknown };
+    const stderr = childProcessText(err.stderr) || (error instanceof Error ? error.message : String(error));
+    return {
+      code: typeof err.code === 'number' ? err.code : 1,
+      stdout: childProcessText(err.stdout),
+      stderr
+    };
+  }
+}
+
 export async function readCapabilityGardenSummary(catalogPath = resolveCapabilityCatalogPath()): Promise<CapabilityGardenSummary> {
   try {
     const raw = await readFile(catalogPath, 'utf-8');
@@ -88,6 +162,24 @@ export async function readCapabilityGardenSummary(catalogPath = resolveCapabilit
   }
 }
 
+export async function readCapabilityGardenSummaryEnsuringCompiled(options: {
+  catalogPath?: string;
+  compileRunner?: SparkOsCompileRunner;
+  autoCompile?: boolean;
+} = {}): Promise<{ summary: CapabilityGardenSummary; compile: SparkOsCompileAttempt }> {
+  const catalogPath = options.catalogPath ?? resolveCapabilityCatalogPath();
+  let summary = await readCapabilityGardenSummary(catalogPath);
+  if (summary.present || options.autoCompile === false) {
+    return { summary, compile: NO_COMPILE_ATTEMPT };
+  }
+
+  const compile = await runSparkOsCompile(options.compileRunner);
+  if (compile.succeeded) {
+    summary = await readCapabilityGardenSummary(catalogPath);
+  }
+  return { summary, compile };
+}
+
 function countText(counts: Record<string, number>, preferred: string[]): string {
   const parts = preferred
     .map((key) => [key, numberValue(counts[key])] as const)
@@ -96,14 +188,27 @@ function countText(counts: Record<string, number>, preferred: string[]): string 
   return parts.length ? parts.join(', ') : 'none yet';
 }
 
-export function renderCapabilityGardenSummary(summary: CapabilityGardenSummary): string {
+export function renderCapabilityGardenSummary(
+  summary: CapabilityGardenSummary,
+  compile: SparkOsCompileAttempt = NO_COMPILE_ATTEMPT
+): string {
   if (!summary.present) {
-    return [
+    const lines = [
       'Capability garden is not compiled yet.',
       '',
       'Move',
       '• Run `spark os compile`, then try `/capabilities` again.'
-    ].join('\n');
+    ];
+    if (compile.attempted) {
+      lines.push('', 'Auto-compile');
+      lines.push(compile.succeeded
+        ? '• Compile finished, but capability-catalog.json is still missing.'
+        : `• ${compile.detail}`);
+      if (!compile.succeeded) {
+        lines.push('• Fix the compile error above, then run `/capabilities` again.');
+      }
+    }
+    return lines.join('\n');
   }
 
   const localArtifacts = numberValue(summary.statusCounts['local-artifacts']);
