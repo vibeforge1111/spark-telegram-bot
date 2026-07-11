@@ -2925,15 +2925,42 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
     }
   });
 
-  await new Promise<void>((resolve, reject) => {
-    relayServer!.once('error', reject);
-    relayServer!.listen(port, getRelayHost(), () => {
-      relayServer!.off('error', reject);
-      resolve();
-    });
-  });
+  const maxRetries = 3;
+  const basePort = port;
+  let fallbackPort = basePort;
+  let lastError: Error | null = null;
 
-  return { port };
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const tryPort = attempt === 0 ? basePort : basePort + attempt;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        relayServer!.once('error', reject);
+        relayServer!.listen(tryPort, getRelayHost(), () => {
+          relayServer!.off('error', reject);
+          resolve();
+        });
+      });
+      fallbackPort = tryPort;
+      lastError = null;
+      break;
+    } catch (error: unknown) {
+      lastError = error as Error;
+      const err = error as NodeJS.ErrnoException;
+      if (err?.code === 'EADDRINUSE' && attempt < maxRetries - 1) {
+        const nextPort = basePort + attempt + 1;
+        console.warn(`[MissionRelay] Port ${tryPort} in use, trying ${nextPort} (attempt ${attempt + 1}/${maxRetries})`);
+        relayServer!.close();
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (lastError && (lastError as NodeJS.ErrnoException)?.code === 'EADDRINUSE') {
+    console.error(`[MissionRelay] All ports ${basePort}-${basePort + maxRetries - 1} in use. Giving up.`);
+  }
+
+  return { port: fallbackPort };
 }
 
 export async function stopMissionRelayForTests(): Promise<void> {
