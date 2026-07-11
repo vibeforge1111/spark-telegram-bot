@@ -292,7 +292,7 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
     userLine: 'Spark hit an internal error before it could answer cleanly.',
     detail,
     check: 'Run /diagnose so Spark can narrow this down from the live stack.',
-    repair: 'Operator fix: spark logs spark-telegram-bot --lines 80.'
+    repair: 'Operator fix: run /diagnose for a live health check. To inspect logs locally, use spark logs spark-telegram-bot --lines 10 — do not paste raw log output into Telegram chat.'
   };
 }
 
