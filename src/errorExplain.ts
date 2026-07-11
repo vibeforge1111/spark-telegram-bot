@@ -62,7 +62,31 @@ function doctorCommand(category: string, context: SparkErrorContext): string {
   const problem = `Spark ${context} failure: ${category}`;
   return `spark doctor llm "${problem}" --save-report --upstream-report`;
 }
+const HYPOTHETICAL_PATTERNS = [
+  /\bwhat\s+(?:would|will|happens?)\s+(?:happen\s+)?if\b/i,
+  /\bif\s+(?:the\s+)?(?:spark|bot|spawner|relay|provider)\s+(?:is\s+)?(?:not|down|offline|broken|fails?)\b/i,
+  /\bwhat\s+if\b/i,
+  /\bsuppose\b/i,
+  /\bhypothetically\b/i,
+];
 
+export function isHypotheticalQuestion(text: string): boolean {
+  return HYPOTHETICAL_PATTERNS.some(p => p.test(text));
+}
+
+export function explainHypotheticalScenario(text: string): string {
+  const lower = text.toLowerCase();
+  if (lower.includes('spawner') && (lower.includes('not running') || lower.includes('down') || lower.includes('offline'))) {
+    return 'If Spawner is not running, /run will fail with a relay error: "Mission relay unavailable."\n\nTo fix:\n1. Run spark fix spawner\n2. Run spark restart spawner-ui\n3. Run spark live status to confirm\n4. Retry your /run command';
+  }
+  if (lower.includes('provider') && (lower.includes('not') || lower.includes('down') || lower.includes('fail'))) {
+    return 'If a provider fails, Spark will show a provider auth error in /diagnose.\n\nTo fix:\n1. Check your API key in .env\n2. Run spark providers test --role chat\n3. Run spark fix telegram if the bot is quiet';
+  }
+  if (lower.includes('relay') && (lower.includes('not') || lower.includes('down') || lower.includes('fail'))) {
+    return 'If the relay is down, Telegram notifications will stop but missions keep running in Spawner.\n\nTo fix:\n1. Run spark fix telegram\n2. Run spark restart telegram-starter\n3. Check /board after restart for completed missions';
+  }
+  return 'If Spark encounters an error, run /diagnose first to identify the failing component, then run spark fix <component> to repair it.';
+}
 export function explainSparkError(error: unknown, context: SparkErrorContext = 'chat'): SparkErrorExplanation {
   const detail = compactDetail(extractErrorText(error));
   const lower = detail.toLowerCase();
@@ -323,3 +347,29 @@ export function renderSparkErrorReply(
   }
   return lines.join('\n\n');
 }
+// TODO(spark-compete-qa): Hypothetical troubleshooting questions misrouted - QA 2026-05-24
+// Bug: Bot ignores hypothetical questions and runs live status checks instead.
+// User asked "what happens IF Spawner is not running" but bot ran /diagnose.
+//
+// Before:
+//   User: "What happens if I send /run but Spawner is not running?"
+//   Bot: "Spark is healthy right now. Spawner: reachable. No repair needed."
+//   (ignored hypothetical, ran live health check instead)
+//
+// After:
+//   User: "What happens if I send /run but Spawner is not running?"
+//   Bot: "If Spawner is not running, /run will fail with a relay error.
+//        You will see something like: Mission relay unavailable.
+//        To fix it:
+//        1. Run spark fix spawner to diagnose the issue
+//        2. Run spark restart spawner-ui to restart Spawner
+//        3. Run spark live status to confirm Spawner is back up
+//        4. Then retry your /run command"
+//   (answers the hypothetical with clear error recovery steps)
+//
+// Fix needed in errorExplain.ts:
+//   1. Detect hypothetical troubleshooting questions (if, what if, what happens if)
+//   2. Answer the hypothetical scenario directly
+//   3. Never run a live status check when user asks a hypothetical
+//   4. Always include error recovery steps for common failure scenarios
+//   5. Keep response focused on the asked scenario not current system state
