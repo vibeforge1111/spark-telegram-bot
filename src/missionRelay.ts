@@ -174,6 +174,7 @@ let relayServer: Server | null = null;
 const RELAY_RATE_LIMIT_WINDOW_MS = 60_000;
 const RELAY_RATE_LIMIT_MAX_REQUESTS = 240;
 const relayRateLimits = new Map<string, { startedAt: number; count: number }>();
+const RELAY_RATE_LIMIT_MAX_ENTRIES = 10_000;
 const DEFAULT_HEARTBEAT_STALE_MS = 35 * 60_000;
 
 function stateFileSafeSegment(value: string): string {
@@ -2504,6 +2505,13 @@ function writeJson(res: ServerResponse, statusCode: number, body: Record<string,
 }
 
 function isRelayRateLimited(req: IncomingMessage, now = Date.now()): boolean {
+  if (relayRateLimits.size > RELAY_RATE_LIMIT_MAX_ENTRIES) {
+    for (const [k, v] of relayRateLimits) {
+      if (now - v.startedAt >= RELAY_RATE_LIMIT_WINDOW_MS) {
+        relayRateLimits.delete(k);
+      }
+    }
+  }
   const key = req.socket.remoteAddress || 'unknown';
   const existing = relayRateLimits.get(key);
   if (!existing || now - existing.startedAt >= RELAY_RATE_LIMIT_WINDOW_MS) {
