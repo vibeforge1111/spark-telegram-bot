@@ -67,7 +67,9 @@ export async function validateRelayRuntime(
 }
 
 async function main(): Promise<void> {
-  loadSparkTelegramProfileEnv(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  const jsonFlag = args.includes('--json');
+  loadSparkTelegramProfileEnv(args);
   const missingProfileToken = process.env.SPARK_PROFILE_TOKEN_MISSING?.trim();
   if (missingProfileToken && !process.env.BOT_TOKEN?.trim()) {
     throw new Error(
@@ -76,7 +78,11 @@ async function main(): Promise<void> {
   }
   await runTelegramPollingHealth();
   const detail = await validateRelayRuntime();
-  console.log(`Relay runtime: OK (${detail})`);
+  if (jsonFlag) {
+    console.log(JSON.stringify({ status: 'ok', detail }));
+  } else {
+    console.log(`Relay runtime: OK (${detail})`);
+  }
 }
 
 if (require.main === module) {
