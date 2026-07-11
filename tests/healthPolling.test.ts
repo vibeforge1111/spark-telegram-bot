@@ -30,9 +30,27 @@ test('README health polling guidance points installed operators at source direct
 });
 
 test('keeps unknown Telegram health failures actionable', () => {
-  const message = describeTelegramTokenError(new Error('network timeout'));
+  const message = describeTelegramTokenError(new Error('unexpected parser failure'));
 
-  assert.equal(message, 'Telegram token check failed: network timeout');
+  assert.equal(message, 'Telegram token check failed: unexpected parser failure');
+});
+
+test('explains Telegram network failures without leaking token URLs', () => {
+  const message = describeTelegramTokenError(new Error('request to https://api.telegram.org/bot123456:SECRET/getMe failed, reason:'));
+
+  assert.match(message, /could not reach Telegram API/);
+  assert.match(message, /network\/proxy\/DNS/);
+  assert.doesNotMatch(message, /123456:SECRET/);
+  assert.doesNotMatch(message, /api\.telegram\.org\/bot/);
+});
+
+test('uses nested network causes while keeping the user-facing repair safe', () => {
+  const error = new Error('fetch failed') as Error & { cause?: Error };
+  error.cause = new Error('ENOTFOUND api.telegram.org');
+  const message = describeTelegramTokenError(error);
+
+  assert.match(message, /could not reach Telegram API/);
+  assert.match(message, /do not rotate the bot token/);
 });
 
 test('builds relay health URL from configured relay port', () => {

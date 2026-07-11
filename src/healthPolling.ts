@@ -7,13 +7,37 @@ import { requireRelaySecret, resolveTelegramLaunchConfig } from './launchMode';
 
 loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true, quiet: true });
 
+function telegramErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const cause = (error as Error & { cause?: unknown }).cause;
+    if (cause instanceof Error && cause.message.trim()) {
+      return `${error.message}: ${cause.message}`;
+    }
+    return error.message;
+  }
+  return String(error);
+}
+
 export function describeTelegramTokenError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  if (message.includes('404') || message.toLowerCase().includes('not found')) {
+  const message = telegramErrorMessage(error);
+  const lower = message.toLowerCase();
+  if (message.includes('404') || lower.includes('not found')) {
     return 'Telegram rejected BOT_TOKEN. Create or rotate the token in BotFather, then run `spark setup --bot-token <token>` or `spark fix telegram`.';
   }
-  if (message.includes('401') || message.toLowerCase().includes('unauthorized')) {
+  if (message.includes('401') || lower.includes('unauthorized')) {
     return 'Telegram rejected BOT_TOKEN as unauthorized. Rotate it in BotFather, then update Spark with the new token.';
+  }
+  if (
+    lower.includes('request to https://api.telegram.org/') ||
+    lower.includes('fetch failed') ||
+    lower.includes('network') ||
+    lower.includes('timeout') ||
+    lower.includes('econnreset') ||
+    lower.includes('enotfound') ||
+    lower.includes('etimedout') ||
+    lower.includes('eai_again')
+  ) {
+    return 'Telegram token check could not reach Telegram API. Check network/proxy/DNS access, then retry `npm run health:polling`; do not rotate the bot token unless Telegram returns 401 or 404.';
   }
   return `Telegram token check failed: ${message}`;
 }
