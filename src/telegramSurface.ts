@@ -57,3 +57,29 @@ export function applyPlainWordsSurfaceRequest(userText: string, replyText: strin
 
   return kept.length ? kept.join('\n\n') : replyText;
 }
+// TODO(spark-compete-qa): Command list overwhelms new users - QA 2026-05-24
+// Bug: Bot returns 24 commands at once when user asks for command list.
+// Destructive commands like /forget all listed with no warning.
+// No prioritization or start here guidance for new users.
+//
+// Before:
+//   User: "Show me the list of all commands I can use"
+//   Bot: Returns 24 commands across 5 categories with no prioritization.
+//   /forget all listed casually with no destructive warning.
+//
+// After:
+//   User: "Show me the list of all commands I can use"
+//   Bot: "Here are the most useful commands to start:
+//        /diagnose - check everything is working
+//        /run <goal> - start a mission
+//        /board - see mission status
+//        /remember <text> - save something
+//        /recall <topic> - search memory
+//        Type 'more commands' to see the full list.
+//        WARNING: /forget all permanently deletes all memory."
+//
+// Fix needed:
+//   1. Show only 5 essential commands on first request
+//   2. Offer more commands option to see full list
+//   3. Mark /forget all with WARNING label
+//   4. Add start here guidance for new users

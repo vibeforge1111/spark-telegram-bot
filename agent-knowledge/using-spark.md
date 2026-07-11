@@ -18,3 +18,30 @@ How to respond:
 - When a mission exists, give the project-specific Kanban and Canvas links.
 - Completion messages should be human-readable, mention what shipped, and include the project preview link when available.
 
+
+```markdown
+## Command Discovery Guidelines
+
+When a user asks to see all commands or asks what commands are available,
+follow this pattern:
+
+**Start with the 5 most useful commands:**
+```
+/diagnose - check everything is working
+/run <goal> - start a mission
+/board - see mission state
+/remember <text> - save something
+/recall <topic> - search memory
+```
+
+Then say: "Type 'more commands' to see the full list."
+
+**Only show the full list when the user explicitly asks for more.**
+
+**Always mark destructive commands with a WARNING:**
+- `/forget all` ⚠️ WARNING: permanently deletes all memory, cannot be undone
+- `/access 5` ⚠️ WARNING: enables whole-computer operator mode
+
+**Never list all 24 commands at once as the first response.**
+The goal is to help new users start quickly, not overwhelm them.
+```
