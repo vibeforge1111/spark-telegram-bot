@@ -1,5 +1,5 @@
-import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
+import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -9,8 +9,10 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { Telegraf } from 'telegraf';
 
-// Load .env.override LAST with override=true. Wins over anything spark-cli
-// rewrites in .env. Never committed (.gitignored).
+
+// Load base .env first, then override — before any other imports use process.env
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+loadEnv({ override: false });
 loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });
 import { message } from 'telegraf/filters';
 import {
@@ -5294,21 +5296,26 @@ bot.start(async (ctx) => {
 
   const spawnerAvailable = await spawner.isAvailable();
 
-  const lines = [
-    `Hey ${name}! I'm Spark.`,
-    '',
-    'I remember conversations through the Builder memory path.',
-    '',
-    'Memory Commands:',
-    '/remember <text> - Save something important',
-    '/recall <topic> - Ask what I remember about a topic',
-    '/about - Ask what I know about you',
-    '/forget <text> - Ask me to forget a saved detail',
-    '',
-    'Spark Intelligence:',
-    '/spark - System status'
-  ];
-
+  const lines = conversation.isAdmin(user)
+    ? [
+        `Hey ${name}! I'm Spark.`,
+        '',
+        'I remember conversations through the Builder memory path.',
+        '',
+        'Memory Commands:',
+        '/remember <text> - Save something important',
+        '/recall <topic> - Ask what I remember about a topic',
+        '/about - Ask what I know about you',
+        '/forget <text> - Ask me to forget a saved detail',
+        '',
+        'Spark Intelligence:',
+        '/spark - System status'
+      ]
+    : [
+        `Hey ${name}! I'm Spark.`,
+        '',
+        'Try /spark for system status, or just chat.'
+      ];
   if (conversation.isAdmin(user)) {
     lines.push(
       '',
@@ -10533,9 +10540,13 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
     return;
   }
-  if (!isAddressedGroupText(ctx, text)) {
-    return;
-  }
+	const llmOnline = await llm.isAvailable();
+if (!llmOnline) {
+  await ctx.reply(
+    '⚠️ Natural language is offline (LLM provider unreachable).\n\nTry /diagnose to check status.'
+  );
+  return;
+}
 
   const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text);
   // Phase-1 shadow intent proposer (observe-only, env-gated, fire-and-forget). Enforces NOTHING:
