@@ -1107,6 +1107,45 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /executed/i);
   });
 
+  await test('missionCommand redacts rejected command details before Telegram formatting', async () => {
+    restoreAxios();
+    const placeholderKey = 'sk-missioncommandplaceholder000000000000';
+    (axios as any).post = async () => ({
+      data: {
+        ok: false,
+        error: `Mission Control rejected pause with Authorization: Bearer ${placeholderKey}`
+      }
+    });
+
+    const result = await spawner.missionCommand('pause', 'spark-redact');
+
+    assert.equal(result.success, false);
+    assert.match(result.message, /Mission Control rejected pause/);
+    assert.doesNotMatch(result.message, new RegExp(placeholderKey));
+    assert.match(result.message, /Authorization: Bearer /);
+  });
+
+  await test('contextual mission command preflight redacts Mission Control errors', async () => {
+    restoreAxios();
+    const placeholderKey = 'sk-contextualmissionplaceholder0000000000';
+    (axios as any).get = async () => {
+      const error: any = new Error('board unavailable');
+      error.response = {
+        data: {
+          error: `board preflight failed with MISSION_CONTROL_TOKEN=${placeholderKey}`
+        }
+      };
+      throw error;
+    };
+
+    const result = await spawner.pauseContextualActiveMission();
+
+    assert.equal(result.success, false);
+    assert.match(result.message, /I could not check Mission Control before pausing/);
+    assert.doesNotMatch(result.message, new RegExp(placeholderKey));
+    assert.match(result.message, /MISSION_CONTROL_TOKEN=/);
+  });
+
   await test('board renders useful Kanban buckets and hides stale running missions', async () => {
     restoreAxios();
     const now = Date.now();
