@@ -2688,8 +2688,18 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 
 	relayServer = createServer(async (req, res) => {
     if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
-      const payload = missionRelayHealthPayload();
-      writeJson(res, payload.ok ? 200 : 503, payload);
+      const relaySecret = getRelaySecret();
+      if (relaySecret) {
+        const providedSecret = req.headers['x-spark-telegram-relay-secret'];
+        if (!relaySecretMatches(providedSecret, relaySecret)) {
+          writeJson(res, 401, { ok: false, error: 'unauthorized' });
+          return;
+        }
+        const payload = missionRelayHealthPayload();
+        writeJson(res, payload.ok ? 200 : 503, payload);
+      } else {
+        writeJson(res, 200, { ok: true, service: 'spark-telegram-bot' });
+      }
       return;
     }
 
