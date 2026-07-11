@@ -526,7 +526,6 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
           ],
           temperature: 0,
           max_tokens: 256,
-          thinking: { type: 'disabled' }
         },
         {
           timeout: timeoutMs,
@@ -735,7 +734,6 @@ export async function generateBuildClarificationMicrocopy(
           ],
           temperature: 0.8,
           max_tokens: 120,
-          thinking: { type: 'disabled' }
         },
         {
           timeout: timeoutMs,
@@ -993,7 +991,6 @@ export const llm = {
             ],
             temperature: 0.7,
             max_tokens: 384,
-            thinking: { type: 'disabled' }
           },
           {
             timeout: 60000,
@@ -1069,7 +1066,6 @@ export const llm = {
             temperature: 0.7,
             max_tokens: 384,
             stream: true,
-            thinking: { type: 'disabled' }
           },
           {
             timeout: 60000,
