@@ -9900,10 +9900,40 @@ bot.command('schedule', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
   const raw = ctx.message.text.replace('/schedule', '').trim();
+
+  // Handle: /schedule cancel <scheduleId>
+  const cancelMatch = raw.match(/^cancel\s+(\S+)$/i);
+  if (cancelMatch) {
+    const id = cancelMatch[1];
+    const authorization = telegramCommandActionAuthorityDecision(ctx, {
+      commandName: 'schedule',
+      route: 'schedule.delete',
+      text: ctx.message.text,
+      toolName: 'schedule.delete',
+      ownerSystem: 'spark-intelligence-builder',
+      mutationClass: 'deletes_schedule',
+      action: 'schedule.delete',
+      kind: 'schedule_mutation'
+    });
+    if (!authorization.allow) {
+      await replyTelegramCommandAuthorityBlocked(ctx);
+      return;
+    }
+    const res = await deleteSchedule(id, { executionAuthority: authorization.governorDecision });
+    recordTelegramHarnessCoreExecution(authorization, {
+      toolName: 'schedule.delete',
+      status: res.ok ? 'success' : 'failure',
+      summary: res.ok
+        ? `Slash /schedule cancel deleted schedule ${id}.`
+        : `Slash /schedule cancel failed for ${id}: ${res.error || 'not found'}.`
+    });
+    return ctx.reply(res.ok ? `Schedule ${id} cancelled.` : `Cancel failed: ${res.error || 'not found'}`);
+  }
+
   // Expect: "<cron>" mission <goal>   OR   "<cron>" loop <chipKey> [rounds]
   const quoteMatch = raw.match(/^"([^"]+)"\s+(.*)$/);
   if (!quoteMatch) {
-    return ctx.reply('Usage: /schedule "<cron>" mission <goal>\n       /schedule "<cron>" loop <chipKey> [rounds]\nExample: /schedule "*/5 * * * *" loop startup-yc 2');
+    return ctx.reply('Usage: /schedule "<cron>" mission <goal>\n       /schedule "<cron>" loop <chipKey> [rounds]\n       /schedule cancel <scheduleId>\nExample: /schedule "*/5 * * * *" loop startup-yc 2');
   }
   const cron = quoteMatch[1].trim();
   const rest = quoteMatch[2].trim().split(/\s+/);
