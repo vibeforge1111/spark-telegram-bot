@@ -502,7 +502,7 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
       const content = await anthropicMessage(config, {
         system: 'Health check. Reply with exactly CHAT_OK.',
         user: 'Reply with exactly: CHAT_OK',
-        temperature: 0,
+        temperature: 0.6,
         maxTokens: 8,
         timeoutMs
       });
@@ -524,7 +524,7 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
             { role: 'system', content: 'Health check. Reply with exactly CHAT_OK.' },
             { role: 'user', content: 'Reply with exactly: CHAT_OK' }
           ],
-          temperature: 0,
+          temperature: 0.6,
           max_tokens: 256,
           thinking: { type: 'disabled' }
         },
@@ -564,7 +564,7 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
         system: 'Health check. Reply with exactly CHAT_OK.',
         stream: false,
         options: {
-          temperature: 0,
+          temperature: 0.6,
           num_predict: 8,
         },
       },
@@ -720,7 +720,7 @@ export async function generateBuildClarificationMicrocopy(
       raw = await anthropicMessage(config, {
         system: 'Return strict JSON only.',
         user: prompt,
-        temperature: 0.8,
+        temperature: 0.6,
         maxTokens: 120,
         timeoutMs
       });
@@ -733,7 +733,7 @@ export async function generateBuildClarificationMicrocopy(
             { role: 'system', content: 'Return strict JSON only.' },
             { role: 'user', content: prompt }
           ],
-          temperature: 0.8,
+          temperature: 0.6,
           max_tokens: 120,
           thinking: { type: 'disabled' }
         },
@@ -756,7 +756,7 @@ export async function generateBuildClarificationMicrocopy(
           prompt,
           system: 'Return strict JSON only.',
           stream: false,
-          options: { temperature: 0.8, num_predict: 120 },
+          options: { temperature: 0.6, num_predict: 120 },
         },
         { timeout: timeoutMs }
       );
@@ -975,7 +975,7 @@ export const llm = {
         const content = await anthropicMessage(config, {
           system: systemPrompt,
           user: userMessage,
-          temperature: 0.7,
+          temperature: 0.6,
           maxTokens: 384,
           timeoutMs: 60000
         });
@@ -991,7 +991,7 @@ export const llm = {
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userMessage }
             ],
-            temperature: 0.7,
+            temperature: 0.6,
             max_tokens: 384,
             thinking: { type: 'disabled' }
           },
@@ -1024,7 +1024,7 @@ export const llm = {
           system: systemPrompt,
           stream: false,
           options: {
-            temperature: 0.7,
+            temperature: 0.6,
             num_predict: 256,
           },
         },
@@ -1066,7 +1066,7 @@ export const llm = {
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userMessage }
             ],
-            temperature: 0.7,
+            temperature: 0.6,
             max_tokens: 384,
             stream: true,
             thinking: { type: 'disabled' }
@@ -1094,7 +1094,7 @@ export const llm = {
             system: systemPrompt,
             stream: true,
             options: {
-              temperature: 0.7,
+              temperature: 0.6,
               num_predict: 256,
             },
           },
