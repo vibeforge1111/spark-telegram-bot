@@ -531,6 +531,12 @@ test('routes natural Spawner board questions to board reads', () => {
   assert.equal(parseSpawnerBoardNaturalIntent('why did the latest mission fail?'), 'latest_failure');
   assert.equal(parseSpawnerBoardNaturalIntent('no the localhost for the beauty centre'), 'latest_project_preview');
   assert.equal(isLocalSparkServiceRequest('no the localhost for the beauty centre', 'Completed Spawner mission spark-123'), false);
+  // "open" + a bare pronoun ("it") must NOT route to the latest project preview.
+  assert.equal(parseSpawnerBoardNaturalIntent('open the wikipedia page about the french revolution and summarize it'), null);
+  assert.equal(parseSpawnerBoardNaturalIntent('open the door and lock it'), null);
+  // genuine project-preview asks still resolve.
+  assert.equal(parseSpawnerBoardNaturalIntent('open the app you just built'), 'latest_project_preview');
+  assert.equal(parseSpawnerBoardNaturalIntent('send me the link to the website'), 'latest_project_preview');
   assert.equal(
     parseSpawnerBoardNaturalIntent('the canvas event stream looked good, can you check whether the kanban side saw the same mission?'),
     'latest_on_kanban'

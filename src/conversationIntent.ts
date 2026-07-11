@@ -1558,9 +1558,21 @@ function isProjectLocalhostRequest(normalized: string): boolean {
   if (/\b(?:do\s+not|don't|dont)\s+open\s+files?\b/.test(normalized)) {
     return false;
   }
-  return /\b(?:localhost|local\s*host|local\s+url|open|link)\b/.test(normalized) &&
-    /\b(?:project|app|website|site|build|built|shipped|beauty|centre|center|thing|it)\b/.test(normalized) &&
-    !/\b(?:spawner|mission board|mission control|kanban|canvas|diagnostic|diagnostics)\b/.test(normalized);
+  if (/\b(?:spawner|mission board|mission control|kanban|canvas|diagnostic|diagnostics)\b/.test(normalized)) {
+    return false;
+  }
+  // An explicit localhost / local-url reference is a strong project-preview signal and
+  // pairs with any project-ish noun (incl. the bare "it"/"thing" pronoun).
+  const hasLocalhost = /\b(?:localhost|local\s*host|local\s+url)\b/.test(normalized);
+  const anyProjectNoun = /\b(?:project|app|website|site|build|built|shipped|beauty|centre|center|thing|it)\b/.test(normalized);
+  if (hasLocalhost && anyProjectNoun) {
+    return true;
+  }
+  // "open"/"link" alone is weak (matches "open the page and summarize it"), so it only
+  // counts with a concrete project noun -- never the bare pronoun "it"/"thing".
+  const hasOpenOrLink = /\b(?:open|link)\b/.test(normalized);
+  const concreteProjectNoun = /\b(?:project|app|website|site|build|built|shipped|preview|beauty|centre|center)\b/.test(normalized);
+  return hasOpenOrLink && concreteProjectNoun;
 }
 
 export function isAmbiguousLocalSparkServiceRequest(text: string, context: string = ''): boolean {
