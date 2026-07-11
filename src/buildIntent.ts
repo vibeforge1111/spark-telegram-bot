@@ -915,10 +915,26 @@ function extractBuildDescription(text: string): string | null {
   return null;
 }
 
+function isImageGenerationRequest(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) return false;
+
+  const asksForImage =
+    /\b(?:generate|create|make|draw|render)\s+(?:me\s+|us\s+)?(?:an?\s+|the\s+)?(?:image|picture|photo|artwork|illustration)\b/.test(normalized) ||
+    /\b(?:image|picture|photo|artwork|illustration)\s+of\b/.test(normalized);
+
+  const asksForApp =
+    /\b(?:app|application|website|site|page|dashboard|tool|canvas|workspace|interface|gallery|editor|generator)\b/.test(normalized) &&
+    /\b(?:build|create|make|scaffold|develop)\b/.test(normalized);
+
+  return asksForImage && !asksForApp;
+}
+
 export function parseBuildIntent(text: string): BuildIntent | null {
   const original = text.trim().replace(/[‘’]/g, "'");
   if (isExactReplyNoFileProbe(original)) return null;
   if (isFilesystemOperationProbe(original)) return null;
+  if (isImageGenerationRequest(original)) return null;
   if (isNoExecutionBoundary(original)) return null;
   if (isBuildRouteMetaDiscussion(original)) return null;
   const trimmed = normalizeBuildCommandText(original);
