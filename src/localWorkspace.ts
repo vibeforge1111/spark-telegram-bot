@@ -66,11 +66,13 @@ export function defaultLocalWorkspaceRoots(env: NodeJS.ProcessEnv = process.env)
   }
 
   const home = os.homedir();
-  return [
+  const candidates = [
     path.join(home, 'Desktop'),
-    path.join(home, 'Documents'),
-    path.join(home, '.spark', 'workspaces')
+    path.join(home, 'Documents')
   ];
+  const existing = candidates.filter((p) => existsSync(p));
+  existing.push(path.join(home, '.spark', 'workspaces'));
+  return existing;
 }
 
 function hasFile(projectPath: string, fileName: string): boolean {
