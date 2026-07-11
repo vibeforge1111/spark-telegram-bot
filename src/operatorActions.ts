@@ -18,7 +18,10 @@ function extractWindowsPath(text: string): string | null {
 
 function isExpectedLevel5SmokePath(filePath: string): boolean {
   const normalized = path.win32.normalize(filePath).toLowerCase();
-  return normalized.endsWith('\\appdata\\local\\temp\\spark-telegram-level5-smoke.txt');
+  const expectedDir = 'c:\\appdata\\local\\temp';
+  const expectedFile = 'spark-telegram-level5-smoke.txt';
+  const relative = path.win32.relative(expectedDir, normalized);
+  return relative === expectedFile;
 }
 
 // Containment check using path.win32.relative rather than startsWith.
