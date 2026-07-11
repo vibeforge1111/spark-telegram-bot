@@ -4302,7 +4302,9 @@ function requireAdmin(ctx: any): boolean {
     return true;
   }
 
-  ctx.reply('Admin only. Add your Telegram ID to ADMIN_TELEGRAM_IDS first.').catch(() => {});
+  ctx.reply('Admin only. Add your Telegram ID to ADMIN_TELEGRAM_IDS first.').catch((e) => {
+    console.error('[RequireAdmin] Failed to send admin warning:', e);
+  });
   return false;
 }
 
@@ -5233,7 +5235,9 @@ export async function handleRecallCommand(ctx: any): Promise<void> {
 // Error handler
 bot.catch((err, ctx) => {
   console.error(`Error for ${ctx.updateType}:`, err);
-  ctx.reply(renderSparkErrorReply(err, 'telegram', ctx.from ? conversation.isAdmin(ctx.from) : false)).catch(() => {});
+  ctx.reply(renderSparkErrorReply(err, 'telegram', ctx.from ? conversation.isAdmin(ctx.from) : false)).catch((e) => {
+    console.error('[ErrorHandler] Failed to send error reply:', e);
+  });
 });
 
 // Rate limit middleware. The sliding-window limiter drops messages over the
