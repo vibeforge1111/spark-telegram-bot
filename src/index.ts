@@ -10537,6 +10537,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
+  const MAX_USER_INPUT_LENGTH = 4096;
+  if (text.length > MAX_USER_INPUT_LENGTH) {
+    await ctx.reply(`Message too long (${text.length} chars). Please keep messages under ${MAX_USER_INPUT_LENGTH} characters.`);
+    return;
+  }
+
   const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text);
   // Phase-1 shadow intent proposer (observe-only, env-gated, fire-and-forget). Enforces NOTHING:
   // it logs regex-route vs model-proposed-route agreement so we can measure where they disagree
