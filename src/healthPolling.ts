@@ -49,11 +49,14 @@ export async function runTelegramPollingHealth(): Promise<void> {
   }
 
   const identity = await validateTelegramToken(botToken);
-  console.log('Telegram health: OK');
-  console.log(`Bot token: accepted${identity === 'skipped' ? ' (API check skipped)' : ` (${identity})`}`);
-  console.log(`Ingress mode: ${launch.mode}`);
-  console.log('Webhook ingress: disabled for this launch build');
-  console.log('Relay auth: configured');
+  const healthInfo = {
+    status: 'OK',
+    botToken: identity === 'skipped' ? 'accepted (API check skipped)' : `accepted (${identity})`,
+    ingressMode: launch.mode,
+    webhookIngress: 'disabled for this launch build',
+    relayAuth: 'configured',
+  };
+  console.log(JSON.stringify(healthInfo, null, 2));
 }
 
 if (require.main === module) {
