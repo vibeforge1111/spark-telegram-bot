@@ -2432,8 +2432,34 @@ export function formatRouteProbeReply(payload: Record<string, unknown>): string 
   if (eventId) {
     lines.push(`- Event: ${eventId}${eventType ? ` (${eventType.replace(/_/g, ' ')})` : ''}`);
   }
+  // Surface a route-specific install hint when a known route reports a
+  // missing dependency. Keeps the existing 'Run /aoc' line so the post-probe
+  // operating-context update is still suggested.
+  if (status !== 'ok' && status !== 'passed') {
+    const hint = routeInstallHint(route);
+    if (hint) {
+      lines.push('', `Next step: ${hint}`);
+    }
+  }
   lines.push('', 'Run /aoc to see how this changed Agent Operating Context.');
   return lines.join('\n');
+}
+
+function routeInstallHint(route: string): string | null {
+  const normalized = route.toLowerCase().replace(/-/g, '_');
+  if (normalized === 'browser' || normalized === 'browser_use') {
+    return 'install browser-use with `spark browser-use install`, then rerun /probe browser.';
+  }
+  if (normalized === 'swarm') {
+    return 'link Swarm credentials with `spark swarm auth link`, then rerun /probe swarm.';
+  }
+  if (normalized === 'voice' || normalized === 'voice_comms') {
+    return 'install voice dependencies with `spark setup --with-voice`, then rerun /probe voice.';
+  }
+  if (normalized === 'mcp') {
+    return 'check MCP server health with `spark mcp doctor`, then rerun /probe mcp.';
+  }
+  return null;
 }
 
 export function formatRouteConfidenceGateReply(payload: unknown): string {
