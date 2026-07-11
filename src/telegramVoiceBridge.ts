@@ -23,8 +23,27 @@ function mediaExtension(mimeType: string): string {
   return '.audio';
 }
 
-async function responseBuffer(response: Response): Promise<Buffer> {
-  return Buffer.from(await response.arrayBuffer());
+async function responseBuffer(response: Response, maxBytes: number): Promise<Buffer> {
+  const contentLength = Number.parseInt(response.headers.get('content-length') || '', 10);
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw new Error(`Telegram voice file is too large (${contentLength} bytes).`);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) {
+    return Buffer.from(await response.arrayBuffer());
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > maxBytes) {
+      throw new Error(`Telegram voice file is too large (${total} bytes).`);
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
 }
 
 export async function buildVoiceBridgeUpdate(
@@ -65,7 +84,7 @@ export async function buildVoiceBridgeUpdate(
       throw new Error(`Telegram voice file is too large (${contentLength} bytes).`);
     }
 
-    const audioBuffer = await responseBuffer(response);
+    const audioBuffer = await responseBuffer(response, maxBytes);
     if (audioBuffer.length > maxBytes) {
       throw new Error(`Telegram voice file is too large (${audioBuffer.length} bytes).`);
     }
