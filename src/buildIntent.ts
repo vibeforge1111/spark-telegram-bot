@@ -1,6 +1,9 @@
 // Build-project intent parser. Catches natural-language phrasing that should
 // kick off a Spawner PRD-based project flow (multi-task canvas + execution).
 
+import os from 'os';
+import path from 'path';
+
 export interface BuildIntent {
   projectPath: string | null;
   requestedProjectPath: string | null;
@@ -37,7 +40,7 @@ function normalizePathForPlatform(value: string): string {
 
 function workspaceRootsFor(candidate: string): string[] {
   if (process.env.SPARK_PROJECT_ROOT?.trim()) return [process.env.SPARK_PROJECT_ROOT.trim()];
-  if (/^[A-Z]:[\\/]/i.test(candidate)) return ['C:\\Users\\USER\\Desktop'];
+  if (/^[A-Z]:[\\/]/i.test(candidate)) return [path.join(os.homedir(), 'Desktop')];
   return [defaultWorkspaceRoot()];
 }
 
