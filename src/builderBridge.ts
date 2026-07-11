@@ -415,11 +415,12 @@ async function pathExists(targetPath: string): Promise<boolean> {
 }
 
 async function ensureBridgeAvailable(config: BuilderBridgeConfig): Promise<boolean> {
-  const [repoExists, homeExists] = await Promise.all([
+  const [repoExists, homeExists, cliMarkerExists] = await Promise.all([
     pathExists(config.builderRepo),
     pathExists(config.builderHome),
+    pathExists(path.join(config.builderRepo, 'src', 'spark_intelligence', 'cli.py'))
   ]);
-  return repoExists && homeExists;
+  return repoExists && homeExists && cliMarkerExists;
 }
 
 function candidateDiagnosticsRepos(config: BuilderBridgeConfig): string[] {
