@@ -73,7 +73,12 @@ export async function buildVoiceBridgeUpdate(
     const mimeType = String(media.mime_type || response.headers.get('content-type') || (voice ? 'audio/ogg' : 'application/octet-stream'));
     const filename = `${voice ? 'telegram-voice' : 'telegram-audio'}${mediaExtension(mimeType)}`;
     const downloadMs = Date.now() - startedAt;
-    console.log(`[VoiceBridgeTiming] runner_download_ms=${downloadMs} bytes=${audioBuffer.length} mime=${mimeType}`);
+    console.log(JSON.stringify({
+      event: 'voice_bridge_download',
+      downloadMs,
+      bytes: audioBuffer.length,
+      mime: mimeType,
+    }));
     return {
       ...update,
       message: {
