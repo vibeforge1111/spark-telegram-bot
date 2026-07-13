@@ -73,3 +73,54 @@ test('redacts stable Telegram identifiers without raw IDs', () => {
   assert(!ref.includes('8319079055'));
   assert.equal(redactIdentifier(null, 'user'), 'unknown');
 });
+
+test('redacts common unix, macOS, container, and file URL paths', () => {
+  const paths = [
+    '/home/user/project/src/index.ts:42:15',
+    '/Users/alchemist/Spark Bot/config.json',
+    '/private/var/folders/task/output.json',
+    '/workspace/spark/dist/index.js',
+    '/app/runtime/config.yaml',
+    '/Volumes/Private Build/report.md',
+    'file:///tmp/spark/report.json',
+    '~/spark/private.env',
+  ];
+  for (const localPath of paths) {
+    const redacted = redactText(`Local file unavailable: "${localPath}"`);
+    assert.doesNotMatch(redacted, /(?:alchemist|private\.env|spark\/dist|report\.json|config\.yaml)/i);
+    assert.match(redacted, /\[REDACTED_PATH\]/);
+  }
+});
+
+test('redacts Windows drive, forward-slash, UNC, and extended paths', () => {
+  const paths = [
+    String.raw`C:\Users\admin\Desktop\spark\main.ts`,
+    'D:/projects/spark/private.json',
+    String.raw`\\server\share\spark\secret.txt`,
+    String.raw`\\?\C:\private\spark\trace.log`,
+  ];
+  for (const localPath of paths) {
+    const redacted = redactText(`Local file unavailable: "${localPath}"`);
+    assert.doesNotMatch(redacted, /(?:admin|projects|server|secret\.txt|trace\.log)/i);
+    assert.match(redacted, /\[REDACTED_PATH\]/);
+  }
+});
+
+test('preserves public URLs, slash commands, cron, and ordinary prose', () => {
+  const text = [
+    'Docs: https://example.com/home/user/help',
+    'Board: https://spark.example/Users/guide?tab=/tmp/demo',
+    'Run /schedule "0 9 * * *" mission Review priorities',
+    'Use /tmp as an example root, not a concrete private file.',
+  ].join('\n');
+  assert.equal(redactText(text), text);
+});
+
+test('path redaction is idempotent and applies inside Error stacks', () => {
+  const error = new Error('ENOENT');
+  error.stack = 'Error: ENOENT\n    at load (/home/user/app/src/config.ts:15:3)';
+  const once = String(redactForLog(error));
+  assert.doesNotMatch(once, /\/home\/user/);
+  assert.match(once, /\[REDACTED_PATH\]/);
+  assert.equal(redactText(once), once);
+});
