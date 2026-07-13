@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   formatNextFireLocal,
+  formatScheduleError,
   formatScheduleList,
   humanizeCron,
   humanSummary,
@@ -41,6 +42,23 @@ test('renders mission and loop summaries without internal headings', () => {
   assert.equal(humanSummary(mission), 'Run mission "Review priorities"');
   assert.equal(humanSummary(loop), 'Run 2 loop rounds on startup-yc');
   assert.doesNotMatch(formatScheduleList([mission]), /\b(?:Provider|Move|Status):/);
+});
+
+test('classifies schedule owner errors without returning private detail', () => {
+  const token = `1234567890:${'A'.repeat(34)}`;
+  assert.equal(formatScheduleError(`connect timeout at /Users/alchemist/spark ${token}`, 'create failed'), 'schedule service unavailable');
+  assert.equal(formatScheduleError('invalid cron expression near secret input', 'create failed'), 'invalid timing expression');
+  assert.equal(formatScheduleError('schedule not found: private-id', 'delete failed'), 'schedule not found');
+  assert.equal(formatScheduleError('unexpected provider stack', 'create failed'), 'create failed');
+});
+
+test('redacts schedule status before normalizing and truncating it', () => {
+  const token = `1234567890:${'B'.repeat(34)}`;
+  const schedule = record({ lastStatus: `${'x'.repeat(75)} ${token}\n/Users/alchemist/private/report.json` });
+  const reply = formatScheduleList([schedule]);
+
+  assert.doesNotMatch(reply, /1234567890|BBBB|alchemist|report\.json|\[REDACTED_/);
+  assert.match(reply, /private detail hidden/);
 });
 
 function record(overrides: Partial<ScheduleRecord>): ScheduleRecord {
