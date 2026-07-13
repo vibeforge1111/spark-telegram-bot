@@ -95,6 +95,7 @@ const tests = [
   'tests/llmProviderSmoke.test.ts',
   'tests/profileEnv.test.ts',
   'tests/healthPolling.test.ts',
+  'tests/scheduleEmptyState.test.ts',
   'tests/diagnose.test.ts',
   'tests/recursive.test.ts',
   'tests/recursiveCommand.test.ts',
