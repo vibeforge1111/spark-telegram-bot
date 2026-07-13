@@ -14,10 +14,26 @@ function formatTime12(h: number, m: number): string {
   return mm === '00' ? `${hh} ${suffix}` : `${hh}:${mm} ${suffix}`;
 }
 
+function isSimpleCronField(value: string, min: number, max: number, allowStep = false): boolean {
+  if (value === '*') return true;
+  const step = allowStep ? /^\*\/(\d+)$/.exec(value) : null;
+  const raw = step?.[1] ?? value;
+  if (!/^\d+$/.test(raw)) return false;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed >= min && parsed <= max;
+}
+
 export function humanizeCron(cron: string): string {
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return cron;
   const [minute, hour, dom, month, dow] = parts;
+  if (
+    !isSimpleCronField(minute, 0, 59, true)
+    || !isSimpleCronField(hour, 0, 23, true)
+    || !isSimpleCronField(dom, 1, 31)
+    || !isSimpleCronField(month, 1, 12)
+    || !isSimpleCronField(dow, 0, 6)
+  ) return `Custom: ${cron}`;
   if (hour === '*' && dom === '*' && month === '*' && dow === '*') {
     if (minute === '*') return 'Every minute';
     const m = /^\*\/(\d+)$/.exec(minute);
@@ -45,7 +61,9 @@ export function formatNextFireLocal(iso: string | null): string {
   if (!iso) return '-';
   try {
     const d = new Date(iso);
-    const ms = d.getTime() - Date.now();
+    const timestamp = d.getTime();
+    if (Number.isNaN(timestamp)) return iso;
+    const ms = timestamp - Date.now();
     const local = d.toLocaleString(undefined, {
       weekday: 'short',
       hour: 'numeric',
