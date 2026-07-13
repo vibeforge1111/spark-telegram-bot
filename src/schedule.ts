@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { redactText } from './redaction';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
 
@@ -93,6 +94,24 @@ export function humanSummary(rec: ScheduleRecord): string {
   return `Run ${n} loop round${n === 1 ? '' : 's'} on ${p.chipKey}`;
 }
 
+export function formatScheduleError(error: unknown, fallback: string): string {
+  const redacted = redactText(String(error ?? '')).replace(/\s+/g, ' ').trim().toLowerCase();
+  if (/\b(?:timeout|timed out|econn|network|socket|unreachable|502|503|504)\b/.test(redacted)) {
+    return 'schedule service unavailable';
+  }
+  if (/\b(?:invalid cron|cron (?:expression )?invalid)\b/.test(redacted)) return 'invalid timing expression';
+  if (/\b(?:not found|404)\b/.test(redacted)) return 'schedule not found';
+  if (/\b(?:denied|forbidden|401|403)\b/.test(redacted)) return 'schedule request denied';
+  if (/\b(?:conflict|409)\b/.test(redacted)) return 'schedule conflict';
+  return String(fallback || 'schedule request failed').replace(/\s+/g, ' ').trim().slice(0, 80) || 'schedule request failed';
+}
+
+function safeScheduleStatus(status: string): string {
+  const redacted = redactText(status);
+  if (redacted !== status) return 'private detail hidden';
+  return redacted.replace(/\s+/g, ' ').trim().slice(0, 80);
+}
+
 export function formatScheduleList(schedules: ScheduleRecord[]): string {
   if (schedules.length === 0) {
     return [
@@ -106,7 +125,7 @@ export function formatScheduleList(schedules: ScheduleRecord[]): string {
     lines.push(humanSummary(s));
     lines.push(`  Schedule: ${humanizeCron(s.cron)}`);
     lines.push(`  Next: ${formatNextFireLocal(s.nextFireAt)}`);
-    lines.push(`  Fires so far: ${s.fireCount}${s.lastStatus ? ` | last: ${s.lastStatus.slice(0, 80)}` : ''}`);
+    lines.push(`  Fires so far: ${s.fireCount}${s.lastStatus ? ` | last: ${safeScheduleStatus(s.lastStatus)}` : ''}`);
     lines.push(`  Id: ${s.id}`);
     lines.push('');
   }
@@ -135,26 +154,26 @@ export async function createSchedule(input: {
 }): Promise<{ ok: boolean; schedule?: ScheduleRecord; error?: string }> {
   try {
     const res = await axios.post(`${SPAWNER_UI_URL}/api/scheduled`, input, spawnerAxiosOptions(10000));
-    return { ok: Boolean(res.data?.ok), schedule: res.data?.schedule, error: res.data?.error };
+    return { ok: Boolean(res.data?.ok), schedule: res.data?.schedule, error: res.data?.error ? formatScheduleError(res.data.error, 'create failed') : undefined };
   } catch (err: any) {
-    return { ok: false, error: err?.response?.data?.error || err?.message || 'create failed' };
+    return { ok: false, error: formatScheduleError(err?.response?.data?.error || err?.message, 'create failed') };
   }
 }
 
 export async function listSchedules(): Promise<{ ok: boolean; schedules?: ScheduleRecord[]; error?: string }> {
   try {
     const res = await axios.get(`${SPAWNER_UI_URL}/api/scheduled`, spawnerAxiosOptions(10000));
-    return { ok: Boolean(res.data?.ok), schedules: res.data?.schedules || [], error: res.data?.error };
+    return { ok: Boolean(res.data?.ok), schedules: res.data?.schedules || [], error: res.data?.error ? formatScheduleError(res.data.error, 'list failed') : undefined };
   } catch (err: any) {
-    return { ok: false, error: err?.message || 'list failed' };
+    return { ok: false, error: formatScheduleError(err?.message, 'list failed') };
   }
 }
 
 export async function deleteSchedule(id: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await axios.delete(`${SPAWNER_UI_URL}/api/scheduled?id=${encodeURIComponent(id)}`, spawnerAxiosOptions(10000));
-    return { ok: Boolean(res.data?.ok), error: res.data?.error };
+    return { ok: Boolean(res.data?.ok), error: res.data?.error ? formatScheduleError(res.data.error, 'delete failed') : undefined };
   } catch (err: any) {
-    return { ok: false, error: err?.message || 'delete failed' };
+    return { ok: false, error: formatScheduleError(err?.message, 'delete failed') };
   }
 }
