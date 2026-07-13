@@ -962,7 +962,7 @@ async function run(): Promise<void> {
 		assert.equal(record.trace_ref, 'trace:req-final-gate');
 		assert.equal(record.harness_proof_ref, proofCapsule.turnRef);
 		assert.equal(record.proof_capsule.schema, 'spark.harness_proof.v1');
-		assert.equal(record.builder_reply_preview, 'Noted: saved. Working Memory: <path> internal policy reason.');
+		assert.equal(record.builder_reply_preview, 'Noted: saved. Working Memory: [REDACTED_PATH] internal policy reason.');
 		assert.equal(record.chat_id_present, true);
 		assert.equal(record.user_id_present, true);
 		assert.match(String(record.chat_ref), /^chat_[a-f0-9]{16}$/);
