@@ -237,9 +237,11 @@ export function sanitizeOutboundForTelegramSurface(
   text: string,
   options: TelegramRenderFirewallOptions = {}
 ): string {
-  return applyTelegramRenderFirewall(
-    redactText(rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(text)))),
-    options
+  return redactText(
+    applyTelegramRenderFirewall(
+      rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(text))),
+      options
+    )
   );
 }
 
