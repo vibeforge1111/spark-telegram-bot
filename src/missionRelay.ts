@@ -1127,11 +1127,15 @@ function projectOpenLink(projectPath: string | null): string | null {
   return projectPreviewLink(projectPath) || localIndexLink(projectPath);
 }
 
-async function readyProjectOpenLink(previewUrl: string | null, projectPath: string | null): Promise<string | null> {
+async function readyProjectOpenLink(
+  previewUrl: string | null,
+  projectPath: string | null,
+  probe: (url: string) => Promise<boolean> = probePreviewReachability
+): Promise<string | null> {
   const openLink = normalizePreviewLink(previewUrl, projectPath) || projectOpenLink(projectPath);
   if (!openLink) return null;
   if (/^https?:\/\//i.test(openLink)) {
-    return await httpPreviewIsReachable(openLink) ? openLink : null;
+    return await probe(openLink) ? openLink : null;
   }
   return openLink;
 }
@@ -1148,10 +1152,6 @@ function projectPathFromEvent(event: DeliverableRelayEvent): string | null {
 
 function previewLinkFromEvent(event: DeliverableRelayEvent): string | null {
   return relayStringField(event.data, 'previewUrl') || relayStringField(event.data, 'preview_url');
-}
-
-async function httpPreviewIsReachable(url: string): Promise<boolean> {
-  return probePreviewReachability(url);
 }
 
 async function readyProjectOpenLinkFromEvent(event: DeliverableRelayEvent): Promise<string | null> {
@@ -1761,9 +1761,10 @@ export async function sendFetchedCompletionSummaryForTests(
 
 export function resolveReadyProjectOpenLinkForTests(
   previewUrl: string | null,
-  projectPath: string | null
+  projectPath: string | null,
+  probe?: (url: string) => Promise<boolean>
 ): Promise<string | null> {
-  return readyProjectOpenLink(previewUrl, projectPath);
+  return readyProjectOpenLink(previewUrl, projectPath, probe);
 }
 
 function heartbeatKey(event: DeliverableRelayEvent): string {

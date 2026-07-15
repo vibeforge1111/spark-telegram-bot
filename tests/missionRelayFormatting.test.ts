@@ -1324,19 +1324,13 @@ void (async () => {
   });
 
   await asyncTest('rejects unreachable preview links before Telegram completion handoff', async () => {
-    const originalFetch = globalThis.fetch;
-    try {
-      globalThis.fetch = (async () => new Response('missing', { status: 404 })) as typeof fetch;
+    const link = await resolveReadyProjectOpenLinkForTests(
+      'http://127.0.0.1:3333/preview/default/index.html',
+      'C:\\Users\\USER\\.spark\\workspaces\\default',
+      async () => false
+    );
 
-      const link = await resolveReadyProjectOpenLinkForTests(
-        'http://127.0.0.1:3333/preview/default/index.html',
-        'C:\\Users\\USER\\.spark\\workspaces\\default'
-      );
-
-      assert.equal(link, null);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    assert.equal(link, null);
   });
 
   await asyncTest('does not cache fetched completion summaries until Telegram delivery succeeds', async () => {
