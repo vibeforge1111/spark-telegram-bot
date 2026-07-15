@@ -86,8 +86,9 @@ function httpPortLabel(url: string): string {
 }
 
 function formatDiagnoseErrorDetail(value: unknown, fallback = 'unavailable'): string {
-  const text = typeof value === 'string' ? value : String(value || fallback);
-  return redactText(text).replace(/\s+/g, ' ').trim().slice(0, 120) || fallback;
+  const text = typeof value === 'string' ? value : String(value ?? fallback);
+  const firstLine = text.split(/\r?\n/, 1)[0] || '';
+  return redactText(firstLine).replace(/\s+/g, ' ').trim().slice(0, 120) || fallback;
 }
 
 export function readableLocalServiceUrl(url: string): string {

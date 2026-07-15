@@ -194,6 +194,20 @@ test('redacts diagnostic error details before formatting user-facing health line
   assert.match(relayLine, /Authorization: Bearer /);
 });
 
+test('keeps diagnose failures compact and hides local stack paths', () => {
+  const line = describeChatProviderHealth(
+    {
+      ok: false,
+      detail: 'provider failed at /Users/example/private/provider.ts\n    at runProvider (/Users/example/private/runner.ts:42:7)'
+    },
+    'openai (gpt-placeholder)'
+  );
+
+  assert.match(line, /provider failed at \[REDACTED_PATH\]/);
+  assert.doesNotMatch(line, /\/Users\/|runProvider|runner\.ts|\n/);
+  assert.ok(line.length < 220);
+});
+
 test('formats local service URLs as localhost links', () => {
   assert.equal(readableLocalServiceUrl('http://127.0.0.1:3333'), 'http://localhost:3333');
   assert.equal(readableLocalServiceUrl('http://0.0.0.0:3333/'), 'http://localhost:3333');
