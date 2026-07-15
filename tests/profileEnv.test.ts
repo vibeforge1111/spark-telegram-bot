@@ -27,6 +27,13 @@ test('loads profile secrets through Spark internal keychain fetch', () => {
   assert.doesNotMatch(command.args[1], /secrets get|--reveal/);
 });
 
+test('internal secret reads do not override the operator approval policy', () => {
+  const source = readFileSync('src/profileEnv.ts', 'utf-8');
+
+  assert.doesNotMatch(source, /SPARK_APPROVAL_ENFORCE/);
+  assert.match(source, /from spark_cli\.cli import fetch_secret/);
+});
+
 test('prefers explicit Spark CLI Python over Builder Python', () => {
   const command = sparkSecretPythonBridgeCommand('telegram.profiles.testerthebester.bot_token', {
     SPARK_CLI_PYTHON: 'C:\\SparkPython\\python.exe',
