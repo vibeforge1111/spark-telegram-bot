@@ -5,6 +5,7 @@ import { conversation } from './conversation';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 import { relaySecretMatches, requireRelaySecret } from './launchMode';
 import { buildMissionRelayTraceContext } from './missionRelayProof';
+import { probePreviewReachability } from './previewFetchPolicy';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { recordShippedProjectFromMission } from './shippedProjectContext';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
@@ -1150,21 +1151,7 @@ function previewLinkFromEvent(event: DeliverableRelayEvent): string | null {
 }
 
 async function httpPreviewIsReachable(url: string): Promise<boolean> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 2500);
-  const uiKey = process.env.SPARK_UI_API_KEY?.trim();
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: uiKey ? { 'x-spawner-ui-key': uiKey } : undefined,
-      signal: controller.signal
-    });
-    return response.ok;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timeout);
-  }
+  return probePreviewReachability(url);
 }
 
 async function readyProjectOpenLinkFromEvent(event: DeliverableRelayEvent): Promise<string | null> {
