@@ -6,6 +6,7 @@ import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 import { relaySecretMatches, requireRelaySecret } from './launchMode';
 import { buildMissionRelayTraceContext } from './missionRelayProof';
 import { probePreviewReachability } from './previewFetchPolicy';
+import { protectRelayHealthPayload } from './relayHealthPrivacy';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { recordShippedProjectFromMission } from './shippedProjectContext';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
@@ -49,7 +50,7 @@ export type TelegramRelayVerbosity = 'minimal' | 'normal' | 'verbose';
 export type TelegramMissionLinkPreference = 'none' | 'board' | 'canvas' | 'both';
 export type MissionRelayTelegramPollingState = 'starting' | 'active' | 'disabled' | 'error' | 'stopped';
 
-export interface MissionRelayRuntimeStatus {
+export interface MissionRelayRuntimeStatus extends Record<string, unknown> {
   telegramPolling?: MissionRelayTelegramPollingState; pollingStartedAt?: string | null;
   pollingLastErrorAt?: string | null; pollingLastError?: string | null; pollingStoppedAt?: string | null;
 }
@@ -60,19 +61,6 @@ export interface MissionRelayHealthPayload extends Record<string, unknown> {
   relay: ReturnType<typeof getTelegramRelayIdentity>;
   pid: number;
   runtime: MissionRelayRuntimeStatus;
-}
-
-export interface MissionRelayHealthResponsePayload extends Record<string, unknown> {
-  ok: boolean;
-  service: 'spark-telegram-bot';
-  relay?: ReturnType<typeof getTelegramRelayIdentity>;
-  pid?: number;
-  runtime?: MissionRelayRuntimeStatus;
-}
-
-export interface MissionRelayHealthResponse {
-  status: 200 | 503;
-  payload: MissionRelayHealthResponsePayload;
 }
 
 interface TelegramRelayPreferences {
@@ -2263,17 +2251,6 @@ export function missionRelayHealthPayload(): MissionRelayHealthPayload {
   };
 }
 
-export function missionRelayHealthResponse(
-  suppliedSecret: IncomingMessage['headers']['x-spark-telegram-relay-secret'],
-  expectedSecret: string
-): MissionRelayHealthResponse {
-  const fullPayload = missionRelayHealthPayload();
-  const payload: MissionRelayHealthResponsePayload = relaySecretMatches(suppliedSecret, expectedSecret)
-    ? fullPayload
-    : { ok: fullPayload.ok, service: fullPayload.service };
-  return { status: fullPayload.ok ? 200 : 503, payload };
-}
-
 export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }> {
   await loadRegistry();
 
@@ -2285,7 +2262,8 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 
 	relayServer = createServer(async (req, res) => {
     if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
-      const response = missionRelayHealthResponse(
+      const response = protectRelayHealthPayload(
+        missionRelayHealthPayload(),
         req.headers['x-spark-telegram-relay-secret'],
         getRelaySecret()
       );

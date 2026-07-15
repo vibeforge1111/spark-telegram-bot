@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import {
   missionRelayHealthPayload,
-  missionRelayHealthResponse,
   setMissionRelayRuntimeStatus,
 } from '../src/missionRelay';
+import { protectRelayHealthPayload } from '../src/relayHealthPrivacy';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -80,7 +80,8 @@ test('relay health exposes full runtime detail only with the relay secret', () =
     pollingStartedAt: '2026-07-15T12:00:00.000Z'
   });
 
-  const response = missionRelayHealthResponse(
+  const response = protectRelayHealthPayload(
+    missionRelayHealthPayload(),
     'relay-health-secret-abcdefghijklmnopqrstuvwxyz',
     'relay-health-secret-abcdefghijklmnopqrstuvwxyz'
   );
@@ -99,7 +100,8 @@ test('relay health keeps unauthenticated liveness useful without topology detail
   });
 
   for (const supplied of [undefined, 'wrong-relay-health-secret-abcdefghijk']) {
-    const response = missionRelayHealthResponse(
+    const response = protectRelayHealthPayload(
+      missionRelayHealthPayload(),
       supplied,
       'relay-health-secret-abcdefghijklmnopqrstuvwxyz'
     );
@@ -117,7 +119,8 @@ test('relay health preserves readiness status without exposing failure detail', 
     pollingLastError: 'Telegram token check failed with private runtime detail'
   });
 
-  const response = missionRelayHealthResponse(
+  const response = protectRelayHealthPayload(
+    missionRelayHealthPayload(),
     undefined,
     'relay-health-secret-abcdefghijklmnopqrstuvwxyz'
   );
