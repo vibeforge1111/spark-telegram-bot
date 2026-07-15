@@ -22,7 +22,13 @@ export async function validateRelayRuntime(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
   try {
-    const response = await fetchImpl(url, { signal: controller.signal });
+    const relaySecret = env.TELEGRAM_RELAY_SECRET?.trim();
+    const response = await fetchImpl(url, {
+      signal: controller.signal,
+      headers: relaySecret
+        ? { 'x-spark-telegram-relay-secret': relaySecret }
+        : undefined
+    });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }

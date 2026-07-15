@@ -23,7 +23,10 @@ const ENV_SECRET_ASSIGNMENT =
   /\b([A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*)(["']?)([^\s"',;]+)/gi;
 const JSON_SECRET_FIELD =
   /(["']?[A-Za-z0-9_]*(?:api[_-]?key|token|secret|password|private[_-]?key)["']?\s*:\s*["'])([^"']+)(["'])/gi;
-const AUTH_HEADER = /\b(Authorization\s*:\s*Bearer\s+)([A-Za-z0-9._~+/=-]{12,})/gi;
+const JSON_AUTHORIZATION_FIELD =
+  /(["']?(?:proxy[_-]?)?authorization["']?\s*:\s*["'])([A-Za-z][A-Za-z0-9+._-]*\s+)([^"']+)(["'])/gi;
+const AUTH_HEADER =
+  /\b((?:Proxy-)?Authorization\s*:\s*)([A-Za-z][A-Za-z0-9+._-]*\s+)([^\r\n,;]+)/gi;
 const DATABASE_URL = /\b((?:postgres|postgresql|mysql|mongodb|redis):\/\/)([^@\s]+)@/gi;
 const PUBLIC_HTTP_URL = /\bhttps?:\/\/[^\s<>"']+/gi;
 const FILE_URL = /\bfile:\/\/\/[^\s<>"']+/gi;
@@ -59,7 +62,16 @@ export function redactText(input: string): string {
   out = out.replace(JSON_SECRET_FIELD, (_match, prefix: string, secret: string, suffix: string) => {
     return `${prefix}${maskSecret(secret)}${suffix}`;
   });
-  out = out.replace(AUTH_HEADER, (_match, prefix: string, secret: string) => `${prefix}${maskSecret(secret)}`);
+  out = out.replace(
+    JSON_AUTHORIZATION_FIELD,
+    (_match, prefix: string, scheme: string, secret: string, suffix: string) => (
+      `${prefix}${scheme}${maskSecret(secret)}${suffix}`
+    )
+  );
+  out = out.replace(
+    AUTH_HEADER,
+    (_match, prefix: string, scheme: string, secret: string) => `${prefix}${scheme}${maskSecret(secret)}`
+  );
   out = out.replace(DATABASE_URL, (_match, prefix: string) => `${prefix}***@`);
   return redactLocalPaths(out);
 }

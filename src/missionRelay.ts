@@ -62,6 +62,19 @@ export interface MissionRelayHealthPayload extends Record<string, unknown> {
   runtime: MissionRelayRuntimeStatus;
 }
 
+export interface MissionRelayHealthResponsePayload extends Record<string, unknown> {
+  ok: boolean;
+  service: 'spark-telegram-bot';
+  relay?: ReturnType<typeof getTelegramRelayIdentity>;
+  pid?: number;
+  runtime?: MissionRelayRuntimeStatus;
+}
+
+export interface MissionRelayHealthResponse {
+  status: 200 | 503;
+  payload: MissionRelayHealthResponsePayload;
+}
+
 interface TelegramRelayPreferences {
   relayVerbosityByChatId?: Record<string, TelegramRelayVerbosity>;
   missionLinksByChatId?: Record<string, TelegramMissionLinkPreference>;
@@ -147,7 +160,7 @@ function getRelayPort(): number {
 	return telegramRelayIdentityFromEnv().port;
 }
 
-function getRelaySecret(): string | null {
+function getRelaySecret(): string {
 	return requireRelaySecret();
 }
 
@@ -2250,6 +2263,17 @@ export function missionRelayHealthPayload(): MissionRelayHealthPayload {
   };
 }
 
+export function missionRelayHealthResponse(
+  suppliedSecret: IncomingMessage['headers']['x-spark-telegram-relay-secret'],
+  expectedSecret: string
+): MissionRelayHealthResponse {
+  const fullPayload = missionRelayHealthPayload();
+  const payload: MissionRelayHealthResponsePayload = relaySecretMatches(suppliedSecret, expectedSecret)
+    ? fullPayload
+    : { ok: fullPayload.ok, service: fullPayload.service };
+  return { status: fullPayload.ok ? 200 : 503, payload };
+}
+
 export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }> {
   await loadRegistry();
 
@@ -2261,8 +2285,11 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 
 	relayServer = createServer(async (req, res) => {
     if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
-      const payload = missionRelayHealthPayload();
-      writeJson(res, payload.ok ? 200 : 503, payload);
+      const response = missionRelayHealthResponse(
+        req.headers['x-spark-telegram-relay-secret'],
+        getRelaySecret()
+      );
+      writeJson(res, response.status, response.payload);
       return;
     }
 

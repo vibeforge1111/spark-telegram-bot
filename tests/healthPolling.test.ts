@@ -51,7 +51,7 @@ test('builds relay health URL from hosted relay callback URL', () => {
 });
 
 test('validates relay runtime without exposing secrets', async () => {
-  let observedHeaders: HeadersInit | undefined;
+  let observedHeaders: RequestInit['headers'];
   const fetchImpl = async (_url: string | URL | Request, init?: RequestInit) => {
     observedHeaders = init?.headers;
     return new Response(
