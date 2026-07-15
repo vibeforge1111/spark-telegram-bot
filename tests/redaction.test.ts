@@ -36,6 +36,38 @@ test('redacts common credential shapes', () => {
   assert(!redacted.includes('user:pass'));
 });
 
+test('redacts authorization header variants without depending on Bearer syntax', () => {
+  const credentials = [
+    'custom-token-secret-value-123456',
+    'custom-apikey-secret-value-123456',
+    'custom-oauth-secret-value-123456',
+    'dXNlcjpwYXNzd29yZC1zZWNyZXQ=',
+  ];
+  const redacted = redactText([
+    `Authorization: Token ${credentials[0]}`,
+    `authorization: ApiKey ${credentials[1]}`,
+    `Authorization: OAuth ${credentials[2]}`,
+    `Proxy-Authorization: Basic ${credentials[3]}`,
+  ].join('\n'));
+
+  for (const credential of credentials) {
+    assert(!redacted.includes(credential));
+  }
+  assert.match(redacted, /Authorization: Token /);
+  assert.match(redacted, /authorization: ApiKey /);
+  assert.match(redacted, /Authorization: OAuth /);
+  assert.match(redacted, /Proxy-Authorization: Basic /);
+});
+
+test('redacts quoted authorization fields in structured log text', () => {
+  const secret = 'structured-authorization-secret-value-123456';
+  const redacted = redactText(`{"authorization":"Bearer ${secret}","status":401}`);
+
+  assert(!redacted.includes(secret));
+  assert.match(redacted, /"authorization":"Bearer /);
+  assert.match(redacted, /"status":401/);
+});
+
 test('redacts bare fe provider keys without hiding ordinary feature flags', () => {
   const openAiFederatedKey = `fe_oa_${'A'.repeat(24)}`;
   const bringKey = `fe_bri_${'B'.repeat(24)}`;
