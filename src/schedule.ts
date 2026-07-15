@@ -96,7 +96,7 @@ export function humanSummary(rec: ScheduleRecord): string {
 
 export function formatScheduleError(error: unknown, fallback: string): string {
   const redacted = redactText(String(error ?? '')).replace(/\s+/g, ' ').trim().toLowerCase();
-  if (/\b(?:timeout|timed out|econn|network|socket|unreachable|502|503|504)\b/.test(redacted)) {
+  if (/\b(?:timeout|timed out|econn(?:aborted|refused|reset)?|network|socket|unreachable|502|503|504)\b/.test(redacted)) {
     return 'schedule service unavailable';
   }
   if (/\b(?:invalid cron|cron (?:expression )?invalid)\b/.test(redacted)) return 'invalid timing expression';
