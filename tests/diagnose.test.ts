@@ -177,6 +177,23 @@ test('describes HTTP failures as relay errors', () => {
   );
 });
 
+test('redacts diagnostic error details before formatting user-facing health lines', () => {
+  const placeholderKey = 'sk-diagnoseplaceholder000000000000000000';
+  const chatLine = describeChatProviderHealth(
+    { ok: false, detail: `provider rejected OPENAI_API_KEY=${placeholderKey}` },
+    'openai (gpt-placeholder)'
+  );
+  const relayLine = describeRelayHealth(
+    { ok: false, err: `relay failed with Authorization: Bearer ${placeholderKey}` },
+    { port: 8788, profile: 'primary' }
+  );
+
+  assert.doesNotMatch(chatLine, new RegExp(placeholderKey));
+  assert.doesNotMatch(relayLine, new RegExp(placeholderKey));
+  assert.match(chatLine, /OPENAI_API_KEY=/);
+  assert.match(relayLine, /Authorization: Bearer /);
+});
+
 test('formats local service URLs as localhost links', () => {
   assert.equal(readableLocalServiceUrl('http://127.0.0.1:3333'), 'http://localhost:3333');
   assert.equal(readableLocalServiceUrl('http://0.0.0.0:3333/'), 'http://localhost:3333');
