@@ -51,14 +51,24 @@ test('builds relay health URL from hosted relay callback URL', () => {
 });
 
 test('validates relay runtime without exposing secrets', async () => {
-  const fetchImpl = async () => new Response(
-    JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, runtime: { telegramPolling: 'active' } }),
-    { status: 200, headers: { 'content-type': 'application/json' } }
-  );
+  let observedHeaders: HeadersInit | undefined;
+  const fetchImpl = async (_url: string | URL | Request, init?: RequestInit) => {
+    observedHeaders = init?.headers;
+    return new Response(
+      JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, runtime: { telegramPolling: 'active' } }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+  };
 
-  const detail = await validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv);
+  const detail = await validateRelayRuntime(fetchImpl as typeof fetch, {
+    TELEGRAM_RELAY_PORT: '8789',
+    TELEGRAM_RELAY_SECRET: 'relay-health-secret-abcdefghijklmnopqrstuvwxyz'
+  } as NodeJS.ProcessEnv);
 
   assert.equal(detail, 'spark-agi@8789 pid=123 polling=active');
+  assert.deepEqual(observedHeaders, {
+    'x-spark-telegram-relay-secret': 'relay-health-secret-abcdefghijklmnopqrstuvwxyz'
+  });
 });
 
 test('rejects relay runtime when Telegram polling reports an error', async () => {
