@@ -126,6 +126,21 @@ async function main(): Promise<void> {
     assert.match(reply, /not compiled yet/);
     assert.match(reply, /spark os compile/);
   });
+
+  await test('corrupt authority view is not described as never compiled', async () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), 'spark-authority-corrupt-'));
+    const viewPath = path.join(root, 'authority-view.json');
+    writeFileSync(viewPath, '{"authority":', 'utf-8');
+
+    const summary = await readAuthorityStatusSummary(viewPath);
+    const reply = renderAuthorityStatusSummary(summary);
+
+    assert.equal(summary.present, false);
+    assert.match(reply, /could not be read/i);
+    assert.match(reply, /spark os compile/);
+    assert.doesNotMatch(reply, /not compiled yet/i);
+    assert.doesNotMatch(reply, /JSON|Unexpected|position|authority-view\.json/i);
+  });
 }
 
 void main();
