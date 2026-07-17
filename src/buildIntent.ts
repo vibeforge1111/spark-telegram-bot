@@ -1,6 +1,12 @@
 // Build-project intent parser. Catches natural-language phrasing that should
 // kick off a Spawner PRD-based project flow (multi-task canvas + execution).
 
+import {
+  isLocalBuildWithPublicationBoundary,
+  resolveBuildCommandBoundary,
+  stripLocalBuildReleaseBoundaries
+} from './scopedBuildCommand';
+
 export interface BuildIntent {
   projectPath: string | null;
   prd: string;
@@ -143,7 +149,7 @@ export function polishBuildProjectName(value: string): string {
 
 function inferProductPhraseProjectName(prd: string): string | null {
   const normalized = prd.replace(/\s+/g, ' ').trim();
-  const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page)';
+  const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|backend|api|service|bot|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page)';
   const patterns = [
     new RegExp(`^(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
     new RegExp(`\\b(?:build|create|make|scaffold|ship|implement|design)\\s+(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
@@ -239,6 +245,14 @@ function inferGamePrototypeName(prd: string): string | null {
   return titleCaseProjectName(title);
 }
 
+function inferBackendProductName(prd: string): string | null {
+  const normalized = prd.replace(/\s+/g, ' ').trim();
+  const match = normalized.match(
+    /\bbackend\s+for\s+(?:(?:a|an|the)\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,80}?\b(?:bot|app|application|platform|system|service|api))\b/i
+  );
+  return match?.[1] ? titleCaseProjectName(match[1]) : null;
+}
+
 function inferQuotedHeadingProjectName(prd: string): string | null {
   const headingMatch = prd.match(
     /\b(?:big\s+|large\s+|hero\s+)?(?:heading|headline|title|h1)\b(?:\s+(?:that\s+)?(?:says|reads|called|named))?\s*[:\-]?\s*["']([^"']{3,80})["']/i
@@ -296,6 +310,8 @@ function inferProjectName(prd: string, projectPath: string | null): string {
   if (dashboardPurposeName) return dashboardPurposeName;
   const gamePrototypeName = inferGamePrototypeName(prd);
   if (gamePrototypeName) return gamePrototypeName;
+  const backendProductName = inferBackendProductName(prd);
+  if (backendProductName) return backendProductName;
   const productPhraseName = inferProductPhraseProjectName(prd);
   if (productPhraseName) return productPhraseName;
   const firstWords = prd.split(/\s+/).slice(0, 6).join(' ');
@@ -311,7 +327,7 @@ function projectNameFromPathSegment(pathName: string): string {
 
 function cleanExtractedPath(value: string): string {
   const sentenceBoundary = value.search(
-    /\.(?:\s+)(?=(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
+    /\.(?:\s+)(?=(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
   );
   const bounded = sentenceBoundary >= 0 ? value.slice(0, sentenceBoundary) : value;
   return normalizePathForPlatform(
@@ -323,8 +339,11 @@ function cleanExtractedPath(value: string): string {
 }
 
 function extractPath(text: string): string | null {
-  const atMatch = text.match(
-    /(?:at|in|into)\s+((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+Files?\b)/i
+  const labeledMatch = text.match(
+    /\b(?:target\s+folder|project\s+path|local\s+project|full\s+local\s+project|create\s+(?:a\s+)?(?:full\s+)?local\s+project\s+(?:at|in|into))\s*:?\s*(?:\r?\n\s*)?((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
+  );
+  const atMatch = labeledMatch ?? text.match(
+    /(?:at|in|into)\s*:?\s*(?:\r?\n\s*)?((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
   );
   if (atMatch) {
     const candidate = cleanExtractedPath(atMatch[1]);
@@ -373,7 +392,7 @@ function inferBuildMode(text: string, prd: string, projectPath: string | null): 
     };
   }
 
-  if (/\b(?:prd|tas|task acceptance|acceptance criteria|domain\s*chip|mission control|new project|real project|complete project|from scratch|full app|platform|system)\b/.test(lower)) {
+  if (/\b(?:prd|tas|task acceptance|acceptance criteria|domain\s*chip|mission control|new project|real project|complete project|from scratch|full app|full local project|platform|system|backend|api routes?|persistence|runnable local setup)\b/.test(lower)) {
     return {
       mode: 'advanced_prd',
       reason: 'Request looks like a new project or systematic feature that benefits from PRD-to-task planning.'
@@ -506,7 +525,7 @@ function isBuildRouteMetaDiscussion(text: string): boolean {
   }
   if (
     /\b(?:what|which|how|why|is|are|do|does|can|could|should|would)\b.*\b(?:build|building)\b.*\b(?:updates?|upgrades?|self[-\s]*updates?|ledger|systems?|spark|capabilit(?:y|ies)|improvements?)\b/.test(normalized) &&
-    !/\b(?:build|create|make|ship|scaffold|generate|develop)\s+(?:a|an|the|new|this)\s+[^?.!]{0,80}\b(?:app|dashboard|tool|site|website|page|game|system|tracker|planner|timer|clock)\b/.test(normalized)
+    !/\b(?:build|create|make|ship|scaffold|generate|develop)\s+(?:a|an|the|new|this)\s+[^?.!]{0,80}\b(?:backend|api|service|bot|app|dashboard|tool|site|website|page|game|system|tracker|planner|timer|clock)\b/.test(normalized)
   ) {
     return true;
   }
@@ -687,7 +706,7 @@ function isAmbiguousContextualBuildRequest(text: string, projectPath: string | n
   }
   const concreteStandaloneBrief =
     prd.length >= 80 &&
-    /^(?:a\s+|an\s+|the\s+)?(?:narrow\s+|private\s+|local-first\s+|tiny\s+|simple\s+|internal\s+|real\s+|polished\s+|full\s+)*(?:tool|app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(prd.trim());
+    /^(?:a\s+|an\s+|the\s+)?(?:narrow\s+|private\s+|local-first\s+|tiny\s+|simple\s+|internal\s+|real\s+|polished\s+|full\s+)*(?:backend|api|service|bot|tool|app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(prd.trim());
   if (concreteStandaloneBrief) {
     return false;
   }
@@ -856,11 +875,17 @@ function isPrdWritingOnlyRequest(text: string): boolean {
 
 export function parseBuildIntent(text: string): BuildIntent | null {
   const original = text.trim().replace(/[‘’]/g, "'");
+  const commandBoundary = resolveBuildCommandBoundary(original);
+  if (commandBoundary.kind === 'blocked') return null;
+  const commandText = commandBoundary.commandText;
+  const buildText = isLocalBuildWithPublicationBoundary(commandText)
+    ? stripLocalBuildReleaseBoundaries(commandText)
+    : commandText;
   if (isExactReplyNoFileProbe(original)) return null;
   if (isFilesystemOperationProbe(original)) return null;
-  if (isNoExecutionBoundary(original)) return null;
-  if (isBuildRouteMetaDiscussion(original)) return null;
-  const trimmed = normalizeBuildCommandText(original);
+  if (isNoExecutionBoundary(buildText)) return null;
+  if (isBuildRouteMetaDiscussion(buildText)) return null;
+  const trimmed = normalizeBuildCommandText(buildText);
   if (!trimmed) return null;
   if (isPrdWritingOnlyRequest(trimmed)) return null;
   if (isBuildIdeationRequest(trimmed)) return null;
@@ -878,16 +903,16 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   // still filtering "x" / "ok" / "yo".
   if (stripped.length < 3) return null;
 
-  const projectPath = extractPath(original);
-  const prd = normalizeAgentChosenGameBrief(original, removeLeadingPathPrefix(stripped.trim()));
+  const projectPath = extractPath(buildText);
+  const prd = normalizeAgentChosenGameBrief(buildText, removeLeadingPathPrefix(stripped.trim()));
   if (isAbstractPlanningStructureRequest(prd)) return null;
   if (isConversationalStrategyStructureRequest(trimmed, prd)) return null;
   if (isAllocationStrategyQuestion(`${trimmed} ${prd}`)) return null;
   if (isRecursiveInsightPacketRequest(`${trimmed} ${prd}`)) return null;
   if (isAmbiguousContextualBuildRequest(trimmed, projectPath, prd)) return null;
   const projectName = polishBuildProjectName(inferProjectName(prd, projectPath));
-  const buildMode = inferBuildMode(original, prd, projectPath);
-  const buildLane = inferBuildLane(original, prd, projectPath, buildMode.mode);
+  const buildMode = inferBuildMode(buildText, prd, projectPath);
+  const buildLane = inferBuildLane(buildText, prd, projectPath, buildMode.mode);
 
   return {
     projectPath,

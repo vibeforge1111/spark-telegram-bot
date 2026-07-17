@@ -1,3 +1,5 @@
+import { resolveBuildCommandBoundary } from './scopedBuildCommand';
+
 export type DeterministicRouteId =
   | 'access.change'
   | 'access.status'
@@ -144,11 +146,11 @@ function isReadoutOrCriticRequest(normalized: string): boolean {
 
 function isConcreteProjectBuild(normalized: string): boolean {
   return (
-    /\b(?:build|create|make|ship|scaffold|generate|develop)\s+this\s+(?:at|in|into)\s+(?:[a-z]:[\\/]|\/)/i.test(normalized) ||
+    /\b(?:build|create|make|ship|scaffold|generate|develop)\s+this\s+(?:at|in|into)\s*:?\s*(?:[a-z]:[\\/]|\/)/i.test(normalized) ||
     /\b(?:build|create|make|ship|scaffold|generate|develop)\b.*\b(?:called|named)\s+["'][a-z0-9][a-z0-9 '&.-]{2,80}["']/i.test(normalized) ||
     /\b(?:build|create|make|ship|scaffold|generate|develop)\b.*\b(?:called|named)\s+[a-z0-9][a-z0-9 '&.-]{2,80}\b/i.test(normalized) ||
     /\b(?:files|target\s+folder|project\s+path)\s*:/i.test(normalized) ||
-    /\b(?:build|create|make|ship|scaffold|generate|develop)\b.*\b(?:app|dashboard|tool|site|website|page|game|system|tracker|planner|timer|clock)\b.*\b(?:should|needs?|with|that|minimal|playable|prototype|prd|plan)\b/i.test(normalized)
+    /\b(?:build|create|make|ship|scaffold|generate|develop)\b.*\b(?:backend|api|service|bot|app|dashboard|tool|site|website|page|game|system|tracker|planner|timer|clock)\b.*\b(?:should|needs?|with|that|minimal|playable|prototype|prd|plan|include|required|persistence|runnable)\b/i.test(normalized)
   );
 }
 
@@ -465,8 +467,31 @@ export function evaluateDeterministicRoute(route: DeterministicRouteId, text: st
     return { allow: true, reason: 'self_improvement_canary_local_only', confidence: 'explicit' };
   }
 
-  if (route === 'spawner.build' && isConcreteProjectBuild(normalized) && hasPublicationOnlyBoundary(normalized)) {
-    return { allow: true, reason: 'concrete_project_build_local_only', confidence: 'explicit' };
+  if (route === 'spawner.build') {
+    const scoped = resolveBuildCommandBoundary(text);
+    if (scoped.kind === 'blocked') {
+      const noExecution = scoped.reason === 'broad_prohibition' || scoped.reason === 'terminal_prohibition';
+      return {
+        allow: false,
+        reason: noExecution ? 'no_execution_boundary' : 'plain_chat_protected',
+        confidence: 'blocked'
+      };
+    }
+    const commandText = normalize(scoped.commandText);
+    if (isConcreteProjectBuild(commandText)) {
+      if (isNoExecutionBoundary(commandText) && !hasPublicationOnlyBoundary(normalized)) {
+        return { allow: false, reason: 'no_execution_boundary', confidence: 'blocked' };
+      }
+      return {
+        allow: true,
+        reason: hasPublicationOnlyBoundary(normalized)
+          ? 'concrete_project_build_local_only'
+          : scoped.kind === 'fresh_replacement'
+            ? 'concrete_project_build_scoped_replacement'
+            : 'concrete_project_build',
+        confidence: 'explicit'
+      };
+    }
   }
   if (route === 'spawner.build' && isExplicitSpawnerNoEditMission(normalized)) {
     return { allow: true, reason: 'explicit_spawner_no_edit_mission', confidence: 'explicit' };
