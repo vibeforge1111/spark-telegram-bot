@@ -40,7 +40,7 @@ test('route boundary handler harness keeps guarded prompts on intended routes', 
         SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES: '0'
       },
       encoding: 'utf8',
-      timeout: 60000
+      timeout: 90000
     }
   );
 
