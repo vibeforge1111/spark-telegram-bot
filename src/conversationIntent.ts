@@ -1446,6 +1446,8 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
   }
 
   if (
+    /\b(?:status|progress|update)\b.*\b(?:my|the)\b.*\b(?:task|mission|run|job)\b/.test(normalized) ||
+    /\bhow(?:'s|\s+is)\s+(?:it|my\s+(?:task|mission|run|job))\s+(?:going|doing|looking)\b/.test(normalized) ||
     /\b(?:running|paused|active|in\s+progress)\b/.test(normalized) &&
     (
       /\b(?:spawner|kanban|mission\s+board|mission\s+control)\b/.test(normalized) ||

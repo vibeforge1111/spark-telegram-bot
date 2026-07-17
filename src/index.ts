@@ -415,6 +415,7 @@ import { buildVoiceBridgeUpdate } from './telegramVoiceBridge';
 import { formatVoiceMediaCaption } from './voiceCaption';
 import { writeTelegramVoiceBridgeRuntimeState } from './voiceRuntimeState';
 import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
+import { renderTelegramHelp, renderTelegramStartWelcome } from './onboardingSurface';
 
 export {
   isPendingClarificationAlternativeRequest,
@@ -4003,62 +4004,19 @@ bot.start(async (ctx) => {
   const startText = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
   const onboardingSession = extractStartSession(startText);
 
-  const builderBridge = await getBuilderBridgeStatus();
+  const allowed = conversation.isAllowed(user);
+  const admin = conversation.isAdmin(user);
+  const builderBridge = allowed ? await getBuilderBridgeStatus() : null;
+  const spawnerAvailable = admin ? await spawner.isAvailable() : true;
 
-  const spawnerAvailable = await spawner.isAvailable();
-
-  const lines = [
-    `Hey ${name}! I'm Spark.`,
-    '',
-    'I remember conversations through the Builder memory path.',
-    '',
-    'Memory Commands:',
-    '/remember <text> - Save something important',
-    '/recall <topic> - Ask what I remember about a topic',
-    '/about - Ask what I know about you',
-    '/forget <text> - Ask me to forget a saved detail',
-    '',
-    'Spark Intelligence:',
-    '/spark - System status'
-  ];
-
-  if (conversation.isAdmin(user)) {
-    lines.push(
-      '',
-      'Spawner Control:',
-      '/run <goal> - Start a mission in Spawner',
-      '/board - Mission state report',
-      '/creator plan <brief> - Plan a Loop Engineering path for a chip/benchmark/autoloop',
-      '/creator run <missionId> - Execute a planned Loop Engineering path',
-      '/creator status <missionId> - Show Loop Engineering readiness and validation state',
-      '/creator validate <missionId> [maxCommands] - Run Loop Engineering validation gates',
-      '/workspaces - Show local project folders',
-      '/model - Show or change Agent/Mission model routing',
-      '/models - Show recommended model versions',
-      '/wiki - Check Spark LLM wiki health; use /wiki pages for vault inventory',
-      '/context - Show Agent Operating Context',
-      '/black_box - Show compact agent black-box trace counts',
-      '/trace_repair - Show trace health repair summary',
-      '/memory_movement - Show memory movement summary',
-      '/probe <route> - Run a route probe and record AOC evidence',
-      '/operating_context or /agent_context - Same, Telegram-safe aliases',
-      '/conversation_context - Show conversation-frame diagnostics',
-      '/updates <minimal|normal|verbose> - Tune live mission updates',
-      '/access <1|2|3|4|5> - Choose what this Telegram chat can do',
-      '/access_setup - Set up the safe Level 4 workspace from Telegram',
-      '/docker_doctor - Check Docker sandbox readiness without changing the computer',
-      '/docker_smoke confirm - Run the no-secret Docker sandbox smoke',
-      '/access 5 - Approve Level 5 setup from Telegram',
-      '/mission <status|pause|resume|kill> <missionId> - Control a mission'
-    );
+  await ctx.reply(renderTelegramStartWelcome({
+    name,
+    allowed,
+    admin
+  }));
+  if (allowed && builderBridge && !builderBridge.available) {
+    await ctx.reply('Memory is on its local fallback right now. /diagnose will show what needs attention.');
   }
-
-  lines.push('', 'Or just chat!');
-  if (!builderBridge.available) {
-    lines.push('', 'Builder memory bridge unavailable; local fallback may be used.');
-  }
-
-  await ctx.reply(lines.join('\n'));
   if (onboardingSession) {
     await recordTelegramFirstMessage({
       event: 'telegram_first_message',
@@ -4072,16 +4030,20 @@ bot.start(async (ctx) => {
       console.warn('[Onboarding] failed to write first-message event:', error);
     });
   }
-  if (!spawnerAvailable && conversation.isAdmin(user)) {
+  if (!spawnerAvailable && admin) {
     await ctx.reply('Spawner orchestration is offline.');
   }
-  if (conversation.isAdmin(user)) {
+  if (admin) {
     const configuredAccess = await getConfiguredSparkAccessProfile(ctx.chat.id);
     if (!configuredAccess) {
       const defaultAccess = await getSparkAccessProfile(ctx.chat.id);
       await ctx.reply(renderSparkAccessOnboarding(defaultAccess));
     }
   }
+});
+
+bot.command('help', async (ctx) => {
+  await ctx.reply(renderTelegramHelp({ admin: conversation.isAdmin(ctx.from) }));
 });
 
 // /status command
@@ -9285,6 +9247,48 @@ bot.command('mission', async (ctx) => {
 
   const args = ctx.message.text.replace('/mission', '').trim().split(/\s+/).filter(Boolean);
   if (args.length < 2) {
+    if (args[0] === 'status') {
+      const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+      if (!sparkAccessAllows(accessProfile, 'spawner_build')) {
+        await ctx.reply(renderSparkAccessDenial(accessProfile, 'spawner_build'));
+        return;
+      }
+      const authorization = telegramCommandActionAuthorityDecision(ctx, {
+        commandName: 'mission',
+        route: 'spawner.mission_control',
+        text: ctx.message.text,
+        toolName: 'spawner.mission_control',
+        ownerSystem: 'spawner-ui',
+        mutationClass: 'read_only',
+        action: 'spawner.mission_status_hint',
+        kind: 'build_or_spawner'
+      });
+      if (!authorization.allow) {
+        await replyTelegramCommandAuthorityBlocked(ctx);
+        return;
+      }
+      await safeSendChatAction(ctx, 'typing');
+      try {
+        const latestMissionId = await spawner.latestMissionId();
+        recordTelegramHarnessCoreExecution(authorization, {
+          toolName: 'spawner.mission_control',
+          status: 'success',
+          summary: latestMissionId
+            ? 'Resolved the latest mission id from the current Spawner board.'
+            : 'The current Spawner board is reachable and has no mission id.'
+        });
+        return ctx.reply(latestMissionId
+          ? `The latest mission I can see is ${latestMissionId}. Try /mission status ${latestMissionId}.`
+          : 'The current board is empty. Start a mission with /run when you are ready.');
+      } catch (error) {
+        recordTelegramHarnessCoreExecution(authorization, {
+          toolName: 'spawner.mission_control',
+          status: 'failure',
+          summary: 'Could not read the current Spawner board for a mission status hint.'
+        });
+        return ctx.reply('I could not read the current mission board, so I cannot give you a trustworthy mission ID yet. /diagnose will show what is unavailable.');
+      }
+    }
     return ctx.reply('Usage: /mission <status|pause|resume|kill> <missionId>');
   }
 

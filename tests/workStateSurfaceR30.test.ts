@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import axios from 'axios';
-import { parseSpawnerBoardNaturalIntent } from '../src/conversationIntent';
+import { inferMissionFromRecentContext, parseSpawnerBoardNaturalIntent } from '../src/conversationIntent';
 import { renderTelegramHelp, renderTelegramStartWelcome } from '../src/onboardingSurface';
 import { spawner } from '../src/spawner';
 
@@ -67,11 +67,18 @@ void (async () => {
     assert.equal(await spawner.latestMissionId(), 'spark-live-2');
   });
 
-  await test('returns no mission id when the live board is empty or unavailable', async () => {
+  await test('distinguishes an empty live board from an unavailable board', async () => {
     (axios as any).get = async () => ({ data: { board: { running: [], paused: [], completed: [], failed: [], cancelled: [], created: [] } } });
     assert.equal(await spawner.latestMissionId(), null);
     (axios as any).get = async () => { throw new Error('offline'); };
-    assert.equal(await spawner.latestMissionId(), null);
+    await assert.rejects(() => spawner.latestMissionId(), /offline/);
+  });
+
+  await test('does not turn a bare retry phrase into a new mission from stale conversation text', () => {
+    assert.equal(inferMissionFromRecentContext('retry it', [
+      'We discussed creating a Spark diagnostic mission for a previous problem.',
+      'That old run failed yesterday.'
+    ]), null);
   });
 })().finally(() => {
   (axios as any).get = originalGet;

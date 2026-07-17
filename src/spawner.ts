@@ -2365,6 +2365,10 @@ export const spawner = {
     }
   },
 
+  async latestMissionId(): Promise<string | null> {
+    return latestBoardEntry(await fetchBoardSnapshot())?.missionId || null;
+  },
+
   async latestMissionSummary(): Promise<{ success: boolean; message: string }> {
     try {
       const latest = latestBoardEntry(await fetchBoardSnapshot());
