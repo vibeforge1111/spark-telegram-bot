@@ -138,8 +138,9 @@ async function main(): Promise<void> {
     assert.equal(summary.present, false);
     assert.match(reply, /could not be read/i);
     assert.match(reply, /spark os compile/);
+    assert.match(reply, /spark os authority --json/);
     assert.doesNotMatch(reply, /not compiled yet/i);
-    assert.doesNotMatch(reply, /JSON|Unexpected|position|authority-view\.json/i);
+    assert.doesNotMatch(reply, /Unexpected|position|authority-view\.json/i);
   });
 }
 

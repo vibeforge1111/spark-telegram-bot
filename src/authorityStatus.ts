@@ -4,6 +4,7 @@ import path from 'node:path';
 
 export type AuthorityStatusSummary = {
   present: boolean;
+  unavailableReason?: 'missing' | 'unreadable';
   authority: string;
   defaultAccessLevel: number;
   defaultSandboxLane: string;
@@ -85,8 +86,12 @@ export async function readAuthorityStatusSummary(viewPath = resolveAuthorityView
     const raw = await readFile(viewPath, 'utf-8');
     return summarizeAuthorityView(JSON.parse(raw));
   } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error
+      ? String(error.code)
+      : '';
     return {
       present: false,
+      unavailableReason: code === 'ENOENT' ? 'missing' : 'unreadable',
       authority: 'missing',
       defaultAccessLevel: 0,
       defaultSandboxLane: 'unknown',
@@ -105,6 +110,14 @@ export async function readAuthorityStatusSummary(viewPath = resolveAuthorityView
 
 export function renderAuthorityStatusSummary(summary: AuthorityStatusSummary): string {
   if (!summary.present) {
+    if (summary.unavailableReason === 'unreadable') {
+      return [
+        'Authority view could not be read.',
+        '',
+        'The compiled authority evidence is unavailable, so I won’t treat it as current truth. Run `spark os compile`, then try `/authority` again. If it still fails, inspect `spark os authority --json`.'
+      ].join('\n');
+    }
+
     return [
       'Authority view is not compiled yet.',
       '',
