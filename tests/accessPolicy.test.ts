@@ -287,6 +287,7 @@ async function main(): Promise<void> {
   await test('slash access setter uses authoritative status and compact confirmation', async () => {
     const indexSource = await readFile(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
     const accessPolicySource = await readFile(path.join(__dirname, '..', 'src', 'accessPolicy.ts'), 'utf8');
+    const onboardingSurfaceSource = await readFile(path.join(__dirname, '..', 'src', 'onboardingSurface.ts'), 'utf8');
     const accessCommand = indexSource.match(/bot\.command\('access', async \(ctx\) => \{[\s\S]*?\n\}\);/);
     assert.ok(accessCommand, 'expected /access command handler to exist');
     assert.match(accessCommand[0], /renderAuthoritativeSparkAccessStatus\(ctx\.chat\.id\)/);
@@ -326,7 +327,7 @@ async function main(): Promise<void> {
     assert.match(indexSource, /bot\.command\('docker_smoke'/);
     assert.match(indexSource, /bot\.command\('level5_setup'/);
     assert.match(indexSource, /bot\.command\('level5_disable'/);
-    assert.match(indexSource, /\/access 5 - Approve Level 5 setup from Telegram/);
+    assert.match(onboardingSurfaceSource, /\/access 5 — approve Level 5 setup from Telegram/i);
     assert.doesNotMatch(indexSource, /\/level5_setup confirm - Prepare/);
     assert.match(indexSource, /bot\.action\(\/\^spark_access:/);
   });

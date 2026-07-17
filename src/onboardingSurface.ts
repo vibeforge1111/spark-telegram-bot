@@ -62,6 +62,7 @@ export function renderTelegramHelp(input: { admin: boolean }): string {
       '• /conversation_context — show conversation diagnostics',
       '• /updates <minimal|normal|verbose> — tune mission updates',
       '• /access <1|2|3|4|5> — choose this chat’s access',
+      '• /access 5 — approve Level 5 setup from Telegram',
       '• /access_setup — set up the Level 4 workspace',
       '• /docker_doctor — inspect Docker readiness',
       '• /docker_smoke confirm — run the no-secret sandbox smoke'
