@@ -43,6 +43,10 @@ void (async () => {
     assert.doesNotMatch(memberHelp, /\/access\s+<|\/mission\s+<|Spawner Control/);
     assert.match(adminHelp, /Spawner Control/);
     assert.match(adminHelp, /\/mission\s+<status\|pause\|resume\|kill>/);
+    assert.match(adminHelp, /\/authority/);
+    assert.match(adminHelp, /\/capabilities/);
+    assert.match(adminHelp, /\/ledger/);
+    assert.doesNotMatch(adminHelp, /\/agent_context|\/operating_context/);
   });
 
   await test('routes generic active-task status language to live board truth', () => {
