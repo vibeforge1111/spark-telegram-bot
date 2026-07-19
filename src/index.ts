@@ -9,6 +9,8 @@ import { Telegraf } from 'telegraf';
 import { effectiveLevel5RuntimeEnv } from './level5RuntimeEnv';
 import { message } from 'telegraf/filters';
 import { conversation, isPendingTaskRecoveryQuestion, renderPendingTaskRecoveryReply } from './conversation';
+import { credentialSafetyReply } from './credentialSafety';
+import { extractNaturalLocalMemoryRecallQuery, formatLocalMemoryDirectiveAcknowledgement } from './telegramMemorySurface';
 import { domainChipLabsCreatorContractLines, FULL_CREATOR_SYSTEM_ARTIFACT_PATTERN } from './domainChipLabsCreatorContract';
 import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
@@ -3674,10 +3676,6 @@ async function sendBuilderVoiceMedia(
   });
 }
 
-function formatLocalMemoryDirectiveAcknowledgement(directive: string): string {
-  return `Saved in Telegram memory: ${directive.replace(/[.!?]+$/g, '').trim()}.`;
-}
-
 function startupFounderAdviceSystemHint(): string {
   return [
     'You are Spark Startup Operator answering a founder/operator in Telegram.',
@@ -3835,18 +3833,6 @@ async function buildLocalRecallReply(user: any, query: string): Promise<string |
   }
 }
 
-function extractNaturalLocalMemoryRecallQuery(text: string): string | null {
-  if (extractPlainChatMemoryDirective(text)) return null;
-  const decided = text.match(/\bwhat\s+did\s+we\s+decide\s+about\s+(.+?)(?:[?.!]|$)/i)?.[1]?.trim();
-  if (decided) {
-    return decided
-      .replace(/\b(?:keep\s+it|and\s+keep\s+it|please\s+keep\s+it)\b[\s\S]*$/i, '')
-      .replace(/\b(?:do\s+not|don't)\s+run\b[\s\S]*$/i, '')
-      .trim();
-  }
-  return isUserMemoryRecallQuestion(text) ? text : null;
-}
-
 async function buildNaturalLocalMemoryRecallReply(user: any, text: string): Promise<string | null> {
   const query = extractNaturalLocalMemoryRecallQuery(text);
   if (!query) return null;
@@ -3891,6 +3877,12 @@ export async function handleRememberCommand(ctx: any): Promise<void> {
     return ctx.reply('Usage: /remember <something to remember>');
   }
 
+  const credentialReply = credentialSafetyReply(text);
+  if (credentialReply) {
+    await conversation.remember(ctx.from, text).catch(() => {});
+    await ctx.reply(credentialReply);
+    return;
+  }
   const authorization = authorizeMemoryWriteCommand(ctx, ctx.message.text);
   if (!authorization.allow) {
     await replyTelegramCommandAuthorityBlocked(ctx);
@@ -9375,6 +9367,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     conversationKind: ctx.chat?.type === 'private' ? 'dm' : 'group'
   });
   setTurnOutboundTraceContext(ctx, buildTurnOutboundTraceContext(turnIntentEnvelope));
+  const credentialReply = credentialSafetyReply(text);
+  if (credentialReply) {
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.credential_safety', 'spark-telegram-bot', 'plain_chat.credential_safety');
+    await ctx.reply(credentialReply);
+    await conversation.rememberAssistantReply(user, credentialReply).catch(() => {});
+    return;
+  }
   const earlyBuildIntent = parsedEarlyBuildIntent && telegramActionAuthorityAllowed(turnIntentEnvelope, {
     route: 'spawner.build',
     text,

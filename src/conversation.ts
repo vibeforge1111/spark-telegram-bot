@@ -3,6 +3,7 @@
 // a small in-process context buffer so plain chat can stay coherent immediately
 // after the user says "remember that..." while durable memory catches up.
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
+import { sanitizeCredentialMemoryText } from './credentialSafety';
 import {
   buildConversationFrameFromState,
   emptyRollingConversationFrameState,
@@ -288,7 +289,7 @@ export class ConversationMemory {
       for (const [key, value] of Object.entries(snapshot.recentByUser)) {
         const userId = Number(key);
         if (Number.isSafeInteger(userId) && userId > 0 && Array.isArray(value)) {
-          this.recentByUser.set(userId, value.filter((item) => typeof item === 'string').slice(-this.maxRecent));
+          this.recentByUser.set(userId, value.filter((item) => typeof item === 'string').map(sanitizeCredentialMemoryText).slice(-this.maxRecent));
         }
       }
     }
@@ -296,7 +297,7 @@ export class ConversationMemory {
       for (const [key, value] of Object.entries(snapshot.notesByUser)) {
         const userId = Number(key);
         if (Number.isSafeInteger(userId) && userId > 0 && Array.isArray(value)) {
-          this.notesByUser.set(userId, value.filter((item) => typeof item === 'string').slice(-this.maxNotes));
+          this.notesByUser.set(userId, value.filter((item) => typeof item === 'string').map(sanitizeCredentialMemoryText).slice(-this.maxNotes));
         }
       }
     }
@@ -312,9 +313,9 @@ export class ConversationMemory {
           typeof value.recordedAt === 'string'
         ) {
           this.interruptedByUser.set(userId, {
-            message: value.message,
-            failure: value.failure,
-            stage: typeof value.stage === 'string' ? value.stage : undefined,
+            message: sanitizeCredentialMemoryText(value.message),
+            failure: sanitizeCredentialMemoryText(value.failure),
+            stage: typeof value.stage === 'string' ? sanitizeCredentialMemoryText(value.stage) : undefined,
             recordedAt: value.recordedAt
           });
         }
@@ -358,7 +359,7 @@ export class ConversationMemory {
 
   private async pushBounded(map: Map<number, string[]>, key: number, value: string, limit: number): Promise<void> {
     await this.ensureLoaded();
-    const normalized = value.trim();
+    const normalized = sanitizeCredentialMemoryText(value).trim();
     if (!normalized) return;
     const items = map.get(key) || [];
     const deduped = items.filter((item) => item.toLowerCase() !== normalized.toLowerCase());
@@ -395,7 +396,7 @@ export class ConversationMemory {
     const previous = this.frameStateByUser.get(key) || emptyRollingConversationFrameState();
     const next = updateRollingConversationFrameState(previous, {
       role,
-      text,
+      text: sanitizeCredentialMemoryText(text),
       createdAt: new Date().toISOString()
     });
     this.frameStateByUser.set(key, next);
@@ -409,7 +410,7 @@ export class ConversationMemory {
 
   async storeAgentDoctrinePreference(user: TelegramUser, preference: string): Promise<Memory | null> {
     await this.ensureLoaded();
-    const normalized = preference.trim();
+    const normalized = sanitizeCredentialMemoryText(preference).trim();
     if (!normalized) return null;
 
     const key = this.userKey(user);
@@ -437,13 +438,13 @@ export class ConversationMemory {
     input: { message: string; failure: string; stage?: string }
   ): Promise<void> {
     await this.ensureLoaded();
-    const message = input.message.trim();
-    const failure = input.failure.trim();
+    const message = sanitizeCredentialMemoryText(input.message).trim();
+    const failure = sanitizeCredentialMemoryText(input.failure).trim();
     if (!message || !failure) return;
     this.interruptedByUser.set(this.userKey(user), {
       message,
       failure,
-      stage: input.stage?.trim() || undefined,
+      stage: input.stage ? sanitizeCredentialMemoryText(input.stage).trim() || undefined : undefined,
       recordedAt: new Date().toISOString()
     });
     await this.persist();
@@ -605,10 +606,10 @@ export class ConversationMemory {
     const key = this.userKey(user);
     const state = this.frameStateByUser.get(key) || emptyRollingConversationFrameState();
     if (state.hotTurns.length > 0 || state.warmSummary || state.artifacts.length > 0) {
-      return buildConversationFrameFromState(currentMessage, state);
+      return buildConversationFrameFromState(sanitizeCredentialMemoryText(currentMessage), state);
     }
     const recentTurns = await this.getRecentTurns(user, 24);
-    return buildConversationFrameFromState(currentMessage, {
+    return buildConversationFrameFromState(sanitizeCredentialMemoryText(currentMessage), {
       ...emptyRollingConversationFrameState(),
       hotTurns: recentTurns
     });
