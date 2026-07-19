@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { resolveBuilderRepoPath } from './builderRepoPath';
+import { BuilderWarmBridgeClient, type BuilderBridgeParsedPayload } from './builderWarmBridge';
 import { resolvePythonCommand } from './pythonCommand';
 import { redactText } from './redaction';
 import {
@@ -37,9 +38,12 @@ function sourceLedgerLabel(value: unknown, fallback: string): string {
 }
 
 type BuilderBridgeMode = 'auto' | 'off' | 'required';
+type BuilderWarmBridgeMode = 'auto' | 'off' | 'required';
 
 interface BuilderBridgeConfig {
   mode: BuilderBridgeMode;
+  warmBridgeMode: BuilderWarmBridgeMode;
+  warmMaxPending: number;
   pythonCommand: string;
   builderRepo: string;
   builderHome: string;
@@ -245,11 +249,27 @@ function parseBridgeMode(): BuilderBridgeMode {
   throw new Error('SPARK_BUILDER_BRIDGE_MODE must be one of: auto, off, required');
 }
 
+function parseWarmBridgeMode(): BuilderWarmBridgeMode {
+  const raw = (process.env.SPARK_BUILDER_WARM_BRIDGE_MODE || 'auto').trim().toLowerCase();
+  if (raw === 'auto' || raw === 'off' || raw === 'required') return raw;
+  throw new Error('SPARK_BUILDER_WARM_BRIDGE_MODE must be one of: auto, off, required');
+}
+
+function parseWarmMaxPending(): number {
+  const parsed = Number.parseInt(process.env.SPARK_BUILDER_WARM_MAX_PENDING || '8', 10);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 64) {
+    throw new Error('SPARK_BUILDER_WARM_MAX_PENDING must be between 1 and 64');
+  }
+  return parsed;
+}
+
 function resolveBridgeConfig(): BuilderBridgeConfig {
   const builderRepo = resolveBuilderRepoPath({ configuredRepo: process.env.SPARK_BUILDER_REPO });
 
   return {
     mode: parseBridgeMode(),
+    warmBridgeMode: parseWarmBridgeMode(),
+    warmMaxPending: parseWarmMaxPending(),
     pythonCommand: resolvePythonCommand(process.env.SPARK_BUILDER_PYTHON),
     builderRepo,
     builderHome: path.resolve(
@@ -365,6 +385,55 @@ function pythonModuleInvocation(config: BuilderBridgeConfig, moduleName: string,
     sourcePath,
     ...args,
   ];
+}
+
+let warmTelegramBridge: BuilderWarmBridgeClient | null = null;
+let warmTelegramBridgeKey = '';
+
+function warmBridgeKey(config: BuilderBridgeConfig): string {
+  return [config.pythonCommand, config.builderRepo, config.builderHome, config.warmMaxPending].join('\u0000');
+}
+
+function warmBridgeInvocation(config: BuilderBridgeConfig): string[] {
+  return pythonModuleInvocation(config, 'spark_intelligence.cli', [
+    'gateway',
+    'serve-stdio',
+    '--home',
+    config.builderHome,
+    '--origin',
+    'telegram-runtime',
+  ]);
+}
+
+async function runBuilderTelegramBridgeWarm(
+  config: BuilderBridgeConfig,
+  updatePayload: Record<string, unknown>
+): Promise<BuilderBridgeParsedPayload> {
+  if (config.warmBridgeMode === 'off') throw new Error('Builder warm bridge is off.');
+  const key = warmBridgeKey(config);
+  if (!warmTelegramBridge || warmTelegramBridge.isClosed || warmTelegramBridgeKey !== key) {
+    warmTelegramBridge?.close();
+    warmTelegramBridge = new BuilderWarmBridgeClient({
+      command: config.pythonCommand,
+      args: warmBridgeInvocation(config),
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      readyTimeoutMs: Math.min(5000, config.timeoutMs),
+      maxPending: config.warmMaxPending,
+    });
+    warmTelegramBridgeKey = key;
+  }
+  const worker = warmTelegramBridge;
+  try {
+    return await worker.send(updatePayload, config.timeoutMs);
+  } catch (error) {
+    if (warmTelegramBridge === worker) {
+      worker.close();
+      warmTelegramBridge = null;
+      warmTelegramBridgeKey = '';
+    }
+    throw error;
+  }
 }
 
 function numericValue(value: unknown): number {
@@ -2553,34 +2622,10 @@ export async function runBuilderConversationColdContext(
   }
 }
 
-export async function runBuilderTelegramBridge(updatePayload: Record<string, unknown>): Promise<BuilderBridgeReply> {
-  const config = resolveBridgeConfig();
-  if (config.mode === 'off') {
-    return {
-      used: false,
-      responseText: '',
-      decision: '',
-      bridgeMode: '',
-      routingDecision: '',
-    };
-  }
-
-  const bridgeAvailable = await ensureBridgeAvailable(config);
-  if (!bridgeAvailable) {
-    if (config.mode === 'required') {
-      throw new Error(
-        `Builder bridge is required but unavailable. repo=${config.builderRepo} home=${config.builderHome}`
-      );
-    }
-    return {
-      used: false,
-      responseText: '',
-      decision: '',
-      bridgeMode: '',
-      routingDecision: '',
-    };
-  }
-
+async function runBuilderTelegramBridgeOneShot(
+  config: BuilderBridgeConfig,
+  updatePayload: Record<string, unknown>
+): Promise<BuilderBridgeParsedPayload> {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'spark-builder-telegram-'));
   const updatePath = path.join(tempDir, 'update.json');
   try {
@@ -2610,78 +2655,95 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
     if (!trimmedStdout) {
       throw new Error(`Builder bridge returned empty stdout. stderr=${redactText(stderr.trim())}`);
     }
+    return JSON.parse(trimmedStdout) as BuilderBridgeParsedPayload;
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
 
-    const parsed = JSON.parse(trimmedStdout) as {
-      decision?: unknown;
-      detail?: {
-        response_text?: unknown;
-        bridge_mode?: unknown;
-        routing_decision?: unknown;
-        request_id?: unknown;
-        trace_ref?: unknown;
-        voice_media?: unknown;
-        voice_timing?: unknown;
-      };
-    };
-
-    const detail = parsed.detail || {};
-    const bridgeMode = String(detail.bridge_mode || '').trim();
-    const routingDecision = String(detail.routing_decision || '').trim();
-    const requestId = String(detail.request_id || '').trim();
-    const traceRef = String(detail.trace_ref || '').trim();
-    let responseText = String(detail.response_text || '').trim();
-    const messageContext = telegramBridgeMessageContext(updatePayload);
-    if (bridgeMode === 'self_awareness_direct' && messageContext.userId && messageContext.chatId) {
-      try {
-        const selfAwareness = await runBuilderSelfAwarenessStatus({
-          userId: messageContext.userId,
-          chatId: messageContext.chatId,
-          currentMessage: messageContext.text,
-        });
-        responseText = selfAwareness.replyText;
-      } catch (error) {
-        console.warn('[BuilderBridge] Self-awareness reformat unavailable:', error);
-        if (isMemoryLackSelfAwarenessQuestion(messageContext.text) || isSelfAwarenessImprovementQuestion(messageContext.text)) {
-          try {
-            const selfAwareness = await runBuilderSelfAwarenessStatus({
-              userId: messageContext.userId,
-              chatId: messageContext.chatId,
-              currentMessage: messageContext.text,
-              refreshWiki: false,
-            });
-            responseText = selfAwareness.replyText;
-          } catch (fallbackError) {
-            console.warn('[BuilderBridge] Self-awareness no-wiki fallback unavailable:', fallbackError);
-            responseText = formatSelfAwarenessReply({ current_message: messageContext.text });
-          }
+async function shapeBuilderTelegramBridgeReply(
+  parsed: BuilderBridgeParsedPayload,
+  updatePayload: Record<string, unknown>
+): Promise<BuilderBridgeReply> {
+  const detail = parsed.detail || {};
+  const bridgeMode = String(detail.bridge_mode || '').trim();
+  const routingDecision = String(detail.routing_decision || '').trim();
+  const requestId = String(detail.request_id || '').trim();
+  const traceRef = String(detail.trace_ref || '').trim();
+  let responseText = String(detail.response_text || '').trim();
+  const messageContext = telegramBridgeMessageContext(updatePayload);
+  if (bridgeMode === 'self_awareness_direct' && messageContext.userId && messageContext.chatId) {
+    try {
+      const selfAwareness = await runBuilderSelfAwarenessStatus({
+        userId: messageContext.userId,
+        chatId: messageContext.chatId,
+        currentMessage: messageContext.text,
+      });
+      responseText = selfAwareness.replyText;
+    } catch (error) {
+      console.warn('[BuilderBridge] Self-awareness reformat unavailable:', error);
+      if (isMemoryLackSelfAwarenessQuestion(messageContext.text) || isSelfAwarenessImprovementQuestion(messageContext.text)) {
+        try {
+          const selfAwareness = await runBuilderSelfAwarenessStatus({
+            userId: messageContext.userId,
+            chatId: messageContext.chatId,
+            currentMessage: messageContext.text,
+            refreshWiki: false,
+          });
+          responseText = selfAwareness.replyText;
+        } catch (fallbackError) {
+          console.warn('[BuilderBridge] Self-awareness no-wiki fallback unavailable:', fallbackError);
+          responseText = formatSelfAwarenessReply({ current_message: messageContext.text });
         }
       }
     }
-    return {
-      used: true,
-      responseText,
-      decision: String(parsed.decision || '').trim(),
-      bridgeMode,
-      routingDecision,
-      requestId: requestId || undefined,
-      traceRef: traceRef || undefined,
-      voiceMedia: parseBuilderBridgeVoiceMedia(detail.voice_media),
-      voiceTiming: objectValue(detail.voice_timing),
-    };
-  } catch (error) {
+  }
+  return {
+    used: true,
+    responseText,
+    decision: String(parsed.decision || '').trim(),
+    bridgeMode,
+    routingDecision,
+    requestId: requestId || undefined,
+    traceRef: traceRef || undefined,
+    voiceMedia: parseBuilderBridgeVoiceMedia(detail.voice_media),
+    voiceTiming: objectValue(detail.voice_timing),
+  };
+}
+
+export async function runBuilderTelegramBridge(updatePayload: Record<string, unknown>): Promise<BuilderBridgeReply> {
+  const config = resolveBridgeConfig();
+  if (config.mode === 'off') {
+    return { used: false, responseText: '', decision: '', bridgeMode: '', routingDecision: '' };
+  }
+
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
     if (config.mode === 'required') {
-      throw error;
+      throw new Error(
+        `Builder bridge is required but unavailable. repo=${config.builderRepo} home=${config.builderHome}`
+      );
     }
+    return { used: false, responseText: '', decision: '', bridgeMode: '', routingDecision: '' };
+  }
+
+  if (config.warmBridgeMode !== 'off') {
+    try {
+      const parsed = await runBuilderTelegramBridgeWarm(config, updatePayload);
+      return await shapeBuilderTelegramBridgeReply(parsed, updatePayload);
+    } catch (error) {
+      if (config.warmBridgeMode === 'required') throw error;
+      console.warn('[BuilderBridge] Warm bridge unavailable; using one-shot CLI:', error);
+    }
+  }
+
+  try {
+    const parsed = await runBuilderTelegramBridgeOneShot(config, updatePayload);
+    return await shapeBuilderTelegramBridgeReply(parsed, updatePayload);
+  } catch (error) {
+    if (config.mode === 'required') throw error;
     console.warn('[BuilderBridge] Falling back to local conversation path:', error);
-    return {
-      used: false,
-      responseText: '',
-      decision: '',
-      bridgeMode: '',
-      routingDecision: '',
-    };
-  } finally {
-    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    return { used: false, responseText: '', decision: '', bridgeMode: '', routingDecision: '' };
   }
 }
 
