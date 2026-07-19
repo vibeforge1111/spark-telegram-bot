@@ -31,6 +31,13 @@ async function withTempState(fn: (dir: string) => Promise<void>): Promise<void> 
   }
 }
 
+function readCanonicalState(dir: string, statePath: string): any {
+  const database = new DatabaseSync(path.join(dir, '.spark-gateway-state.db'), { readOnly: true });
+  const row = database.prepare('SELECT json_value FROM gateway_state WHERE state_key = ?').get(statePath) as { json_value: string };
+  database.close();
+  return JSON.parse(row.json_value);
+}
+
 async function main(): Promise<void> {
   await test('bounds every persisted per-user memory map on writes', async () => {
     await withTempState(async () => {
@@ -49,21 +56,25 @@ async function main(): Promise<void> {
         userCounts: { recent: 3, notes: 3, interrupted: 3, frame: 3 },
         evictionCounts: { recent: 1, notes: 1, interrupted: 1, frame: 1 }
       });
-      assert.equal(await memory.getContext({ id: 1 }, 'old user'), 'No prior memories.');
+      const evictedContext = await memory.getContext({ id: 1 }, 'old user');
+      assert.match(evictedContext, /note-1/);
+      assert.doesNotMatch(evictedContext, /message-1/);
       assert.equal(await memory.getPendingTaskRecovery({ id: 1 }), null);
       assert.match(await memory.getContext({ id: 4 }, 'active user'), /message-4/);
     });
   });
 
   await test('refreshes write recency before choosing the oldest user to evict', async () => {
-    await withTempState(async () => {
+    await withTempState(async (dir) => {
       const memory = new ConversationMemory({ maxUsers: 3 });
       for (let id = 1; id <= 3; id += 1) await memory.learnAboutUser({ id }, `note-${id}`);
       await memory.learnAboutUser({ id: 1 }, 'note-1-refreshed');
       await memory.learnAboutUser({ id: 4 }, 'note-4');
 
+      const persisted = readCanonicalState(dir, path.join(dir, '.spark-conversation-memory.json'));
+      assert.deepEqual(Object.keys(persisted.notesByUser), ['3', '1', '4']);
       assert.match(await memory.getContext({ id: 1 }, 'active'), /note-1-refreshed/);
-      assert.equal(await memory.getContext({ id: 2 }, 'oldest'), 'No prior memories.');
+      assert.match(await memory.getContext({ id: 2 }, 'evicted cache entry'), /note-2/);
       assert.match(await memory.getContext({ id: 4 }, 'newest'), /note-4/);
     });
   });
@@ -87,13 +98,12 @@ async function main(): Promise<void> {
         evictionCounts: { recent: 2, notes: 2, interrupted: 2, frame: 2 }
       });
 
-      const database = new DatabaseSync(path.join(dir, '.spark-gateway-state.db'), { readOnly: true });
-      const row = database.prepare('SELECT json_value FROM gateway_state WHERE state_key = ?').get(statePath) as { json_value: string };
-      database.close();
-      const repaired = JSON.parse(row.json_value);
+      const repaired = readCanonicalState(dir, statePath);
       for (const bucket of ['recentByUser', 'notesByUser', 'interruptedByUser', 'frameStateByUser']) {
         assert.deepEqual(Object.keys(repaired[bucket]), ['3', '4', '5'], bucket);
       }
+      assert.match(await memory.getContext({ id: 1 }, 'durable note'), /note-1/);
+      assert.doesNotMatch(await memory.getContext({ id: 1 }, 'durable note'), /message-1/);
     });
   });
 }
