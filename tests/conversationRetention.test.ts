@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { ConversationMemory } from '../src/conversation';
 import { resetJsonStateForTests } from '../src/jsonState';
 
@@ -33,6 +34,8 @@ async function withTempState(fn: (dir: string) => Promise<void>): Promise<void> 
 async function main(): Promise<void> {
   await test('bounds every persisted per-user memory map on writes', async () => {
     await withTempState(async () => {
+      assert.throws(() => new ConversationMemory({ maxUsers: 0 }), /invalid conversation retention limit/i);
+      assert.throws(() => new ConversationMemory({ maxUsers: 10_001 }), /invalid conversation retention limit/i);
       const memory = new ConversationMemory({ maxUsers: 3 });
       for (let id = 1; id <= 4; id += 1) {
         const user = { id };
@@ -49,6 +52,19 @@ async function main(): Promise<void> {
       assert.equal(await memory.getContext({ id: 1 }, 'old user'), 'No prior memories.');
       assert.equal(await memory.getPendingTaskRecovery({ id: 1 }), null);
       assert.match(await memory.getContext({ id: 4 }, 'active user'), /message-4/);
+    });
+  });
+
+  await test('refreshes write recency before choosing the oldest user to evict', async () => {
+    await withTempState(async () => {
+      const memory = new ConversationMemory({ maxUsers: 3 });
+      for (let id = 1; id <= 3; id += 1) await memory.learnAboutUser({ id }, `note-${id}`);
+      await memory.learnAboutUser({ id: 1 }, 'note-1-refreshed');
+      await memory.learnAboutUser({ id: 4 }, 'note-4');
+
+      assert.match(await memory.getContext({ id: 1 }, 'active'), /note-1-refreshed/);
+      assert.equal(await memory.getContext({ id: 2 }, 'oldest'), 'No prior memories.');
+      assert.match(await memory.getContext({ id: 4 }, 'newest'), /note-4/);
     });
   });
 
@@ -71,7 +87,10 @@ async function main(): Promise<void> {
         evictionCounts: { recent: 2, notes: 2, interrupted: 2, frame: 2 }
       });
 
-      const repaired = JSON.parse(readFileSync(statePath, 'utf8'));
+      const database = new DatabaseSync(path.join(dir, '.spark-gateway-state.db'), { readOnly: true });
+      const row = database.prepare('SELECT json_value FROM gateway_state WHERE state_key = ?').get(statePath) as { json_value: string };
+      database.close();
+      const repaired = JSON.parse(row.json_value);
       for (const bucket of ['recentByUser', 'notesByUser', 'interruptedByUser', 'frameStateByUser']) {
         assert.deepEqual(Object.keys(repaired[bucket]), ['3', '4', '5'], bucket);
       }

@@ -5,6 +5,10 @@
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 import { sanitizeCredentialMemoryText } from './credentialSafety';
 import {
+  ConversationRetentionPolicy,
+  type ConversationRetentionDiagnostics
+} from './conversationRetention';
+import {
   buildConversationFrameFromState,
   emptyRollingConversationFrameState,
   renderConversationFrameDiagnostics,
@@ -263,8 +267,13 @@ export class ConversationMemory {
   private readonly frameStateByUser = new Map<number, RollingConversationFrameState>();
   private readonly maxRecent = 40;
   private readonly maxNotes = 20;
+  private readonly retention: ConversationRetentionPolicy;
   private loaded = false;
   private readonly statePath = resolveStatePath('.spark-conversation-memory.json');
+
+  constructor(options: { maxUsers?: number } = {}) {
+    this.retention = new ConversationRetentionPolicy(options.maxUsers);
+  }
 
   isAdmin(user: TelegramUser): boolean {
     return ADMIN_IDS.includes(user.id);
@@ -284,12 +293,13 @@ export class ConversationMemory {
 
   private async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
+    const evictionsBeforeLoad = this.retention.totalEvictions();
     const snapshot = await readJsonFile<ConversationSnapshot>(this.statePath);
     if (snapshot?.recentByUser) {
       for (const [key, value] of Object.entries(snapshot.recentByUser)) {
         const userId = Number(key);
         if (Number.isSafeInteger(userId) && userId > 0 && Array.isArray(value)) {
-          this.recentByUser.set(userId, value.filter((item) => typeof item === 'string').map(sanitizeCredentialMemoryText).slice(-this.maxRecent));
+          this.retention.set('recent', this.recentByUser, userId, value.filter((item) => typeof item === 'string').map(sanitizeCredentialMemoryText).slice(-this.maxRecent));
         }
       }
     }
@@ -297,7 +307,7 @@ export class ConversationMemory {
       for (const [key, value] of Object.entries(snapshot.notesByUser)) {
         const userId = Number(key);
         if (Number.isSafeInteger(userId) && userId > 0 && Array.isArray(value)) {
-          this.notesByUser.set(userId, value.filter((item) => typeof item === 'string').map(sanitizeCredentialMemoryText).slice(-this.maxNotes));
+          this.retention.set('notes', this.notesByUser, userId, value.filter((item) => typeof item === 'string').map(sanitizeCredentialMemoryText).slice(-this.maxNotes));
         }
       }
     }
@@ -312,7 +322,7 @@ export class ConversationMemory {
           typeof value.failure === 'string' &&
           typeof value.recordedAt === 'string'
         ) {
-          this.interruptedByUser.set(userId, {
+          this.retention.set('interrupted', this.interruptedByUser, userId, {
             message: sanitizeCredentialMemoryText(value.message),
             failure: sanitizeCredentialMemoryText(value.failure),
             stage: typeof value.stage === 'string' ? sanitizeCredentialMemoryText(value.stage) : undefined,
@@ -325,11 +335,12 @@ export class ConversationMemory {
       for (const [key, value] of Object.entries(snapshot.frameStateByUser)) {
         const userId = Number(key);
         if (Number.isSafeInteger(userId) && userId > 0 && value && typeof value === 'object') {
-          this.frameStateByUser.set(userId, value);
+          this.retention.set('frame', this.frameStateByUser, userId, value);
         }
       }
     }
     this.loaded = true;
+    if (this.retention.totalEvictions() > evictionsBeforeLoad) await this.persist();
   }
 
   private recordFromMap(map: Map<number, string[]>): Record<string, string[]> {
@@ -364,7 +375,7 @@ export class ConversationMemory {
     const items = map.get(key) || [];
     const deduped = items.filter((item) => item.toLowerCase() !== normalized.toLowerCase());
     deduped.push(normalized);
-    map.set(key, deduped.slice(-limit));
+    this.retention.set(map === this.recentByUser ? 'recent' : 'notes', map, key, deduped.slice(-limit));
     await this.persist();
   }
 
@@ -399,7 +410,7 @@ export class ConversationMemory {
       text: sanitizeCredentialMemoryText(text),
       createdAt: new Date().toISOString()
     });
-    this.frameStateByUser.set(key, next);
+    this.retention.set('frame', this.frameStateByUser, key, next);
     await this.persist();
   }
 
@@ -422,7 +433,7 @@ export class ConversationMemory {
       return lower !== normalized.toLowerCase() && (!prefix || !lower.startsWith(prefix));
     });
     next.push(normalized);
-    this.notesByUser.set(key, next.slice(-this.maxNotes));
+    this.retention.set('notes', this.notesByUser, key, next.slice(-this.maxNotes));
     await this.persist();
     return null;
   }
@@ -441,7 +452,7 @@ export class ConversationMemory {
     const message = sanitizeCredentialMemoryText(input.message).trim();
     const failure = sanitizeCredentialMemoryText(input.failure).trim();
     if (!message || !failure) return;
-    this.interruptedByUser.set(this.userKey(user), {
+    this.retention.set('interrupted', this.interruptedByUser, this.userKey(user), {
       message,
       failure,
       stage: input.stage ? sanitizeCredentialMemoryText(input.stage).trim() || undefined : undefined,
@@ -625,6 +636,16 @@ export class ConversationMemory {
     await this.ensureLoaded();
     const key = this.userKey(user);
     return (this.notesByUser.get(key) || []).length + (this.recentByUser.get(key) || []).length;
+  }
+
+  async getRetentionDiagnostics(): Promise<ConversationRetentionDiagnostics> {
+    await this.ensureLoaded();
+    return this.retention.diagnostics({
+      recent: this.recentByUser,
+      notes: this.notesByUser,
+      interrupted: this.interruptedByUser,
+      frame: this.frameStateByUser
+    });
   }
 
   async isAvailable(): Promise<boolean> {
