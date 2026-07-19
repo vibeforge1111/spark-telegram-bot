@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { loadSparkTelegramProfileEnv, sparkConfigModulesDir, sparkSecretPythonBridgeCommand } from '../src/profileEnv';
+import {
+  loadEnvFileIntoProcess,
+  loadSparkTelegramProfileEnv,
+  sparkConfigModulesDir,
+  sparkSecretPythonBridgeCommand
+} from '../src/profileEnv';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -47,6 +52,29 @@ test('uses SPARK_HOME for generated module env files', () => {
   const configDir = sparkConfigModulesDir({ SPARK_HOME: 'C:\\SparkHome' } as NodeJS.ProcessEnv);
 
   assert.equal(configDir, path.join('C:\\SparkHome', 'config', 'modules'));
+});
+
+test('loads matching quoted env values without retaining wrapper quotes', () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'spark-profile-quotes-'));
+  try {
+    const file = path.join(home, 'quoted.env');
+    writeFileSync(file, [
+      'DOUBLE_QUOTED="relay secret value"',
+      "SINGLE_QUOTED='profile value'",
+      'MISMATCHED="keep-this\'',
+      'PLAIN=plain-value'
+    ].join('\n'));
+    const env = {} as NodeJS.ProcessEnv;
+
+    loadEnvFileIntoProcess(file, env);
+
+    assert.equal(env.DOUBLE_QUOTED, 'relay secret value');
+    assert.equal(env.SINGLE_QUOTED, 'profile value');
+    assert.equal(env.MISMATCHED, '"keep-this\'');
+    assert.equal(env.PLAIN, 'plain-value');
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
 });
 
 test('runtime health wrapper forwards profile arguments', () => {

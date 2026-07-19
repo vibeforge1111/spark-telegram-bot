@@ -1201,7 +1201,7 @@ test('requires relay events to match registered Telegram identity', () => {
   assert.equal(relayEventMatchesSubscription({
     type: 'task_completed',
     missionId: 'spark-1'
-  }, subscription), true);
+  }, subscription), false);
 
   assert.equal(relayEventMatchesSubscription({
     type: 'task_completed',
