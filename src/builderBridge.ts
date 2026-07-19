@@ -2733,7 +2733,7 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
       return await shapeBuilderTelegramBridgeReply(parsed, updatePayload);
     } catch (error) {
       if (config.warmBridgeMode === 'required') throw error;
-      console.warn('[BuilderBridge] Warm bridge unavailable; using one-shot CLI:', error);
+      console.warn('[BuilderBridge] Warm bridge unavailable; using one-shot CLI.');
     }
   }
 
