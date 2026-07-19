@@ -81,6 +81,7 @@ const tests = [
   'tests/outboundSanitize.test.ts',
   'tests/redaction.test.ts',
   'tests/errorExplain.test.ts',
+  'tests/spawnerAuth.test.ts',
   'tests/spawner.test.ts',
   'tests/creatorMissionClosure.test.ts',
   'tests/spawnerUrl.test.ts',

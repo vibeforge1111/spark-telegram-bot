@@ -7,7 +7,6 @@ import {
   formatCreatorMissionValidationSummary,
   spawner
 } from '../src/spawner';
-import { spawnerAuthHeaders } from '../src/spawnerAuth';
 
 type AsyncTest = () => Promise<void> | void;
 
@@ -45,23 +44,6 @@ function restoreEnv(): void {
 }
 
 async function run(): Promise<void> {
-  await test('does not elevate a hosted UI key into Spawner control authority', () => {
-    assert.deepEqual(
-      spawnerAuthHeaders({ SPARK_UI_API_KEY: 'ui-only-secret' } as NodeJS.ProcessEnv),
-      { 'x-spawner-ui-key': 'ui-only-secret' }
-    );
-  });
-
-  await test('may reuse a control key for UI compatibility without reverse privilege elevation', () => {
-    assert.deepEqual(
-      spawnerAuthHeaders({ SPARK_BRIDGE_API_KEY: 'bridge-only-secret' } as NodeJS.ProcessEnv),
-      {
-        'x-api-key': 'bridge-only-secret',
-        'x-spawner-ui-key': 'bridge-only-secret'
-      }
-    );
-  });
-
   await test('runGoal posts Telegram relay metadata and orchestration options to Spawner', async () => {
     restoreAxios();
     process.env.TELEGRAM_RELAY_PORT = '8799';
