@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { parseSafeOperatorAction } from '../src/operatorActions';
-import { safeTelegramProfileName } from '../src/profileEnv';
+import { loadSparkTelegramProfileEnv, safeTelegramProfileName } from '../src/profileEnv';
 import { resolveStatePath } from '../src/jsonState';
 
 function test(name: string, fn: () => void): void {
@@ -51,6 +51,16 @@ test('Telegram profile names are accepted exactly or rejected, never rewritten',
   }
 });
 
+test('invalid Telegram profiles fail closed before env or secret loading', () => {
+  const env = {
+    SPARK_TELEGRAM_PROFILE: '../primary',
+    BOT_TOKEN: 'must-not-survive-invalid-profile'
+  } as NodeJS.ProcessEnv;
+  assert.equal(loadSparkTelegramProfileEnv([], env), null);
+  assert.equal(env.BOT_TOKEN, undefined);
+  assert.equal(env.SPARK_PROFILE_TOKEN_MISSING, 'invalid_telegram_profile');
+});
+
 test('operator folder inspection is bound to the active Windows Desktop owner root', () => {
   const env = { USERPROFILE: 'C:\\Users\\ALICE' } as NodeJS.ProcessEnv;
   const prompt = (target: string) =>
@@ -76,4 +86,12 @@ test('operator folder inspection honors an explicit Windows project root', () =>
     limit: 3
   });
   assert.equal(parseSafeOperatorAction(prompt('D:\\Other\\Workspace'), env), null);
+});
+
+test('Level 5 smoke files are bound to the active Windows temporary root', () => {
+  const env = { USERPROFILE: 'C:\\Users\\ALICE' } as NodeJS.ProcessEnv;
+  const prompt = (target: string) =>
+    `Run a safe Level 5 smoke test: create a tiny file at ${target}, write "level5 ok", read it back, then delete it. Do not touch anything else. Tell me each step.`;
+  assert.ok(parseSafeOperatorAction(prompt('C:\\Users\\ALICE\\AppData\\Local\\Temp\\spark-telegram-level5-smoke.txt'), env));
+  assert.equal(parseSafeOperatorAction(prompt('C:\\Users\\BOB\\AppData\\Local\\Temp\\spark-telegram-level5-smoke.txt'), env), null);
 });

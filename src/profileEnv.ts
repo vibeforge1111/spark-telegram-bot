@@ -58,6 +58,12 @@ export function safeAgentEnvName(agentName: string): string | null {
   return trimmed;
 }
 
+export function safeTelegramProfileName(profile: string): string | null {
+  const trimmed = profile.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(trimmed)) return null;
+  return trimmed;
+}
+
 export function loadSparkAgentEnv(
   agentName: string,
   env: NodeJS.ProcessEnv = process.env,
@@ -128,8 +134,14 @@ export function loadSparkTelegramProfileEnv(
   env: NodeJS.ProcessEnv = process.env,
   options: { preserveExisting?: boolean } = {}
 ): string | null {
-  const profile = argValue(args, 'profile') || env.SPARK_TELEGRAM_PROFILE?.trim() || null;
-  if (!profile) return null;
+  const requestedProfile = argValue(args, 'profile') || env.SPARK_TELEGRAM_PROFILE?.trim() || null;
+  if (!requestedProfile) return null;
+  const profile = safeTelegramProfileName(requestedProfile);
+  if (!profile) {
+    env.SPARK_PROFILE_TOKEN_MISSING = 'invalid_telegram_profile';
+    delete env.BOT_TOKEN;
+    return null;
+  }
   const preserveKeys = options.preserveExisting ? new Set(Object.keys(env)) : undefined;
   for (const key of LEVEL5_GUARDRAIL_KEYS) {
     preserveKeys?.delete(key);

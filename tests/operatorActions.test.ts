@@ -17,7 +17,8 @@ async function test(name: string, fn: () => void | Promise<void>): Promise<void>
 (async () => {
   await test('parses the bounded Level 5 temp-file smoke test', () => {
     const action = parseSafeOperatorAction(
-      'Run a safe Level 5 smoke test: create a tiny file at C:\\Users\\USER\\AppData\\Local\\Temp\\spark-telegram-level5-smoke.txt, write "level5 ok", read it back, then delete it. Do not touch anything else. Tell me each step.'
+      'Run a safe Level 5 smoke test: create a tiny file at C:\\Users\\USER\\AppData\\Local\\Temp\\spark-telegram-level5-smoke.txt, write "level5 ok", read it back, then delete it. Do not touch anything else. Tell me each step.',
+      { USERPROFILE: 'C:\\Users\\USER' } as NodeJS.ProcessEnv
     );
     assert.deepEqual(action, {
       kind: 'level5_smoke',
@@ -31,7 +32,8 @@ async function test(name: string, fn: () => void | Promise<void>): Promise<void>
 
   await test('parses the bounded Desktop folder-list check', () => {
     const action = parseSafeOperatorAction(
-      'Check whether C:\\Users\\USER\\Desktop exists. If it exists, list only the first 5 top-level folder names. Do not open files or read file contents.'
+      'Check whether C:\\Users\\USER\\Desktop exists. If it exists, list only the first 5 top-level folder names. Do not open files or read file contents.',
+      { USERPROFILE: 'C:\\Users\\USER' } as NodeJS.ProcessEnv
     );
     assert.deepEqual(action, {
       kind: 'folder_list',

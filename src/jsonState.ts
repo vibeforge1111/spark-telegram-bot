@@ -67,7 +67,22 @@ export async function writeJsonAtomic(filePath: string, value: unknown): Promise
 
 export function resolveStatePath(filename: string): string {
   const stateDir = process.env.SPARK_GATEWAY_STATE_DIR?.trim();
-  return path.join(stateDir || process.cwd(), filename);
+  const trimmed = filename.trim();
+  const singlePosixSegment = path.posix.basename(trimmed) === trimmed;
+  const singleWindowsSegment = path.win32.basename(trimmed) === trimmed;
+  if (
+    !trimmed ||
+    trimmed === '.' ||
+    trimmed === '..' ||
+    trimmed.includes('\0') ||
+    path.posix.isAbsolute(trimmed) ||
+    path.win32.isAbsolute(trimmed) ||
+    !singlePosixSegment ||
+    !singleWindowsSegment
+  ) {
+    throw new Error('Invalid state filename; expected one local filename segment.');
+  }
+  return path.join(path.resolve(stateDir || process.cwd()), trimmed);
 }
 
 export function resetJsonStateForTests(): void {

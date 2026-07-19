@@ -16,18 +16,44 @@ function extractWindowsPath(text: string): string | null {
   return rawPath.replace(/\s+\b(?:exists?|and|then)\b.*$/i, '').trim();
 }
 
-function isExpectedLevel5SmokePath(filePath: string): boolean {
-  const normalized = path.win32.normalize(filePath).toLowerCase();
-  return normalized.endsWith('\\appdata\\local\\temp\\spark-telegram-level5-smoke.txt');
+function normalizedWindowsPath(value: string): string {
+  return path.win32.normalize(value).replace(/[\\/]+$/, '').toLowerCase();
 }
 
-export function parseSafeOperatorAction(text: string): SafeOperatorAction | null {
+function expectedLevel5SmokePaths(env: NodeJS.ProcessEnv): string[] {
+  const roots = [
+    env.TEMP?.trim(),
+    env.TMP?.trim(),
+    env.USERPROFILE?.trim() ? path.win32.join(env.USERPROFILE.trim(), 'AppData', 'Local', 'Temp') : null
+  ].filter((value): value is string => Boolean(value && path.win32.isAbsolute(value)));
+  return roots.map((root) => normalizedWindowsPath(path.win32.join(root, 'spark-telegram-level5-smoke.txt')));
+}
+
+function isExpectedLevel5SmokePath(filePath: string, env: NodeJS.ProcessEnv): boolean {
+  const normalized = path.win32.normalize(filePath).toLowerCase();
+  return expectedLevel5SmokePaths(env).includes(normalized);
+}
+
+function ownedFolderInspectionRoot(env: NodeJS.ProcessEnv): string | null {
+  const configured = env.SPARK_PROJECT_ROOT?.trim();
+  if (configured && path.win32.isAbsolute(configured)) return normalizedWindowsPath(configured);
+  const userProfile = env.USERPROFILE?.trim();
+  if (!userProfile || !path.win32.isAbsolute(userProfile)) return null;
+  return normalizedWindowsPath(path.win32.join(userProfile, 'Desktop'));
+}
+
+function isOwnedFolderInspectionPath(folderPath: string, env: NodeJS.ProcessEnv): boolean {
+  const ownerRoot = ownedFolderInspectionRoot(env);
+  return Boolean(ownerRoot && normalizedWindowsPath(folderPath) === ownerRoot);
+}
+
+export function parseSafeOperatorAction(text: string, env: NodeJS.ProcessEnv = process.env): SafeOperatorAction | null {
   const normalized = normalizeMessage(text);
   const windowsPath = extractWindowsPath(text);
 
   if (
     windowsPath &&
-    isExpectedLevel5SmokePath(windowsPath) &&
+    isExpectedLevel5SmokePath(windowsPath, env) &&
     /\blevel\s*5\b/.test(normalized) &&
     /\bsmoke\s+test\b/.test(normalized) &&
     /\bcreate\b.*\bwrite\b.*\bread\b.*\b(?:delete|remove)\b/.test(normalized) &&
@@ -38,7 +64,7 @@ export function parseSafeOperatorAction(text: string): SafeOperatorAction | null
 
   if (
     windowsPath &&
-    path.win32.basename(path.win32.normalize(windowsPath)).toLowerCase() === 'desktop' &&
+    isOwnedFolderInspectionPath(windowsPath, env) &&
     /\bcheck\s+whether\b.*\bexists\b/.test(normalized) &&
     /\blist\s+only\s+the\s+first\s+\d+\s+top[-\s]+level\s+folder\s+names\b/.test(normalized) &&
     /\b(?:do\s+not|don't|dont)\s+open\s+files\b/.test(normalized) &&
