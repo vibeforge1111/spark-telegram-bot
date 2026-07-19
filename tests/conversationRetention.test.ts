@@ -72,10 +72,16 @@ async function main(): Promise<void> {
       await memory.learnAboutUser({ id: 4 }, 'note-4');
 
       const persisted = readCanonicalState(dir, path.join(dir, '.spark-conversation-memory.json'));
-      assert.deepEqual(Object.keys(persisted.notesByUser), ['3', '1', '4']);
+      assert.deepEqual(persisted.retentionOrder.notes, [3, 1, 4]);
       assert.match(await memory.getContext({ id: 1 }, 'active'), /note-1-refreshed/);
       assert.match(await memory.getContext({ id: 2 }, 'evicted cache entry'), /note-2/);
       assert.match(await memory.getContext({ id: 4 }, 'newest'), /note-4/);
+
+      const restarted = new ConversationMemory({ maxUsers: 3 });
+      await restarted.learnAboutUser({ id: 5 }, 'note-5');
+      const afterRestart = readCanonicalState(dir, path.join(dir, '.spark-conversation-memory.json'));
+      assert.deepEqual(afterRestart.retentionOrder.notes, [1, 4, 5]);
+      assert.match(await restarted.getContext({ id: 3 }, 'durable after restart eviction'), /note-3/);
     });
   });
 

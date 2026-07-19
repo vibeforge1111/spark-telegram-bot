@@ -45,6 +45,12 @@ interface ConversationSnapshot {
   notesByUser?: Record<string, string[]>;
   interruptedByUser?: Record<string, PendingTaskRecovery>;
   frameStateByUser?: Record<string, RollingConversationFrameState>;
+  retentionOrder?: {
+    recent?: number[];
+    notes?: number[];
+    interrupted?: number[];
+    frame?: number[];
+  };
 }
 
 export interface PendingTaskRecovery {
@@ -169,6 +175,20 @@ function userFacingMemoryContent(text: string): string {
   return cleaned;
 }
 
+function orderedUserEntries<T>(record: Record<string, T>, order: number[] | undefined): Array<[string, T]> {
+  const entries = new Map(Object.entries(record));
+  const ordered: Array<[string, T]> = [];
+  for (const userId of order || []) {
+    const key = String(userId);
+    const value = entries.get(key);
+    if (value === undefined) continue;
+    ordered.push([key, value]);
+    entries.delete(key);
+  }
+  ordered.push(...entries.entries());
+  return ordered;
+}
+
 function isPollutedInstructionMemoryLine(text: string): boolean {
   const normalized = text
     .replace(/^Spark:\s*/i, '')
@@ -291,12 +311,46 @@ export class ConversationMemory {
     return user.id;
   }
 
+  private durableNotesPath(userId: number): string {
+    return resolveStatePath(`.spark-conversation-notes-${userId}.json`);
+  }
+
+  private sanitizedNotes(value: unknown): string[] {
+    return Array.isArray(value)
+      ? value.filter((item) => typeof item === 'string').map(sanitizeCredentialMemoryText).slice(-this.maxNotes)
+      : [];
+  }
+
+  private async durableNotes(userId: number, legacyFallback?: unknown): Promise<string[]> {
+    const stored = await readJsonFile<unknown>(this.durableNotesPath(userId));
+    if (Array.isArray(stored)) return this.sanitizedNotes(stored);
+    const migrated = this.sanitizedNotes(legacyFallback);
+    if (legacyFallback !== undefined) await writeJsonAtomic(this.durableNotesPath(userId), migrated);
+    return migrated;
+  }
+
+  private async notesForUser(userId: number): Promise<string[]> {
+    await this.ensureLoaded();
+    const cached = this.notesByUser.get(userId);
+    if (cached) {
+      this.retention.set('notes', this.notesByUser, userId, cached);
+      return cached;
+    }
+    const stored = await this.durableNotes(userId);
+    if (stored.length > 0) this.retention.set('notes', this.notesByUser, userId, stored);
+    return stored;
+  }
+
+  private async persistNotes(userId: number, notes: string[]): Promise<void> {
+    await writeJsonAtomic(this.durableNotesPath(userId), notes);
+  }
+
   private async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
     const evictionsBeforeLoad = this.retention.totalEvictions();
     const snapshot = await readJsonFile<ConversationSnapshot>(this.statePath);
     if (snapshot?.recentByUser) {
-      for (const [key, value] of Object.entries(snapshot.recentByUser)) {
+      for (const [key, value] of orderedUserEntries(snapshot.recentByUser, snapshot.retentionOrder?.recent)) {
         const userId = Number(key);
         if (Number.isSafeInteger(userId) && userId > 0 && Array.isArray(value)) {
           this.retention.set('recent', this.recentByUser, userId, value.filter((item) => typeof item === 'string').map(sanitizeCredentialMemoryText).slice(-this.maxRecent));
@@ -304,15 +358,16 @@ export class ConversationMemory {
       }
     }
     if (snapshot?.notesByUser) {
-      for (const [key, value] of Object.entries(snapshot.notesByUser)) {
+      for (const [key, value] of orderedUserEntries(snapshot.notesByUser, snapshot.retentionOrder?.notes)) {
         const userId = Number(key);
         if (Number.isSafeInteger(userId) && userId > 0 && Array.isArray(value)) {
-          this.retention.set('notes', this.notesByUser, userId, value.filter((item) => typeof item === 'string').map(sanitizeCredentialMemoryText).slice(-this.maxNotes));
+          const notes = await this.durableNotes(userId, value);
+          if (notes.length > 0) this.retention.set('notes', this.notesByUser, userId, notes);
         }
       }
     }
     if (snapshot?.interruptedByUser) {
-      for (const [key, value] of Object.entries(snapshot.interruptedByUser)) {
+      for (const [key, value] of orderedUserEntries(snapshot.interruptedByUser, snapshot.retentionOrder?.interrupted)) {
         const userId = Number(key);
         if (
           Number.isSafeInteger(userId) &&
@@ -332,7 +387,7 @@ export class ConversationMemory {
       }
     }
     if (snapshot?.frameStateByUser) {
-      for (const [key, value] of Object.entries(snapshot.frameStateByUser)) {
+      for (const [key, value] of orderedUserEntries(snapshot.frameStateByUser, snapshot.retentionOrder?.frame)) {
         const userId = Number(key);
         if (Number.isSafeInteger(userId) && userId > 0 && value && typeof value === 'object') {
           this.retention.set('frame', this.frameStateByUser, userId, value);
@@ -364,29 +419,43 @@ export class ConversationMemory {
       recentByUser: this.recordFromMap(this.recentByUser),
       notesByUser: this.recordFromMap(this.notesByUser),
       interruptedByUser,
-      frameStateByUser
+      frameStateByUser,
+      retentionOrder: {
+        recent: [...this.recentByUser.keys()],
+        notes: [...this.notesByUser.keys()],
+        interrupted: [...this.interruptedByUser.keys()],
+        frame: [...this.frameStateByUser.keys()]
+      }
     });
   }
 
-  private async pushBounded(map: Map<number, string[]>, key: number, value: string, limit: number): Promise<void> {
+  private async pushBounded(
+    bucket: 'recent' | 'notes',
+    map: Map<number, string[]>,
+    key: number,
+    value: string,
+    limit: number
+  ): Promise<void> {
     await this.ensureLoaded();
     const normalized = sanitizeCredentialMemoryText(value).trim();
     if (!normalized) return;
-    const items = map.get(key) || [];
+    const items = bucket === 'notes' ? await this.notesForUser(key) : map.get(key) || [];
     const deduped = items.filter((item) => item.toLowerCase() !== normalized.toLowerCase());
     deduped.push(normalized);
-    this.retention.set(map === this.recentByUser ? 'recent' : 'notes', map, key, deduped.slice(-limit));
+    const next = deduped.slice(-limit);
+    if (bucket === 'notes') await this.persistNotes(key, next);
+    this.retention.set(bucket, map, key, next);
     await this.persist();
   }
 
   async remember(user: TelegramUser, message: string): Promise<Memory | null> {
-    await this.pushBounded(this.recentByUser, this.userKey(user), `User: ${message}`, this.maxRecent);
+    await this.pushBounded('recent', this.recentByUser, this.userKey(user), `User: ${message}`, this.maxRecent);
     await this.updateRollingFrame(user, 'user', message);
     return null;
   }
 
   async rememberAssistantReply(user: TelegramUser, message: string): Promise<Memory | null> {
-    await this.pushBounded(this.recentByUser, this.userKey(user), `Spark: ${message}`, this.maxRecent);
+    await this.pushBounded('recent', this.recentByUser, this.userKey(user), `Spark: ${message}`, this.maxRecent);
     await this.updateRollingFrame(user, 'assistant', message);
     return null;
   }
@@ -398,6 +467,7 @@ export class ConversationMemory {
     this.notesByUser.delete(key);
     this.interruptedByUser.delete(key);
     this.frameStateByUser.delete(key);
+    await this.persistNotes(key, []);
     await this.persist();
   }
 
@@ -415,7 +485,7 @@ export class ConversationMemory {
   }
 
   async learnAboutUser(user: TelegramUser, insight: string): Promise<Memory | null> {
-    await this.pushBounded(this.notesByUser, this.userKey(user), insight, this.maxNotes);
+    await this.pushBounded('notes', this.notesByUser, this.userKey(user), insight, this.maxNotes);
     return null;
   }
 
@@ -425,7 +495,7 @@ export class ConversationMemory {
     if (!normalized) return null;
 
     const key = this.userKey(user);
-    const items = this.notesByUser.get(key) || [];
+    const items = await this.notesForUser(key);
     const dimension = normalized.match(/^Agent interaction preference \[([a-z_]+)\]:/i)?.[1]?.toLowerCase();
     const prefix = dimension ? `agent interaction preference [${dimension}]:` : null;
     const next = items.filter((item) => {
@@ -433,14 +503,15 @@ export class ConversationMemory {
       return lower !== normalized.toLowerCase() && (!prefix || !lower.startsWith(prefix));
     });
     next.push(normalized);
-    this.retention.set('notes', this.notesByUser, key, next.slice(-this.maxNotes));
+    const bounded = next.slice(-this.maxNotes);
+    await this.persistNotes(key, bounded);
+    this.retention.set('notes', this.notesByUser, key, bounded);
     await this.persist();
     return null;
   }
 
   async getAgentDoctrinePreferences(user: TelegramUser): Promise<string[]> {
-    await this.ensureLoaded();
-    const notes = this.notesByUser.get(this.userKey(user)) || [];
+    const notes = await this.notesForUser(this.userKey(user));
     return notes.filter((note) => /^Agent interaction preference \[[a-z_]+\]:/i.test(note));
   }
 
@@ -467,7 +538,7 @@ export class ConversationMemory {
   }
 
   async storePreference(user: TelegramUser, preference: string): Promise<Memory | null> {
-    await this.pushBounded(this.notesByUser, this.userKey(user), `Preference: ${preference}`, this.maxNotes);
+    await this.pushBounded('notes', this.notesByUser, this.userKey(user), `Preference: ${preference}`, this.maxNotes);
     return null;
   }
 
@@ -490,8 +561,9 @@ export class ConversationMemory {
       );
     };
 
+    const notes = await this.notesForUser(key);
     const candidates = [
-      ...(this.notesByUser.get(key) || []).map((content, index) => ({ content, source: 'note', index })),
+      ...notes.map((content, index) => ({ content, source: 'note', index })),
       ...(this.recentByUser.get(key) || []).filter((content) => !recallNoise(content)).map((content, index) => ({ content, source: 'recent', index }))
     ];
     const minTokenMatches = queryTokens.length <= 2 ? queryTokens.length : Math.max(2, Math.ceil(queryTokens.length * 0.5));
@@ -525,7 +597,7 @@ export class ConversationMemory {
   async getContext(user: TelegramUser, _currentMessage: string): Promise<string> {
     await this.ensureLoaded();
     const key = this.userKey(user);
-    const notes = this.notesByUser.get(key) || [];
+    const notes = await this.notesForUser(key);
     const recent = this.recentByUser.get(key) || [];
     const lines: string[] = [];
 
@@ -635,7 +707,7 @@ export class ConversationMemory {
   async getMemoryCount(user: TelegramUser): Promise<number> {
     await this.ensureLoaded();
     const key = this.userKey(user);
-    return (this.notesByUser.get(key) || []).length + (this.recentByUser.get(key) || []).length;
+    return (await this.notesForUser(key)).length + (this.recentByUser.get(key) || []).length;
   }
 
   async getRetentionDiagnostics(): Promise<ConversationRetentionDiagnostics> {
