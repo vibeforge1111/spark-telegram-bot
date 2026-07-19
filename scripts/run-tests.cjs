@@ -65,6 +65,7 @@ const tests = [
   'tests/projectImprovementRouting.test.ts',
   'tests/spawnerLoopBugHunt.test.ts',
   'tests/conversationMemory.test.ts',
+  'tests/conversationRetention.test.ts',
   'tests/credentialSafety.test.ts',
   'tests/credentialSafetyRouting.test.ts',
   'tests/shippedProjectContext.test.ts',
