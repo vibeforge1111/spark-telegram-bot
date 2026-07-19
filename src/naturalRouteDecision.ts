@@ -46,7 +46,7 @@ import type {
 } from './conversationIntent';
 import { evaluateDeterministicRoute, type DeterministicRouteId } from './routeFirewall';
 import { externalResearchNoMissionClarification } from './externalResearchBoundary';
-import { parseSafeOperatorAction } from './operatorActions';
+import { classifySafeOperatorAction } from './operatorActions';
 import { isTelegramTextImageBoundaryRequest } from './telegramMediaEnvelope';
 import type { ShippedProjectContext } from './shippedProjectContext';
 
@@ -501,7 +501,7 @@ export function decideNaturalRoute(
     });
   }
 
-  const safeOperatorAction = parseSafeOperatorAction(normalized);
+  const safeOperatorAction = classifySafeOperatorAction(normalized);
   if (safeOperatorAction) {
     if (!routeAllowed('operator.safe_action', normalized)) return routeBlockedByFirewall(normalized, 'operator.safe_action');
     return decision({

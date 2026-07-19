@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { parseSafeOperatorAction } from '../src/operatorActions';
+import {
+  classifySafeOperatorAction,
+  operatorActionRootBoundaryReply,
+  parseSafeOperatorAction
+} from '../src/operatorActions';
 import { loadSparkTelegramProfileEnv, safeTelegramProfileName } from '../src/profileEnv';
 import { resolveStatePath } from '../src/jsonState';
 
@@ -72,6 +76,9 @@ test('operator folder inspection is bound to the active Windows Desktop owner ro
     limit: 5
   });
   assert.equal(parseSafeOperatorAction(prompt('C:\\Users\\BOB\\Desktop'), env), null);
+  assert.equal(classifySafeOperatorAction(prompt('C:\\Users\\BOB\\Desktop'))?.kind, 'folder_list');
+  assert.match(operatorActionRootBoundaryReply(), /active Spark workspace/i);
+  assert.match(operatorActionRootBoundaryReply(), /nothing was opened or changed/i);
   assert.equal(parseSafeOperatorAction(prompt('C:\\Windows\\Desktop'), env), null);
   assert.equal(parseSafeOperatorAction(prompt('C:\\Users\\ALICE\\Documents\\Desktop'), env), null);
 });

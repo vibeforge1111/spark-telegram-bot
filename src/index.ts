@@ -243,7 +243,7 @@ import {
   rememberPendingMissionCancelConfirmation,
   telegramPendingMissionCancelKey
 } from './telegramPendingMissionCancelEvidence';
-import { parseSafeOperatorAction, runSafeOperatorAction } from './operatorActions';
+import { classifySafeOperatorAction, operatorActionRootBoundaryReply, parseSafeOperatorAction, runSafeOperatorAction } from './operatorActions';
 import { queueRouteArbiterShadow } from './routeArbiter';
 import { routeEvidenceAllowed } from './telegramRouteEvidence';
 import { resolveMissionDefaultProvider } from './providerRouting';
@@ -10188,7 +10188,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
-
   const explicitBenchmarkCreatorIntent = !earlyBuildIntent && conversation.isAdmin(ctx.from)
     ? parseNaturalCreatorMissionIntent(text, [])
     : null;
@@ -10209,8 +10208,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await handleCreatorMissionPlan(ctx, explicitBenchmarkCreatorIntent, explicitBenchmarkCreatorAuthorization);
     return;
   }
-
-  const safeOperatorAction = earlyBuildIntent ? null : parseSafeOperatorAction(text);
+  const operatorActionCandidate = earlyBuildIntent ? null : classifySafeOperatorAction(text); const safeOperatorAction = operatorActionCandidate ? parseSafeOperatorAction(text) : null;
 	  if (safeOperatorAction && telegramBranchActionAuthorityAllowed(turnIntentEnvelope, {
 	    route: 'operator.safe_action',
 	    text,
@@ -10223,12 +10221,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.remember(user, text).catch(() => {});
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
     if (safeOperatorAction.kind === 'level5_smoke' && accessProfile !== 'operator') {
-      await ctx.reply(renderSparkAccessDenial(accessProfile, 'operating_system'));
-      return;
+      await ctx.reply(renderSparkAccessDenial(accessProfile, 'operating_system')); return;
     }
     if (!sparkAccessAllows(accessProfile, 'operating_system')) {
-      await ctx.reply(renderSparkAccessDenial(accessProfile, 'operating_system'));
-      return;
+      await ctx.reply(renderSparkAccessDenial(accessProfile, 'operating_system')); return;
     }
     await safeSendChatAction(ctx, 'typing');
     try {
@@ -10242,7 +10238,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
     return;
   }
-
+  if (operatorActionCandidate && !safeOperatorAction) {
+    const reply = operatorActionRootBoundaryReply(); await conversation.remember(user, text).catch(() => {});
+    await ctx.reply(reply); await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
   const preRecursiveNaturalChipBrief = conversation.isAdmin(ctx.from) ? parseNaturalChipCreateIntent(text) : null;
   const preRecursiveCreatorIntent = preRecursiveNaturalChipBrief
     ? parseNaturalCreatorMissionIntent(text, [])

@@ -47,13 +47,13 @@ function isOwnedFolderInspectionPath(folderPath: string, env: NodeJS.ProcessEnv)
   return Boolean(ownerRoot && normalizedWindowsPath(folderPath) === ownerRoot);
 }
 
-export function parseSafeOperatorAction(text: string, env: NodeJS.ProcessEnv = process.env): SafeOperatorAction | null {
+export function classifySafeOperatorAction(text: string): SafeOperatorAction | null {
   const normalized = normalizeMessage(text);
   const windowsPath = extractWindowsPath(text);
 
   if (
     windowsPath &&
-    isExpectedLevel5SmokePath(windowsPath, env) &&
+    normalizedWindowsPath(windowsPath).endsWith('\\appdata\\local\\temp\\spark-telegram-level5-smoke.txt') &&
     /\blevel\s*5\b/.test(normalized) &&
     /\bsmoke\s+test\b/.test(normalized) &&
     /\bcreate\b.*\bwrite\b.*\bread\b.*\b(?:delete|remove)\b/.test(normalized) &&
@@ -64,7 +64,6 @@ export function parseSafeOperatorAction(text: string, env: NodeJS.ProcessEnv = p
 
   if (
     windowsPath &&
-    isOwnedFolderInspectionPath(windowsPath, env) &&
     /\bcheck\s+whether\b.*\bexists\b/.test(normalized) &&
     /\blist\s+only\s+the\s+first\s+\d+\s+top[-\s]+level\s+folder\s+names\b/.test(normalized) &&
     /\b(?:do\s+not|don't|dont)\s+open\s+files\b/.test(normalized) &&
@@ -78,6 +77,21 @@ export function parseSafeOperatorAction(text: string, env: NodeJS.ProcessEnv = p
   }
 
   return null;
+}
+
+export function parseSafeOperatorAction(text: string, env: NodeJS.ProcessEnv = process.env): SafeOperatorAction | null {
+  const candidate = classifySafeOperatorAction(text);
+  if (candidate?.kind === 'level5_smoke') {
+    return isExpectedLevel5SmokePath(candidate.filePath, env) ? candidate : null;
+  }
+  if (candidate?.kind === 'folder_list') {
+    return isOwnedFolderInspectionPath(candidate.folderPath, env) ? candidate : null;
+  }
+  return null;
+}
+
+export function operatorActionRootBoundaryReply(): string {
+  return "I can run that bounded check only inside the active Spark workspace or this Windows user's approved temporary folder. Nothing was opened or changed.";
 }
 
 export async function runSafeOperatorAction(action: SafeOperatorAction): Promise<string> {
