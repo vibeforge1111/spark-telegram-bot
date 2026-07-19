@@ -594,6 +594,21 @@ test('builder repo resolver preserves explicit operator override', () => {
   assert.equal(resolved, explicitRepo);
 });
 
+test('Telegram Builder bridge uses an authenticated bounded warm session with one-shot fallback', () => {
+  const bridgeSource = readFileSync(path.join(__dirname, '..', 'src', 'builderBridge.ts'), 'utf8');
+  const warmSource = readFileSync(path.join(__dirname, '..', 'src', 'builderWarmBridge.ts'), 'utf8');
+
+  assert.match(bridgeSource, /SPARK_BUILDER_WARM_BRIDGE_MODE/);
+  assert.match(bridgeSource, /runBuilderTelegramBridgeWarm/);
+  assert.match(bridgeSource, /runBuilderTelegramBridgeOneShot/);
+  assert.match(bridgeSource, /Warm bridge unavailable; using one-shot CLI/);
+  assert.match(warmSource, /spark\.gateway\.stdio\.v2/);
+  assert.match(warmSource, /SPARK_GATEWAY_STDIO_TOKEN/);
+  assert.match(warmSource, /maxPending/);
+  assert.match(warmSource, /telegram_update/);
+  assert.doesNotMatch(warmSource, /simulation\s*:/);
+});
+
 test('formats black-box payload as compact event evidence', () => {
   const reply = formatAgentBlackBoxReply({
     request_id: 'req-private-id',
