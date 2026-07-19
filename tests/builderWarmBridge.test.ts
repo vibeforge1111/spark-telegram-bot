@@ -29,6 +29,10 @@ lines.on('line', (line) => {
     process.stdout.write(JSON.stringify({ok:false, protocol, request_id:request.request_id, error:{code:'turn_failed', detail:'secret-token /private/path'}}) + '\n');
     return;
   }
+  if (behavior === 'denied') {
+    process.stdout.write(JSON.stringify({ok:false, protocol, request_id:request.request_id, decision:'refused', detail:{response_text:'Access is not authorized.'}}) + '\n');
+    return;
+  }
   const respond = () => process.stdout.write(JSON.stringify({
     ok:true,
     protocol,
@@ -85,6 +89,18 @@ test('keeps Builder error details out of Telegram exceptions', async () => {
         return true;
       }
     );
+  } finally {
+    bridge.close();
+  }
+});
+
+test('preserves governed application refusals as replies rather than transport failures', async () => {
+  const bridge = client('denied');
+  try {
+    const response = await bridge.send({ message: { text: 'status' } }, 2000);
+    assert.equal(response.ok, false);
+    assert.equal(response.decision, 'refused');
+    assert.equal(response.detail?.response_text, 'Access is not authorized.');
   } finally {
     bridge.close();
   }

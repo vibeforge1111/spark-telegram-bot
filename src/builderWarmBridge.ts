@@ -225,10 +225,6 @@ export class BuilderWarmBridgeClient {
       active.reject(safeError(String((error as Record<string, unknown>).code || 'request_failed')));
       return;
     }
-    if (payload.ok !== true) {
-      active.reject(safeError('request_failed'));
-      return;
-    }
     active.resolve(payload as BuilderBridgeParsedPayload);
   }
 
