@@ -83,7 +83,7 @@ storage = "keychain"
 env_var = "ANTHROPIC_API_KEY"
 
 [run.default]
-command = "npm run start"
+command = "node dist/index.js"
 cwd = "."
 ready_check = "npm run health:runtime"
 post_ready_watch_seconds = 30
