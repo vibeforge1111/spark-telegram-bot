@@ -103,6 +103,7 @@ const tests = [
   'tests/scheduleEmptyState.test.ts',
   'tests/scheduleRenderContract.test.ts',
   'tests/diagnose.test.ts',
+  'tests/sparkQaOperatorSurface.test.ts',
   'tests/recursive.test.ts',
   'tests/recursiveCommand.test.ts',
   'tests/creatorMissionStatus.test.ts',
