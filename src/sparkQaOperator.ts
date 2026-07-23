@@ -464,7 +464,7 @@ export function renderStartupReleaseVerdict(result: StartupReleaseVerdictResult)
       '',
       'The canonical release verdict allows the bounded local improvement claim. Public-ready and network-absorbable are still separate explicit decisions.',
       `Public-ready: ${verdict.publicReady ? 'true' : 'false'}. Network-absorbable: ${verdict.networkAbsorbable ? 'true' : 'false'}.`,
-      result.dossierPath ? `Inspect: ${result.dossierPath}` : '',
+      result.dossierPath ? 'Inspect: available in the local Spark QA proof bundle.' : '',
     ].filter(Boolean).join('\n');
   }
 
@@ -477,7 +477,7 @@ export function renderStartupReleaseVerdict(result: StartupReleaseVerdictResult)
     `Remaining blockers: ${verdict.blockers.length ? verdict.blockers.join(', ') : 'promotion gates'}.`,
     `Next: ${verdict.nextGate}.`,
     'Public-ready: false. Network-absorbable: false.',
-    result.dossierPath ? `Inspect: ${result.dossierPath}` : '',
+    result.dossierPath ? 'Inspect: available in the local Spark QA proof bundle.' : '',
   ].filter(Boolean).join('\n');
 }
 
@@ -508,7 +508,7 @@ export function renderStartupBenchDossier(result: StartupBenchDossierResult): st
       '',
       `The promotion dossier allows the improvement claim for this bound candidate. Next: ${nextGate || 'ready for publication review'}.`,
       'Public-ready and network-absorbable are still separate release decisions.',
-      result.dossierPath ? `Inspect: ${result.dossierPath}` : '',
+      result.dossierPath ? 'Inspect: available in the local Spark QA proof bundle.' : '',
     ].filter(Boolean).join('\n');
   }
 
@@ -517,7 +517,7 @@ export function renderStartupBenchDossier(result: StartupBenchDossierResult): st
     '',
     `I cannot call it improved yet. scoreClaimAllowed=false and improvementClaimAllowed=false. Remaining blockers: ${blockers.length ? blockers.join(', ') : 'promotion gates'}.`,
     `Next: ${nextGate || blockers[0] || 'refresh or complete the bound proof gates'}.`,
-    result.dossierPath ? `Inspect: ${result.dossierPath}` : '',
+    result.dossierPath ? 'Inspect: available in the local Spark QA proof bundle.' : '',
   ].filter(Boolean).join('\n');
 }
 
