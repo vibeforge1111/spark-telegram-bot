@@ -712,7 +712,8 @@ test('formats self-improvement plan as probe-first actions', () => {
   assert.match(reply, /Priority actions/);
   assert.match(reply, /Registry visibility is not proof a route worked this turn/);
   assert.match(reply, /Say this next/);
-  assert.match(reply, /diagnostics\/self-awareness-gaps\.md/);
+  assert.match(reply, /Self-Awareness Gaps/);
+  assert.doesNotMatch(reply, /diagnostics\/self-awareness-gaps\.md/);
   assert.match(reply, /not autonomous self-modification/);
 });
 
@@ -823,7 +824,7 @@ test('compacts oversized wiki inventory replies for Telegram launch probes', () 
   assert.equal(reply.length < 1800, true);
 });
 
-test('formats wiki query hits with source paths and authority boundary', () => {
+test('formats wiki query hits without exposing internal source paths', () => {
   const reply = formatWikiQueryReply({
     query: 'recursive self-improvement loops',
     wiki_retrieval_status: 'supported',
@@ -842,7 +843,8 @@ test('formats wiki query hits with source paths and authority boundary', () => {
 
   assert.match(reply, /Spark LLM wiki query/);
   assert.match(reply, /Retrieval: supported \(1 hits\)/);
-  assert.match(reply, /system\/recursive-self-improvement-loops\.md/);
+  assert.match(reply, /Recursive Self-Improvement Loops/);
+  assert.doesNotMatch(reply, /system\/recursive-self-improvement-loops\.md/);
   assert.match(reply, /supporting packets, not live truth/);
 });
 
@@ -881,7 +883,8 @@ test('formats wiki answer with sources and live verification boundary', () => {
   assert.match(reply, /Live self snapshot/);
   assert.match(reply, /Builder: ready/);
   assert.match(reply, /Registry visibility is not proof a route worked this turn/);
-  assert.match(reply, /system\/tracing-and-observability-map\.md/);
+  assert.match(reply, /Tracing and Observability Map/);
+  assert.doesNotMatch(reply, /system\/tracing-and-observability-map\.md/);
   assert.match(reply, /Still needs live verification/);
 });
 
