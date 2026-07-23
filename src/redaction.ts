@@ -17,6 +17,8 @@ const GENERIC_TOKEN_PATTERNS = [
   /\bpypi-[A-Za-z0-9_-]{20,}\b/g,
   /\bdop_v1_[A-Za-z0-9_-]{20,}\b/g,
   /\bsscli_[A-Za-z0-9._-]{20,}\b/g,
+  /\bglm-[A-Za-z0-9._-]{20,}\b/g,
+  /\beyJ[A-Za-z0-9_-]{40,}\b/g,
   /\bfe_[a-z]+_[A-Za-z0-9]{20,}\b/g,
 ];
 const ENV_SECRET_ASSIGNMENT =

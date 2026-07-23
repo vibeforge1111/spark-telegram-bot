@@ -85,6 +85,15 @@ test('redacts bare fe provider keys without hiding ordinary feature flags', () =
   assert(redacted.includes('feature_flag_enabled=true'));
 });
 
+test('redacts GLM and MiniMax token formats used by Spark providers', () => {
+  const glm = `glm-${'a'.repeat(28)}`;
+  const minimax = `eyJ${'b'.repeat(48)}`;
+  const redacted = redactText(`zai=${glm} minimax=${minimax}`);
+
+  assert(!redacted.includes(glm));
+  assert(!redacted.includes(minimax));
+});
+
 test('redacts private key blocks', () => {
   const begin = '-----BEGIN ' + 'PRIVATE KEY-----';
   const end = '-----END ' + 'PRIVATE KEY-----';
