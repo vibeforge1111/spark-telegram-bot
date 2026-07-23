@@ -380,6 +380,9 @@ export function inferDiagnoseLikelyIssue(args: {
     if (args.spawnerOk && args.missionPingOk === true) {
       return 'Likely issue: plain chat provider is unhealthy, but Spawner mission routing is healthy. Plain chat may need a provider timeout/key/base URL check; /run builds can still work.';
     }
+    if (args.spawnerOk && args.missionPingOk === false) {
+      return 'Likely issue: the selected provider is failing for both plain chat and Spawner builds. Check its shared key, base URL, and model, or switch both roles to a healthy provider before restarting Telegram.';
+    }
     return 'Likely issue: plain chat provider is unhealthy. Check the selected chat model key/base URL, then restart the Telegram gateway.';
   }
   if (args.builder.mode === 'required' && !args.builder.available) {

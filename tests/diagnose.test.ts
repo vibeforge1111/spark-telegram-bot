@@ -332,7 +332,7 @@ test('infers likely diagnose issue from user-facing failure class', () => {
       chatProviderOk: false,
       missionPingOk: false
     }),
-    /plain chat provider is unhealthy/
+    /failing for both plain chat and Spawner builds/
   );
   assert.match(
     inferDiagnoseLikelyIssue({
