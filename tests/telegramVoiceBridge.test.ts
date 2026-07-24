@@ -139,3 +139,36 @@ test('keeps the media envelope when Telegram download is unavailable', async () 
   assert.equal((enriched.message as any).spark_media_turn.media_kind, 'voice');
   assert.doesNotMatch(JSON.stringify(enriched), /voice-file-id/);
 });
+
+test('logs the configured voice size limit and remediation for oversized media', async () => {
+  const previousLimit = process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES;
+  const previousWarn = console.warn;
+  const warnings: string[] = [];
+  process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES = '1024';
+  console.warn = (...args: unknown[]) => warnings.push(args.map(String).join(' '));
+  try {
+    const enriched = await buildVoiceBridgeUpdate(
+      {
+        update: {
+          update_id: 13,
+          message: { message_id: 23, voice: { file_id: 'oversized-file' } },
+        },
+        telegram: {
+          async getFileLink(): Promise<string> {
+            return 'https://telegram.example/large.ogg';
+          },
+        },
+      },
+      async () => fakeResponse(Buffer.alloc(0), { 'content-length': '2048' })
+    );
+
+    assert.equal((enriched.message as any).spark_media, undefined);
+    assert.match(warnings.join('\n'), /2\.0 KiB; limit 1\.0 KiB/);
+    assert.match(warnings.join('\n'), /SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES/);
+    assert.doesNotMatch(warnings.join('\n'), /oversized-file/);
+  } finally {
+    console.warn = previousWarn;
+    if (previousLimit === undefined) delete process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES;
+    else process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES = previousLimit;
+  }
+});

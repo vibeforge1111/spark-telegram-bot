@@ -39,6 +39,18 @@ test('rejects configured Python commands that are not on PATH', () => {
   );
 });
 
+test('explains a missing configured Python path without exposing the path', () => {
+  const missing = path.join(os.tmpdir(), 'private-workspace', 'missing-python');
+  assert.throws(
+    () => resolvePythonCommand(missing, ''),
+    (error: unknown) => {
+      assert.match(String(error), /points to a path that does not exist/);
+      assert.doesNotMatch(String(error), /private-workspace/);
+      return true;
+    }
+  );
+});
+
 test('rejects Windows shell wrappers for the configured Python command', () => {
   if (process.platform !== 'win32') {
     return;

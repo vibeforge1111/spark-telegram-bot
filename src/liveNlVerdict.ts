@@ -158,8 +158,15 @@ function parseLiveNlCommandCase(value: unknown, index: number): LiveNlCommandCas
     expectedOutcome: stringField(record, 'expectedOutcome')
   };
 
-  if (!parsed.id || !parsed.suite || !parsed.prompt || !parsed.expectedRoute || !parsed.expectedOutcome) {
-    throw new Error(`Live NL case ${index + 1} needs id, suite, prompt or turns, expectedRoute, and expectedOutcome.`);
+  const missing: string[] = [];
+  if (!parsed.id) missing.push('id');
+  if (!parsed.suite) missing.push('suite');
+  if (!parsed.prompt) missing.push('prompt or turns');
+  if (!parsed.expectedRoute) missing.push('expectedRoute');
+  if (!parsed.expectedOutcome) missing.push('expectedOutcome');
+  if (missing.length > 0) {
+    const label = parsed.id ? `Live NL case ${parsed.id}` : `Live NL case ${index + 1}`;
+    throw new Error(`${label} is missing required field(s): ${missing.join(', ')}.`);
   }
   if (!['safe', 'mission', 'writes_files', 'external'].includes(parsed.risk)) {
     throw new Error(`Live NL case ${parsed.id} has unsupported risk ${parsed.risk || 'unknown'}.`);

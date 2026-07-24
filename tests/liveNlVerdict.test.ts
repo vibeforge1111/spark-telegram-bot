@@ -249,6 +249,13 @@ test('rejects malformed command cases', () => {
   );
 });
 
+test('names every missing required live command field', () => {
+  assert.throws(
+    () => parseLiveNlCommandCases([{ id: 'missing-fields', risk: 'safe' }]),
+    /Live NL case missing-fields is missing required field\(s\): suite, prompt or turns, expectedRoute, expectedOutcome/
+  );
+});
+
 test('actual live command catalog keeps route-boundary prompt cards', () => {
   const catalogPath = resolve(__dirname, '../ops/natural-language-live-commands.json');
   const actualCases = parseLiveNlCommandCases(JSON.parse(readFileSync(catalogPath, 'utf8')));

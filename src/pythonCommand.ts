@@ -14,7 +14,18 @@ function assertSafePythonExecutable(candidate: string): string {
   if (process.platform === 'win32' && WINDOWS_SHELL_EXTENSIONS.has(extension)) {
     throw new Error(`SPARK_BUILDER_PYTHON cannot point to a shell script: ${resolved}`);
   }
-  const stat = statSync(resolved);
+  let stat;
+  try {
+    stat = statSync(resolved);
+  } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error
+      ? String((error as NodeJS.ErrnoException).code || '')
+      : '';
+    if (code === 'ENOENT') {
+      throw new Error('SPARK_BUILDER_PYTHON points to a path that does not exist.');
+    }
+    throw error;
+  }
   if (!stat.isFile()) {
     throw new Error(`SPARK_BUILDER_PYTHON is not a file: ${resolved}`);
   }

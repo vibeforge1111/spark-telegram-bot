@@ -15,6 +15,12 @@ async function test(name: string, fn: () => void | Promise<void>): Promise<void>
 }
 
 async function main(): Promise<void> {
+  await test('runChipLoop explains how to supply a missing chip key', async () => {
+    const result = await runChipLoop('', 1);
+    assert.equal(result.ok, false);
+    assert.match(result.error || '', /Try \/loop <chip_key> \[rounds\]/);
+  });
+
   await test('formats raw Builder loop process errors for Telegram', () => {
     const error = new Error(
       'Command failed: /usr/local/bin/python3 -m spark_intelligence.cli loops run --home /Users/example/.spark/state --chip domain-chip-codebase-optimization-loop --rounds 1'
