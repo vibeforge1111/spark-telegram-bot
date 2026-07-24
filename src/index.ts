@@ -139,6 +139,12 @@ import {
   renderSparkLiveSummary,
   shouldShowRawSparkLiveDetails
 } from './sparkLiveStatusSurface';
+import { resolveLiveStatusFollowup } from './liveStatusFollowup';
+import {
+  renderReleaseDecisionModelAnswer,
+  type ProviderRole
+} from './providerRuntimeReply';
+import { renderForwardOnlyPointsSafetyAnswer } from './pointsSafetyReply';
 import {
   accessActionNeedsConfirmation,
   buildSparkAccessActionKeyboard,
@@ -303,6 +309,7 @@ import {
   isNoEditSpawnerProbeExplanationRequest,
   isNoExecutionExplanationPrompt,
   isNoExecutionBoundary,
+  isProviderRuntimeConfigQuestion,
   isPlainChatAnswerEditingRequest,
   isProtectedMissionCancelPronounIntent,
   isProtectedMissionPausePronounIntent,
@@ -771,6 +778,7 @@ type SparkReadOnlyStateQuestion =
   | 'harness_core_installed'
   | 'telegram_primary_polling'
   | 'contract_coverage_blockers'
+  | 'provider_runtime_config'
   | 'registry_drift'
   | 'mission_update_preference'
   | 'pending_action';
@@ -822,6 +830,52 @@ async function renderAuthoritativeSparkLiveStateAnswer(
   }
 }
 
+function parseProviderStatusRoles(output: string): ProviderRole[] {
+  const roles: ProviderRole[] = [];
+  const lines = output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].match(
+      /^\[OK\]\s+(\w+)\s+provider=([^\s]+)\s+model=([^\s]+)\b/i
+    );
+    if (!match) continue;
+    const tuningLine = lines[index + 1] || '';
+    roles.push({
+      role: match[1].toLowerCase(),
+      provider: match[2],
+      model: match[3],
+      serviceTier: tuningLine.match(/\bservice_tier=([^\s]+)/i)?.[1],
+      reasoning: tuningLine.match(/\breasoning=([^\s]+)/i)?.[1]
+    });
+  }
+  return roles;
+}
+
+async function renderAuthoritativeProviderRuntimeConfigAnswer(
+  questionText: string
+): Promise<string> {
+  try {
+    const providerStatus = await runSparkCli(['providers', 'status'], 45_000);
+    const roles = parseProviderStatusRoles(providerStatus);
+    const releaseAnswer = renderReleaseDecisionModelAnswer(roles, questionText);
+    if (releaseAnswer) return releaseAnswer;
+    if (!roles.length) {
+      return 'I checked fresh provider status, but it did not expose structured chat or mission roles. I did not change provider settings.';
+    }
+    if (shouldShowRawSparkLiveDetails(questionText)) {
+      return [
+        'Fresh provider status is readable right now.',
+        ...roles.map((role) => (
+          `• ${role.role}: ${role.provider} (${role.model}), reasoning=${role.reasoning || 'not reported'}, service tier=${role.serviceTier || 'not reported'}.`
+        )),
+        'I did not change provider settings.'
+      ].join('\n');
+    }
+    return `Provider roles are configured and readable right now: ${roles.map((role) => `${role.role} uses ${role.model} through ${role.provider}`).join('; ')}. I did not change provider settings.`;
+  } catch {
+    return 'I could not read fresh provider status from this Telegram runtime, so I will not guess which model is active. I did not change provider settings.';
+  }
+}
+
 function sparkSystemMapEvidencePath(fileName: string): string {
   const stateDir = process.env.SPARK_SYSTEM_MAP_STATE_DIR?.trim() ||
     path.join(os.homedir(), '.spark', 'state', 'system-map');
@@ -841,6 +895,9 @@ function classifySparkReadOnlyStateQuestion(text: string): SparkReadOnlyStateQue
     /\b(?:read|show|check|tell|what|whether|is|are|current|status)\b/.test(normalized) ||
     /\b(?:any|if)\b.{0,40}\b(?:blockers?|drift|pending|waiting)\b/.test(normalized);
   if (!asksRead) return null;
+  if (isProviderRuntimeConfigQuestion(text)) {
+    return 'provider_runtime_config';
+  }
   if (/\b(?:install|repair|restart|start|run|launch|execute|write|save|change|set)\b/.test(normalized) &&
       !/\b(?:installed|install\s+state|last\s+install|running|run\s+compile|read-only|read\s+only)\b/.test(normalized)) {
     return null;
@@ -1099,6 +1156,10 @@ async function renderSparkReadOnlyStateAnswer(kind: SparkReadOnlyStateQuestion, 
       return renderTelegramPrimaryPollingAnswer();
     case 'contract_coverage_blockers':
       return renderContractCoverageBlockersAnswer();
+    case 'provider_runtime_config':
+      return renderAuthoritativeProviderRuntimeConfigAnswer(
+        String(ctx.message?.text || '')
+      );
     case 'registry_drift':
       return renderRegistryDriftAnswer();
     case 'mission_update_preference':
@@ -9693,6 +9754,49 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
   })
     ? parsedEarlyBuildIntent
     : null;
+  const pointsSafetyReply = !earlyBuildIntent
+    ? renderForwardOnlyPointsSafetyAnswer(text)
+    : null;
+  if (pointsSafetyReply) {
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(
+      ctx,
+      naturalRouteShadow,
+      'spark.points.forward_only',
+      'spark-telegram-bot',
+      'answer'
+    );
+    await ctx.reply(pointsSafetyReply);
+    await conversation.rememberAssistantReply(user, pointsSafetyReply).catch(() => {});
+    return;
+  }
+  const liveStatusFollowup = !earlyBuildIntent
+    ? await resolveLiveStatusFollowup(
+        text,
+        await conversation.getRecentTurns(user, 6).catch(() => []),
+        () => renderAuthoritativeSparkLiveStateAnswer({ includeAction: false })
+      )
+    : null;
+  if (liveStatusFollowup) {
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(
+      ctx,
+      naturalRouteShadow,
+      'spark.live_status.followup',
+      'spark-telegram-bot',
+      'answer'
+    );
+    await ctx.reply(liveStatusFollowup);
+    recordTelegramSourceUsedEvidence(
+      ctx,
+      user,
+      text,
+      'telegram_live_status_followup',
+      runtimeTruthSourceEvidence(text)
+    );
+    await conversation.rememberAssistantReply(user, liveStatusFollowup).catch(() => {});
+    return;
+  }
   const distilledPrdReply = !earlyBuildIntent ? await renderDistilledPrdFastPathReplyWithEvidence(text) : null;
   if (distilledPrdReply) {
     await conversation.remember(user, text).catch(() => {});
@@ -10145,6 +10249,8 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
             ? 'telegram pending-state stores'
             : readOnlyStateQuestion === 'mission_update_preference'
               ? 'telegram mission relay preferences'
+              : readOnlyStateQuestion === 'provider_runtime_config'
+                ? 'spark providers status'
               : 'spark live status --json',
         summary: 'Telegram answered a read-only Spark state question without execution authority.'
       }

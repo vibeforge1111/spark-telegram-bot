@@ -61,6 +61,30 @@ export function renderSparkLiveSummary(
 ): string {
   const healthy = summary.liveReady && summary.spawnerOk && summary.telegramOk;
   const includeAction = opts.includeAction ?? true;
+
+  if (!opts.rawDetails) {
+    const state = healthy
+      ? 'Spark is healthy right now.'
+      : 'Spark needs attention right now.';
+    const liveFacts = healthy
+      ? 'Spawner is reachable, Telegram is polling, and Mission Control is ready'
+      : `Spawner ${summary.spawnerOk ? 'is reachable' : 'needs attention'}, Telegram ${summary.telegramOk ? 'is polling' : 'needs attention'}, and Mission Control ${summary.liveReady ? 'is ready' : 'is not fully ready'}`;
+    const sourcePrefix = opts.sourceDisclosure
+      ? "I'm using fresh runtime state here, not memory; it shows "
+      : '';
+    let followUp = `${sourcePrefix}${liveFacts}`;
+    if (includeAction) {
+      followUp += healthy
+        ? (opts.restartGuidance
+            ? '; no restart is needed, and restarting now would mostly add churn'
+            : '; no repair action is needed')
+        : (opts.restartGuidance
+            ? '; do not blindly restart before confirming which supervised surface is down'
+            : '; repair the unhealthy surface, then rerun this fresh check');
+    }
+    return `${state} ${followUp}.`;
+  }
+
   const lines: string[] = [
     healthy ? '✅ Spark is healthy right now.' : '⚠️ Spark needs attention right now.'
   ];
@@ -105,5 +129,8 @@ export function renderSparkLiveSummary(
 }
 
 export function shouldShowRawSparkLiveDetails(text: string): boolean {
-  return /\b(?:raw|debug|details?|pids?|pid|provider|providers|models?|supervision|exact|full)\b/i.test(text);
+  if (/\b(?:no|without|hide|omit|skip|exclude)\s+(?:raw|debug|details?|pids?|pid|supervision|exact|full)\b/i.test(text)) {
+    return false;
+  }
+  return /\b(?:raw|debug|details?|pids?|pid|supervision|exact|full)\b/i.test(text);
 }

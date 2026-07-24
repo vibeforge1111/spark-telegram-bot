@@ -30,12 +30,10 @@ test('renders fresh Spark live summary without raw proof by default', () => {
   const reply = renderSparkLiveSummary(summary, { sourceDisclosure: true });
 
   assert.match(reply, /Spark is healthy right now/);
-  assert.match(reply, /I'm using fresh runtime state here, not memory\./);
-  assert.match(reply, /Live loop/);
-  assert.match(reply, /Spawner: reachable/);
-  assert.match(reply, /Telegram: polling/);
-  assert.match(reply, /Mission Control: ready/);
-  assert.match(reply, /No repair action needed right now\./);
+  assert.match(reply, /fresh runtime state here, not memory/i);
+  assert.match(reply, /Spawner is reachable, Telegram is polling, and Mission Control is ready/i);
+  assert.match(reply, /no repair action is needed/i);
+  assert.doesNotMatch(reply, /Live loop|^\s*•/m);
   assert.doesNotMatch(reply, /Raw proof/);
   assert.doesNotMatch(reply, /\/Users\/alchemistab|pid=1234|8 providers listed|chat=codex/);
 });
@@ -65,4 +63,6 @@ test('detects explicit raw Spark live detail requests', () => {
   assert.equal(shouldShowRawSparkLiveDetails('what is the current Spark status?'), false);
   assert.equal(shouldShowRawSparkLiveDetails('show raw provider and supervision details'), true);
   assert.equal(shouldShowRawSparkLiveDetails('give exact pids for live status'), true);
+  assert.equal(shouldShowRawSparkLiveDetails('which model is Spark using?'), false);
+  assert.equal(shouldShowRawSparkLiveDetails('show status without raw details'), false);
 });
