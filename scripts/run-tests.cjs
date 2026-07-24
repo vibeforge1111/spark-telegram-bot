@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const tests = [
   'tests/launchMode.test.ts',
+  'tests/packageLifecycle.test.ts',
   'tests/gatewayOwnership.test.ts',
   'tests/onboardingBridge.test.ts',
   'tests/buildIntent.test.ts',
