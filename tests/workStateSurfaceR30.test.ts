@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import axios from 'axios';
 import { inferMissionFromRecentContext, parseSpawnerBoardNaturalIntent } from '../src/conversationIntent';
 import {
+  isSparkCommandDiscoveryQuestion,
   postInstallFirstRunPath,
+  renderEssentialSparkCommands,
   renderPostInstallFirstRunReply,
   renderTelegramHelp,
   renderTelegramStartWelcome
@@ -75,6 +77,17 @@ void (async () => {
     assert.match(adminHelp, /\/workspace/);
     assert.match(adminHelp, /\/route_probe/);
     assert.doesNotMatch(adminHelp, /\/agent_context|\/operating_context/);
+  });
+
+  await test('starts command discovery with a compact useful set', () => {
+    assert.equal(isSparkCommandDiscoveryQuestion('what commands can I use?'), true);
+    assert.equal(isSparkCommandDiscoveryQuestion('how is the mission going?'), false);
+    const reply = renderEssentialSparkCommands({ admin: true });
+    assert.match(reply, /\/diagnose/);
+    assert.match(reply, /\/run/);
+    assert.match(reply, /\/board/);
+    assert.match(reply, /\/help.*full/i);
+    assert.ok(reply.split('\n').length <= 10, reply);
   });
 
   await test('routes generic active-task status language to live board truth', () => {

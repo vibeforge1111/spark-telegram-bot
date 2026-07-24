@@ -441,7 +441,9 @@ import { formatVoiceMediaCaption } from './voiceCaption';
 import { writeTelegramVoiceBridgeRuntimeState } from './voiceRuntimeState';
 import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
 import {
+  isSparkCommandDiscoveryQuestion,
   postInstallFirstRunPath,
+  renderEssentialSparkCommands,
   renderPostInstallFirstRunReply,
   renderTelegramHelp,
   renderTelegramStartWelcome
@@ -10283,6 +10285,15 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
         summary: 'Telegram answered from no-edit Spawner probe mission evidence when available.'
       }
     ]);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isSparkCommandDiscoveryQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    const reply = renderEssentialSparkCommands({ admin: conversation.isAdmin(ctx.from) });
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.command_discovery', 'spark-telegram-bot', 'plain_chat.command_discovery');
+    await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }

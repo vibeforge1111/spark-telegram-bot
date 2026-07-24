@@ -54,6 +54,29 @@ export function renderTelegramStartWelcome(input: TelegramStartWelcomeInput): st
   ].join('\n');
 }
 
+export function isSparkCommandDiscoveryQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  return (
+    /\b(?:what|which|show|list|see)\b.{0,50}\b(?:spark\s+|telegram\s+)?commands?\b/.test(normalized)
+    || /\bcommands?\b.{0,40}\b(?:available|can\s+i\s+use|do\s+you\s+support)\b/.test(normalized)
+  );
+}
+
+export function renderEssentialSparkCommands(input: { admin: boolean }): string {
+  const lines = [
+    'The useful starting set is:',
+    '',
+    '• /diagnose - check the connected systems',
+    '• /remember <text> - save something important',
+    '• /recall <topic> - ask what I remember',
+  ];
+  if (input.admin) {
+    lines.splice(3, 0, '• /run <goal> - start a mission', '• /board - see mission state');
+  }
+  lines.push('', '/help has the full access-aware command reference.');
+  return lines.join('\n');
+}
+
 export function renderTelegramHelp(input: { admin: boolean }): string {
   const lines = [
     'Spark commands',
