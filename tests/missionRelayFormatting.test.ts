@@ -8,7 +8,9 @@ import {
   buildMissionSurfaceLinks,
   formatMissionHeartbeatForTelegram,
   formatProgressMessageForTelegram,
+  getTelegramMissionLinkPreference,
   getTelegramRelayIdentity,
+  getTelegramRelayVerbosity,
   formatProviderCompletionForTelegram,
   formatMissionRelayStateMessageForTelegram,
   isCompletionDeliveryCachedForTests,
@@ -24,6 +26,8 @@ import {
   resetMissionRelayDeliveryStateForTests,
   resolveReadyProjectOpenLinkForTests,
   sendFetchedCompletionSummaryForTests,
+  setTelegramMissionLinkPreference,
+  setTelegramRelayVerbosity,
   shouldAcknowledgeRelayWithoutTelegramDelivery,
   shouldAcceptRelayEventForThisBot,
   shouldSkipDuplicateForTests,
@@ -1292,6 +1296,19 @@ async function asyncTest(name: string, fn: () => Promise<void>): Promise<void> {
 }
 
 void (async () => {
+  await asyncTest('serializes concurrent relay preference updates without dropping either field', async () => {
+    resetJsonStateForTests();
+    process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-relay-preferences-test-'));
+
+    await Promise.all([
+      setTelegramRelayVerbosity('concurrent-chat', 'minimal'),
+      setTelegramMissionLinkPreference('concurrent-chat', 'both')
+    ]);
+
+    assert.equal(await getTelegramRelayVerbosity('concurrent-chat'), 'minimal');
+    assert.equal(await getTelegramMissionLinkPreference('concurrent-chat'), 'both');
+  });
+
   await asyncTest('plain no-build correction can suppress the latest relay handoff for the chat', async () => {
     resetMissionRelayDeliveryStateForTests();
     const originalPort = process.env.TELEGRAM_RELAY_PORT;

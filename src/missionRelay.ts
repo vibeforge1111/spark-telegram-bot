@@ -235,6 +235,19 @@ async function readTelegramRelayPreferences(): Promise<TelegramRelayPreferences>
   return (await readJsonFile<TelegramRelayPreferences>(PREFERENCES_PATH)) || {};
 }
 
+let preferenceUpdateChain: Promise<void> = Promise.resolve();
+
+function updateTelegramRelayPreferences(
+  mutate: (current: TelegramRelayPreferences) => TelegramRelayPreferences
+): Promise<void> {
+  const next = preferenceUpdateChain.then(async () => {
+    const preferences = await readTelegramRelayPreferences();
+    await writeJsonAtomic(PREFERENCES_PATH, mutate(preferences));
+  });
+  preferenceUpdateChain = next.catch(() => undefined);
+  return next;
+}
+
 export async function getTelegramRelayVerbosity(chatId: string | number): Promise<TelegramRelayVerbosity> {
   const preferences = await readTelegramRelayPreferences();
   const configured = preferences.relayVerbosityByChatId?.[String(chatId)];
@@ -251,28 +264,26 @@ export async function setTelegramRelayVerbosity(
   chatId: string | number,
   verbosity: TelegramRelayVerbosity
 ): Promise<void> {
-  const preferences = await readTelegramRelayPreferences();
-  await writeJsonAtomic(PREFERENCES_PATH, {
+  await updateTelegramRelayPreferences((preferences) => ({
     ...preferences,
     relayVerbosityByChatId: {
       ...(preferences.relayVerbosityByChatId || {}),
       [String(chatId)]: verbosity
     }
-  });
+  }));
 }
 
 export async function setTelegramMissionLinkPreference(
   chatId: string | number,
   preference: TelegramMissionLinkPreference
 ): Promise<void> {
-  const preferences = await readTelegramRelayPreferences();
-  await writeJsonAtomic(PREFERENCES_PATH, {
+  await updateTelegramRelayPreferences((preferences) => ({
     ...preferences,
     missionLinksByChatId: {
       ...(preferences.missionLinksByChatId || {}),
       [String(chatId)]: preference
     }
-  });
+  }));
 }
 
 export function describeTelegramRelayVerbosity(verbosity: TelegramRelayVerbosity): string {
