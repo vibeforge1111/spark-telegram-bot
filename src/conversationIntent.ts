@@ -102,6 +102,23 @@ export function renderRawLogSafetyReply(): string {
   ].join(' ');
 }
 
+export function isMarketChartProofBoundaryQuestion(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) return false;
+  const tradingView = /\b(?:tradingview|trading view)\b/.test(normalized);
+  const levels = /\b(?:hypeusd|hypeusdt|support|resistance|levels?|lines?)\b/.test(normalized);
+  const extraction = /\b(?:show|draw|mark|plot|sketch|image|weekly|timeframe|extract(?:ed)?|from|exact)\b/.test(normalized);
+  const proofBoundary = /\b(?:do\s+not\s+trade|financial\s+advice|cannot\s+directly\s+inspect|proof|do\s+not\s+invent)\b/.test(normalized);
+  return tradingView && levels && (extraction || proofBoundary);
+}
+
+export function renderMarketChartProofBoundaryReply(): string {
+  return [
+    "I can help interpret the chart, but I can't truthfully give exact current levels without readable chart evidence.",
+    "Send the visible chart or the ticker and timeframe for an approved live lookup. I won't invent levels or place a trade."
+  ].join(' ');
+}
+
 const HIGH_AGENCY_WORD_PATTERN = /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|remember|draft|canvas|browser|computer-use|computer\s+use|restart)\b/;
 
 export function isActionWordMetaDiscussion(text: string): boolean {

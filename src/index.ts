@@ -287,6 +287,7 @@ import {
   isExplicitContextualBuildRequest,
   isGlobalAgentDoctrineRequest,
   isMissionRoutingFailureClassQuestion,
+  isMarketChartProofBoundaryQuestion,
   isMemoryVoiceStateQuestion,
   isModelSwitchGateExplanationRequest,
   isNoEditSpawnerProbeExplanationRequest,
@@ -323,6 +324,7 @@ import {
   renderChatRuntimeFailureReply,
   renderAccessProductRuleReply,
   renderMissionRoutingFailureClassReply,
+  renderMarketChartProofBoundaryReply,
   renderMemoryVoiceStateReply,
   renderModelSwitchGateExplanationReply,
   renderNoEditSpawnerProbeExplanationReply,
@@ -9506,7 +9508,8 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
   }
   const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text);
   const globalAgentDoctrineRequest = isGlobalAgentDoctrineRequest(text);
-  const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest ? parseBuildIntent(text) : null;
+  const marketChartProofBoundary = isMarketChartProofBoundaryQuestion(text);
+  const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest && !marketChartProofBoundary ? parseBuildIntent(text) : null;
   const telegramIntentGateV2 = classifyTelegramIntentV2(text, {
     naturalRouteDecision: naturalRouteShadow
   });
@@ -9525,6 +9528,14 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.credential_safety', 'spark-telegram-bot', 'plain_chat.credential_safety');
     await ctx.reply(credentialReply);
     await conversation.rememberAssistantReply(user, credentialReply).catch(() => {});
+    return;
+  }
+  if (marketChartProofBoundary) {
+    const reply = renderMarketChartProofBoundaryReply();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.market_chart_proof_boundary', 'spark-telegram-bot', 'plain_chat.safety_boundary');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
   if (isRawLogSafetyQuestion(text)) {

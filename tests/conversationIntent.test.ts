@@ -71,6 +71,7 @@ import {
   isLocalSparkServiceRequest,
   isRuntimeOutputArtifactRequest,
   isMissionExecutionConfirmation,
+  isMarketChartProofBoundaryQuestion,
   isModelSwitchGateExplanationRequest,
   isNoEditSpawnerProbeExplanationRequest,
   isPlainChatAnswerEditingRequest,
@@ -92,6 +93,7 @@ import {
   parseMissionUpdatePreferenceIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
+  renderMarketChartProofBoundaryReply,
   renderXContentCredentialBoundaryReply,
   renderXPostReviewFromLinksBoundaryReply,
   shouldSuppressBuilderReplyForPlainChat,
@@ -934,6 +936,14 @@ test('recognizes raw-log sharing questions and answers with bounded redaction gu
   assert.match(reply, /tokens, keys, chat IDs/i);
   assert.doesNotMatch(reply, /Spark Compete/i);
   assert.ok(reply.split('\n').length <= 2, reply);
+});
+
+test('keeps TradingView level extraction behind visible proof', () => {
+  assert.equal(isMarketChartProofBoundaryQuestion('Draw the exact support and resistance levels from TradingView for HYPEUSDT weekly'), true);
+  assert.equal(isMarketChartProofBoundaryQuestion('build a market dashboard'), false);
+  const reply = renderMarketChartProofBoundaryReply();
+  assert.match(reply, /can't truthfully give exact current levels/i);
+  assert.match(reply, /won't invent levels or place a trade/i);
 });
 
 test('builds recent-turn evidence for contextual Memory Doctor requests', () => {
