@@ -887,6 +887,18 @@ function isPrdWritingOnlyRequest(text: string): boolean {
   return !/\b(?:then|and\s+then|after(?:wards)?|next)\b.{0,80}\b(?:build|ship|implement|launch|run\s+(?:it|this|spawner|mission))\b/i.test(text);
 }
 
+function isStandaloneImageGenerationRequest(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) return false;
+  const asksForImage =
+    /\b(?:generate|create|make|draw|render)\s+(?:me\s+|us\s+)?(?:an?\s+|the\s+)?(?:image|picture|photo|artwork|illustration)\b/.test(normalized) ||
+    /\b(?:image|picture|photo|artwork|illustration)\s+of\b/.test(normalized);
+  const asksForProduct =
+    /\b(?:app|application|website|site|page|dashboard|tool|interface|gallery|editor|generator)\b/.test(normalized) &&
+    /\b(?:build|create|make|scaffold|develop)\b/.test(normalized);
+  return asksForImage && !asksForProduct;
+}
+
 export function parseBuildIntent(text: string): BuildIntent | null {
   const original = text.trim().replace(/[‘’]/g, "'");
   const commandBoundary = resolveBuildCommandBoundary(original);
@@ -897,6 +909,7 @@ export function parseBuildIntent(text: string): BuildIntent | null {
     : commandText;
   if (isExactReplyNoFileProbe(original)) return null;
   if (isFilesystemOperationProbe(original)) return null;
+  if (isStandaloneImageGenerationRequest(buildText)) return null;
   if (isMakeSenseConversation(original)) return null;
   if (isNoExecutionBoundary(buildText)) return null;
   if (isBuildRouteMetaDiscussion(buildText)) return null;

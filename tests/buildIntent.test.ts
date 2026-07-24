@@ -343,6 +343,9 @@ test('does not turn exploratory conversation into an accidental build', () => {
   );
   assert.equal(parseBuildIntent('create a clean structure for the launch hype'), null);
   assert.equal(parseBuildIntent('make a better framework for the NFT sale conversation'), null);
+  assert.equal(parseBuildIntent('Generate an image of a futuristic Spark workspace'), null);
+  assert.equal(parseBuildIntent('Create an image of a robot assistant in a neon workspace'), null);
+  assert.equal(parseBuildIntent('Make me a picture of Spark Mission Control'), null);
   assert.ok(parseBuildIntent('make a daily report dashboard for investors'));
   assert.ok(parseBuildIntent('Build a private local-first dashboard for memory reports'));
   assert.ok(parseBuildIntent('Build a Spark memory dashboard.'));
@@ -361,6 +364,11 @@ test('does not treat philosophical questions with modal verbs as build intent', 
   assert.ok(parseBuildIntent('Can you create a dashboard for me?'));
   // And "Could we build..." should still trigger
   assert.ok(parseBuildIntent('Could we build a landing page?'));
+});
+
+test('keeps explicit image products on the build path', () => {
+  assert.ok(parseBuildIntent('Build an image gallery app for our campaign assets'));
+  assert.ok(parseBuildIntent('Create an image generator website with a prompt editor'));
 });
 
 test('infers a compact product name for long conceptual build briefs', () => {
