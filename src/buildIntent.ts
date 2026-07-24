@@ -149,6 +149,16 @@ export function polishBuildProjectName(value: string): string {
   return polishInferredProjectName(clean);
 }
 
+function cleanProjectNameOfLeakedPath(name: string, sourceText: string): string {
+  if (!/[\\/~]|\b[A-Za-z]:[\\/]|\.(?:html?|jsx?|tsx?|css|scss|py|json|md|txt|php|rb|go|rs|java|cpp?|sh|ya?ml)\b/i.test(name)) {
+    return name;
+  }
+  const noun = sourceText
+    .toLowerCase()
+    .match(/\b(landing\s+page|web\s+app|dashboard|website|application|app|tool|site|page|game|tracker|planner|portal|panel|viewer|board|blog|wiki|cms|api)\b/);
+  return noun ? titleCaseProjectName(noun[1]) : 'Spark App';
+}
+
 function inferProductPhraseProjectName(prd: string): string | null {
   const normalized = prd.replace(/\s+/g, ' ').trim();
   const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|backend|api|service|bot|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page)';
@@ -939,7 +949,10 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (isAllocationStrategyQuestion(`${trimmed} ${prd}`)) return null;
   if (isRecursiveInsightPacketRequest(`${trimmed} ${prd}`)) return null;
   if (isAmbiguousContextualBuildRequest(trimmed, projectPath, prd)) return null;
-  const projectName = polishBuildProjectName(inferProjectName(prd, projectPath));
+  const projectName = cleanProjectNameOfLeakedPath(
+    polishBuildProjectName(inferProjectName(prd, projectPath)),
+    original
+  );
   const buildMode = inferBuildMode(buildText, prd, projectPath);
   const buildLane = inferBuildLane(buildText, prd, projectPath, buildMode.mode);
 

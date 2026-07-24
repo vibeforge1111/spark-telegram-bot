@@ -58,6 +58,7 @@ const tests = [
   'tests/controlProofGoalPrompt.test.ts',
   'tests/controlProofLiveCanaryPack.test.ts',
   'tests/runtimeFreshness.test.ts',
+  'tests/longPasteRoutingBoundary.test.ts',
   'tests/runtimeSyncCompatibility.test.ts',
   'tests/runnerPreflight.test.ts',
   'tests/turnIntent350Matrix.test.ts',

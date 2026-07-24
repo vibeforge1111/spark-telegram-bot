@@ -24,6 +24,20 @@ test('parses a compact direct build request', () => {
   assert.doesNotMatch(intent.prd, /C:\\Users\\USER\\Desktop/);
 });
 
+test('never lets a filesystem path leak into the inferred project name', () => {
+  const pathLike = /[\\/~]|\.(?:html?|js|css|py)\b/i;
+  for (const query of [
+    'build a page at ~/Desktop/my project/index.html that says hello',
+    'build a landing page at ~/sites/cafe that lists the menu',
+    'build a static page at /etc/passwd/notes.html',
+    'build a dashboard in /home/me/work/dash',
+  ]) {
+    const intent = parseBuildIntent(query);
+    assert.ok(intent, `should still build: ${query}`);
+    assert.doesNotMatch(intent.projectName, pathLike);
+  }
+});
+
 test('promotes larger new projects to advanced PRD mode', () => {
   const intent = parseBuildIntent(
     'build this at C:\\Users\\USER\\Desktop\\spark-advanced-probe: a vanilla-JS single-page web app called Spark Advanced Probe. Files: index.html, styles.css, app.js, README.md. No build step. It shows cards, filters, editable notes, localStorage persistence, animated status states, and responsive layout.'

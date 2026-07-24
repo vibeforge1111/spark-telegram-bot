@@ -1731,6 +1731,7 @@ function isMetaNoActionTriggerDiscussion(text: string): boolean {
 
 export function shouldAnswerAuthoritativeRuntimeStatus(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (normalized.length > 240) return false;
   if (isMetaNoActionTriggerDiscussion(text)) return false;
   if (!runtimeTruthSignals(text).live) return false;
   return (
@@ -4388,7 +4389,8 @@ export function formatAocQuestionAnswer(query: string): string {
 export function formatBrowserProofQuestionAnswer(query: string): string {
   const normalized = query.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return '';
-  const asksAboutBrowser = /\b(browser|browse|browsing|web pages?|pages?)\b/.test(normalized);
+  if (normalized.length > 240) return '';
+  const asksAboutBrowser = /\b(browser|browse|browsing|web pages?)\b/.test(normalized);
   const asksAboutComputerUse = /\bcomputer[-\s]*use\b/.test(normalized);
   const asksAuthorization = /\b(?:authori[sz]e|authori[sz]ed|authorization|permission|approval|approve|tool approval|how should)\b/.test(normalized);
   const blocksUseNow = /\b(?:do\s+not|don't|dont|without|not)\s+(?:use|open|call|run)\b/.test(normalized);
