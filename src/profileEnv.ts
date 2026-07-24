@@ -58,6 +58,10 @@ export function resolveSparkCliCommand(env: NodeJS.ProcessEnv = process.env): st
   const configured = env.SPARK_CLI_BIN?.trim();
   if (configured) return configured;
   const executable = process.platform === 'win32' ? 'spark.cmd' : 'spark';
+  const pathEntries = (env.PATH || '').split(path.delimiter).filter(Boolean);
+  if (pathEntries.some((entry) => fs.existsSync(path.join(entry, executable)))) {
+    return executable;
+  }
   const installed = path.join(resolveSparkHome(env), 'bin', executable);
   return fs.existsSync(installed) ? installed : executable;
 }

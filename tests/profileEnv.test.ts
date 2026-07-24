@@ -71,6 +71,18 @@ test('resolves Spark home and installed CLI from a non-default prefix', () => {
   }
 });
 
+test('honors an available PATH Spark command before the installed fallback', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'spark-path-precedence-'));
+  try {
+    const bin = path.join(root, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(path.join(bin, process.platform === 'win32' ? 'spark.cmd' : 'spark'), '');
+    assert.equal(resolveSparkCliCommand({ PATH: bin, SPARK_HOME: path.join(root, 'home') }), process.platform === 'win32' ? 'spark.cmd' : 'spark');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('uses the SPARK_HOME-installed CLI source for secret reads', () => {
   const home = mkdtempSync(path.join(tmpdir(), 'spark-cli-prefix-'));
   try {
