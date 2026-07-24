@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { mkdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -287,6 +288,10 @@ function pythonPathWithBuilderSrc(builderRepo: string, currentPythonPath: string
   return Array.from(new Set([builderSrc, ...existing])).join(path.delimiter);
 }
 
+export async function ensureChipOutputDirectory(outputDir: string): Promise<void> {
+  await mkdir(outputDir, { recursive: true });
+}
+
 export async function createChipFromPrompt(prompt: string, options: ChipCreateOptions = {}): Promise<ChipCreateResult> {
   const clean = prompt.trim();
   if (!clean) {
@@ -318,6 +323,7 @@ export async function createChipFromPrompt(prompt: string, options: ChipCreateOp
     args.push('--governor-decision-json', JSON.stringify(options.governorDecision));
   }
   try {
+    await ensureChipOutputDirectory(config.outputDir);
     await reporter.progress('Running Spark chip scaffolder...', {
       outputDir: config.outputDir,
       chipLabsRoot: config.chipLabsRoot,

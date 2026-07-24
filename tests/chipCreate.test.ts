@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { formatChipCreateProcessError, parseChipCreateJson, resolveConfig } from '../src/chipCreate';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { ensureChipOutputDirectory, formatChipCreateProcessError, parseChipCreateJson, resolveConfig } from '../src/chipCreate';
 import {
   buildChipCreateMissionContext,
   ChipCreateMissionReporter,
@@ -18,6 +21,18 @@ async function test(name: string, fn: () => void | Promise<void>): Promise<void>
 }
 
 async function main(): Promise<void> {
+  await test('creates a missing chip output directory before scaffolding', async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'spark-chip-create-'));
+    const outputDir = path.join(tempRoot, 'nested', 'chips');
+    try {
+      await ensureChipOutputDirectory(outputDir);
+      assert.equal(fs.statSync(outputDir).isDirectory(), true);
+      await ensureChipOutputDirectory(outputDir);
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   await test('prefers Spark-standard Domain Chip Labs root env over legacy chip labs env', () => {
     const originalEnv = { ...process.env };
     try {
