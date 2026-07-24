@@ -2588,7 +2588,10 @@ export function isMemoryAcknowledgementReply(reply: string): boolean {
     normalized.startsWith('i have saved memory about ') ||
     normalized.startsWith('saved memory about ') ||
     normalized.startsWith('memory saved') ||
-    normalized.startsWith('got it, i will remember')
+    normalized.startsWith('got it, i will remember') ||
+    normalized.startsWith("got it, i'll remember") ||
+    normalized.startsWith('got it, noted') ||
+    normalized.startsWith("i'll remember that")
   );
 }
 
@@ -2612,7 +2615,8 @@ export function builderReplySuppressionReason(reply: string, routingDecision: st
   }
   if (
     normalized.includes('spark could not reach the builder memory path right now') ||
-    normalized.includes('operator fix: spark fix telegram')
+    normalized.includes('operator fix: spark fix telegram') ||
+    normalized === 'working memory'
   ) {
     return 'diagnostic_wall';
   }

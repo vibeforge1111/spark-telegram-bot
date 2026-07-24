@@ -1367,6 +1367,8 @@ test('detects empty or generic LLM failures', () => {
 
 test('suppresses memory acknowledgements for normal chat replies', () => {
   assert.equal(isMemoryAcknowledgementReply('Noted: "yes i was wondering how is the chat with you"'), true);
+  assert.equal(isMemoryAcknowledgementReply("Got it, I'll remember that preference."), true);
+  assert.equal(isMemoryAcknowledgementReply("I'll remember that for next time."), true);
   assert.equal(
     isMemoryAcknowledgementReply('I have saved memory about preferred Spark reply style: "concise but warm"'),
     true
