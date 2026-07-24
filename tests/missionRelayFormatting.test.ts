@@ -21,6 +21,7 @@ import {
   markMissionRelayResumed,
   normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
+  parseRelayChatId,
   relayEventMatchesSubscription,
   registerMissionRelay,
   resetMissionRelayDeliveryStateForTests,
@@ -98,6 +99,15 @@ test('acknowledges relay events without Telegram delivery in smoke mode', () => 
   assert.equal(shouldAcknowledgeRelayWithoutTelegramDelivery({ TELEGRAM_SMOKE_MODE: '1' } as NodeJS.ProcessEnv), true);
   assert.equal(shouldAcknowledgeRelayWithoutTelegramDelivery({ TELEGRAM_SMOKE_MODE: '0' } as NodeJS.ProcessEnv), false);
   assert.equal(shouldAcknowledgeRelayWithoutTelegramDelivery({} as NodeJS.ProcessEnv), false);
+});
+
+test('accepts real Telegram chat ids and rejects unsafe numeric coercions', () => {
+  assert.equal(parseRelayChatId('8319079055'), 8319079055);
+  assert.equal(parseRelayChatId('-1008319079055'), -1008319079055);
+  assert.equal(parseRelayChatId(''), null);
+  assert.equal(parseRelayChatId('not-a-chat'), null);
+  assert.equal(parseRelayChatId('1e309'), null);
+  assert.equal(parseRelayChatId('9007199254740992'), null);
 });
 
 test('keeps minimal structured provider summaries compact', () => {

@@ -46,6 +46,13 @@ export interface MissionSubscription {
   updateId?: number;
 }
 
+export function parseRelayChatId(value: string | number): number | null {
+  const normalized = typeof value === 'string' ? value.trim() : value;
+  if (normalized === '') return null;
+  const chatId = Number(normalized);
+  return Number.isSafeInteger(chatId) && chatId !== 0 ? chatId : null;
+}
+
 export type TelegramRelayVerbosity = 'minimal' | 'normal' | 'verbose';
 export type TelegramMissionLinkPreference = 'none' | 'board' | 'canvas' | 'both';
 export type MissionRelayTelegramPollingState = 'starting' | 'active' | 'disabled' | 'error' | 'stopped';
@@ -2342,7 +2349,11 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
     }
 
     try {
-      const chatId = Number(subscription.chatId);
+      const chatId = parseRelayChatId(subscription.chatId);
+      if (chatId === null) {
+        writeJson(res, 400, { ok: false, error: 'invalid_chat_id' });
+        return;
+      }
       const verbosity = await getTelegramRelayVerbosity(subscription.chatId);
       const linkPreference = await getTelegramMissionLinkPreference(subscription.chatId);
 
