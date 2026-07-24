@@ -2579,6 +2579,7 @@ export function isLowInformationLlmReply(reply: string): boolean {
     normalized.includes('spark hit an internal error before it could answer cleanly') ||
     normalized.includes('working memory') ||
     normalized.includes('returned no concrete guidance') ||
+    normalized.includes('produced an empty reply') ||
     normalized.includes('access is not authorized for this channel') ||
     normalized.includes('no prior list or options to match') ||
     normalized.includes('two of what') ||

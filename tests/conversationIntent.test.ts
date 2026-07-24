@@ -1360,6 +1360,7 @@ test('detects empty or generic LLM failures', () => {
   assert.equal(isLowInformationLlmReply("I'm here, but I couldn't generate a response right now."), true);
   assert.equal(isLowInformationLlmReply('Working Memory'), true);
   assert.equal(isLowInformationLlmReply('Spark Researcher returned no concrete guidance for this message.'), true);
+  assert.equal(isLowInformationLlmReply('The selected provider produced an empty reply.'), true);
   assert.equal(isLowInformationLlmReply('What would you like help with?'), true);
   assert.equal(isLowInformationLlmReply('Nothing active'), true);
   assert.equal(isLowInformationLlmReply('Access is not authorized for this channel. Ask the operator to review access.'), true);
