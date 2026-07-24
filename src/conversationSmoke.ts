@@ -176,7 +176,13 @@ export function parseConversationSmokeScenarios(value: unknown): ConversationSmo
 }
 
 export function readConversationSmokeScenarios(filePath: string): ConversationSmokeScenario[] {
-  return parseConversationSmokeScenarios(JSON.parse(fs.readFileSync(filePath, 'utf8')));
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    throw new Error('Conversation smoke fixture contains invalid JSON.');
+  }
+  return parseConversationSmokeScenarios(parsed);
 }
 
 export function runConversationSmokeScenarios(scenarios: ConversationSmokeScenario[]): ConversationSmokeSummary {
