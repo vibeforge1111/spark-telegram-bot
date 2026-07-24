@@ -65,12 +65,13 @@ void (async () => {
   });
 
   await test('resolves the latest mission id from the current board', async () => {
+    const now = Date.now();
     (axios as any).get = async () => ({
       data: {
         board: {
-          running: [{ missionId: 'spark-live-2', status: 'running', lastUpdated: '2026-07-17T07:00:00Z' }],
+          running: [{ missionId: 'spark-live-2', status: 'running', lastUpdated: new Date(now - 60_000).toISOString() }],
           paused: [],
-          completed: [{ missionId: 'spark-old-1', status: 'completed', lastUpdated: '2026-07-17T06:00:00Z' }],
+          completed: [{ missionId: 'spark-old-1', status: 'completed', lastUpdated: new Date(now - 120_000).toISOString() }],
           failed: [],
           cancelled: [],
           created: []
