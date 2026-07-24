@@ -47,6 +47,10 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
+export function gatewayOwnershipConflictMessage(): string {
+  return 'Gateway ownership is already held by another live instance. Stop that instance or wait for the lease to expire.';
+}
+
 async function readLease(filePath: string): Promise<OwnershipLease | null> {
   if (!existsSync(filePath)) {
     return null;
@@ -95,9 +99,7 @@ export async function acquireGatewayOwnership(input: {
     if (!sameOwner && !stale) {
       const alive = existing.hostname !== os.hostname() || isProcessAlive(existing.pid);
       if (alive) {
-        throw new Error(
-          `Gateway ownership already held by ${existing.ownerId} on ${existing.hostname} (pid ${existing.pid}). Stop that instance or wait for lease expiry.`
-        );
+        throw new Error(gatewayOwnershipConflictMessage());
       }
     }
   }
