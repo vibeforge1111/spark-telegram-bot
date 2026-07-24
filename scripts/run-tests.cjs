@@ -98,6 +98,7 @@ const tests = [
   'tests/telegramSurface.test.ts',
   'tests/llmProviderSmoke.test.ts',
   'tests/profileEnv.test.ts',
+  'tests/deployDoctor.test.ts',
   'tests/pathAuthority.test.ts',
   'tests/healthPolling.test.ts',
   'tests/scheduleEmptyState.test.ts',
