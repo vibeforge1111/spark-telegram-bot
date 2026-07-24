@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { renderMemoryDoctorTelegramSummary } from '../src/memoryDoctorBridge';
+import {
+  renderMemoryDoctorTelegramSummary,
+  shouldAttachMemoryDoctorEvidence
+} from '../src/memoryDoctorBridge';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -45,4 +48,26 @@ test('leaves already conversational Memory Doctor replies alone', () => {
     renderMemoryDoctorTelegramSummary('Memory Doctor looks clean. The previous exchange is available in recent context.'),
     null
   );
+});
+
+test('keeps operational what-happened questions out of Memory Doctor evidence', () => {
+  for (const prompt of [
+    'What happened to my build?',
+    'What happened during that mission?',
+    'What happened when I ran spark update?',
+    'What happened to the deployment?'
+  ]) {
+    assert.equal(shouldAttachMemoryDoctorEvidence(prompt), false, prompt);
+  }
+
+  for (const prompt of [
+    'What happened to my memory?',
+    'What happened to our conversation?',
+    'What happened to the context?',
+    'What happened to the last message?',
+    'Did you forget my context?',
+    'Run Memory Doctor'
+  ]) {
+    assert.equal(shouldAttachMemoryDoctorEvidence(prompt), true, prompt);
+  }
 });
