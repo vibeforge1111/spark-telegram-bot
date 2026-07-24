@@ -172,8 +172,10 @@ async function run(): Promise<void> {
   await test('runGoal retries once when local Spawner request times out', async () => {
     restoreAxios();
     let attempts = 0;
-    (axios as any).post = async () => {
+    const requestOptions: any[] = [];
+    (axios as any).post = async (_url: string, _body: unknown, options: unknown) => {
       attempts += 1;
+      requestOptions.push(options);
       if (attempts === 1) {
         const error: any = new Error('timeout of 10000ms exceeded');
         error.code = 'ECONNABORTED';
@@ -192,6 +194,8 @@ async function run(): Promise<void> {
     assert.equal(attempts, 2);
     assert.equal(result.success, true);
     assert.equal(result.missionId, 'spark-after-retry');
+    assert.match(requestOptions[0].headers['Idempotency-Key'], /^[0-9a-f-]{36}$/i);
+    assert.equal(requestOptions[1].headers['Idempotency-Key'], requestOptions[0].headers['Idempotency-Key']);
   });
 
   await test('runGoal falls back to the primary relay target when env values are invalid', async () => {

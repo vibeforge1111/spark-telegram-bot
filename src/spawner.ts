@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import axios from 'axios';
 import {
   createHarnessCoreActionEnvelopeVNext,
@@ -426,12 +427,15 @@ export async function postLocalServiceWithRetry<T = any>(
   body: unknown,
   timeoutMs = DEFAULT_LOCAL_SERVICE_TIMEOUT_MS
 ): Promise<{ data: T }> {
+  const requestOptions = spawnerAxiosOptions(timeoutMs, {
+    headers: { 'Idempotency-Key': randomUUID() }
+  });
   try {
-    return await axios.post(url, body, spawnerAxiosOptions(timeoutMs));
+    return await axios.post(url, body, requestOptions);
   } catch (err: any) {
     if (!isRetryableLocalServiceError(err)) throw err;
     try {
-      return await axios.post(url, body, spawnerAxiosOptions(timeoutMs));
+      return await axios.post(url, body, requestOptions);
     } catch (retryErr: any) {
       const original = err?.message || 'local service request failed';
       const retry = retryErr?.message || 'retry failed';
