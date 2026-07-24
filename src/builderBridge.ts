@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { constants as fsConstants, readFileSync } from 'node:fs';
+import { constants as fsConstants, existsSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -288,12 +288,16 @@ async function pathExists(targetPath: string): Promise<boolean> {
   }
 }
 
+export function builderBridgeSourceAvailable(builderRepo: string): boolean {
+  return existsSync(path.join(builderRepo, 'src', 'spark_intelligence', 'cli.py'));
+}
+
 async function ensureBridgeAvailable(config: BuilderBridgeConfig): Promise<boolean> {
-  const [repoExists, homeExists] = await Promise.all([
-    pathExists(config.builderRepo),
+  const [sourceExists, homeExists] = await Promise.all([
+    builderBridgeSourceAvailable(config.builderRepo),
     pathExists(config.builderHome),
   ]);
-  return repoExists && homeExists;
+  return sourceExists && homeExists;
 }
 
 function candidateDiagnosticsRepos(config: BuilderBridgeConfig): string[] {

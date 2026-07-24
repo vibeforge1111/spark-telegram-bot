@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { builderRepoCandidates, resolveBuilderRepoPath } from '../src/builderRepoPath';
+import { builderBridgeSourceAvailable } from '../src/builderBridge';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -34,4 +37,17 @@ test('keeps installed source ahead of the managed local fallback', () => {
   });
 
   assert.equal(resolved, source);
+});
+
+test('Builder availability requires the actual CLI module marker', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'spark-builder-marker-'));
+  try {
+    assert.equal(builderBridgeSourceAvailable(root), false);
+    const markerDir = path.join(root, 'src', 'spark_intelligence');
+    fs.mkdirSync(markerDir, { recursive: true });
+    fs.writeFileSync(path.join(markerDir, 'cli.py'), '# marker\n');
+    assert.equal(builderBridgeSourceAvailable(root), true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
