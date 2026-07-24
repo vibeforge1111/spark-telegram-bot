@@ -194,6 +194,26 @@ test('parses Ubuntu target paths under configured project root', () => {
   }
 });
 
+test('accepts the Spark CLI workspace-root environment alias', () => {
+  const originalProjectRoot = process.env.SPARK_PROJECT_ROOT;
+  const originalWorkspaceRoot = process.env.SPARK_WORKSPACE_ROOT;
+  delete process.env.SPARK_PROJECT_ROOT;
+  process.env.SPARK_WORKSPACE_ROOT = '/srv/spark-workspace';
+  try {
+    const intent = parseBuildIntent(
+      'build this at /srv/spark-workspace/relay-console: a small dashboard called Relay Console.'
+    );
+
+    assert.ok(intent);
+    assert.equal(intent.projectPath, '/srv/spark-workspace/relay-console');
+  } finally {
+    if (originalProjectRoot === undefined) delete process.env.SPARK_PROJECT_ROOT;
+    else process.env.SPARK_PROJECT_ROOT = originalProjectRoot;
+    if (originalWorkspaceRoot === undefined) delete process.env.SPARK_WORKSPACE_ROOT;
+    else process.env.SPARK_WORKSPACE_ROOT = originalWorkspaceRoot;
+  }
+});
+
 test('parses macOS target paths under configured project root', () => {
   const originalRoot = process.env.SPARK_PROJECT_ROOT;
   process.env.SPARK_PROJECT_ROOT = '/Users/leventcem/Desktop';
