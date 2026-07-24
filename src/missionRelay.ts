@@ -1044,6 +1044,26 @@ function freeformFailureLines(text: string): string[] {
   return Array.from(new Set(lines)).slice(0, 4);
 }
 
+export function renderTaskFailureBody(error: string, missionId: string): string {
+  const cleaned = redactText(stripMissionControlBoilerplate(error))
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*at\s+\S/.test(line))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const detail = !cleaned || /^unknown error$/i.test(cleaned)
+    ? 'The provider did not return a usable failure reason, so I will not guess.'
+    : clipText(cleaned, 360);
+  const safeMissionId = /^[A-Za-z0-9._:-]{1,120}$/.test(missionId) ? missionId : '';
+  return compactTelegramBlocks(
+    detail,
+    'You can retry the goal with /run after checking the blocker.',
+    safeMissionId
+      ? `Check current state with /mission status ${safeMissionId}.`
+      : 'Check current state with /mission status.'
+  );
+}
+
 function compactTelegramBlocks(...blocks: Array<string | null | undefined | false>): string {
   return blocks
     .filter((block): block is string => Boolean(block && block.trim()))
@@ -2551,7 +2571,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
           compactTelegramBlocks(
             voiceLine('failed', `${event.missionId}:${label}:task-failed`),
             `${label} could not finish this step.`,
-            clipText(stripMissionControlBoilerplate(failure.error), 500)
+            renderTaskFailureBody(failure.error, event.missionId)
           ),
           missionRelayTraceExtra(subscription, event, 'mission_failed')
         );
