@@ -13,6 +13,7 @@ const tests = [
   'tests/runtimeRouteGuards.test.ts',
   'tests/memoryDoctorBridge.test.ts',
   'tests/builderDiagnosticBoundary.test.ts',
+  'tests/builderRepoPath.test.ts',
   'tests/externalResearchBoundary.test.ts',
   'tests/noExecutionBridgeBoundary.test.ts',
   'tests/spawnerIdeationBoundary.test.ts',

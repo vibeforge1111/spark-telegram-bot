@@ -14,10 +14,10 @@ export function builderRepoCandidates(options: {
   return [
     path.join(sparkHome, 'modules', 'spark-intelligence-builder-release', 'source'),
     path.join(sparkHome, 'modules', 'spark-intelligence-builder', 'source'),
+    path.join(sparkHome, 'modules', 'spark-intelligence-builder', 'local'),
     path.join(homeDir, '.spark', 'modules', 'spark-intelligence-builder-release', 'source'),
     path.join(homeDir, '.spark', 'modules', 'spark-intelligence-builder', 'source'),
     path.join(cwd, '..', 'spark-intelligence-builder'),
-    path.join(homeDir, 'Desktop', 'spark-intelligence-builder'),
   ];
 }
 
