@@ -296,6 +296,7 @@ import {
   isProtectedMissionCancelPronounIntent,
   isProtectedMissionPausePronounIntent,
   isProtectedMissionResumePronounIntent,
+  isRawLogSafetyQuestion,
   isSparkChipStatusOverclaimQuestion,
   isSparkThreadQaGoldenCaseRequest,
   isSparkUpdateConsequenceQuestion,
@@ -326,6 +327,7 @@ import {
   renderModelSwitchGateExplanationReply,
   renderNoEditSpawnerProbeExplanationReply,
   renderPlainChatAnswerEditingReply,
+  renderRawLogSafetyReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkUpdateGuidanceReply,
   renderSuspiciousProofFileReply,
@@ -9472,6 +9474,14 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.credential_safety', 'spark-telegram-bot', 'plain_chat.credential_safety');
     await ctx.reply(credentialReply);
     await conversation.rememberAssistantReply(user, credentialReply).catch(() => {});
+    return;
+  }
+  if (isRawLogSafetyQuestion(text)) {
+    const reply = renderRawLogSafetyReply();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'proof.log_safety', 'spark-telegram-bot', 'plain_chat.safety_guidance');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
   const earlyBuildIntent = parsedEarlyBuildIntent && telegramActionAuthorityAllowed(turnIntentEnvelope, {

@@ -195,6 +195,14 @@ test('routes Memory Doctor and answer-audit wording to Builder despite stale cre
   }
 });
 
+test('routes raw-log sharing questions to safety guidance without execution', () => {
+  const route = decideNaturalRoute('Can I paste the last 500 lines of raw logs here as proof for this bug?');
+  assert.equal(route.route, 'proof.log_safety');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'plain_chat.safety_guidance');
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('routes explicit domain-chip creation before creator or build routes', () => {
   const route = decideNaturalRoute('build a domain-chip for Telegram memory routing');
 

@@ -80,6 +80,28 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
   );
 }
 
+export function isRawLogSafetyQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized || parseBuildIntent(normalized)) return false;
+  const mentionsLogs =
+    /\b(?:raw|full)\s+logs?\b/.test(normalized) ||
+    /\blogs?\b.{0,40}\b(?:last\s+\d+\s+lines?|tail|excerpt|paste|share)\b/.test(normalized);
+  const asksToShare =
+    /\b(?:should|can|could|may)\s+i\s+(?:paste|share|send|include)\b/.test(normalized) ||
+    /\b(?:paste|share|send|include)\b.{0,50}\b(?:here|chat|pr|proof|issue)\b/.test(normalized);
+  const diagnosticContext =
+    /\b(?:bug|debug|diagnos|troubleshoot|proof|evidence|help)\b/.test(normalized) ||
+    /\blast\s+\d+\s+lines?\b/.test(normalized);
+  return mentionsLogs && asksToShare && diagnosticContext;
+}
+
+export function renderRawLogSafetyReply(): string {
+  return [
+    'Please don’t paste the full raw log.',
+    'Share a short, redacted excerpt with the repro step and user-visible error instead. Remove tokens, keys, chat IDs, private messages, .env values, local paths, and other private data first.'
+  ].join(' ');
+}
+
 const HIGH_AGENCY_WORD_PATTERN = /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|remember|draft|canvas|browser|computer-use|computer\s+use|restart)\b/;
 
 export function isActionWordMetaDiscussion(text: string): boolean {

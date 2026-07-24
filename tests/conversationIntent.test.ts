@@ -61,11 +61,13 @@ import {
   renderModelSwitchGateExplanationReply,
   renderNoEditSpawnerProbeExplanationReply,
   renderPlainChatAnswerEditingReply,
+  renderRawLogSafetyReply,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
   isXContentCredentialBoundaryQuestion,
   isXPostReviewFromLinksRequest,
   isProjectImprovementRequest,
+  isRawLogSafetyQuestion,
   isLocalSparkServiceRequest,
   isRuntimeOutputArtifactRequest,
   isMissionExecutionConfirmation,
@@ -922,6 +924,16 @@ test('keeps Memory Doctor and answer-audit requests out of stale creator context
     assert.equal(isMemoryDoctorRequest(prompt), true, `${prompt} should be recognized as a Memory Doctor request`);
     assert.equal(parseNaturalCreatorMissionIntent(prompt, context), null, `${prompt} should not plan a creator mission`);
   }
+});
+
+test('recognizes raw-log sharing questions and answers with bounded redaction guidance', () => {
+  assert.equal(isRawLogSafetyQuestion('Should I paste the full raw logs here to debug this bug?'), true);
+  assert.equal(isRawLogSafetyQuestion('Please build a log viewer for this app'), false);
+  const reply = renderRawLogSafetyReply();
+  assert.match(reply, /short, redacted excerpt/i);
+  assert.match(reply, /tokens, keys, chat IDs/i);
+  assert.doesNotMatch(reply, /Spark Compete/i);
+  assert.ok(reply.split('\n').length <= 2, reply);
 });
 
 test('builds recent-turn evidence for contextual Memory Doctor requests', () => {
