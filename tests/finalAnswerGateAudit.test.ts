@@ -134,3 +134,21 @@ test('command reply delivery audit backfills proof at the final-answer boundary'
   assert.equal(record.proof_capsule.reply.delivered, true);
   assert.doesNotMatch(JSON.stringify(record.proof_capsule), /tg-build-safe|trace:spawner-prd:safe/);
 });
+
+test('read-only command delivery records carry joined non-execution proof', async () => {
+  const indexModule: any = await import('../src/index');
+  for (const command of ['status', 'diagnose', 'wiki', 'context']) {
+    const record = indexModule.buildCommandReplyDeliveryRecord({
+      command,
+      replyKind: `${command}_reply`,
+      requestId: `tg-${command}-safe`,
+      traceRef: `trace:telegram-run:tg-${command}-safe`
+    }, new Date('2026-06-24T17:28:16.000Z'));
+
+    assert.equal(record.proof_capsule.route, `telegram.${command}`);
+    assert.equal(record.proof_capsule.intent.noExecution, true);
+    assert.equal(record.proof_capsule.execution.mutationClass, 'read_only');
+    assert.equal(record.proof_capsule.reply.delivered, true);
+    assert.equal(record.proof_capsule.joins.telegram, 'joined');
+  }
+});

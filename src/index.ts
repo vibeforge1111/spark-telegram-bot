@@ -3101,7 +3101,20 @@ function recordCommandReplyDelivery(input: {
     .then(() => appendFile(auditPath, `${JSON.stringify(record)}\n`, 'utf-8'))
     .catch((error) => {
       console.warn('[FinalAnswerGate] failed to write command reply audit:', error);
-    });
+  });
+}
+
+async function replyWithCommandDeliveryTrace(
+  ctx: any,
+  text: string,
+  command: string,
+  replyKind: string
+): Promise<void> {
+  const safeCommand = command.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'command';
+  const requestId = opaqueTelegramRequestId(`tg-${safeCommand}`);
+  const traceRef = telegramRunTraceRef(requestId);
+  await ctx.reply(text);
+  recordCommandReplyDelivery({ command, replyKind, requestId, traceRef });
 }
 
 export function buildCommandReplyDeliveryRecord(input: {
@@ -3156,7 +3169,7 @@ function buildCommandReplyFallbackProofCapsule(
     intent: {
       kind: route,
       confidence: 'contextual',
-      noExecution: false
+      noExecution: !route.startsWith('spawner.')
     },
     authority: {
       decision: 'allowed',
@@ -4103,7 +4116,12 @@ bot.command('status', async (ctx) => {
     );
   }
 
-  await ctx.reply(lines.join('\n').replace(/\n{3,}/g, '\n\n').trim());
+  await replyWithCommandDeliveryTrace(
+    ctx,
+    lines.join('\n').replace(/\n{3,}/g, '\n\n').trim(),
+    'status',
+    'status_reply'
+  );
 });
 
 async function handleTelegramStreamingCommand(ctx: any): Promise<void> {
@@ -4153,7 +4171,7 @@ bot.command('diagnose', async (ctx) => {
       isAllowed: conversation.isAllowed(ctx.from)
     });
     // Telegram limit is 4096 chars; diagnose is always well under.
-    await ctx.reply(report);
+    await replyWithCommandDeliveryTrace(ctx, report, 'diagnose', 'diagnose_reply');
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'diagnose', conversation.isAdmin(ctx.from)));
   }
@@ -4270,7 +4288,7 @@ bot.command('wiki', async (ctx) => {
         summary: 'Telegram /wiki promote routed a knowledge promotion through Builder.'
       });
     }
-    await ctx.reply(result.replyText);
+    await replyWithCommandDeliveryTrace(ctx, result.replyText, 'wiki', 'wiki_reply');
   } catch (err: any) {
     if (promoteAuthorization) {
       recordTelegramHarnessCoreExecution(promoteAuthorization, {
@@ -4319,7 +4337,12 @@ async function handleAgentOperatingContextCommand(ctx: any): Promise<void> {
     ]);
     const questionAnswer = memoryQuery ? formatAocQuestionAnswer(memoryQuery) : '';
     const memorySummary = memoryQuery ? formatMemoryInPlaySummary(memoryInPlay) : '';
-    await ctx.reply([questionAnswer, result.replyText, memorySummary].filter(Boolean).join('\n\n'));
+    await replyWithCommandDeliveryTrace(
+      ctx,
+      [questionAnswer, result.replyText, memorySummary].filter(Boolean).join('\n\n'),
+      'context',
+      'context_reply'
+    );
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
   }
@@ -5524,7 +5547,7 @@ function missionIdFromTelegramBuildRequest(requestId: string): string {
   return `mission-${stamp || requestId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
 }
 
-function opaqueTelegramRequestId(prefix: 'tg-run' | 'tg-build' | 'tg-creator'): string {
+function opaqueTelegramRequestId(prefix: `tg-${string}`): string {
   return `${prefix}-${randomUUID().replace(/-/g, '').slice(0, 12)}-${Date.now()}`;
 }
 
