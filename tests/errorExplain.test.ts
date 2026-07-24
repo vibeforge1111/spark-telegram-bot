@@ -94,6 +94,28 @@ test('does not mislabel Builder command failures as Telegram config', () => {
   assert.doesNotMatch(reply, /runpy|spark_intelligence\.cli|simulate-telegram-update|Command failed/);
 });
 
+test('does not expose internal command paths in user-facing error details', () => {
+  const reply = renderSparkErrorReply(
+    new Error('Command failed: /Users/operator/private-tools/run-secret-task --workspace /Users/operator/customer-alpha'),
+    'chat',
+    true
+  );
+
+  assert.match(reply, /internal command did not finish cleanly/i);
+  assert.doesNotMatch(reply, /private-tools|run-secret-task|customer-alpha|\/Users\/operator/);
+});
+
+test('classifies command failures from raw redacted evidence before compacting their detail', () => {
+  const explanation = explainSparkError(
+    new Error('Command failed: /opt/spark/provider-check --status 429 quota exceeded'),
+    'chat'
+  );
+
+  assert.equal(explanation.category, 'provider_rate_limit');
+  assert.match(explanation.detail, /internal command did not finish cleanly/i);
+  assert.doesNotMatch(explanation.detail, /provider-check|\/opt\/spark/);
+});
+
 test('explains command timeouts in chat as runtime timeouts', () => {
   const explanation = explainSparkError(new Error('command timed out after 120000ms'), 'chat');
 

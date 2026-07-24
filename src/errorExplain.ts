@@ -55,6 +55,11 @@ function compactDetail(text: string): string {
   ) {
     return 'Builder bridge command did not finish cleanly. Run /diagnose for the current Builder and memory status.';
   }
+  if (
+    /\bcommand failed\b|\bspawn\s+\S+\s+(?:enoent|eacces)\b|\binternal command\b/i.test(oneLine)
+  ) {
+    return 'An internal command did not finish cleanly. Run /diagnose for the current runtime status.';
+  }
   return oneLine.length > 220 ? `${oneLine.slice(0, 217)}...` : oneLine;
 }
 
@@ -64,8 +69,9 @@ function doctorCommand(category: string, context: SparkErrorContext): string {
 }
 
 export function explainSparkError(error: unknown, context: SparkErrorContext = 'chat'): SparkErrorExplanation {
-  const detail = compactDetail(extractErrorText(error));
-  const lower = detail.toLowerCase();
+  const errorText = extractErrorText(error);
+  const detail = compactDetail(errorText);
+  const lower = errorText.toLowerCase();
 
   if (
     lower.includes('unauthorized') ||
