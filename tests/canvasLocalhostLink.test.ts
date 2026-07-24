@@ -29,6 +29,7 @@ test('recognizes local-only Canvas URLs', () => {
 
 test('explains local-only Canvas links without hiding the link', () => {
   const reply = formatCanvasReadySummary({ ...base, readyCanvasUrl: 'http://127.0.0.1:3000/canvas' });
+  assert.match(reply, /Canvas\n• http:\/\/127\.0\.0\.1:3000\/canvas/);
   assert.match(reply, /only opens on the machine running Spark/i);
   assert.match(reply, /SPAWNER_UI_PUBLIC_URL/);
 });

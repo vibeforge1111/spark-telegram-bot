@@ -6274,7 +6274,7 @@ export function formatCanvasReadySummary(args: {
     `Canvas is ready for ${args.projectName}.`,
     buildStepLine,
     localOnly
-      ? `${args.readyCanvasUrl}\nThat link only opens on the machine running Spark. Set SPAWNER_UI_PUBLIC_URL when you need to open it from another device.`
+      ? `Canvas\n• ${args.readyCanvasUrl}\nThat link only opens on the machine running Spark. Set SPAWNER_UI_PUBLIC_URL when you need to open it from another device.`
       : ['Canvas', `• ${args.readyCanvasUrl}`].join('\n')
   );
 }
