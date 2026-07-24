@@ -44,6 +44,24 @@ test('renders mission and loop summaries without internal headings', () => {
   assert.doesNotMatch(formatScheduleList([mission]), /\b(?:Provider|Move|Status):/);
 });
 
+test('renders incomplete loop records without a literal undefined chip', () => {
+  assert.equal(
+    humanSummary({
+      id: 'missing-chip',
+      cron: '0 9 * * *',
+      action: 'loop',
+      payload: { rounds: 2 },
+      createdAt: '2026-07-24T00:00:00Z',
+      lastFiredAt: null,
+      nextFireAt: null,
+      fireCount: 0,
+      lastStatus: null,
+      enabled: true
+    }),
+    'Run 2 loop rounds on (no chip)'
+  );
+});
+
 test('classifies schedule owner errors without returning private detail', () => {
   const token = `1234567890:${'A'.repeat(34)}`;
   assert.equal(formatScheduleError(`connect timeout at /Users/alchemist/spark ${token}`, 'create failed'), 'schedule service unavailable');

@@ -91,7 +91,7 @@ export function humanSummary(rec: ScheduleRecord): string {
   }
   const p = rec.payload as { chipKey?: string; rounds?: number };
   const n = p.rounds ?? 1;
-  return `Run ${n} loop round${n === 1 ? '' : 's'} on ${p.chipKey}`;
+  return `Run ${n} loop round${n === 1 ? '' : 's'} on ${p.chipKey ?? '(no chip)'}`;
 }
 
 export function formatScheduleError(error: unknown, fallback: string): string {
