@@ -19,6 +19,7 @@ import {
   formatWikiQueryReply,
   formatWikiStatusReply,
   resolveBuilderRepoPath,
+  sanitizeBuilderUserMessage,
   sanitizeRouteConfidenceRouteContext
 } from '../src/builderBridge';
 
@@ -90,6 +91,14 @@ test('compacts large cold memory queries before invoking Builder memory', () => 
   assert.ok(query.length <= 120);
   assert.match(query, /\[truncated\]$/);
   assert.doesNotMatch(query, /\n/);
+});
+
+test('bounds and strips null bytes from Builder user-message arguments', () => {
+  const sanitized = sanitizeBuilderUserMessage(`start\0${'x'.repeat(5000)}`, 'fallback');
+
+  assert.equal(sanitized.includes('\0'), false);
+  assert.equal(sanitized.length, 4000);
+  assert.equal(sanitizeBuilderUserMessage('', 'fallback'), 'fallback');
 });
 
 test('formats route probe replies with evidence boundary', () => {

@@ -762,6 +762,11 @@ export function assertTelegramIntegerId(value: number | string, label: string): 
   return normalized;
 }
 
+export function sanitizeBuilderUserMessage(value: unknown, fallback: string): string {
+  const text = String(value || fallback).replace(/\0/g, '');
+  return text.slice(0, 4000);
+}
+
 function telegramBridgeMessageContext(updatePayload: Record<string, unknown>): {
   text: string;
   userId: string;
@@ -1559,7 +1564,7 @@ export async function runBuilderSelfAwarenessStatus(
     '--channel-kind',
     'telegram',
     '--user-message',
-    input.currentMessage || 'Show Spark self-awareness status and improvement options.',
+    sanitizeBuilderUserMessage(input.currentMessage, 'Show Spark self-awareness status and improvement options.'),
   ];
   if (input.refreshWiki !== false) {
     args.push('--refresh-wiki');
