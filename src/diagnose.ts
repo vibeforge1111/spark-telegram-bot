@@ -138,16 +138,16 @@ async function httpStatus(url: string, timeoutMs = 3000): Promise<HttpStatusResu
     const res = await axios.get(url, { timeout: timeoutMs });
     return { ok: true, status: res.status, payload: res.data };
   } catch (err: any) {
-    const status = Number(err.response?.status);
+    const status = Number(err?.response?.status);
     if (Number.isFinite(status)) {
       return {
         ok: false,
         status,
         err: `HTTP ${status}`,
-        payload: err.response?.data
+        payload: err?.response?.data
       };
     }
-    return { ok: false, err: formatDiagnoseErrorDetail(err.code || err.message, 'unreachable') };
+    return { ok: false, err: formatDiagnoseErrorDetail(err?.code || err?.message, 'unreachable') };
   }
 }
 
@@ -242,16 +242,16 @@ async function fetchProviders(): Promise<{ ok: boolean; status?: number; err?: s
     });
     return { ok: true, status: res.status, payload: res.data || {} };
   } catch (err: any) {
-    const status = Number(err.response?.status);
+    const status = Number(err?.response?.status);
     if (Number.isFinite(status)) {
       return {
         ok: false,
         status,
         err: `HTTP ${status}`,
-        payload: err.response?.data || {}
+        payload: err?.response?.data || {}
       };
     }
-    return { ok: false, err: formatDiagnoseErrorDetail(err.code || err.message, 'unreachable') };
+    return { ok: false, err: formatDiagnoseErrorDetail(err?.code || err?.message, 'unreachable') };
   }
 }
 
@@ -308,7 +308,7 @@ async function pingProvider(providerId: string): Promise<PingResult> {
     }
     return { providerId, ok: false, error: 'timeout' };
   } catch (err: any) {
-    return { providerId, ok: false, error: formatDiagnoseErrorDetail(err.response?.data?.error || err.message, 'failed') };
+    return { providerId, ok: false, error: formatDiagnoseErrorDetail(err?.response?.data?.error || err?.message, 'failed') };
   }
 }
 

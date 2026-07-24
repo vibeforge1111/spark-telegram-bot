@@ -2019,7 +2019,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before pausing: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before pausing: ${spawnerErrorMessage(err)}`
       };
     }
   },
@@ -2065,7 +2065,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before answering: ${spawnerErrorMessage(err)}`
       };
     }
   },
@@ -2104,7 +2104,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before answering: ${spawnerErrorMessage(err)}`
       };
     }
   },
@@ -2164,7 +2164,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before resuming: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before resuming: ${spawnerErrorMessage(err)}`
       };
     }
   },
@@ -2206,7 +2206,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before preparing cancellation: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before preparing cancellation: ${spawnerErrorMessage(err)}`
       };
     }
   },
@@ -2240,7 +2240,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before answering: ${spawnerErrorMessage(err)}`
       };
     }
   },
@@ -2280,7 +2280,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before confirming cancellation: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before confirming cancellation: ${spawnerErrorMessage(err)}`
       };
     }
   },
