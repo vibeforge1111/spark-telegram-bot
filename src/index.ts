@@ -16,7 +16,7 @@ import {
 } from './conversation';
 import { credentialSafetyReply } from './credentialSafety';
 import { extractNaturalLocalMemoryRecallQuery, formatLocalMemoryDirectiveAcknowledgement } from './telegramMemorySurface';
-import { telegramCommandPayload } from './telegramCommandText';
+import { telegramCommandPayload, telegramWikiPageQuery } from './telegramCommandText';
 import { domainChipLabsCreatorContractLines, FULL_CREATOR_SYSTEM_ARTIFACT_PATTERN } from './domainChipLabsCreatorContract';
 import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
@@ -4379,6 +4379,7 @@ bot.command('wiki', async (ctx) => {
     const promoteMatch = text.match(/^\/wiki(?:@\w+)?\s+promote(?:\s+(candidate|verified))?\s+(.+)$/i);
     const answerMatch = text.match(/^\/wiki(?:@\w+)?\s+answer\s+(.+)$/i);
     const queryMatch = text.match(/^\/wiki(?:@\w+)?\s+(?:search|query|find)\s+(.+)$/i);
+    const pageQuery = telegramWikiPageQuery(text);
     const wantsInventory = /\b(?:pages?|files?|notes?|inventory|index|contents?|vault|list|map)\b/i.test(text);
     promoteAuthorization = promoteMatch?.[2]?.trim() ? authorizeWikiPromoteCommand(ctx, text) : null;
     if (promoteAuthorization && !promoteAuthorization.allow) {
@@ -4405,6 +4406,8 @@ bot.command('wiki', async (ctx) => {
         })
       : queryMatch?.[1]?.trim()
       ? await runBuilderWikiQuery({ query: queryMatch[1].trim(), refresh: true, limit: 5 })
+      : pageQuery
+      ? await runBuilderWikiQuery({ query: pageQuery, refresh: true, limit: 3 })
       : wantsInventory
       ? await runBuilderWikiInventory({ refresh: true, limit: 12 })
       : await runBuilderWikiStatus({ refresh: true });
