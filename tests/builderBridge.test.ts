@@ -617,6 +617,19 @@ test('builder repo resolver keeps legacy installed Builder as fallback', () => {
   assert.equal(resolved, legacyBuilderRepo);
 });
 
+test('builder repo resolver honors a non-default SPARK_HOME prefix', () => {
+  const sparkHome = path.resolve('/opt/spark');
+  const installedBuilderRepo = path.join(sparkHome, 'modules', 'spark-intelligence-builder-release', 'source');
+  const resolved = resolveBuilderRepoPath({
+    cwd: path.resolve('/srv/spark-telegram-bot'),
+    homeDir: path.resolve('/home/operator'),
+    env: { SPARK_HOME: sparkHome } as NodeJS.ProcessEnv,
+    exists: (targetPath) => targetPath === path.join(installedBuilderRepo, 'src', 'spark_intelligence', 'cli.py')
+  });
+
+  assert.equal(resolved, installedBuilderRepo);
+});
+
 test('builder repo resolver preserves explicit operator override', () => {
   const explicitRepo = path.resolve('D:/Spark/custom-builder');
   const resolved = resolveBuilderRepoPath({

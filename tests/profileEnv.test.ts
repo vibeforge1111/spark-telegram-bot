@@ -5,6 +5,8 @@ import path from 'node:path';
 import {
   loadEnvFileIntoProcess,
   loadSparkTelegramProfileEnv,
+  resolveSparkCliCommand,
+  resolveSparkHome,
   sparkConfigModulesDir,
   sparkSecretPythonBridgeCommand
 } from '../src/profileEnv';
@@ -52,6 +54,38 @@ test('uses SPARK_HOME for generated module env files', () => {
   const configDir = sparkConfigModulesDir({ SPARK_HOME: 'C:\\SparkHome' } as NodeJS.ProcessEnv);
 
   assert.equal(configDir, path.join('C:\\SparkHome', 'config', 'modules'));
+});
+
+test('resolves Spark home and installed CLI from a non-default prefix', () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'spark-prefix-'));
+  try {
+    const executable = path.join(home, 'bin', process.platform === 'win32' ? 'spark.cmd' : 'spark');
+    mkdirSync(path.dirname(executable), { recursive: true });
+    writeFileSync(executable, '');
+    const env = { SPARK_HOME: home } as NodeJS.ProcessEnv;
+
+    assert.equal(resolveSparkHome(env), home);
+    assert.equal(resolveSparkCliCommand(env), executable);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('uses the SPARK_HOME-installed CLI source for secret reads', () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'spark-cli-prefix-'));
+  try {
+    const cliSrc = path.join(home, 'tools', 'spark-cli', 'src');
+    mkdirSync(cliSrc, { recursive: true });
+
+    const command = sparkSecretPythonBridgeCommand('telegram.bot_token', {
+      SPARK_HOME: home,
+      SPARK_CLI_PYTHON: 'python3'
+    } as NodeJS.ProcessEnv);
+
+    assert.match(command.args[1], new RegExp(cliSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
 });
 
 test('loads matching quoted env values without retaining wrapper quotes', () => {

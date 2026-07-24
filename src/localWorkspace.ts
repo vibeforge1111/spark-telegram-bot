@@ -66,10 +66,11 @@ export function defaultLocalWorkspaceRoots(env: NodeJS.ProcessEnv = process.env)
   }
 
   const home = os.homedir();
+  const sparkHome = env.SPARK_HOME?.trim() || path.join(home, '.spark');
   return [
     path.join(home, 'Desktop'),
     path.join(home, 'Documents'),
-    path.join(home, '.spark', 'workspaces')
+    path.join(sparkHome, 'workspaces')
   ];
 }
 

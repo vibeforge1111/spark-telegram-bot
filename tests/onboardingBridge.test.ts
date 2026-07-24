@@ -26,6 +26,14 @@ void (async () => {
     assert.equal(onboardingEventPath({ SPARK_ONBOARDING_EVENT_PATH: 'C:/tmp/events.jsonl' } as any), 'C:/tmp/events.jsonl');
   });
 
+  await test('uses SPARK_HOME for the default onboarding event', () => {
+    const sparkHome = path.resolve('/opt/spark');
+    assert.equal(
+      onboardingEventPath({ SPARK_HOME: sparkHome } as NodeJS.ProcessEnv),
+      path.join(sparkHome, 'state', 'onboarding', 'telegram-first-message.jsonl')
+    );
+  });
+
   await test('writes structured first-message event jsonl', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'spark-onboarding-'));
     const eventFile = path.join(dir, 'nested', 'events.jsonl');
@@ -50,4 +58,3 @@ void (async () => {
     assert.equal(Object.prototype.hasOwnProperty.call(parsed, 'user_id'), false);
   });
 })();
-

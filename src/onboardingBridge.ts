@@ -14,7 +14,8 @@ export interface TelegramFirstMessageEvent {
 }
 
 export function onboardingEventPath(env: NodeJS.ProcessEnv = process.env): string {
-  return env.SPARK_ONBOARDING_EVENT_PATH || path.join(os.homedir(), '.spark', 'state', 'onboarding', 'telegram-first-message.jsonl');
+  const sparkHome = env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark');
+  return env.SPARK_ONBOARDING_EVENT_PATH || path.join(sparkHome, 'state', 'onboarding', 'telegram-first-message.jsonl');
 }
 
 export function extractStartSession(text: unknown): string | null {
@@ -35,4 +36,3 @@ export async function recordTelegramFirstMessage(event: TelegramFirstMessageEven
   await mkdir(path.dirname(eventPath), { recursive: true });
   await appendFile(eventPath, `${JSON.stringify(record)}\n`, 'utf-8');
 }
-

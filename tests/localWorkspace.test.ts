@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, mkdirSync, utimesSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
+  defaultLocalWorkspaceRoots,
   isLocalWorkspaceInspectionOnlyRequest,
   isLocalWorkspaceInspectionRequest,
   renderLocalWorkspaceInspectionReply,
@@ -20,6 +21,13 @@ async function test(name: string, fn: () => Promise<void> | void): Promise<void>
 }
 
 async function main(): Promise<void> {
+  await test('uses SPARK_HOME for the managed workspace root', () => {
+    const sparkHome = path.resolve('/opt/spark');
+    const roots = defaultLocalWorkspaceRoots({ SPARK_HOME: sparkHome } as NodeJS.ProcessEnv);
+
+    assert.equal(roots.at(-1), path.join(sparkHome, 'workspaces'));
+  });
+
   await test('recognizes local workspace and desktop inspection requests', () => {
     assert.equal(isLocalWorkspaceInspectionRequest('can you scan my desktop and what projects i am focused on'), true);
     assert.equal(isLocalWorkspaceInspectionRequest('look at the repos in my Desktop'), true);

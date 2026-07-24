@@ -102,7 +102,8 @@ export const ROUTE_CRITICAL_RUNTIME_PATHS = [
 ];
 
 export function defaultRuntimeRoot(): string {
-  return path.join(os.homedir(), '.spark', 'modules', 'spark-telegram-bot', 'source');
+  const sparkHome = process.env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark');
+  return path.join(sparkHome, 'modules', 'spark-telegram-bot', 'source');
 }
 
 function normalizeRelPath(relPath: string): string {
