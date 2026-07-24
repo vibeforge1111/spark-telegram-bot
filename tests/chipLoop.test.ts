@@ -34,6 +34,16 @@ async function main(): Promise<void> {
     assert.doesNotMatch(formatted, /Command failed|spark_intelligence|--chip|--home|\/Users|\/usr\/local|Traceback/i);
   });
 
+  await test('prefers a structured Builder error over raw process details', () => {
+    const formatted = formatChipLoopProcessError({
+      message: 'Command failed: private runner command',
+      stdout: JSON.stringify({ error: 'The chip manifest is missing its benchmark key.' }),
+      stderr: 'Traceback from /Users/example/private'
+    });
+    assert.equal(formatted, 'The chip manifest is missing its benchmark key.');
+    assert.doesNotMatch(formatted, /Command failed|Traceback|\/Users/);
+  });
+
   await test('runChipLoop hides process internals when the runner fails before JSON', async () => {
     const originalEnv = { ...process.env };
     const tempDir = mkdtempSync(path.join(os.tmpdir(), 'spark-chip-loop-raw-fail-'));

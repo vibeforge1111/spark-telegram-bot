@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
 import { withHiddenWindows } from './hiddenProcess';
 import { resolveBuilderRepoPath } from './builderRepoPath';
+import { redactText } from './redaction';
 
 const execFileAsync = promisify(execFile);
 
@@ -31,7 +32,21 @@ interface LoopConfig {
 }
 
 export function formatChipLoopProcessError(error: unknown): string {
-  const err = error as { message?: unknown; stderr?: unknown };
+  const err = error as { message?: unknown; stdout?: unknown; stderr?: unknown };
+  const stdout = Buffer.isBuffer(err?.stdout)
+    ? err.stdout.toString('utf8')
+    : typeof err?.stdout === 'string'
+      ? err.stdout
+      : '';
+  if (stdout) {
+    try {
+      const parsed = JSON.parse(stdout) as { error?: unknown };
+      const structured = typeof parsed.error === 'string' ? redactText(parsed.error).trim() : '';
+      if (structured) return structured.slice(0, 400);
+    } catch {
+      // Fall back to the bounded process error below.
+    }
+  }
   const message = typeof err?.message === 'string' ? err.message : '';
   const stderr = typeof err?.stderr === 'string' ? err.stderr : '';
   const raw = `${message}\n${stderr}`.trim();
