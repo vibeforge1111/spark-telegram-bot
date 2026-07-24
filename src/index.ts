@@ -10286,6 +10286,10 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
 	    kind: 'runtime_truth_or_operator'
 	  })) {
     await conversation.remember(user, text).catch(() => {});
+    if (safeOperatorAction.kind === 'folder_list' && !conversation.isAdmin(ctx.from)) {
+      await ctx.reply('That folder check is available only to the Telegram administrator.');
+      return;
+    }
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
     if (safeOperatorAction.kind === 'level5_smoke' && accessProfile !== 'operator') {
       await ctx.reply(renderSparkAccessDenial(accessProfile, 'operating_system')); return;

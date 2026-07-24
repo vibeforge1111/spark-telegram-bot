@@ -467,6 +467,10 @@ async function main(): Promise<void> {
     assert.ok(naturalBoardRoute, 'expected natural Spawner board route to exist');
     assert.match(naturalBoardRoute[0], /sparkAccessAllows\(accessProfile, 'spawner_build'\)/);
     assert.match(naturalBoardRoute[0], /renderSparkAccessDenial\(accessProfile, 'spawner_build'\)/);
+
+    const safeOperatorRoute = indexSource.match(/const operatorActionCandidate[\s\S]*?\n  if \(operatorActionCandidate && !safeOperatorAction\)/);
+    assert.ok(safeOperatorRoute, 'expected safe operator route to exist');
+    assert.match(safeOperatorRoute[0], /safeOperatorAction\.kind === 'folder_list' && !conversation\.isAdmin\(ctx\.from\)/);
   });
 
   await test('validates mixed access change and build intents before mutating access', async () => {
