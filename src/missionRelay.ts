@@ -8,6 +8,7 @@ import { buildMissionRelayTraceContext } from './missionRelayProof';
 import { probePreviewReachability } from './previewFetchPolicy';
 import { protectRelayHealthPayload } from './relayHealthPrivacy';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
+import { redactText } from './redaction';
 import { recordShippedProjectFromMission } from './shippedProjectContext';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
 
@@ -137,6 +138,7 @@ let registryLoaded = false;
 let relayServer: Server | null = null;
 const RELAY_RATE_LIMIT_WINDOW_MS = 60_000;
 const RELAY_RATE_LIMIT_MAX_REQUESTS = 240;
+const RELAY_RATE_LIMIT_MAX_ENTRIES = 500;
 const relayRateLimits = new Map<string, { startedAt: number; count: number }>();
 const DEFAULT_HEARTBEAT_STALE_MS = 35 * 60_000;
 
@@ -2259,16 +2261,27 @@ function writeJson(res: ServerResponse, statusCode: number, body: Record<string,
   res.end(JSON.stringify(body));
 }
 
+export function pruneRelayRateLimitEntries(
+  entries: Map<string, { startedAt: number; count: number }>,
+  now = Date.now(),
+  maxEntries = RELAY_RATE_LIMIT_MAX_ENTRIES
+): void {
+  for (const [key, value] of entries) {
+    if (now - value.startedAt >= RELAY_RATE_LIMIT_WINDOW_MS) entries.delete(key);
+  }
+  while (entries.size >= maxEntries) {
+    const oldest = entries.keys().next().value;
+    if (oldest === undefined) break;
+    entries.delete(oldest);
+  }
+}
+
 function isRelayRateLimited(req: IncomingMessage, now = Date.now()): boolean {
   const key = req.socket.remoteAddress || 'unknown';
   const existing = relayRateLimits.get(key);
   if (!existing || now - existing.startedAt >= RELAY_RATE_LIMIT_WINDOW_MS) {
+    pruneRelayRateLimitEntries(relayRateLimits, now);
     relayRateLimits.set(key, { startedAt: now, count: 1 });
-    if (relayRateLimits.size > 500) {
-      for (const [k, v] of relayRateLimits) {
-        if (now - v.startedAt >= RELAY_RATE_LIMIT_WINDOW_MS) relayRateLimits.delete(k);
-      }
-    }
     return false;
   }
   existing.count += 1;
@@ -2339,6 +2352,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 	const port = getRelayPort();
 
 	relayServer = createServer(async (req, res) => {
+  try {
     if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
       const response = protectRelayHealthPayload(
         missionRelayHealthPayload(),
@@ -2584,6 +2598,14 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       console.error('[MissionRelay] Failed to deliver Telegram update:', error);
       writeJson(res, 500, { ok: false, error: 'delivery_failed' });
     }
+  } catch (error) {
+    console.error('[MissionRelay] Failed to handle relay request:', redactText(error instanceof Error ? error.message : String(error)));
+    if (!res.headersSent && !res.writableEnded) {
+      writeJson(res, 500, { ok: false, error: 'internal_error' });
+    } else if (!res.writableEnded) {
+      res.destroy();
+    }
+  }
   });
 
   await new Promise<void>((resolve, reject) => {

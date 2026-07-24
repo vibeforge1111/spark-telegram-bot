@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
 import type { IncomingMessage } from 'node:http';
-import { readRelayJsonBody } from '../src/missionRelay';
+import { pruneRelayRateLimitEntries, readRelayJsonBody } from '../src/missionRelay';
 
 async function test(name: string, fn: () => Promise<void>): Promise<void> {
   try {
@@ -29,9 +29,23 @@ async function main(): Promise<void> {
     assert.equal(outcome.kind, 'ok');
   });
 
+  await test('expires stale relay rate-limit entries and enforces a hard cap', async () => {
+    const entries = new Map([
+      ['stale', { startedAt: 0, count: 1 }],
+      ['oldest-active', { startedAt: 90_000, count: 1 }],
+      ['newest-active', { startedAt: 95_000, count: 1 }],
+    ]);
+
+    pruneRelayRateLimitEntries(entries, 100_000, 2);
+
+    assert.deepEqual([...entries.keys()], ['newest-active']);
+  });
+
   await test('bounds a relay client that never finishes its body', async () => {
     const stream = new PassThrough();
+    const keepAlive = setTimeout(() => {}, 20);
     const outcome = await readRelayJsonBody(stream as unknown as IncomingMessage, 5);
+    clearTimeout(keepAlive);
     assert.equal(outcome.kind, 'timeout');
   });
 }
