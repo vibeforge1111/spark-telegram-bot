@@ -295,6 +295,8 @@ import {
   isProtectedMissionResumePronounIntent,
   isSparkChipStatusOverclaimQuestion,
   isSparkThreadQaGoldenCaseRequest,
+  isSparkUpdateConsequenceQuestion,
+  isSparkUpdateGuidanceQuestion,
   isSparkWorkflowBugHuntRequest,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
@@ -319,6 +321,7 @@ import {
   renderNoEditSpawnerProbeExplanationReply,
   renderPlainChatAnswerEditingReply,
   renderSparkThreadQaGoldenCaseReply,
+  renderSparkUpdateGuidanceReply,
   renderSparkWorkflowBugHuntReply,
   renderXContentCredentialBoundaryReply,
   renderXPostReviewFromLinksBoundaryReply,
@@ -9599,6 +9602,28 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
       action: 'plain_chat.qa_plan',
       signal: 'qa_planning_no_execution'
     }), 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply, outboundTraceExtra(traceContext));
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  const sparkUpdateConsequence = !earlyBuildIntent && isSparkUpdateConsequenceQuestion(text);
+  if (sparkUpdateConsequence || (!earlyBuildIntent && isSparkUpdateGuidanceQuestion(text))) {
+    const reply = renderSparkUpdateGuidanceReply(Boolean(sparkUpdateConsequence));
+    await conversation.remember(user, text).catch(() => {});
+    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, {
+      route: 'conversation.spark_update_guidance',
+      intentKind: 'conversation.spark_update_guidance',
+      command: 'telegram_spark_update_guidance',
+      reasonSummary: 'Telegram explained the existing Spark CLI update boundary; it did not run an update or change a registry pin.'
+    });
+    setTurnOutboundTraceContext(ctx, traceContext);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'conversation.spark_update_guidance',
+      owner: 'spark-telegram-bot',
+      action: 'plain_chat.update_guidance',
+      signal: sparkUpdateConsequence ? 'spark_update_consequence_question' : 'spark_update_guidance_question'
+    }), 'conversation.spark_update_guidance', 'spark-telegram-bot', 'plain_chat.update_guidance');
     await ctx.reply(reply, outboundTraceExtra(traceContext));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;

@@ -47,7 +47,10 @@ import {
   isSparkChipStatusOverclaimQuestion,
   isSparkWorkflowBugHuntRequest,
   isSparkThreadQaGoldenCaseRequest,
+  isSparkUpdateConsequenceQuestion,
+  isSparkUpdateGuidanceQuestion,
   renderSparkThreadQaGoldenCaseReply,
+  renderSparkUpdateGuidanceReply,
   renderAccessProductRuleReply,
   renderMissionRoutingFailureClassReply,
   renderModelSwitchGateExplanationReply,
@@ -418,6 +421,22 @@ test('does not turn product-memory mission boundary questions into workflow bug 
     ),
     false
   );
+});
+
+test('keeps Spark update safety and consequence questions in truthful chat guidance', () => {
+  assert.equal(isSparkUpdateGuidanceQuestion('How should I update Spark?'), true);
+  assert.equal(isSparkUpdateGuidanceQuestion('How should I update the app we built?'), false);
+  assert.equal(
+    isSparkUpdateConsequenceQuestion('What happens to my current work if I run spark update?'),
+    true
+  );
+
+  const reply = renderSparkUpdateGuidanceReply(true);
+  assert.match(reply, /dirty local changes should stop the update/i);
+  assert.match(reply, /spark update --skip-dirty/);
+  assert.match(reply, /spark update --continue/);
+  assert.match(reply, /spark verify --onboarding/);
+  assert.doesNotMatch(reply, /spark update --version|git checkout/);
 });
 
 test('recognizes H70 Thread QA golden-case requests as conversation fixtures', () => {

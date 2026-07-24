@@ -1859,6 +1859,43 @@ export function renderMissionRoutingFailureClassReply(_text: string): string {
 	return renderContextualHarnessBoundaryReply(_text, normalized);
 }
 
+export function isSparkUpdateConsequenceQuestion(text: string): boolean {
+  const normalized = text.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || !/\b(?:spark|spark\s+update|updat(?:e|ed|ing))\b/.test(normalized)) {
+    return false;
+  }
+  return (
+    /\bwhat\s+happens?\b.{0,70}\b(?:work|files?|code|changes?|update)\b/.test(normalized) ||
+    /\bwill\b.{0,50}\b(?:spark\s+)?update\b.{0,50}\b(?:affect|overwrite|break|wipe|change)\b/.test(normalized) ||
+    /\bdoes\b.{0,40}\bspark\s+update\b.{0,40}\b(?:affect|overwrite|break|wipe|change)\b/.test(normalized)
+  );
+}
+
+export function isSparkUpdateGuidanceQuestion(text: string): boolean {
+  const normalized = text.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || isSparkUpdateConsequenceQuestion(normalized)) {
+    return false;
+  }
+  return (
+    /\bspark\s+update\b/.test(normalized) ||
+    /\b(?:how|want|need|should)\b.{0,35}\bupdate\b.{0,35}\bspark\b/.test(normalized) ||
+    /\bspark\b.{0,35}\b(?:how|want|need|should)\b.{0,35}\bupdate\b/.test(normalized)
+  );
+}
+
+export function renderSparkUpdateGuidanceReply(consequence = false): string {
+  const opening = consequence
+    ? 'Spark checks installed module worktrees before updating, so dirty local changes should stop the update instead of being silently overwritten.'
+    : 'Before updating, make sure any intentional module edits are committed or safely stashed.';
+  return [
+    opening,
+    '',
+    'Run `spark update`. If it reports dirty modules, review them first; use `spark update --skip-dirty` to leave those modules alone, or fix them and continue with `spark update --continue`.',
+    '',
+    'Afterward, run `spark verify --onboarding`. For rollback, restore the reviewed registry pin or prior module ref and use the CLI’s explicit rollback path—don’t guess a ref or discard local work.'
+  ].join('\n');
+}
+
 export function isNoExecutionExplanationPrompt(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!normalized || parseBuildIntent(normalized) || !isNoExecutionBoundary(normalized)) {
