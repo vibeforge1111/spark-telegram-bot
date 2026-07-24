@@ -1,6 +1,7 @@
 // Build-project intent parser. Catches natural-language phrasing that should
 // kick off a Spawner PRD-based project flow (multi-task canvas + execution).
 
+import path from 'node:path';
 import {
   isLocalBuildWithPublicationBoundary,
   resolveBuildCommandBoundary,
@@ -49,11 +50,18 @@ function workspaceRootsFor(candidate: string): string[] {
   return [defaultWorkspaceRoot()];
 }
 
-function isInsideWorkspace(candidate: string): boolean {
-  const normalizedCandidate = normalizePathForPlatform(candidate).toLowerCase();
+export function isInsideWorkspace(candidate: string): boolean {
+  if (!candidate.trim()) return false;
   return workspaceRootsFor(candidate).some((root) => {
-    const normalizedRoot = normalizePathForPlatform(root).toLowerCase();
-    return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}${normalizedRoot.includes('\\') ? '\\' : '/'}`);
+    const windowsPath = /^[A-Z]:[\\/]/i.test(candidate) || /^[A-Z]:[\\/]/i.test(root);
+    const pathApi = windowsPath ? path.win32 : path.posix;
+    const resolvedCandidate = pathApi.resolve(normalizePathForPlatform(candidate));
+    const resolvedRoot = pathApi.resolve(normalizePathForPlatform(root));
+    const comparableCandidate = windowsPath ? resolvedCandidate.toLowerCase() : resolvedCandidate;
+    const comparableRoot = windowsPath ? resolvedRoot.toLowerCase() : resolvedRoot;
+    const relative = pathApi.relative(comparableRoot, comparableCandidate);
+    return relative === ''
+      || (relative !== '..' && !relative.startsWith(`..${pathApi.sep}`) && !pathApi.isAbsolute(relative));
   });
 }
 

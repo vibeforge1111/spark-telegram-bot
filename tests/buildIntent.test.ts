@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { parseBuildIntent } from '../src/buildIntent';
+import { isInsideWorkspace, parseBuildIntent } from '../src/buildIntent';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -255,6 +255,22 @@ test('ignores POSIX paths outside configured project root', () => {
 
     assert.ok(intent);
     assert.equal(intent.projectPath, null);
+  } finally {
+    if (originalRoot === undefined) delete process.env.SPARK_PROJECT_ROOT;
+    else process.env.SPARK_PROJECT_ROOT = originalRoot;
+  }
+});
+
+test('rejects lexical traversal outside configured POSIX and Windows workspace roots', () => {
+  const originalRoot = process.env.SPARK_PROJECT_ROOT;
+  try {
+    process.env.SPARK_PROJECT_ROOT = '/home/spark/workspace';
+    assert.equal(isInsideWorkspace('/home/spark/workspace/project'), true);
+    assert.equal(isInsideWorkspace('/home/spark/workspace/../../etc/passwd'), false);
+
+    process.env.SPARK_PROJECT_ROOT = 'C:\\Users\\USER\\Desktop';
+    assert.equal(isInsideWorkspace('C:\\Users\\USER\\Desktop\\project'), true);
+    assert.equal(isInsideWorkspace('C:\\Users\\USER\\Desktop\\..\\..\\Windows'), false);
   } finally {
     if (originalRoot === undefined) delete process.env.SPARK_PROJECT_ROOT;
     else process.env.SPARK_PROJECT_ROOT = originalRoot;
