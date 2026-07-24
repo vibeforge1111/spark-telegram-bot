@@ -62,11 +62,13 @@ import {
   renderNoEditSpawnerProbeExplanationReply,
   renderPlainChatAnswerEditingReply,
   renderRawLogSafetyReply,
+  renderPrivateOrAmbiguousRepoReply,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
   isXContentCredentialBoundaryQuestion,
   isXPostReviewFromLinksRequest,
   isProjectImprovementRequest,
+  isPrivateOrAmbiguousRepoQuestion,
   isRawLogSafetyQuestion,
   isLocalSparkServiceRequest,
   isRuntimeOutputArtifactRequest,
@@ -944,6 +946,15 @@ test('keeps TradingView level extraction behind visible proof', () => {
   const reply = renderMarketChartProofBoundaryReply();
   assert.match(reply, /can't truthfully give exact current levels/i);
   assert.match(reply, /won't invent levels or place a trade/i);
+});
+
+test('keeps private and ambiguous repository access credential-safe', () => {
+  assert.equal(isPrivateOrAmbiguousRepoQuestion('How can I access this private GitHub repo?'), true);
+  assert.equal(isPrivateOrAmbiguousRepoQuestion("I'm not sure which repo to use"), true);
+  assert.equal(isPrivateOrAmbiguousRepoQuestion('Build a private repository browser'), false);
+  const reply = renderPrivateOrAmbiguousRepoReply();
+  assert.match(reply, /never paste a PAT or deploy key/i);
+  assert.doesNotMatch(reply, /proof packet|Spark Compete/i);
 });
 
 test('builds recent-turn evidence for contextual Memory Doctor requests', () => {

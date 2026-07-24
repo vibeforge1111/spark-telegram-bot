@@ -119,6 +119,25 @@ export function renderMarketChartProofBoundaryReply(): string {
   ].join(' ');
 }
 
+export function isPrivateOrAmbiguousRepoQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized)) return false;
+  const repo = /\b(?:repo(?:sitory)?|github)\b/.test(normalized);
+  const privateAccess =
+    /\bprivate\b/.test(normalized) &&
+    /\b(?:access|clone|credential|token|pat|how|can|could)\b/.test(normalized);
+  const ambiguous =
+    /\b(?:not\s+sure|unsure|unclear|don'?t\s+know|which\s+(?:repo|repository)|which\s+one)\b/.test(normalized);
+  return repo && (privateAccess || ambiguous);
+}
+
+export function renderPrivateOrAmbiguousRepoReply(): string {
+  return [
+    "Keep private-repo credentials in Spark's configured secret path, and never paste a PAT or deploy key into chat.",
+    "Tell me what you want to inspect or change and whether the target is public or private; I’ll confirm the repo before any access attempt."
+  ].join(' ');
+}
+
 const HIGH_AGENCY_WORD_PATTERN = /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|remember|draft|canvas|browser|computer-use|computer\s+use|restart)\b/;
 
 export function isActionWordMetaDiscussion(text: string): boolean {

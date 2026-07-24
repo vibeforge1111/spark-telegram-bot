@@ -297,6 +297,7 @@ import {
   isProtectedMissionCancelPronounIntent,
   isProtectedMissionPausePronounIntent,
   isProtectedMissionResumePronounIntent,
+  isPrivateOrAmbiguousRepoQuestion,
   isRawLogSafetyQuestion,
   isSparkChipStatusOverclaimQuestion,
   isSparkThreadQaGoldenCaseRequest,
@@ -329,6 +330,7 @@ import {
   renderModelSwitchGateExplanationReply,
   renderNoEditSpawnerProbeExplanationReply,
   renderPlainChatAnswerEditingReply,
+  renderPrivateOrAmbiguousRepoReply,
   renderRawLogSafetyReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkUpdateGuidanceReply,
@@ -9538,6 +9540,14 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
     const reply = renderMarketChartProofBoundaryReply();
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.market_chart_proof_boundary', 'spark-telegram-bot', 'plain_chat.safety_boundary');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+  if (isPrivateOrAmbiguousRepoQuestion(text)) {
+    const reply = renderPrivateOrAmbiguousRepoReply();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'repo.private_or_ambiguous_guidance', 'spark-telegram-bot', 'plain_chat.safety_guidance');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
