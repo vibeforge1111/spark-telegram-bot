@@ -827,7 +827,7 @@ function scheduleDelayedCompletionSummary(
   event: DeliverableRelayEvent,
   verbosity: TelegramRelayVerbosity
 ): void {
-  setTimeout(() => {
+  const summaryTimer = setTimeout(() => {
     void (async () => {
       if (completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
       const completion = await fetchMissionCompletionSummary(event.missionId, { attempts: 12, delayMs: 5000 });
@@ -837,6 +837,7 @@ function scheduleDelayedCompletionSummary(
       console.error('[CompletionSummary] delivery failed:', err);
     });
   }, 1000);
+  summaryTimer.unref?.();
 }
 
 function humanizeProviderLabel(label: string): string {

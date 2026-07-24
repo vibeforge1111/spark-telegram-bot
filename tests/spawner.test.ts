@@ -1406,6 +1406,42 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /mission-older/);
   });
 
+  await test('latestKanbanSummary ignores malformed timestamps when choosing the newest mission', async () => {
+    restoreAxios();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'mission-invalid-date',
+              missionName: 'Malformed timestamp mission',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: 'not-a-date'
+            },
+            {
+              missionId: 'mission-valid-date',
+              missionName: 'Valid timestamp mission',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: '2026-07-24T00:00:00.000Z'
+            }
+          ],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestKanbanSummary();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /Valid timestamp mission/);
+    assert.doesNotMatch(result.message, /Malformed timestamp mission/);
+  });
+
   await test('latestProviderSummary reports the provider for the newest Spawner job', async () => {
     restoreAxios();
     const now = Date.now();

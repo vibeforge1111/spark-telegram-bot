@@ -68,6 +68,21 @@ test('formats diagnostics scan replies without emojis while preserving sections'
   assert.doesNotMatch(reply, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
 });
 
+test('keeps equal diagnostic counts in a stable alphabetical order', () => {
+  const reply = formatDiagnosticsScanReply({
+    scanned_line_count: 8,
+    failure_line_count: 4,
+    findings: [],
+    sources: [],
+    service_checks: [],
+    counts_by_subsystem: { voice: 2, builder: 2, telegram: 2, spawner: 2 },
+    counts_by_failure_class: { timeout: 1, denied: 1 }
+  });
+
+  assert.match(reply, /Subsystems\n- builder: 2, spawner: 2, telegram: 2, voice: 2/);
+  assert.match(reply, /Failure classes\n- denied: 1, timeout: 1/);
+});
+
 test('compacts large cold memory queries before invoking Builder memory', () => {
   const query = compactColdMemoryQuery(`Build this project.\n\n${'feature '.repeat(500)}`, 120);
 

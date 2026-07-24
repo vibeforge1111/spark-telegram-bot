@@ -3347,16 +3347,22 @@ function canvasPlanKey(chatId: string | number | undefined, userId: string | num
   return `${chatId ?? 'unknown'}-${userId ?? 'unknown'}`;
 }
 
+function cleanupEntryAgeMs(now: number, timestamp: string | undefined): number {
+  if (!timestamp) return Number.POSITIVE_INFINITY;
+  const parsed = Date.parse(timestamp);
+  return Number.isFinite(parsed) ? now - parsed : Number.POSITIVE_INFINITY;
+}
+
 // Periodic cleanup of stale entries in all unbounded maps
 const mapCleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of lastNoEditProbeMissions) {
-    if (now - new Date(entry.startedAt ?? 0).getTime() > LAST_NO_EDIT_PROBE_TTL_MS) {
+    if (cleanupEntryAgeMs(now, entry.startedAt) > LAST_NO_EDIT_PROBE_TTL_MS) {
       lastNoEditProbeMissions.delete(key);
     }
   }
   for (const [key, entry] of latestCanvasPlans) {
-    if (now - new Date(entry.recordedAt ?? 0).getTime() > LATEST_CANVAS_PLAN_TTL_MS) {
+    if (cleanupEntryAgeMs(now, entry.recordedAt) > LATEST_CANVAS_PLAN_TTL_MS) {
       latestCanvasPlans.delete(key);
     }
   }
