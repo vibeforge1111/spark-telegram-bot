@@ -2003,6 +2003,23 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /^Mission$/m);
     assert.doesNotMatch(result.message, /• completed/);
   });
+
+  await test('Spawner failures stay bounded when a client rejects without an Error object', async () => {
+    restoreAxios();
+    (axios as any).get = async () => Promise.reject(undefined);
+    (axios as any).post = async () => Promise.reject(undefined);
+
+    const board = await spawner.board();
+    const runGoal = await spawner.runGoal({
+      goal: 'verify bounded error handling',
+      chatId: '123',
+      userId: '123',
+      requestId: 'bounded-error-test'
+    });
+
+    assert.deepEqual(board, { success: false, message: 'Mission board is unavailable' });
+    assert.deepEqual(runGoal, { success: false, error: 'Spark run bridge failed' });
+  });
 }
 
 run()

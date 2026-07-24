@@ -412,6 +412,15 @@ function isRetryableLocalServiceError(err: any): boolean {
   );
 }
 
+function spawnerErrorMessage(error: unknown, fallback = 'Spawner request failed'): string {
+  const candidate = error && typeof error === 'object'
+    ? (error as any)?.response?.data?.error || (error as any)?.message
+    : typeof error === 'string'
+      ? error
+      : null;
+  return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : fallback;
+}
+
 export async function postLocalServiceWithRetry<T = any>(
   url: string,
   body: unknown,
@@ -1467,7 +1476,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: spawnerErrorMessage(err, 'Spark run bridge failed')
       };
     }
   },
@@ -1757,7 +1766,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: spawnerErrorMessage(err, 'Loop Engineering mission creation failed')
       };
     }
   },
@@ -1804,7 +1813,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: spawnerErrorMessage(err, 'Loop Engineering mission execution failed')
       };
     }
   },
@@ -1838,7 +1847,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: spawnerErrorMessage(err, 'Loop Engineering status lookup failed')
       };
     }
   },
@@ -1873,7 +1882,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: spawnerErrorMessage(err, 'Loop Engineering validation failed')
       };
     }
   },
@@ -1941,7 +1950,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerErrorMessage(err, 'Mission command failed')
       };
     }
   },
@@ -2277,7 +2286,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerErrorMessage(err, 'Mission board is unavailable')
       };
     }
   },
@@ -2299,7 +2308,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerErrorMessage(err, 'Latest Kanban summary is unavailable')
       };
     }
   },
@@ -2313,7 +2322,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerErrorMessage(err, 'Active mission summary is unavailable')
       };
     }
   },
@@ -2335,7 +2344,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerErrorMessage(err, 'Latest provider summary is unavailable')
       };
     }
   },
@@ -2360,7 +2369,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerErrorMessage(err, 'Latest failed-provider summary is unavailable')
       };
     }
   },
@@ -2386,7 +2395,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerErrorMessage(err, 'Latest mission summary is unavailable')
       };
     }
   },
@@ -2408,7 +2417,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerErrorMessage(err, 'Latest failure summary is unavailable')
       };
     }
   },
@@ -2456,7 +2465,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerErrorMessage(err, 'Latest project preview is unavailable')
       };
     }
   }
