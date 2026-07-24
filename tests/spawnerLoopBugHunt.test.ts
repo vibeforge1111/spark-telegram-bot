@@ -29,6 +29,7 @@ import {
   isPendingClarificationFollowup,
   isRouteConfidenceGateUnsupportedError,
   isSparkVersionCheckQuestion,
+  logInterruptedTaskPersistenceFailure,
   latestCanvasPlanFromLoadState,
   routeConfidenceGateCompatibilityAllows,
   renderUnknownTelegramCommandReply,
@@ -80,6 +81,19 @@ test('Spark version questions stay on a truthful read-only CLI path', () => {
   assert.equal(isSparkVersionCheckQuestion('what Node version is installed?'), false);
   assert.equal(renderSparkVersionCheckReply('spark 3.2.1\nextra detail'), 'This machine is running spark 3.2.1.');
   assert.match(renderSparkVersionCheckReply(''), /did not return a version/i);
+});
+
+test('secondary interrupted-task failures are logged with redaction', () => {
+  const originalWarn = console.warn;
+  const warnings: string[] = [];
+  console.warn = (message?: unknown) => { warnings.push(String(message)); };
+  try {
+    logInterruptedTaskPersistenceFailure('diagnostics_scan', new Error('failed at /Users/operator/private BOT_TOKEN=123456:secret'));
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.match(warnings[0] || '', /diagnostics_scan persistence failed/);
+  assert.doesNotMatch(warnings[0] || '', /\/Users\/operator|123456:secret/);
 });
 
 test('bug hunt: strategy, QA, and route-meta conversations do not hijack into builds', () => {

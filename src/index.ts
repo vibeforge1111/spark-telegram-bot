@@ -3401,6 +3401,11 @@ export function renderUnknownTelegramCommandReply(): string {
   return "I don't recognize that command. Try /help for the current command list.";
 }
 
+export function logInterruptedTaskPersistenceFailure(scope: string, error: unknown): void {
+  const detail = redactText(error instanceof Error ? error.message : String(error)).replace(/\s+/g, ' ').trim();
+  console.warn(`[InterruptedTask] ${scope} persistence failed${detail ? `: ${detail.slice(0, 240)}` : '.'}`);
+}
+
 const rateLimitCleanupTimer = setInterval(() => {
   const now = Date.now();
   cleanupSlidingWindowRateLimit(userRequestTimestamps, now);
@@ -11089,7 +11094,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
           message: text,
           failure: detail,
           stage: 'local_workspace_inspection'
-        }).catch(() => {});
+        }).catch((error) => logInterruptedTaskPersistenceFailure('local_workspace_inspection', error));
         await ctx.reply(`Local workspace inspection failed: ${detail}`);
       }
       return;
@@ -11353,7 +11358,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
           message: text,
           failure: detail,
           stage: 'diagnostics_scan'
-        }).catch(() => {});
+        }).catch((error) => logInterruptedTaskPersistenceFailure('diagnostics_scan', error));
         await ctx.reply(`Diagnostics scan failed: ${detail}`);
       }
       return;
@@ -11668,7 +11673,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
         message: text,
         failure: bridgeFailed ? 'Builder bridge failed and chat fallback returned a low-information reply.' : 'Chat runtime returned a low-information reply.',
         stage: bridgeFailed ? 'builder_bridge_fallback' : 'chat_runtime'
-      }).catch(() => {});
+      }).catch((error) => logInterruptedTaskPersistenceFailure('builder_or_chat_runtime', error));
       await ctx.reply(renderChatRuntimeFailureReply(conversation.isAdmin(user), bridgeFailed));
       return;
     }
@@ -11698,7 +11703,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
       message: text,
       failure: detail,
       stage: 'telegram_message_handler'
-    }).catch(() => {});
+    }).catch((error) => logInterruptedTaskPersistenceFailure('telegram_message_handler', error));
     await ctx.reply(renderSparkErrorReply(err, 'chat', conversation.isAdmin(user)));
   }
 }
@@ -11787,7 +11792,7 @@ export async function handleImageMessage(ctx: any): Promise<void> {
       message: imageMemoryText,
       failure: `Builder image bridge returned no usable response. mode=${builderReply.bridgeMode || 'none'} routing=${builderReply.routingDecision || 'none'}`,
       stage: 'telegram_image_handler'
-    }).catch(() => {});
+    }).catch((error) => logInterruptedTaskPersistenceFailure('telegram_image_handler', error));
   } catch (err) {
     console.error('Image handling error:', err);
     const detail = err instanceof Error ? err.message : String(err);
@@ -11800,7 +11805,7 @@ export async function handleImageMessage(ctx: any): Promise<void> {
       message: imageMemoryText,
       failure: detail,
       stage: 'telegram_image_handler'
-    }).catch(() => {});
+    }).catch((error) => logInterruptedTaskPersistenceFailure('telegram_image_handler', error));
     await ctx.reply(renderSparkErrorReply(err, 'telegram', conversation.isAdmin(user)));
   }
 }
@@ -11899,7 +11904,7 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
       message: mediaMemoryText,
       failure: `Builder voice bridge returned no usable response. mode=${builderReply.bridgeMode || 'none'} routing=${builderReply.routingDecision || 'none'}`,
       stage: 'telegram_voice_handler'
-    }).catch(() => {});
+    }).catch((error) => logInterruptedTaskPersistenceFailure('telegram_voice_handler', error));
   } catch (err) {
     console.error('Voice handling error:', err);
     const detail = err instanceof Error ? err.message : String(err);
@@ -11912,7 +11917,7 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
       message: mediaMemoryText,
       failure: detail,
       stage: 'telegram_voice_handler'
-    }).catch(() => {});
+    }).catch((error) => logInterruptedTaskPersistenceFailure('telegram_voice_handler', error));
     await ctx.reply(renderSparkErrorReply(err, 'telegram', conversation.isAdmin(user)));
   }
 }
