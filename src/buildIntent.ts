@@ -42,7 +42,10 @@ function normalizePathForPlatform(value: string): string {
 function workspaceRootsFor(candidate: string): string[] {
   if (process.env.SPARK_PROJECT_ROOT?.trim()) return [process.env.SPARK_PROJECT_ROOT.trim()];
   if (process.env.SPARK_WORKSPACE_ROOT?.trim()) return [process.env.SPARK_WORKSPACE_ROOT.trim()];
-  if (/^[A-Z]:[\\/]/i.test(candidate)) return ['C:\\Users\\USER\\Desktop'];
+  if (/^[A-Z]:[\\/]/i.test(candidate)) {
+    const home = process.env.USERPROFILE || 'C:\\Users\\USER';
+    return [`${home.replace(/[\\/]$/, '')}\\Desktop`];
+  }
   return [defaultWorkspaceRoot()];
 }
 
