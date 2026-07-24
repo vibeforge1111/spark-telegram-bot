@@ -12117,16 +12117,20 @@ bot.on(message('sticker'), handleUnsupportedTelegramMediaMessage);
 bot.on(message('video_note'), handleUnsupportedTelegramMediaMessage);
 
 // Graceful shutdown
-process.once('SIGINT', () => {
+process.once('SIGINT', async () => {
   console.log('Shutting down...');
-  void releaseGatewayOwnership();
+  await releaseGatewayOwnership().catch((error) => {
+    console.warn(`[Shutdown] gateway ownership release failed: ${redactText(error instanceof Error ? error.message : String(error))}`);
+  });
   if (pollingActive) {
     bot.stop('SIGINT');
   }
 });
-process.once('SIGTERM', () => {
+process.once('SIGTERM', async () => {
   console.log('Shutting down...');
-  void releaseGatewayOwnership();
+  await releaseGatewayOwnership().catch((error) => {
+    console.warn(`[Shutdown] gateway ownership release failed: ${redactText(error instanceof Error ? error.message : String(error))}`);
+  });
   if (pollingActive) {
     bot.stop('SIGTERM');
   }
