@@ -40,8 +40,17 @@ void (async () => {
     const memberHelp = renderTelegramHelp({ admin: false });
     const adminHelp = renderTelegramHelp({ admin: true });
     assert.match(memberHelp, /\/remember/);
+    assert.match(memberHelp, /\/resonance/);
+    assert.match(memberHelp, /\/voice/);
     assert.doesNotMatch(memberHelp, /\/access\s+<|\/mission\s+<|Spawner Control/);
     assert.match(adminHelp, /Spawner Control/);
+    assert.match(adminHelp, /\/schedule/);
+    assert.match(adminHelp, /\/schedules/);
+    assert.match(adminHelp, /\/chip create/);
+    assert.match(adminHelp, /\/loop/);
+    assert.match(adminHelp, /\/recursive/);
+    assert.match(adminHelp, /\/process/);
+    assert.match(adminHelp, /\/reflect/);
     assert.match(adminHelp, /\/mission\s+<status\|pause\|resume\|kill>/);
     assert.match(adminHelp, /\/authority/);
     assert.match(adminHelp, /\/capabilities/);

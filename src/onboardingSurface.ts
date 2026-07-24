@@ -40,7 +40,13 @@ export function renderTelegramHelp(input: { admin: boolean }): string {
     'Health',
     '• /status — current Spark status',
     '• /diagnose — check the connected systems',
-    '• /spark — compact system status'
+    '• /spark — compact system status',
+    '',
+    'Spark Intelligence',
+    '• /resonance — inspect the current resonance state',
+    '• /insights — review recent cognitive insights',
+    '• /lessons — review recent surprise lessons',
+    '• /voice — inspect voice readiness'
   ];
   if (input.admin) {
     lines.push(
@@ -48,11 +54,18 @@ export function renderTelegramHelp(input: { admin: boolean }): string {
       'Spawner Control',
       '• /run <goal> — start a mission',
       '• /board — show mission state',
+      '• /schedule "<cron>" mission|loop ... — schedule a mission or chip loop',
+      '• /schedules — manage scheduled work',
       '• /mission <status|pause|resume|kill> <missionId> — inspect or control a mission',
       '• /creator plan <brief> — plan a Loop Engineering path',
       '• /creator run <missionId> — execute a planned path',
       '• /creator status <missionId> — show readiness and validation',
       '• /creator validate <missionId> [maxCommands] — run validation gates',
+      '• /chip create <description> — scaffold a domain chip',
+      '• /loop <chip_key> [rounds] — run a chip autoloop',
+      '• /recursive <action> — inspect or run specialization-path recursion',
+      '• /process — process queued intelligence events',
+      '• /reflect — run a reflection pass',
       '',
       'Evidence',
       '• /authority — inspect compiled authority evidence',
