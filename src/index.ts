@@ -6857,7 +6857,7 @@ function redactedRef(label: string, value: string): string {
   return `${label}:sha256:${createHash('sha256').update(value).digest('hex').slice(0, 16)}`;
 }
 
-function recordRouteConfidenceDispatchOutcome(input: {
+async function recordRouteConfidenceDispatchOutcome(input: {
   route: string;
   decision: string;
   outcome: 'acted' | 'blocked' | 'failed_closed';
@@ -6866,7 +6866,7 @@ function recordRouteConfidenceDispatchOutcome(input: {
   policy?: string;
   proofCapsule?: HarnessProofCapsuleV1;
   proofRef?: string;
-}): void {
+}): Promise<void> {
   const auditPath = process.env.SPARK_TELEGRAM_ROUTE_CONFIDENCE_AUDIT_PATH || path.join(
     os.homedir(),
     '.spark',
@@ -6886,9 +6886,8 @@ function recordRouteConfidenceDispatchOutcome(input: {
     ...proofAuditFields(input.proofCapsule, input.proofRef),
     privacy: 'metadata_only'
   };
-  mkdir(path.dirname(auditPath), { recursive: true })
-    .then(() => appendFile(auditPath, `${JSON.stringify(record)}\n`, 'utf-8'))
-    .catch(() => {});
+  await mkdir(path.dirname(auditPath), { recursive: true });
+  await appendFile(auditPath, `${JSON.stringify(record)}\n`, 'utf-8');
 }
 
 function buildRouteConfidenceProofCapsule(input: {
@@ -6995,7 +6994,7 @@ export async function buildDispatchRouteConfidenceAllows(input: {
 
     const decision = routeConfidenceDecision(gate.payload);
     if (decision === 'act') {
-      recordRouteConfidenceDispatchOutcome({
+      await recordRouteConfidenceDispatchOutcome({
         route: 'spawner.build',
         decision,
         outcome: 'acted',
@@ -7024,7 +7023,7 @@ export async function buildDispatchRouteConfidenceAllows(input: {
         runnerWritable
       })
     ) {
-      recordRouteConfidenceDispatchOutcome({
+      await recordRouteConfidenceDispatchOutcome({
         route: 'spawner.build',
         decision: 'act',
         outcome: 'acted',
@@ -7042,7 +7041,7 @@ export async function buildDispatchRouteConfidenceAllows(input: {
       });
       return true;
     }
-    recordRouteConfidenceDispatchOutcome({
+    await recordRouteConfidenceDispatchOutcome({
       route: 'spawner.build',
       decision,
       outcome: 'blocked',
@@ -7088,7 +7087,7 @@ export async function buildDispatchRouteConfidenceAllows(input: {
         spawnerAvailable,
         runnerWritable
       });
-      recordRouteConfidenceDispatchOutcome({
+      await recordRouteConfidenceDispatchOutcome({
         route: 'spawner.build',
         decision: allowedByLocalCompatibility ? 'act' : 'unavailable',
         outcome: allowedByLocalCompatibility ? 'acted' : 'failed_closed',
@@ -7115,7 +7114,7 @@ export async function buildDispatchRouteConfidenceAllows(input: {
       ].join('\n'));
       return false;
     }
-    recordRouteConfidenceDispatchOutcome({
+    await recordRouteConfidenceDispatchOutcome({
       route: 'spawner.build',
       decision: 'unavailable',
       outcome: 'failed_closed',
