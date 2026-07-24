@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, mkdirSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -26,6 +26,17 @@ async function main(): Promise<void> {
     const roots = defaultLocalWorkspaceRoots({ SPARK_HOME: sparkHome } as NodeJS.ProcessEnv);
 
     assert.equal(roots.at(-1), path.join(sparkHome, 'workspaces'));
+  });
+
+  await test('only includes optional home workspace roots that exist', () => {
+    const roots = defaultLocalWorkspaceRoots({} as NodeJS.ProcessEnv);
+    for (const root of roots.slice(0, -1)) {
+      assert.equal(
+        root.endsWith(`${path.sep}Desktop`) || root.endsWith(`${path.sep}Documents`),
+        true
+      );
+      assert.equal(existsSync(root), true);
+    }
   });
 
   await test('recognizes local workspace and desktop inspection requests', () => {
