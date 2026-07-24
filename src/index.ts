@@ -3442,6 +3442,11 @@ export function logInterruptedTaskPersistenceFailure(scope: string, error: unkno
   console.warn(`[InterruptedTask] ${scope} persistence failed${detail ? `: ${detail.slice(0, 240)}` : '.'}`);
 }
 
+export function logTelegramReplyFailure(scope: string, error: unknown): void {
+  const detail = redactText(error instanceof Error ? error.message : String(error)).replace(/\s+/g, ' ').trim();
+  console.warn(`[TelegramReply] ${scope} failed${detail ? `: ${detail.slice(0, 240)}` : '.'}`);
+}
+
 const rateLimitCleanupTimer = setInterval(() => {
   const now = Date.now();
   cleanupSlidingWindowRateLimit(userRequestTimestamps, now);
@@ -3621,7 +3626,8 @@ function requireAdmin(ctx: any): boolean {
     return true;
   }
 
-  ctx.reply('Admin only. Run /myid, then add that numeric ID to ADMIN_TELEGRAM_IDS in .env.').catch(() => {});
+  ctx.reply('Admin only. Run /myid, then add that numeric ID to ADMIN_TELEGRAM_IDS in .env.')
+    .catch((error: unknown) => logTelegramReplyFailure('admin_required_notice', error));
   return false;
 }
 
@@ -4100,7 +4106,8 @@ export async function handleRecallCommand(ctx: any): Promise<void> {
 // Error handler
 bot.catch((err, ctx) => {
   console.error(`Error for ${ctx.updateType}:`, err);
-  ctx.reply(renderSparkErrorReply(err, 'telegram', ctx.from ? conversation.isAdmin(ctx.from) : false)).catch(() => {});
+  ctx.reply(renderSparkErrorReply(err, 'telegram', ctx.from ? conversation.isAdmin(ctx.from) : false))
+    .catch((error: unknown) => logTelegramReplyFailure('global_error_notice', error));
 });
 
 // Rate limit middleware

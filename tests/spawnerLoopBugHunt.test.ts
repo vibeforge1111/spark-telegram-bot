@@ -33,6 +33,7 @@ import {
   isSparkSetupHealthCheckRequest,
   isSparkVersionCheckQuestion,
   logInterruptedTaskPersistenceFailure,
+  logTelegramReplyFailure,
   latestCanvasPlanFromLoadState,
   routeConfidenceGateCompatibilityAllows,
   renderUnknownTelegramCommandReply,
@@ -107,6 +108,19 @@ test('secondary interrupted-task failures are logged with redaction', () => {
     console.warn = originalWarn;
   }
   assert.match(warnings[0] || '', /diagnostics_scan persistence failed/);
+  assert.doesNotMatch(warnings[0] || '', /\/Users\/operator|123456:secret/);
+});
+
+test('secondary Telegram reply failures are logged with redaction', () => {
+  const originalWarn = console.warn;
+  const warnings: string[] = [];
+  console.warn = (message?: unknown) => { warnings.push(String(message)); };
+  try {
+    logTelegramReplyFailure('global_error_notice', new Error('failed at /Users/operator/private BOT_TOKEN=123456:secret'));
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.match(warnings[0] || '', /global_error_notice failed/);
   assert.doesNotMatch(warnings[0] || '', /\/Users\/operator|123456:secret/);
 });
 
