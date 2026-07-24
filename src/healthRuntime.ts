@@ -81,16 +81,20 @@ export async function validateRelayRuntime(
 }
 
 async function main(): Promise<void> {
-  loadSparkTelegramProfileEnv(process.argv.slice(2), process.env, { preserveExisting: true });
+  const args = process.argv.slice(2);
+  const json = args.includes('--json');
+  loadSparkTelegramProfileEnv(args, process.env, { preserveExisting: true });
   const missingProfileToken = process.env.SPARK_PROFILE_TOKEN_MISSING?.trim();
   if (missingProfileToken && !process.env.BOT_TOKEN?.trim()) {
     throw new Error(
       `Could not load ${missingProfileToken}. Run this from an approved Spark secret session, or set TEST_BOT_TOKEN for token health checks.`
     );
   }
-  await runTelegramPollingHealth();
+  const polling = await runTelegramPollingHealth({ output: json ? 'silent' : 'text' });
   const detail = await validateRelayRuntime();
-  console.log(`Relay runtime: OK (${detail})`);
+  console.log(json
+    ? JSON.stringify({ status: 'ok', detail, telegram: polling })
+    : `Relay runtime: OK (${detail})`);
 }
 
 if (require.main === module) {

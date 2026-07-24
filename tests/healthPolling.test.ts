@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { describeTelegramTokenError } from '../src/healthPolling';
+import { describeTelegramTokenError, formatTelegramPollingHealth } from '../src/healthPolling';
 import { readFileSync } from 'node:fs';
 import {
   DEFAULT_RELAY_HEALTH_TIMEOUT_MS,
@@ -24,6 +24,18 @@ test('explains rejected Telegram tokens without echoing token material', () => {
   assert.match(message, /Telegram rejected BOT_TOKEN/);
   assert.match(message, /BotFather/);
   assert.doesNotMatch(message, /\d+:[A-Za-z0-9_-]+/);
+});
+
+test('polling health keeps human output by default and offers one structured JSON object', () => {
+  const info = {
+    status: 'ok' as const,
+    botToken: 'accepted (@spark_recursive)',
+    ingressMode: 'polling',
+    webhookIngress: 'disabled for this launch build' as const,
+    relayAuth: 'configured' as const
+  };
+  assert.match(formatTelegramPollingHealth(info), /Telegram health: OK\nBot token: accepted/);
+  assert.deepEqual(JSON.parse(formatTelegramPollingHealth(info, true)), info);
 });
 
 test('keeps unknown Telegram health failures actionable', () => {
@@ -158,8 +170,10 @@ test('health runtime preserves loaded env token while profile secrets are unavai
 
   assert.match(
     source,
-    /loadSparkTelegramProfileEnv\(process\.argv\.slice\(2\), process\.env, \{ preserveExisting: true \}\)/
+    /loadSparkTelegramProfileEnv\(args, process\.env, \{ preserveExisting: true \}\)/
   );
+  assert.match(source, /args\.includes\('--json'\)/);
+  assert.match(source, /output: json \? 'silent' : 'text'/);
 });
 
 test('explains unreachable relay runtime', async () => {

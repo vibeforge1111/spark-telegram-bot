@@ -58,7 +58,28 @@ async function validateTelegramToken(token: string): Promise<string> {
   }
 }
 
-export async function runTelegramPollingHealth(): Promise<void> {
+export interface TelegramPollingHealthInfo {
+  status: 'ok';
+  botToken: string;
+  ingressMode: string;
+  webhookIngress: 'disabled for this launch build';
+  relayAuth: 'configured';
+}
+
+export function formatTelegramPollingHealth(info: TelegramPollingHealthInfo, json = false): string {
+  if (json) return JSON.stringify(info);
+  return [
+    'Telegram health: OK',
+    `Bot token: ${info.botToken}`,
+    `Ingress mode: ${info.ingressMode}`,
+    `Webhook ingress: ${info.webhookIngress}`,
+    `Relay auth: ${info.relayAuth}`
+  ].join('\n');
+}
+
+export async function runTelegramPollingHealth(
+  options: { output?: 'text' | 'json' | 'silent' } = {}
+): Promise<TelegramPollingHealthInfo> {
   const launch = resolveTelegramLaunchConfig();
   requireRelaySecret();
 
@@ -75,17 +96,24 @@ export async function runTelegramPollingHealth(): Promise<void> {
   }
 
   const identity = await validateTelegramToken(botToken);
-  console.log('Telegram health: OK');
-  console.log(`Bot token: accepted${identity === 'skipped' ? ' (API check skipped)' : ` (${identity})`}`);
-  console.log(`Ingress mode: ${launch.mode}`);
-  console.log('Webhook ingress: disabled for this launch build');
-  console.log('Relay auth: configured');
+  const info: TelegramPollingHealthInfo = {
+    status: 'ok',
+    botToken: `accepted${identity === 'skipped' ? ' (API check skipped)' : ` (${identity})`}`,
+    ingressMode: launch.mode,
+    webhookIngress: 'disabled for this launch build',
+    relayAuth: 'configured'
+  };
+  const output = options.output || 'text';
+  if (output !== 'silent') console.log(formatTelegramPollingHealth(info, output === 'json'));
+  return info;
 }
 
 if (require.main === module) {
   (async () => {
     try {
-      await runTelegramPollingHealth();
+      await runTelegramPollingHealth({
+        output: process.argv.slice(2).includes('--json') ? 'json' : 'text'
+      });
     } catch (error) {
       console.error(`Telegram health: FAILED - ${(error as Error).message}`);
       process.exit(1);
