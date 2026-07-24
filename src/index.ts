@@ -4681,13 +4681,13 @@ function renderAocProbeHelp(): string {
   ].join('\n');
 }
 
-function aocProbeSummaryLine(routeKey: string, payload: Record<string, unknown>): string {
+export function aocProbeSummaryLine(routeKey: string, payload: Record<string, unknown>): string {
   const label = AOC_ROUTE_LABELS[routeKey] || routeKey;
   const status = String(payload.status || 'unknown').trim() || 'unknown';
   const latency = typeof payload.route_latency_ms === 'number' ? `, ${payload.route_latency_ms}ms` : '';
   const failure = String(payload.failure_reason || '').trim();
   const summary = String(payload.probe_summary || failure || '').trim();
-  const evidence = summary ? ` - ${summary.slice(0, 110)}` : '';
+  const evidence = summary ? ` - ${redactText(summary).slice(0, 180)}` : '';
   return `- ${label}: ${status}${latency}${evidence}`;
 }
 

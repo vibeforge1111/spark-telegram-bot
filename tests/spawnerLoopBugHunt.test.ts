@@ -17,6 +17,7 @@ import {
   renderSparkWorkflowBugHuntReply
 } from '../src/conversationIntent';
 import {
+  aocProbeSummaryLine,
   formatBuildClarificationReplyWithMicrocopy,
   formatCanvasReadySummary,
   formatCanvasShapingHeartbeatSummary,
@@ -76,6 +77,16 @@ test('unknown slash commands get one compact help hint', () => {
   assert.match(reply, /don't recognize/i);
   assert.match(reply, /\/help/);
   assert.equal(reply.split('\n').length, 1);
+});
+
+test('AOC probe summaries preserve useful context without leaking or flooding', () => {
+  const summary = aocProbeSummaryLine('spark_builder', {
+    status: 'failed',
+    probe_summary: `Failed at /Users/private/customer/repo with ${'useful context '.repeat(30)}`
+  });
+  assert.doesNotMatch(summary, /\/Users\/private|customer\/repo/);
+  assert.match(summary, /useful context/);
+  assert.ok(summary.length < 240, summary);
 });
 
 test('Spark version questions stay on a truthful read-only CLI path', () => {
