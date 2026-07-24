@@ -4485,7 +4485,7 @@ async function handleAgentBlackBoxCommand(ctx: any): Promise<void> {
       requestId,
       limit: 12,
     });
-    await ctx.reply(result.replyText);
+    await replyWithCommandDeliveryTrace(ctx, result.replyText, 'black_box', 'black_box_reply');
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
   }
@@ -4776,7 +4776,12 @@ async function handleTraceRepairCommand(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
   try {
     const summary = await readTraceRepairSummary();
-    await ctx.reply(renderTraceRepairSummary(summary));
+    await replyWithCommandDeliveryTrace(
+      ctx,
+      renderTraceRepairSummary(summary),
+      'trace_repair',
+      'trace_repair_reply'
+    );
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
   }
@@ -4831,7 +4836,12 @@ async function handleMemoryMovementCommand(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
   try {
     const summary = await readMemoryMovementSummary();
-    await ctx.reply(renderMemoryMovementSummary(summary));
+    await replyWithCommandDeliveryTrace(
+      ctx,
+      renderMemoryMovementSummary(summary),
+      'memory_movement',
+      'memory_movement_reply'
+    );
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
   }

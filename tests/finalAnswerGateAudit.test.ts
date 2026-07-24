@@ -137,7 +137,15 @@ test('command reply delivery audit backfills proof at the final-answer boundary'
 
 test('read-only command delivery records carry joined non-execution proof', async () => {
   const indexModule: any = await import('../src/index');
-  for (const command of ['status', 'diagnose', 'wiki', 'context']) {
+  for (const command of [
+    'status',
+    'diagnose',
+    'wiki',
+    'context',
+    'black_box',
+    'trace_repair',
+    'memory_movement'
+  ]) {
     const record = indexModule.buildCommandReplyDeliveryRecord({
       command,
       replyKind: `${command}_reply`,
