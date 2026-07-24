@@ -722,6 +722,10 @@ function isNegatedBuildCommandPrefix(prefix: string): boolean {
   return /(?:^|\b)(?:do\s+not|don't|dont|never|without)\s+$/i.test(prefix);
 }
 
+function isPackageScriptBuildCommandPrefix(prefix: string): boolean {
+  return /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?$|\b(?:npx|pnpm\s+dlx|yarn\s+dlx|bunx)\s+$/i.test(prefix);
+}
+
 function isAmbiguousContextualBuildRequest(text: string, projectPath: string | null, prd: string): boolean {
   if (projectPath) return false;
   const normalized = text.replace(/\s+/g, ' ').trim();
@@ -859,6 +863,7 @@ function extractBuildDescription(text: string): string | null {
       /\b(?:does\s+not|doesn't|doesnt|is\s+not|isn't|isnt)\s+mean\b/.test(prefix) ||
       /\b(?:best|right|safe|secure)\s+way\s+to\b/.test(prefix) ||
       isNegatedBuildCommandPrefix(prefix) ||
+      isPackageScriptBuildCommandPrefix(prefix) ||
       // Philosophical/hypothetical questions: "Can God create...", "Could gravity break..."
       // Modal verb + subject other than "you/we" before the build verb = not a build request.
       /\b(?:can|could|would|will|shall|should|may|might|must)\s+(?!you\b|we\b)[a-z]+\s/i.test(prefix)
