@@ -4465,9 +4465,8 @@ async function run(): Promise<void> {
 			const reply = replies[0] || '';
 			assert.match(reply, /Spark is healthy right now/);
 			assert.match(reply, /fresh runtime state.*not memory/i);
-			assert.match(reply, /Live loop/);
-			assert.match(reply, /Spawner: reachable/);
-			assert.match(reply, /Telegram: polling/);
+			assert.match(reply, /Spawner is reachable, Telegram is polling, and Mission Control is ready/i);
+			assert.doesNotMatch(reply, /Live loop|^\s*•/m);
 			assert.equal(captured.length, 0, 'live-state question must not launch or post work');
 		} finally {
 			process.env.PATH = oldPath;
@@ -4526,7 +4525,7 @@ async function run(): Promise<void> {
 
 			const reply = replies[0] || '';
 			assert.match(reply, /Spark is healthy right now/);
-			assert.match(reply, /No repair action needed right now/);
+			assert.match(reply, /no repair action is needed/i);
 			assert.doesNotMatch(reply, /I will run|Mission:/i);
 			assert.equal(captured.length, 0, 'repair-needed status question must not launch or post work');
 		} finally {

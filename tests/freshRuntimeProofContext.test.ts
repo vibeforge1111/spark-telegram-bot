@@ -226,7 +226,7 @@ async function run(): Promise<void> {
       await assertTraceRoute(
         'Do not repair anything. Just tell me whether a repair is needed right now, using fresh state.',
         'fresh_state.read_only_repair_status',
-        /No repair action needed right now/
+        /no repair action is needed/i
       );
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
@@ -243,7 +243,7 @@ async function run(): Promise<void> {
       await assertTraceRouteLedgerJoin(
         'Do not repair anything. Just tell me whether a repair is needed right now, using fresh state.',
         'fresh_state.read_only_repair_status',
-        /No repair action needed right now/
+        /no repair action is needed/i
       );
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });

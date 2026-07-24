@@ -114,8 +114,8 @@ async function run(): Promise<void> {
       const reply = replies[0] || '';
       assert.match(reply, /Spark is healthy right now/);
       assert.match(reply, /fresh runtime state.*not memory/i);
-      assert.match(reply, /Spawner: reachable/);
-      assert.match(reply, /Telegram: polling/);
+      assert.match(reply, /Spawner is reachable, Telegram is polling, and Mission Control is ready/i);
+      assert.doesNotMatch(reply, /Live loop|^\s*•/m);
       assert.equal(captured.length, 0, 'connection-check live-state prompt must not launch or post work');
       assert.equal(replyExtras[0]?.__sparkTraceContext?.route, 'fresh_state.live_status');
       assert.doesNotMatch(reply, /Choose the specialization path|benchmark level|level 1-10|Mission:|Provider:|Move:|Status:/i);
