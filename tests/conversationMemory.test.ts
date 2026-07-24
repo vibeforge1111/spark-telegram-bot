@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
+  adminTelegramIdsStartupWarning,
   ConversationMemory,
   extractAssistantOptions,
   isPendingTaskRecoveryQuestion,
@@ -45,6 +46,12 @@ async function main(): Promise<void> {
   await test('parses configured Telegram user ids strictly', () => {
     assert.deepEqual(parseTelegramUserIds('123, 456'), [123, 456]);
     assert.deepEqual(parseTelegramUserIds('0, -1, NaN, 12abc, 1.5, 9007199254740992'), []);
+  });
+
+  await test('warns only when configured admin IDs contain no valid numeric ID', () => {
+    assert.equal(adminTelegramIdsStartupWarning(undefined), null);
+    assert.equal(adminTelegramIdsStartupWarning('123,invalid'), null);
+    assert.match(adminTelegramIdsStartupWarning('@owner') || '', /\/myid/);
   });
 
   await test('keeps explicit session notes available to the next chat turn', async () => {

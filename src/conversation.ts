@@ -27,6 +27,16 @@ export function parseTelegramUserIds(raw: string | undefined): number[] {
     .filter((id) => Number.isSafeInteger(id) && id > 0);
 }
 
+export function adminTelegramIdsStartupWarning(raw: string | undefined): string | null {
+  if (!raw?.trim() || parseTelegramUserIds(raw).length > 0) {
+    return null;
+  }
+  return [
+    '[Telegram] ADMIN_TELEGRAM_IDS is set but has no valid numeric IDs.',
+    'Send /myid in your bot chat and add that number to .env.'
+  ].join(' ');
+}
+
 const ADMIN_IDS: number[] = parseTelegramUserIds(process.env.ADMIN_TELEGRAM_IDS);
 
 const ALLOWED_IDS: number[] = (

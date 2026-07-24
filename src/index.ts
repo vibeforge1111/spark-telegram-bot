@@ -8,7 +8,12 @@ import { promisify } from 'node:util';
 import { Telegraf } from 'telegraf';
 import { effectiveLevel5RuntimeEnv } from './level5RuntimeEnv';
 import { message } from 'telegraf/filters';
-import { conversation, isPendingTaskRecoveryQuestion, renderPendingTaskRecoveryReply } from './conversation';
+import {
+  adminTelegramIdsStartupWarning,
+  conversation,
+  isPendingTaskRecoveryQuestion,
+  renderPendingTaskRecoveryReply
+} from './conversation';
 import { credentialSafetyReply } from './credentialSafety';
 import { extractNaturalLocalMemoryRecallQuery, formatLocalMemoryDirectiveAcknowledgement } from './telegramMemorySurface';
 import { domainChipLabsCreatorContractLines, FULL_CREATOR_SYSTEM_ARTIFACT_PATTERN } from './domainChipLabsCreatorContract';
@@ -471,6 +476,13 @@ if (!process.env.BOT_TOKEN && !TELEGRAM_SMOKE_MODE) {
   console.error('ERROR: BOT_TOKEN not set in .env');
   console.error('Get one from @BotFather on Telegram');
   process.exit(1);
+}
+
+if (!TELEGRAM_SMOKE_MODE) {
+  const adminIdsWarning = adminTelegramIdsStartupWarning(process.env.ADMIN_TELEGRAM_IDS);
+  if (adminIdsWarning) {
+    console.warn(adminIdsWarning);
+  }
 }
 
 const botToken = process.env.BOT_TOKEN || '0:telegram-smoke-token';
@@ -3486,7 +3498,7 @@ function requireAdmin(ctx: any): boolean {
     return true;
   }
 
-  ctx.reply('Admin only. Add your Telegram ID to ADMIN_TELEGRAM_IDS first.').catch(() => {});
+  ctx.reply('Admin only. Run /myid, then add that numeric ID to ADMIN_TELEGRAM_IDS in .env.').catch(() => {});
   return false;
 }
 
@@ -3882,7 +3894,10 @@ export async function handleRememberCommand(ctx: any): Promise<void> {
   const text = ctx.message.text.replace('/remember', '').trim();
 
   if (!text) {
-    return ctx.reply('Usage: /remember <something to remember>');
+    return ctx.reply(
+      'Usage: /remember <something to remember>\n' +
+        'I’ll reuse it in later conversations. Example: /remember Lead with the metric in pitch feedback.'
+    );
   }
 
   const credentialReply = credentialSafetyReply(text);
@@ -3936,7 +3951,10 @@ export async function handleRecallCommand(ctx: any): Promise<void> {
   const query = ctx.message.text.replace('/recall', '').trim();
 
   if (!query) {
-    return ctx.reply('Usage: /recall <topic to recall>');
+    return ctx.reply(
+      'Usage: /recall <topic to recall>\n' +
+        'I’ll search saved memory for that topic. Example: /recall pitch preferences.'
+    );
   }
 
   try {
@@ -7531,7 +7549,10 @@ bot.command('chip', async (ctx) => {
   const prompt = parts.join(' ').trim();
 
   if (action !== 'create' || !prompt) {
-    return ctx.reply('Usage: /chip create <natural language description>');
+    return ctx.reply(
+      'Usage: /chip create <natural language description>\n' +
+        'This scaffolds and registers a domain chip. Example: /chip create a founder pitch coach with YC-style questions.'
+    );
   }
 
   const authorization = authorizeDomainChipBuilderCreate(ctx, ctx.message.text);
