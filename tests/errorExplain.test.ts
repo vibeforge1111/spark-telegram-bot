@@ -155,6 +155,16 @@ test('directs provider rate limits to quota or provider switching', () => {
   assert.match(explanation.repair, /switch providers/);
 });
 
+test('classifies HTTP 404 as a provider endpoint mismatch', () => {
+  const error = Object.assign(new Error('Request failed with status code 404'), {
+    response: { status: 404, statusText: 'Not Found', data: { error: 'Not Found' } }
+  });
+  const explanation = explainSparkError(error, 'chat');
+  assert.equal(explanation.category, 'provider_endpoint');
+  assert.match(explanation.check, /base URL.*model/i);
+  assert.match(explanation.repair, /spark providers status/);
+});
+
 test('directs duplicate Telegram polling to one live process', () => {
   const reply = renderSparkErrorReply(
     new Error('409 Conflict: terminated by other getUpdates request'),
