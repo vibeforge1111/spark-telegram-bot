@@ -437,8 +437,7 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
             { role: 'user', content: 'Reply with exactly: CHAT_OK' }
           ],
           temperature: 0,
-          max_tokens: 256,
-          thinking: { type: 'disabled' }
+          max_tokens: 256
         },
         {
           timeout: timeoutMs,
@@ -635,8 +634,7 @@ export async function generateBuildClarificationMicrocopy(
             { role: 'user', content: prompt }
           ],
           temperature: 0.8,
-          max_tokens: 120,
-          thinking: { type: 'disabled' }
+          max_tokens: 120
         },
         {
           timeout: timeoutMs,
@@ -824,8 +822,7 @@ export const llm = {
               { role: 'user', content: userMessage }
             ],
             temperature: 0.7,
-            max_tokens: 384,
-            thinking: { type: 'disabled' }
+            max_tokens: 384
           },
           {
             timeout: 60000,
@@ -900,8 +897,7 @@ export const llm = {
             ],
             temperature: 0.7,
             max_tokens: 384,
-            stream: true,
-            thinking: { type: 'disabled' }
+            stream: true
           },
           {
             timeout: 60000,
