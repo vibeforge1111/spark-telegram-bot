@@ -10,6 +10,8 @@ import {
   inferDiagnoseLikelyIssue,
   providerPingPolling,
   readableLocalServiceUrl,
+  renderDiagnoseBuildHealth,
+  renderDiagnoseChatHealth,
   resolveDiagnoseRouteProviders,
   selectPingProviderIds,
   type DiagnoseSubject,
@@ -42,6 +44,15 @@ test('reports terminal CLI providers as ready without API keys', () => {
   const description = describeProviderStatus(provider);
   assert.equal(description.ready, true);
   assert.equal(description.note, 'cli');
+});
+
+test('keeps diagnose health icons consistent with their text', () => {
+  assert.equal(renderDiagnoseChatHealth(true, true), '🟢 Chat ready');
+  assert.equal(renderDiagnoseChatHealth(true, false), '🟡 Chat ready, bridge offline');
+  assert.equal(renderDiagnoseChatHealth(false, true), '🔴 Chat degraded');
+  assert.equal(renderDiagnoseBuildHealth(true, true), '🟢 Builds ready');
+  assert.equal(renderDiagnoseBuildHealth(true, false), '🟡 Builds degraded');
+  assert.equal(renderDiagnoseBuildHealth(false, null), '🔴 Builds offline');
 });
 
 test('marks selected API-key providers missing when no key is configured', () => {

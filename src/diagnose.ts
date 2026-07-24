@@ -72,6 +72,18 @@ export interface DiagnoseSubject {
   isAllowed: boolean;
 }
 
+export function renderDiagnoseChatHealth(chatProviderOk: boolean, builderBridgeAvailable: boolean): string {
+  if (!chatProviderOk) return '🔴 Chat degraded';
+  if (!builderBridgeAvailable) return '🟡 Chat ready, bridge offline';
+  return '🟢 Chat ready';
+}
+
+export function renderDiagnoseBuildHealth(spawnerOk: boolean, missionPingOk: boolean | null): string {
+  if (!spawnerOk) return '🔴 Builds offline';
+  if (missionPingOk === false) return '🟡 Builds degraded';
+  return '🟢 Builds ready';
+}
+
 export function getRelayIdentityFromEnv(env: NodeJS.ProcessEnv = process.env): RelayIdentity {
   return telegramRelayIdentityFromEnv(env);
 }
@@ -493,8 +505,8 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     '',
     'Health',
     `${botRelay.ok ? '🟢' : '🔴'} Relay ${botRelay.ok ? 'ready' : botRelay.err || botRelay.status || 'unreachable'}`,
-    `${chatProviderPing.ok && builderBridge.available ? '🟢' : '🔴'} Chat ${chatProviderPing.ok ? 'ready' : 'degraded'}`,
-    `${spawnerProviders.ok && missionPingOk !== false ? '🟢' : '🟡'} Builds ${spawnerProviders.ok ? (missionPingOk === false ? 'degraded' : 'ready') : 'offline'}`,
+    renderDiagnoseChatHealth(chatProviderPing.ok, builderBridge.available),
+    renderDiagnoseBuildHealth(spawnerProviders.ok, missionPingOk),
     `${diagnoseSubject.isAllowed ? '🟢' : '🔴'} Access ${sparkAccessLabel(accessProfile)}${diagnoseSubject.isAdmin ? ' / admin' : ''}`,
     '',
     'Issue',
