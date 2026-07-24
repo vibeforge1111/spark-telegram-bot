@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { explainSparkError, renderSparkErrorReply } from '../src/errorExplain';
+import {
+  explainHypotheticalSparkScenario,
+  explainSparkError,
+  isHypotheticalSparkTroubleshootingQuestion,
+  renderSparkErrorReply
+} from '../src/errorExplain';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -132,6 +137,15 @@ test('gives Claude ENOENT a provider-specific safe repair path', () => {
   assert.match(reply, /service PATH/i);
   assert.match(reply, /restart telegram-starter/i);
   assert.doesNotMatch(reply, /echo ['"]export PATH|\.nvm\/versions|@gmail\.com/i);
+});
+
+test('answers hypothetical component failures without claiming a live check', () => {
+  assert.equal(isHypotheticalSparkTroubleshootingQuestion('What happens if Spawner is offline?'), true);
+  assert.equal(isHypotheticalSparkTroubleshootingQuestion('Is Spawner offline right now?'), false);
+  const reply = explainHypotheticalSparkScenario('What happens if Spawner is offline?');
+  assert.match(reply, /^If Mission Control is offline/);
+  assert.match(reply, /\/diagnose/);
+  assert.doesNotMatch(reply, /I checked|currently|is offline right now/i);
 });
 
 test('explains builder memory failures', () => {

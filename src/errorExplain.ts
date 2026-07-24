@@ -68,6 +68,30 @@ function doctorCommand(category: string, context: SparkErrorContext): string {
   return `spark doctor llm "${problem}" --save-report --upstream-report`;
 }
 
+export function isHypotheticalSparkTroubleshootingQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const hypothetical = (
+    /\bwhat\s+(?:(?:would|will)\s+happen|happens?)\s+if\b/.test(normalized)
+    || /\bwhat\s+if\b/.test(normalized)
+    || /\bsuppose\b/.test(normalized)
+    || /\bhypothetically\b/.test(normalized)
+  );
+  const component = /\b(?:spawner|mission control|provider|model provider|telegram relay|mission relay)\b/.test(normalized);
+  const failure = /\b(?:down|offline|unavailable|broken|fails?|failed|not running|stops?|disconnects?)\b/.test(normalized);
+  return hypothetical && component && failure;
+}
+
+export function explainHypotheticalSparkScenario(text: string): string {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (/\b(?:spawner|mission control)\b/.test(normalized)) {
+    return 'If Mission Control is offline, Spark should fail the mission start instead of pretending it launched. Check /diagnose, then have the operator run spark live status and restart spawner-ui before retrying.';
+  }
+  if (/\b(?:telegram relay|mission relay)\b/.test(normalized)) {
+    return 'If the Telegram relay is down, mission updates cannot be trusted as delivered even if work continues elsewhere. Check /diagnose, inspect the board, and have the operator restart telegram-starter before relying on chat updates.';
+  }
+  return 'If a model provider fails, the affected chat or mission role should report the failure rather than silently switching context. Check /diagnose and spark providers status; the operator can use spark setup if that role needs a different provider.';
+}
+
 export function explainSparkError(error: unknown, context: SparkErrorContext = 'chat'): SparkErrorExplanation {
   const errorText = extractErrorText(error);
   const detail = compactDetail(errorText);

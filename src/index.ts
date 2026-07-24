@@ -396,7 +396,11 @@ import axios from 'axios';
 import { describeTier, getTierForUser, type SkillTier } from './userTier';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
 import { requireRelaySecret, resolveTelegramLaunchConfig } from './launchMode';
-import { renderSparkErrorReply } from './errorExplain';
+import {
+  explainHypotheticalSparkScenario,
+  isHypotheticalSparkTroubleshootingQuestion,
+  renderSparkErrorReply
+} from './errorExplain';
 import {
   resolveWindowsCommand,
   windowsCmdShimArgs,
@@ -10308,6 +10312,15 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
         summary: 'Telegram answered from no-edit Spawner probe mission evidence when available.'
       }
     ]);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isHypotheticalSparkTroubleshootingQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    const reply = explainHypotheticalSparkScenario(text);
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.hypothetical_troubleshooting', 'spark-telegram-bot', 'plain_chat.hypothetical_troubleshooting');
+    await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
