@@ -42,6 +42,11 @@ test('strips Markdown bold markers from Telegram replies', () => {
   );
 });
 
+test('strips single-character and adjacent emphasis spans independently', () => {
+  assert.equal(stripMarkdownEmphasis('**a** then **b** and __x__'), 'a then b and x');
+  assert.equal(stripMarkdownEmphasis('***x*** + ***y***'), 'x + y');
+});
+
 test('rewrites stale standalone Spawner surface question', () => {
   const text = [
     'Spawner Kanban and Canvas notes:',

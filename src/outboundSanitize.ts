@@ -202,9 +202,9 @@ export function replaceEmDashes(text: string, replacement: string = ' - '): stri
 export function stripMarkdownEmphasis(text: string): string {
   if (!text) return text;
   return text
-    .replace(/\*\*\*([^*\n][\s\S]*?[^*\n])\*\*\*/g, '$1')
-    .replace(/\*\*([^*\n][\s\S]*?[^*\n])\*\*/g, '$1')
-    .replace(/__([^_\n][\s\S]*?[^_\n])__/g, '$1');
+    .replace(/\*\*\*((?:(?!\*\*\*)[\s\S])+?)\*\*\*/g, '$1')
+    .replace(/\*\*((?:(?!\*\*)[\s\S])+?)\*\*/g, '$1')
+    .replace(/__((?:(?!__)[\s\S])+?)__/g, '$1');
 }
 
 export function rewriteSpawnerSurfaceStandaloneQuestion(text: string): string {
