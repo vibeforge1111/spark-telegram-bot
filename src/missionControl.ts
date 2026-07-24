@@ -40,10 +40,8 @@ function missionControlDisabled(): boolean {
 
 export function getMissionControlEventsUrl(): string | null {
   if (missionControlDisabled()) return null;
-  const base = (
-    process.env.MISSION_CONTROL_URL ||
-    resolveSpawnerUiUrl()
-  ).trim();
+  const explicit = process.env.MISSION_CONTROL_URL?.trim();
+  const base = explicit || resolveSpawnerUiUrl().trim();
   if (!base) return null;
   return `${base.replace(/\/+$/, '')}/api/events`;
 }
@@ -86,6 +84,7 @@ async function defaultPostJson(url: string, payload: MissionControlEvent): Promi
       const body = await response.text().catch(() => '');
       throw new Error(`Mission Control HTTP ${response.status}: ${body.slice(0, 200)}`);
     }
+    await response.body?.cancel().catch(() => undefined);
   } finally {
     clearTimeout(timeout);
   }

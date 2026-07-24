@@ -3,6 +3,7 @@ import { formatChipCreateProcessError, parseChipCreateJson, resolveConfig } from
 import {
   buildChipCreateMissionContext,
   ChipCreateMissionReporter,
+  getMissionControlEventsUrl,
   type MissionControlEvent,
 } from '../src/missionControl';
 
@@ -170,6 +171,21 @@ async function main(): Promise<void> {
       warnings: [],
       error: undefined,
     });
+  });
+
+  await test('blank Mission Control URL falls back to the resolved Spawner URL', () => {
+    const previousMission = process.env.MISSION_CONTROL_URL;
+    const previousSpawner = process.env.SPAWNER_UI_URL;
+    process.env.MISSION_CONTROL_URL = '   ';
+    process.env.SPAWNER_UI_URL = 'http://127.0.0.1:4174';
+    try {
+      assert.equal(getMissionControlEventsUrl(), 'http://127.0.0.1:4174/api/events');
+    } finally {
+      if (previousMission === undefined) delete process.env.MISSION_CONTROL_URL;
+      else process.env.MISSION_CONTROL_URL = previousMission;
+      if (previousSpawner === undefined) delete process.env.SPAWNER_UI_URL;
+      else process.env.SPAWNER_UI_URL = previousSpawner;
+    }
   });
 
   await test('extracts JSON error from failed Python stdout', () => {
