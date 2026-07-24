@@ -193,12 +193,12 @@ export async function runSparkAccessActionDetailed(
       anyError.message,
     ].filter(Boolean).map(String).join('\n').trim());
     const nonInteractive = /non-interactive|interactive terminal|requires?.*confirmation/i.test(output);
-    const reply = nonInteractive
+    const reply = nonInteractive && (actionId === 'level5_enable' || actionId === 'level5_disable')
       ? [
           'Spark could not change the Level 5 service lane from this Telegram process because the Spark CLI requires an interactive confirmation.',
           'Run `spark access disable-level5` in a trusted local terminal, then restart Spark Live. The Telegram chat access setting can still be lowered separately.'
         ].join('\n')
-      : [`Spark access action failed: ${action.id}`, output || 'No output.'].join('\n');
+      : formatSparkAccessActionFailureReply(actionId, output || error);
     return {
       reply,
       payload: {
@@ -307,6 +307,26 @@ export function formatSparkAccessActionReply(actionId: SparkAccessActionId, payl
   return ok ? 'Spark access action finished.' : 'Spark access action failed.';
 }
 
+export function formatSparkAccessActionFailureReply(actionId: SparkAccessActionId, error: unknown): string {
+  const detail = compactAccessActionFailureDetail(error);
+  if (actionId === 'workspace_setup') {
+    return [
+      'Safe workspace setup could not complete.',
+      'The Spark CLI may be unavailable, the workspace may not be writable, or local setup may be incomplete.',
+      'Send /diagnose here, or ask the device holder to run `spark access setup --json` locally.',
+      'Do not paste tokens, .env files, private keys, full logs, or secrets into chat.',
+      detail ? `Redacted detail: ${detail}` : '',
+    ].filter(Boolean).join('\n\n');
+  }
+
+  return [
+    `${sparkAccessActionLabel(actionId)} could not complete.`,
+    'Send /diagnose here, or ask the device holder to run the matching Spark command locally.',
+    'Do not paste tokens, .env files, private keys, full logs, or secrets into chat.',
+    detail ? `Redacted detail: ${detail}` : '',
+  ].filter(Boolean).join('\n\n');
+}
+
 export function accessActionNeedsSparkRestart(actionId: SparkAccessActionId, payload: Record<string, unknown>): boolean {
   if (actionId !== 'level5_enable' && actionId !== 'level5_disable') return false;
   const level5 = objectValue(payload.level5);
@@ -357,6 +377,18 @@ function accessSummary(payload: Record<string, unknown>): string {
 function nextLine(payload: Record<string, unknown>): string {
   const next = String(payload.next || '').trim();
   return next ? `Next: ${next}` : '';
+}
+
+function compactAccessActionFailureDetail(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error || 'unknown error');
+  const detail = redactText(raw)
+    .replace(/\b(token|secret|password|api[_ -]?key)\b\s*[:=]?\s*\S+/gi, '$1 [REDACTED]')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !/^at\s+/.test(line))
+    .slice(0, 3)
+    .join(' ');
+  return detail.length > 360 ? `${detail.slice(0, 357)}...` : detail;
 }
 
 function objectValue(value: unknown): Record<string, unknown> {

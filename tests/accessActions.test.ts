@@ -11,6 +11,7 @@ import {
   accessActionNeedsSparkRestart,
   formatSparkAccessAutomaticRestartNotice,
   formatSparkAccessActionConfirmationPrompt,
+  formatSparkAccessActionFailureReply,
   formatSparkAccessActionReply,
   runSparkAccessAction,
   runSparkAccessActionDetailed,
@@ -305,6 +306,19 @@ void (async () => {
     assert.match(result.reply, /interactive confirmation/i);
     assert.match(result.reply, /spark access disable-level5/);
     assert.doesNotMatch(result.reply, /configuration problem/i);
+  });
+
+  await test('formats workspace setup failures with safe recovery guidance', () => {
+    const reply = formatSparkAccessActionFailureReply(
+      'workspace_setup',
+      new Error('Command failed from /Users/operator/private-workspace with token sk-test-secret')
+    );
+
+    assert.match(reply, /Safe workspace setup could not complete/);
+    assert.match(reply, /Send \/diagnose here/);
+    assert.match(reply, /spark access setup --json/);
+    assert.match(reply, /Do not paste tokens/);
+    assert.doesNotMatch(reply, /\/Users\/operator|sk-test-secret|Spark access action failed:/);
   });
 
   await test('formats Docker smoke as no-secret sandbox evidence', () => {
