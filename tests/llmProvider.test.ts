@@ -6,7 +6,8 @@ import {
   codexExecArgs,
   isCodexProvider,
   loadSparkAgentKnowledgeBase,
-  resolveChatProviderConfig
+  resolveChatProviderConfig,
+  unexpectedPingCompletionDetail
 } from '../src/llm';
 
 function test(name: string, fn: () => void): void {
@@ -23,6 +24,15 @@ test('recognizes Codex as the local LLM provider', () => {
   assert.equal(isCodexProvider('codex'), true);
   assert.equal(isCodexProvider(' CODEX '), true);
   assert.equal(isCodexProvider('ollama'), false);
+});
+
+test('bounds and redacts unexpected provider health replies', () => {
+  const secret = `sk-${'a'.repeat(32)}`;
+  const detail = unexpectedPingCompletionDetail(`token ${secret} ${'reply '.repeat(40)}`);
+  assert.match(detail, /^unexpected completion:/);
+  assert.equal(detail.includes(secret), false);
+  assert.match(detail, /\.\.\./);
+  assert.ok(detail.length <= 143);
 });
 
 test('marks only long Anthropic system prompts for ephemeral caching', () => {

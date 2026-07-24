@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import { renderSparkErrorReply } from './errorExplain';
+import { redactText } from './redaction';
 import { spawnHidden } from './hiddenProcess';
 import { effectiveLevel5RuntimeEnv } from './level5RuntimeEnv';
 import { chatCommandTimeoutMs } from './timeoutConfig';
@@ -362,10 +363,15 @@ function runProcess(command: string, args: string[], input: string, timeoutMs: n
     let stdout = '';
     let stderr = '';
     let finished = false;
+    let killEscalation: ReturnType<typeof setTimeout> | null = null;
     const timer = setTimeout(() => {
       if (finished) return;
       finished = true;
-      child.kill('SIGTERM');
+      try { child.kill('SIGTERM'); } catch { /* already exited */ }
+      killEscalation = setTimeout(() => {
+        try { child.kill('SIGKILL'); } catch { /* already exited */ }
+      }, 2000);
+      killEscalation.unref?.();
       resolve({ ok: false, stdout, stderr: `${stderr}\ncommand timed out after ${timeoutMs}ms`.trim() });
     }, timeoutMs);
 
@@ -376,12 +382,14 @@ function runProcess(command: string, args: string[], input: string, timeoutMs: n
       stderr += chunk.toString();
     });
     child.on('error', (error) => {
+      if (killEscalation) clearTimeout(killEscalation);
       if (finished) return;
       finished = true;
       clearTimeout(timer);
       resolve({ ok: false, stdout, stderr: error.message });
     });
     child.on('close', (code) => {
+      if (killEscalation) clearTimeout(killEscalation);
       if (finished) return;
       finished = true;
       clearTimeout(timer);
@@ -420,7 +428,7 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
       });
       return /CHAT_OK/i.test(content)
         ? { ok: true, detail: 'completion ok' }
-        : { ok: false, detail: 'unexpected completion' };
+        : { ok: false, detail: unexpectedPingCompletionDetail(content) };
     } catch (err: any) {
       return { ok: false, detail: err.response?.data?.error?.message || err.code || err.message || 'request failed' };
     }
@@ -452,7 +460,7 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
         '';
       return /CHAT_OK/i.test(content)
         ? { ok: true, detail: 'completion ok' }
-        : { ok: false, detail: 'unexpected completion' };
+        : { ok: false, detail: unexpectedPingCompletionDetail(content) };
     } catch (err: any) {
       return { ok: false, detail: err.response?.data?.error?.message || err.code || err.message || 'request failed' };
     }
@@ -483,10 +491,16 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
     );
     return /CHAT_OK/i.test(res.data.response || '')
       ? { ok: true, detail: 'completion ok' }
-      : { ok: false, detail: 'unexpected completion' };
+      : { ok: false, detail: unexpectedPingCompletionDetail(res.data.response || '') };
   } catch (err: any) {
     return { ok: false, detail: err.code || err.message || 'request failed' };
   }
+}
+
+export function unexpectedPingCompletionDetail(content: string): string {
+  const safe = redactText(String(content || '')).replace(/\s+/g, ' ').trim();
+  if (!safe) return 'unexpected completion: <empty>';
+  return `unexpected completion: ${safe.length > 120 ? `${safe.slice(0, 117)}...` : safe}`;
 }
 
 async function codexChat(prompt: string): Promise<string> {
