@@ -13,6 +13,7 @@ import {
   formatRouteConfidenceGateReply,
   formatRouteProbeReply,
   normalizeRouteProbePayload,
+  parseBuilderJson,
   formatSelfImprovementPlanReply,
   formatSelfAwarenessReply,
   formatWikiAnswerReply,
@@ -34,6 +35,18 @@ function test(name: string, fn: () => void): void {
     throw error;
   }
 }
+
+test('Builder JSON parsing fails with bounded context and no raw output', () => {
+  assert.deepEqual(parseBuilderJson<Record<string, unknown>>('{"ok":true}', 'Builder test'), { ok: true });
+  assert.throws(
+    () => parseBuilderJson('{"/private/path":"secret"', 'Builder test'),
+    (error: unknown) => {
+      assert.equal(String(error), 'Error: Builder test returned invalid JSON.');
+      assert.doesNotMatch(String(error), /private|secret/);
+      return true;
+    }
+  );
+});
 
 test('Telegram bridge ids require positive users while preserving signed group chat ids', () => {
   assert.equal(assertTelegramIntegerId('8319079055', 'userId'), '8319079055');
