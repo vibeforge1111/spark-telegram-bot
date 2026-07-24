@@ -623,6 +623,14 @@ test('classifies recursive start targets from Builder attachment snapshots', () 
     kind: 'chip',
     key: 'unknown-thing'
   });
+  assert.deepEqual(classifyBuilderAttachmentTargetFromSnapshot(null, 'fallback-chip'), {
+    kind: 'chip',
+    key: 'fallback-chip'
+  });
+  assert.deepEqual(classifyBuilderAttachmentTargetFromSnapshot({ records: [null, 'bad-record'] }, 'fallback-chip'), {
+    kind: 'chip',
+    key: 'fallback-chip'
+  });
 });
 
 test('resolves local specialization path repos when attachment snapshot is unavailable', () => {

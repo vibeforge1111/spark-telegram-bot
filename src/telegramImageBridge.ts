@@ -1,32 +1,46 @@
 import { attachTelegramMediaTurnEnvelope } from './telegramMediaEnvelope';
 
-export function isTelegramImageMessage(message: any): boolean {
+export function isTelegramImageMessage(message: unknown): boolean {
   if (!message || typeof message !== 'object') {
     return false;
   }
-  if (Array.isArray(message.photo) && message.photo.length > 0) {
+  const record = message as Record<string, unknown>;
+  if (Array.isArray(record.photo) && record.photo.length > 0) {
     return true;
   }
-  const document = message.document;
+  const document = record.document;
   return Boolean(
     document &&
     typeof document === 'object' &&
-    typeof document.mime_type === 'string' &&
-    document.mime_type.startsWith('image/')
+    typeof (document as Record<string, unknown>).mime_type === 'string' &&
+    ((document as Record<string, unknown>).mime_type as string).startsWith('image/')
   );
 }
 
-export function telegramImageMemoryText(message: any): string {
-  const caption = typeof message?.caption === 'string' ? message.caption.trim() : '';
+export function telegramImageMemoryText(message: unknown): string {
+  const record = message && typeof message === 'object'
+    ? message as Record<string, unknown>
+    : null;
+  const caption = typeof record?.caption === 'string' ? record.caption.trim() : '';
   if (caption) {
     return `[image] ${caption}`;
   }
-  const fileName = typeof message?.document?.file_name === 'string' ? message.document.file_name.trim() : '';
+  const document = record?.document;
+  const documentRecord = document && typeof document === 'object'
+    ? document as Record<string, unknown>
+    : null;
+  const fileName = typeof documentRecord?.file_name === 'string'
+    ? documentRecord.file_name.trim()
+    : '';
   return fileName ? `[image] ${fileName}` : '[image]';
 }
 
-export function imageMessageHasCaption(message: any): boolean {
-  return typeof message?.caption === 'string' && message.caption.trim().length > 0;
+export function imageMessageHasCaption(message: unknown): boolean {
+  if (!message || typeof message !== 'object') {
+    return false;
+  }
+  const caption = (message as Record<string, unknown>).caption;
+  return typeof caption === 'string' && caption.trim().length > 0;
 }
 
 export function buildContextualImageUpdate(
