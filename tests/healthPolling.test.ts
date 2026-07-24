@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { describeTelegramTokenError } from '../src/healthPolling';
 import { readFileSync } from 'node:fs';
-import { relayHealthUrl, validateRelayRuntime } from '../src/healthRuntime';
+import {
+  DEFAULT_RELAY_HEALTH_TIMEOUT_MS,
+  relayHealthTimeoutMs,
+  relayHealthUrl,
+  validateRelayRuntime
+} from '../src/healthRuntime';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -41,6 +46,23 @@ test('health wrappers bound Telegram API hangs with a watchdog', () => {
 test('builds relay health URL from configured relay port', () => {
   assert.equal(relayHealthUrl({ TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv), 'http://127.0.0.1:8789/health');
   assert.equal(relayHealthUrl({ TELEGRAM_RELAY_PORT: 'not-a-port' } as NodeJS.ProcessEnv), 'http://127.0.0.1:8788/health');
+});
+
+test('gives relay health enough time to cross slow startup boundaries', () => {
+  assert.equal(DEFAULT_RELAY_HEALTH_TIMEOUT_MS, 8000);
+  assert.equal(relayHealthTimeoutMs({} as NodeJS.ProcessEnv), 8000);
+  assert.equal(
+    relayHealthTimeoutMs({ SPARK_TELEGRAM_RELAY_HEALTH_TIMEOUT_MS: '12000' } as NodeJS.ProcessEnv),
+    12000
+  );
+  assert.equal(
+    relayHealthTimeoutMs({ SPARK_TELEGRAM_RELAY_HEALTH_TIMEOUT_MS: '100' } as NodeJS.ProcessEnv),
+    500
+  );
+  assert.equal(
+    relayHealthTimeoutMs({ SPARK_TELEGRAM_RELAY_HEALTH_TIMEOUT_MS: '90000' } as NodeJS.ProcessEnv),
+    30000
+  );
 });
 
 test('builds relay health URL from hosted relay callback URL', () => {

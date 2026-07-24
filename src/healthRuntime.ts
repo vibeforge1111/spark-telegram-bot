@@ -2,6 +2,16 @@ import { runTelegramPollingHealth } from './healthPolling';
 import { loadSparkTelegramProfileEnv } from './profileEnv';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 
+export const DEFAULT_RELAY_HEALTH_TIMEOUT_MS = 8000;
+
+export function relayHealthTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  const configured = Number.parseInt(env.SPARK_TELEGRAM_RELAY_HEALTH_TIMEOUT_MS || '', 10);
+  if (!Number.isFinite(configured) || configured <= 0) {
+    return DEFAULT_RELAY_HEALTH_TIMEOUT_MS;
+  }
+  return Math.max(500, Math.min(30_000, configured));
+}
+
 export function relayHealthUrl(env: NodeJS.ProcessEnv = process.env): string {
   const { port, url } = telegramRelayIdentityFromEnv(env);
   if (url) {
@@ -26,7 +36,7 @@ export async function validateRelayRuntime(
 ): Promise<string> {
   const url = relayHealthUrl(env);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 2500);
+  const timeout = setTimeout(() => controller.abort(), relayHealthTimeoutMs(env));
   try {
     const relaySecret = env.TELEGRAM_RELAY_SECRET?.trim();
     const response = await fetchImpl(url, {
