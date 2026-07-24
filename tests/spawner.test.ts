@@ -5,6 +5,7 @@ import {
   formatCreatorMissionStatusSummary,
   formatCreatorMissionSummary,
   formatCreatorMissionValidationSummary,
+  localServiceRetryDelayMs,
   spawner
 } from '../src/spawner';
 
@@ -26,6 +27,7 @@ const originalPort = process.env.TELEGRAM_RELAY_PORT;
 const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
 const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
 const originalUiKey = process.env.SPARK_UI_API_KEY;
+const originalRetryDelay = process.env.SPARK_LOCAL_SERVICE_RETRY_DELAY_MS;
 
 function restoreAxios(): void {
   (axios as any).get = originalGet;
@@ -41,6 +43,8 @@ function restoreEnv(): void {
   else process.env.SPARK_BRIDGE_API_KEY = originalBridgeKey;
   if (originalUiKey === undefined) delete process.env.SPARK_UI_API_KEY;
   else process.env.SPARK_UI_API_KEY = originalUiKey;
+  if (originalRetryDelay === undefined) delete process.env.SPARK_LOCAL_SERVICE_RETRY_DELAY_MS;
+  else process.env.SPARK_LOCAL_SERVICE_RETRY_DELAY_MS = originalRetryDelay;
 }
 
 async function run(): Promise<void> {
@@ -171,6 +175,7 @@ async function run(): Promise<void> {
 
   await test('runGoal retries once when local Spawner request times out', async () => {
     restoreAxios();
+    process.env.SPARK_LOCAL_SERVICE_RETRY_DELAY_MS = '1';
     let attempts = 0;
     const requestOptions: any[] = [];
     (axios as any).post = async (_url: string, _body: unknown, options: unknown) => {
@@ -196,6 +201,12 @@ async function run(): Promise<void> {
     assert.equal(result.missionId, 'spark-after-retry');
     assert.match(requestOptions[0].headers['Idempotency-Key'], /^[0-9a-f-]{36}$/i);
     assert.equal(requestOptions[1].headers['Idempotency-Key'], requestOptions[0].headers['Idempotency-Key']);
+  });
+
+  await test('local Spawner retry delay is configurable and bounded', () => {
+    assert.equal(localServiceRetryDelayMs({}), 800);
+    assert.equal(localServiceRetryDelayMs({ SPARK_LOCAL_SERVICE_RETRY_DELAY_MS: '25' }), 25);
+    assert.equal(localServiceRetryDelayMs({ SPARK_LOCAL_SERVICE_RETRY_DELAY_MS: '60000' }), 5000);
   });
 
   await test('runGoal falls back to the primary relay target when env values are invalid', async () => {

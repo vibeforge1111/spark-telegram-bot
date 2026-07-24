@@ -413,6 +413,14 @@ function isRetryableLocalServiceError(err: any): boolean {
   );
 }
 
+export function localServiceRetryDelayMs(env: NodeJS.ProcessEnv = process.env): number {
+  return Math.min(5_000, positiveIntegerEnv(env, 'SPARK_LOCAL_SERVICE_RETRY_DELAY_MS', 800));
+}
+
+function waitForLocalServiceRetry(delayMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
 function spawnerErrorMessage(error: unknown, fallback = 'Spawner request failed'): string {
   const candidate = error && typeof error === 'object'
     ? (error as any)?.response?.data?.error || (error as any)?.message
@@ -438,6 +446,7 @@ export async function postLocalServiceWithRetry<T = any>(
     return await axios.post(url, body, requestOptions);
   } catch (err: any) {
     if (!isRetryableLocalServiceError(err)) throw err;
+    await waitForLocalServiceRetry(localServiceRetryDelayMs());
     try {
       return await axios.post(url, body, requestOptions);
     } catch (retryErr: any) {
