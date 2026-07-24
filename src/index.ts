@@ -11924,6 +11924,8 @@ async function start() {
 
   await ensurePollingReady();
   const launchPromise = bot.launch();
+  pollingActive = true;
+  pollingStartedAt = new Date().toISOString();
   const launchProbe = await Promise.race([
     launchPromise.then(
       () => ({ status: 'settled' as const }),
@@ -11932,6 +11934,7 @@ async function start() {
     wait(TELEGRAM_POLLING_READY_GRACE_MS).then(() => ({ status: 'running' as const }))
   ]);
   if (launchProbe.status === 'failed') {
+    pollingActive = false;
     setMissionRelayRuntimeStatus({
       telegramPolling: 'error',
       pollingStartedAt,
@@ -11941,6 +11944,7 @@ async function start() {
     throw launchProbe.error;
   }
   if (launchProbe.status === 'settled') {
+    pollingActive = false;
     setMissionRelayRuntimeStatus({
       telegramPolling: 'stopped',
       pollingStartedAt,
@@ -11949,8 +11953,6 @@ async function start() {
     });
     throw new Error('Telegram polling stopped during startup.');
   }
-  pollingActive = true;
-  pollingStartedAt = new Date().toISOString();
   setMissionRelayRuntimeStatus({
     telegramPolling: 'active',
     pollingStartedAt

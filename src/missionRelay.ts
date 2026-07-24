@@ -1992,6 +1992,7 @@ function scheduleHeartbeat(
       });
   }, interval);
 
+  timer.unref?.();
   heartbeatTimers.set(key, timer);
 }
 
