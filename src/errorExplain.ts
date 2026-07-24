@@ -264,6 +264,16 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
     };
   }
 
+  if (/\bspawn\s+claude\b/.test(lower) && lower.includes('enoent')) {
+    return {
+      category: 'claude_cli_path',
+      userLine: 'Spark cannot see the Claude executable from the Telegram runtime.',
+      detail,
+      check: 'Run /diagnose and spark providers status to confirm the Claude provider and service environment.',
+      repair: 'Operator fix: make the claude executable available on the Spark service PATH, restart telegram-starter, then run /diagnose again.'
+    };
+  }
+
   if (
     lower.includes('module not found') ||
     lower.includes('cannot find module') ||

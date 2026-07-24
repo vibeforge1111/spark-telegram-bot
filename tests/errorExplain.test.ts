@@ -124,6 +124,16 @@ test('explains command timeouts in chat as runtime timeouts', () => {
   assert.match(explanation.repair, /route this kind of long analysis through a Spawner mission/);
 });
 
+test('gives Claude ENOENT a provider-specific safe repair path', () => {
+  const reply = renderSparkErrorReply(new Error('spawn claude ENOENT'), 'chat', true);
+
+  assert.match(reply, /cannot see the Claude executable/i);
+  assert.match(reply, /spark providers status/i);
+  assert.match(reply, /service PATH/i);
+  assert.match(reply, /restart telegram-starter/i);
+  assert.doesNotMatch(reply, /echo ['"]export PATH|\.nvm\/versions|@gmail\.com/i);
+});
+
 test('explains builder memory failures', () => {
   const reply = renderSparkErrorReply(new Error('Builder bridge is required but unavailable'), 'memory', true);
 
