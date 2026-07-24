@@ -94,7 +94,9 @@ import {
   recursiveSessions,
   recursiveSessionReview,
   recursiveSessionStatus,
+  recursiveTargetRepairGuidance,
   recursiveTraceReply,
+  recursiveWorkspaceRepairGuidance,
   renderRecursiveDecision,
   renderRecursiveCanvasQueue,
   renderRecursiveArtifactSyncCompletion,
@@ -8870,7 +8872,10 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
               status: 'failure',
               summary: `Recursive Builder chip loop ${startTarget.key} failed after asynchronous start: ${result.error || 'unknown error'}.`
             });
-            await ctx.telegram.sendMessage(chatId, renderTelegramError('Recursive loop failed', result.error));
+            await ctx.telegram.sendMessage(
+              chatId,
+              recursiveTargetRepairGuidance(result.error) || renderTelegramError('Recursive loop failed', result.error)
+            );
             return;
           }
           let sync = null;
@@ -8913,7 +8918,10 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
         `Workspace: ${sparkWorkspaceRecursionsUrl()}`
       ].join('\n'));
     }
-    return ctx.reply(`Recursive command failed${status ? ` (${status})` : ''}: ${detail}`);
+    return ctx.reply(
+      recursiveWorkspaceRepairGuidance(detail) ||
+      `Recursive command failed${status ? ` (${status})` : ''}: ${detail}`
+    );
   }
 }
 

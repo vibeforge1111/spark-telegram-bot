@@ -12,6 +12,22 @@ import { redactText } from './redaction';
 
 export type RecursiveDecision = 'approve_local' | 'defer' | 'reject' | 'request_more_eval';
 
+export function recursiveTargetRepairGuidance(error: unknown): string | null {
+  const detail = error instanceof Error ? error.message : String(error || '');
+  if (!/(?:path|chip|target).*(?:missing|not found|does not exist|unknown)|(?:missing|not found).*(?:path|chip|target)/i.test(detail)) {
+    return null;
+  }
+  return "I couldn’t find that recursive target. Check the available paths with `/recursive paths`; if you meant a new chip, create it with `/chip create` first.";
+}
+
+export function recursiveWorkspaceRepairGuidance(error: unknown): string | null {
+  const detail = error instanceof Error ? error.message : String(error || '');
+  if (!/workspace is not configured|SPARK_SWARM_(?:WORKSPACE_ID|ACCESS_TOKEN)/i.test(detail)) {
+    return null;
+  }
+  return "This recursive command needs Spark Workspace credentials. Ask your Spark admin to configure the workspace, then try again.";
+}
+
 export interface RecursiveCommand {
   action: string;
   id?: string;

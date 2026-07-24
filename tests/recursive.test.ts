@@ -8,6 +8,8 @@ import {
   buildBuilderChipLoopWorkspacePayload,
   parseRecursiveCommand,
   parseRecursiveProposalOptions,
+  recursiveTargetRepairGuidance,
+  recursiveWorkspaceRepairGuidance,
   resolveRecursiveProposalPayloadPath,
   resolveSparkSwarmBridgeSrc,
   renderBuilderChipLoopCompletion,
@@ -103,6 +105,22 @@ test('parses recursive review decisions with rationale', () => {
     id: 'C:\\crypto\\.spark-swarm\\collective-sync.json',
     proposeArgs: ['submit']
   });
+});
+
+test('renders natural repair guidance for missing recursive targets', () => {
+  const reply = recursiveTargetRepairGuidance('chip target not found: private-path');
+  assert.match(reply || '', /couldn’t find that recursive target/);
+  assert.match(reply || '', /\/recursive paths/);
+  assert.match(reply || '', /\/chip create/);
+  assert.doesNotMatch(reply || '', /private-path/);
+  assert.equal(recursiveTargetRepairGuidance('provider timed out'), null);
+});
+
+test('renders natural repair guidance for unconfigured Spark Workspace', () => {
+  const reply = recursiveWorkspaceRepairGuidance('SPARK_SWARM_ACCESS_TOKEN is missing');
+  assert.match(reply || '', /needs Spark Workspace credentials/);
+  assert.doesNotMatch(reply || '', /SPARK_SWARM_ACCESS_TOKEN/);
+  assert.equal(recursiveWorkspaceRepairGuidance('request timed out'), null);
 });
 
 test('builds specialization path evidence benchmark args', () => {
