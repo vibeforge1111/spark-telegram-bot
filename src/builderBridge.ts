@@ -771,8 +771,10 @@ function idString(value: unknown): string {
 
 export function assertTelegramIntegerId(value: number | string, label: string): string {
   const normalized = String(value).trim();
-  if (!/^-?\d{1,20}$/.test(normalized)) {
-    throw new Error(`${label} must be a Telegram integer id.`);
+  const signedChatId = label.trim().toLowerCase() === 'chatid';
+  const valid = signedChatId ? /^-?[1-9]\d{0,19}$/.test(normalized) : /^[1-9]\d{0,19}$/.test(normalized);
+  if (!valid) {
+    throw new Error(`${label} must be a ${signedChatId ? 'non-zero' : 'positive'} Telegram integer id.`);
   }
   return normalized;
 }

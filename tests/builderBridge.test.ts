@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   buildBuilderAocPreflightCommands,
+  assertTelegramIntegerId,
   compactColdMemoryQuery,
   extractLatestCapabilityProbeReceiptFromBlackBoxPayload,
   formatAgentBlackBoxReply,
@@ -33,6 +34,13 @@ function test(name: string, fn: () => void): void {
     throw error;
   }
 }
+
+test('Telegram bridge ids require positive users while preserving signed group chat ids', () => {
+  assert.equal(assertTelegramIntegerId('8319079055', 'userId'), '8319079055');
+  assert.throws(() => assertTelegramIntegerId('-8319079055', 'userId'), /positive Telegram integer id/);
+  assert.equal(assertTelegramIntegerId('-1001234567890', 'chatId'), '-1001234567890');
+  assert.throws(() => assertTelegramIntegerId('0', 'chatId'), /non-zero Telegram integer id/);
+});
 
 test('formats diagnostics scan replies without emojis while preserving sections', () => {
   const reply = formatDiagnosticsScanReply({
