@@ -382,6 +382,13 @@ test('does not treat philosophical questions with modal verbs as build intent', 
   assert.ok(parseBuildIntent('Could we build a landing page?'));
 });
 
+test('does not let a modal in an earlier clause suppress a real build', () => {
+  assert.ok(parseBuildIntent('The dashboard should show sales. Also build a login page for it.'));
+  assert.ok(parseBuildIntent('Users will need accounts later, but for now make a landing page.'));
+  assert.ok(parseBuildIntent('The app must load fast, so build a caching layer.'));
+  assert.equal(parseBuildIntent("Can God create a rock so heavy that even He can't lift it?"), null);
+});
+
 test('keeps explicit image products on the build path', () => {
   assert.ok(parseBuildIntent('Build an image gallery app for our campaign assets'));
   assert.ok(parseBuildIntent('Create an image generator website with a prompt editor'));

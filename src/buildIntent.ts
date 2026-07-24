@@ -858,6 +858,7 @@ function extractBuildDescription(text: string): string | null {
   );
   if (inlineCommand?.index !== undefined) {
     const prefix = text.slice(0, inlineCommand.index).toLowerCase();
+    const clausePrefix = prefix.split(/[.!?;:,]/).pop() ?? prefix;
     if (
       /\b(?:whether|should\s+we|think\s+through|help\s+me\s+think|before\s+we)\b/.test(prefix) ||
       /\bhow\s+(?:should|would|could|can)\b/.test(prefix) ||
@@ -869,7 +870,7 @@ function extractBuildDescription(text: string): string | null {
       isPackageScriptBuildCommandPrefix(prefix) ||
       // Philosophical/hypothetical questions: "Can God create...", "Could gravity break..."
       // Modal verb + subject other than "you/we" before the build verb = not a build request.
-      /\b(?:can|could|would|will|shall|should|may|might|must)\s+(?!you\b|we\b)[a-z]+\s/i.test(prefix)
+      /\b(?:can|could|would|will|shall|should|may|might|must)\s+(?!you\b|we\b)[a-z]+\s/i.test(clausePrefix)
     ) {
       return null;
     }
