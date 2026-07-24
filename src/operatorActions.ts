@@ -129,3 +129,18 @@ export async function runSafeOperatorAction(action: SafeOperatorAction): Promise
       : 'No top-level folders found.'
   ].join('\n');
 }
+
+export function isSparkOsCompileExplanationQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const namesCommand = /\bspark\s+os\s+compile\b/.test(normalized);
+  const asksExplanation = /\b(?:what|why|how|explain|describe|does|read[-\s]*only|safe)\b/.test(normalized);
+  const asksExecution = /^(?:please\s+)?(?:run|execute|start)\b/.test(normalized);
+  return namesCommand && asksExplanation && !asksExecution;
+}
+
+export function renderSparkOsCompileExplanation(): string {
+  return [
+    '`spark os compile --json` reads local Spark evidence and builds redacted capability, authority, trace, memory, repository, and gap views.',
+    'The compile itself is read-only and does not publish private maps. Use the output as local diagnostic evidence; publishing or changing anything remains a separate reviewed action.'
+  ].join('\n\n');
+}

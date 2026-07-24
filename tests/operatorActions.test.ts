@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { parseSafeOperatorAction, runSafeOperatorAction } from '../src/operatorActions';
+import {
+  isSparkOsCompileExplanationQuestion,
+  parseSafeOperatorAction,
+  renderSparkOsCompileExplanation,
+  runSafeOperatorAction
+} from '../src/operatorActions';
 
 async function test(name: string, fn: () => void | Promise<void>): Promise<void> {
   try {
@@ -67,5 +72,14 @@ async function test(name: string, fn: () => void | Promise<void>): Promise<void>
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  await test('explains spark os compile questions without executing them', () => {
+    assert.equal(isSparkOsCompileExplanationQuestion('what does spark os compile do?'), true);
+    assert.equal(isSparkOsCompileExplanationQuestion('run spark os compile now'), false);
+    const reply = renderSparkOsCompileExplanation();
+    assert.match(reply, /read-only/i);
+    assert.match(reply, /does not publish/i);
+    assert.doesNotMatch(reply, /Spawner URL|http:\/\/localhost/i);
   });
 })();

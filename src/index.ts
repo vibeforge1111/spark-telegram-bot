@@ -250,7 +250,14 @@ import {
   rememberPendingMissionCancelConfirmation,
   telegramPendingMissionCancelKey
 } from './telegramPendingMissionCancelEvidence';
-import { classifySafeOperatorAction, operatorActionRootBoundaryReply, parseSafeOperatorAction, runSafeOperatorAction } from './operatorActions';
+import {
+  classifySafeOperatorAction,
+  isSparkOsCompileExplanationQuestion,
+  operatorActionRootBoundaryReply,
+  parseSafeOperatorAction,
+  renderSparkOsCompileExplanation,
+  runSafeOperatorAction
+} from './operatorActions';
 import { queueRouteArbiterShadow } from './routeArbiter';
 import { routeEvidenceAllowed } from './telegramRouteEvidence';
 import { resolveMissionDefaultProvider } from './providerRouting';
@@ -7460,6 +7467,10 @@ for (const variant of RUN_VARIANTS) {
       await ctx.reply(renderSparkMemoryOverviewReply());
       return;
     }
+    if (variant.name === 'run' && isSparkOsCompileExplanationQuestion(goal)) {
+      await ctx.reply(renderSparkOsCompileExplanation());
+      return;
+    }
     if (variant.name === 'run' && isSparkSetupHealthCheckRequest(goal)) {
       await safeSendChatAction(ctx, 'typing');
       await ctx.reply(await renderAuthoritativeSparkLiveStateAnswer({ rawDetails: false }));
@@ -10320,6 +10331,15 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
     await conversation.remember(user, text).catch(() => {});
     const reply = explainHypotheticalSparkScenario(text);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.hypothetical_troubleshooting', 'spark-telegram-bot', 'plain_chat.hypothetical_troubleshooting');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isSparkOsCompileExplanationQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    const reply = renderSparkOsCompileExplanation();
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.spark_os_compile_explanation', 'spark-telegram-bot', 'plain_chat.spark_os_compile_explanation');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
