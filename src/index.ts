@@ -1785,6 +1785,14 @@ export function shouldAnswerAuthoritativeRuntimeStatus(text: string): boolean {
   );
 }
 
+export function isSparkSetupHealthCheckRequest(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const setup = /\b(?:spark\s+)?(?:setup|installation|install)\b/.test(normalized);
+  const health = /\b(?:check|verify|diagnose|health|healthy|errors?|problems?|broken|working)\b/.test(normalized);
+  const unrelatedBuild = /\b(?:build|create|write|scaffold|implement)\b.*\b(?:app|site|script|project|feature)\b/.test(normalized);
+  return setup && health && !unrelatedBuild;
+}
+
 function compactRuntimeOutput(output: string, maxLines = 18): string {
   return output
     .split(/\r?\n/)
@@ -7423,6 +7431,11 @@ for (const variant of RUN_VARIANTS) {
       return ctx.reply(`Usage: ${variant.usage}`);
     }
     const providers = variant.name === 'run' ? [missionDefaultProvider()] : variant.providers;
+    if (variant.name === 'run' && isSparkSetupHealthCheckRequest(goal)) {
+      await safeSendChatAction(ctx, 'typing');
+      await ctx.reply(await renderAuthoritativeSparkLiveStateAnswer({ rawDetails: false }));
+      return;
+    }
     const isBuild = variant.name === 'run' && Boolean(parseBuildIntent(goal));
     const authorization = telegramCommandActionAuthorityDecision(ctx, {
       commandName: variant.name,

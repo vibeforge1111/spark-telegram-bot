@@ -28,6 +28,7 @@ import {
   isPendingClarificationAlternativeRequest,
   isPendingClarificationFollowup,
   isRouteConfidenceGateUnsupportedError,
+  isSparkSetupHealthCheckRequest,
   isSparkVersionCheckQuestion,
   logInterruptedTaskPersistenceFailure,
   latestCanvasPlanFromLoadState,
@@ -554,6 +555,12 @@ test('bug hunt: repair-needed current-status question uses live status instead o
     shouldAnswerAuthoritativeRuntimeStatus('Do not repair anything. Is a repair needed from the current status?'),
     true
   );
+});
+
+test('bug hunt: /run setup checks stay on Spark health instead of project scanning', () => {
+  assert.equal(isSparkSetupHealthCheckRequest('check if there are any errors in my setup'), true);
+  assert.equal(isSparkSetupHealthCheckRequest('verify the Spark installation is healthy'), true);
+  assert.equal(isSparkSetupHealthCheckRequest('build a setup checker script for my project'), false);
 });
 
 test('bug hunt: latest canvas plan can be restored from persisted Spawner state after restart', () => {
