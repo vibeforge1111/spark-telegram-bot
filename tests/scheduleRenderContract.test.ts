@@ -28,7 +28,7 @@ test('does not present out-of-range cron fields as valid schedules', () => {
   assert.equal(humanizeCron('60 * * * *'), 'Custom: 60 * * * *');
   assert.equal(humanizeCron('0 25 * * *'), 'Custom: 0 25 * * *');
   assert.equal(humanizeCron('0 9 * 13 *'), 'Custom: 0 9 * 13 *');
-  assert.equal(humanizeCron('0 9 * * 7'), 'Custom: 0 9 * * 7');
+  assert.equal(humanizeCron('0 9 * * 7'), 'Every Sun at 9 AM');
 });
 
 test('invalid next-fire evidence stays visibly raw instead of inventing relative time', () => {

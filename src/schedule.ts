@@ -33,7 +33,7 @@ export function humanizeCron(cron: string): string {
     || !isSimpleCronField(hour, 0, 23, true)
     || !isSimpleCronField(dom, 1, 31)
     || !isSimpleCronField(month, 1, 12)
-    || !isSimpleCronField(dow, 0, 6)
+    || !isSimpleCronField(dow, 0, 7)
   ) return `Custom: ${cron}`;
   if (hour === '*' && dom === '*' && month === '*' && dow === '*') {
     if (minute === '*') return 'Every minute';
@@ -47,7 +47,7 @@ export function humanizeCron(cron: string): string {
     if (/^\d+$/.test(hour) && /^\d+$/.test(minute)) return `Daily at ${formatTime12(+hour, +minute)}`;
   }
   if (/^\d+$/.test(minute) && /^\d+$/.test(hour) && dom === '*' && month === '*' && /^\d$/.test(dow)) {
-    return `Every ${DOW[+dow]} at ${formatTime12(+hour, +minute)}`;
+    return `Every ${DOW[+dow === 7 ? 0 : +dow]} at ${formatTime12(+hour, +minute)}`;
   }
   if (/^\d+$/.test(minute) && /^\d+$/.test(hour) && /^\d+$/.test(dom) && month === '*' && dow === '*') {
     return `Monthly on day ${dom} at ${formatTime12(+hour, +minute)}`;
