@@ -56,4 +56,12 @@ test('uses public URL for Telegram-facing links', () => {
 
 test('falls back to local Spawner URL', () => {
   assert.equal(resolveSpawnerUiUrl({} as NodeJS.ProcessEnv), DEFAULT_SPAWNER_UI_URL);
+  assert.equal(resolveSpawnerUiUrl({ SPAWNER_UI_URL: '   ' } as NodeJS.ProcessEnv), DEFAULT_SPAWNER_UI_URL);
+  assert.equal(
+    resolveSpawnerUiUrl({
+      SPAWNER_UI_URL: '   ',
+      SPARK_SPAWNER_URL: '  http://legacy-spawner.internal:3333  '
+    } as NodeJS.ProcessEnv),
+    'http://legacy-spawner.internal:3333'
+  );
 });

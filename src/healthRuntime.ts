@@ -6,7 +6,13 @@ export function relayHealthUrl(env: NodeJS.ProcessEnv = process.env): string {
   const { port, url } = telegramRelayIdentityFromEnv(env);
   if (url) {
     const healthUrl = new URL(url);
-    healthUrl.pathname = '/health';
+    const segments = healthUrl.pathname.split('/').filter(Boolean);
+    if (segments.at(-1) === 'spawner-events') {
+      segments[segments.length - 1] = 'health';
+      healthUrl.pathname = `/${segments.join('/')}`;
+    } else {
+      healthUrl.pathname = '/health';
+    }
     healthUrl.search = '';
     healthUrl.hash = '';
     return healthUrl.toString();

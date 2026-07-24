@@ -34,7 +34,7 @@ export function loadEnvFileIntoProcess(
     const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
     if (!match) continue;
     if (options.preserveKeys?.has(match[1])) continue;
-    let value = match[2];
+    let value = match[2].trim();
     if (value.length >= 2 && value[0] === value[value.length - 1] && (value[0] === '"' || value[0] === "'")) {
       value = value.slice(1, -1);
     }

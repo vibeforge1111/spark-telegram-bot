@@ -62,7 +62,9 @@ test('loads matching quoted env values without retaining wrapper quotes', () => 
       'DOUBLE_QUOTED="relay secret value"',
       "SINGLE_QUOTED='profile value'",
       'MISMATCHED="keep-this\'',
-      'PLAIN=plain-value'
+      'PLAIN=plain-value',
+      'PADDED= value with outer spaces   ',
+      'QUOTED_PADDED= " keep inner spaces "   '
     ].join('\n'));
     const env = {} as NodeJS.ProcessEnv;
 
@@ -72,6 +74,8 @@ test('loads matching quoted env values without retaining wrapper quotes', () => 
     assert.equal(env.SINGLE_QUOTED, 'profile value');
     assert.equal(env.MISMATCHED, '"keep-this\'');
     assert.equal(env.PLAIN, 'plain-value');
+    assert.equal(env.PADDED, 'value with outer spaces');
+    assert.equal(env.QUOTED_PADDED, ' keep inner spaces ');
   } finally {
     rmSync(home, { recursive: true, force: true });
   }

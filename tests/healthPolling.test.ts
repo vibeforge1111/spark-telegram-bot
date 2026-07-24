@@ -48,6 +48,10 @@ test('builds relay health URL from hosted relay callback URL', () => {
     relayHealthUrl({ TELEGRAM_RELAY_URL: 'http://spark-telegram-bot.railway.internal:8788/spawner-events' } as NodeJS.ProcessEnv),
     'http://spark-telegram-bot.railway.internal:8788/health'
   );
+  assert.equal(
+    relayHealthUrl({ TELEGRAM_RELAY_URL: 'https://relay.example/api/spark/spawner-events?token=hidden#fragment' } as NodeJS.ProcessEnv),
+    'https://relay.example/api/spark/health'
+  );
 });
 
 test('validates relay runtime without exposing secrets', async () => {
