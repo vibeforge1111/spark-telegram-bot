@@ -105,8 +105,9 @@ async function main(): Promise<void> {
       });
 
       const repaired = readCanonicalState(dir, statePath);
-      for (const bucket of ['recentByUser', 'notesByUser', 'interruptedByUser', 'frameStateByUser']) {
-        assert.deepEqual(Object.keys(repaired[bucket]), ['3', '4', '5'], bucket);
+      assert.deepEqual(Object.keys(repaired.notesByUser), ['3', '4', '5']);
+      for (const bucket of ['recentByUser', 'interruptedByUser', 'frameStateByUser']) {
+        assert.deepEqual(Object.keys(repaired[bucket]), ['3:3', '4:4', '5:5'], bucket);
       }
       assert.match(await memory.getContext({ id: 1 }, 'durable note'), /note-1/);
       assert.doesNotMatch(await memory.getContext({ id: 1 }, 'durable note'), /message-1/);

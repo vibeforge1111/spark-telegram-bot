@@ -478,6 +478,8 @@ const bot = new Telegraf(botToken, {
   handlerTimeout: telegramHandlerTimeoutMs()
 });
 
+bot.use((ctx, next) => conversation.runInChatScope(ctx.chat?.id, next));
+
 async function safeSendChatAction(ctx: any, action: 'typing'): Promise<void> {
   try {
     await ctx.sendChatAction(action);
@@ -9343,6 +9345,10 @@ bot.command('mission', async (ctx) => {
 
 // Handle regular text messages
 export async function handleTextMessage(ctx: any): Promise<void> {
+  return conversation.runInChatScope(ctx.chat?.id, () => handleTextMessageInChatScope(ctx));
+}
+
+async function handleTextMessageInChatScope(ctx: any): Promise<void> {
   const user = ctx.from;
   const text = ctx.message.text;
 

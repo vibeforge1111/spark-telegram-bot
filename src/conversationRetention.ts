@@ -24,13 +24,13 @@ export class ConversationRetentionPolicy {
     this.maxUsers = maxUsers;
   }
 
-  set<V>(bucket: ConversationRetentionBucket, map: Map<number, V>, userId: number, value: V): void {
+  set<K, V>(bucket: ConversationRetentionBucket, map: Map<K, V>, key: K, value: V): void {
     // Reinsert existing users so Map order tracks the most recent successful write.
-    map.delete(userId);
-    map.set(userId, value);
+    map.delete(key);
+    map.set(key, value);
     while (map.size > this.maxUsers) {
       const oldest = map.keys().next().value;
-      if (typeof oldest !== 'number') break;
+      if (oldest === undefined) break;
       map.delete(oldest);
       this.evictionCounts[bucket] += 1;
     }
@@ -40,7 +40,7 @@ export class ConversationRetentionPolicy {
     return Object.values(this.evictionCounts).reduce((total, count) => total + count, 0);
   }
 
-  diagnostics(maps: Record<ConversationRetentionBucket, Map<number, unknown>>): ConversationRetentionDiagnostics {
+  diagnostics(maps: Record<ConversationRetentionBucket, Map<unknown, unknown>>): ConversationRetentionDiagnostics {
     return {
       maxUsers: this.maxUsers,
       userCounts: {

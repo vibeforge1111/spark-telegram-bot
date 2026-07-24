@@ -93,6 +93,45 @@ async function main(): Promise<void> {
   });
   });
 
+  await test('keeps ephemeral context chat-scoped while durable user notes follow the user', async () => {
+  await withTempState(async () => {
+    const memory = new ConversationMemory();
+    const privateChatId = 12345;
+    const groupChatId = -100987654321;
+
+    await memory.learnAboutUser(user, 'Preference: keep mission updates concise');
+    await memory.runInChatScope(privateChatId, async () => {
+      await memory.remember(user, 'private launch codeword is firefly');
+      await memory.rememberAssistantReply(user, 'I will keep that in this chat context.');
+      await memory.recordInterruptedTask(user, {
+        message: 'resume the private deployment',
+        failure: 'local test timeout'
+      });
+    });
+    await memory.runInChatScope(groupChatId, async () => {
+      await memory.remember(user, 'group topic is release readiness');
+    });
+
+    const privateContext = await memory.runInChatScope(
+      privateChatId,
+      () => memory.getContext(user, 'continue')
+    );
+    const groupContext = await memory.runInChatScope(
+      groupChatId,
+      () => memory.getContext(user, 'continue')
+    );
+
+    assert.match(privateContext, /private launch codeword is firefly/);
+    assert.match(privateContext, /resume the private deployment/);
+    assert.doesNotMatch(privateContext, /group topic is release readiness/);
+    assert.match(groupContext, /group topic is release readiness/);
+    assert.doesNotMatch(groupContext, /private launch codeword is firefly/);
+    assert.doesNotMatch(groupContext, /resume the private deployment/);
+    assert.match(privateContext, /keep mission updates concise/);
+    assert.match(groupContext, /keep mission updates concise/);
+  });
+  });
+
   await test('keeps explicit agent doctrine preferences scoped and updatable by dimension', async () => {
   await withTempState(async () => {
     const memory = new ConversationMemory();
