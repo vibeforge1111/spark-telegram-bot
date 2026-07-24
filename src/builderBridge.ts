@@ -2118,6 +2118,8 @@ export function extractLatestCapabilityProbeReceiptFromBlackBoxPayload(
   }
 
   const entries = Array.isArray(payload.entries) ? payload.entries : [];
+  let latestReceipt: BuilderCapabilityProbeReceipt | null = null;
+  let latestCreatedAtMs = Number.NEGATIVE_INFINITY;
   for (const item of entries) {
     if (!item || typeof item !== 'object') continue;
     const entry = item as Record<string, unknown>;
@@ -2132,17 +2134,23 @@ export function extractLatestCapabilityProbeReceiptFromBlackBoxPayload(
     const changedStatus = changed
       .map((value) => value.match(/last_probe=([a-z_]+)/i)?.[1] || '')
       .find(Boolean) || '';
-    return {
+    const createdAt = String(entry.created_at || '').trim();
+    const createdAtMs = Date.parse(createdAt);
+    const receipt: BuilderCapabilityProbeReceipt = {
       capabilityKey: routeKey,
       status: blockers.length ? 'failure' : changedStatus || 'unknown',
       failureReason: blockers[0] || '',
       probeSummary: sourceSummary,
       routeLatencyMs: null,
       eventId: String(entry.event_id || '').trim(),
-      createdAt: String(entry.created_at || '').trim(),
+      createdAt,
     };
+    if (!latestReceipt || (!Number.isNaN(createdAtMs) && createdAtMs > latestCreatedAtMs)) {
+      latestReceipt = receipt;
+      latestCreatedAtMs = Number.isNaN(createdAtMs) ? Number.NEGATIVE_INFINITY : createdAtMs;
+    }
   }
-  return null;
+  return latestReceipt;
 }
 
 function sanitizedPreflightLabel(value: unknown, fallback: string): string {

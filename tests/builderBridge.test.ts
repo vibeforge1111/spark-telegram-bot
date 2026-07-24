@@ -4,6 +4,7 @@ import path from 'node:path';
 import {
   buildBuilderAocPreflightCommands,
   compactColdMemoryQuery,
+  extractLatestCapabilityProbeReceiptFromBlackBoxPayload,
   formatAgentBlackBoxReply,
   formatConversationColdMemoryContext,
   formatDiagnosticsScanReply,
@@ -709,6 +710,33 @@ test('black-box bridge invokes Builder self black-box json route', () => {
 
   assert.match(source, /'self',\s*'black-box'/);
   assert.match(source, /'--json'/);
+});
+
+test('extracts the newest matching browser probe receipt', () => {
+  const receipt = extractLatestCapabilityProbeReceiptFromBlackBoxPayload({
+    entries: [
+      {
+        event_id: 'evt-old-success',
+        event_type: 'capability_probed',
+        route_chosen: 'spark_browser',
+        blockers: [],
+        changed: ['spark_browser:last_probe=success'],
+        created_at: '2026-05-24T15:00:00Z',
+      },
+      {
+        event_id: 'evt-new-failure',
+        event_type: 'capability_probed',
+        route_chosen: 'spark_browser',
+        blockers: ['browser adapter is not ready'],
+        changed: ['spark_browser:last_probe=failure'],
+        created_at: '2026-05-24T16:00:00Z',
+      },
+    ],
+  }, 'spark_browser');
+
+  assert.equal(receipt?.eventId, 'evt-new-failure');
+  assert.equal(receipt?.status, 'failure');
+  assert.equal(receipt?.failureReason, 'browser adapter is not ready');
 });
 
 test('AOC preflight commands carry trace metadata without raw prompt or chat ids', () => {
