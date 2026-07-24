@@ -49,8 +49,27 @@ function redactTelegramVoiceAudioMessage(message: Record<string, unknown>): Reco
   return clean;
 }
 
-async function responseBuffer(response: Response): Promise<Buffer> {
-  return Buffer.from(await response.arrayBuffer());
+async function responseBuffer(response: Response, maxBytes: number): Promise<Buffer> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    return Buffer.from(await response.arrayBuffer());
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw new Error(
+        `Telegram voice file is too large (${humanSize(total)}; limit ${humanSize(maxBytes)}). ` +
+        'An administrator can raise SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES.'
+      );
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
 }
 
 export async function buildVoiceBridgeUpdate(
@@ -97,7 +116,7 @@ export async function buildVoiceBridgeUpdate(
       );
     }
 
-    const audioBuffer = await responseBuffer(response);
+    const audioBuffer = await responseBuffer(response, maxBytes);
     if (audioBuffer.length > maxBytes) {
       throw new Error(
         `Telegram voice file is too large (${humanSize(audioBuffer.length)}; limit ${humanSize(maxBytes)}). ` +

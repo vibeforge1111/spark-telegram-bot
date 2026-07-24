@@ -182,3 +182,46 @@ test('logs the configured voice size limit and remediation for oversized media',
     else process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES = previousLimit;
   }
 });
+
+test('stops a chunked voice download as soon as it exceeds the configured limit', async () => {
+  const previousLimit = process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES;
+  const previousWarn = console.warn;
+  const warnings: string[] = [];
+  let cancelled = false;
+  process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES = '1024';
+  console.warn = (...args: unknown[]) => warnings.push(args.map(String).join(' '));
+  try {
+    const response = new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(800));
+        controller.enqueue(new Uint8Array(800));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    }), { headers: { 'content-type': 'audio/ogg' } });
+    const enriched = await buildVoiceBridgeUpdate(
+      {
+        update: {
+          update_id: 14,
+          message: { message_id: 24, voice: { file_id: 'chunked-oversized-file' } },
+        },
+        telegram: {
+          async getFileLink(): Promise<string> {
+            return 'https://telegram.example/chunked.ogg';
+          },
+        },
+      },
+      async () => response
+    );
+
+    assert.equal(cancelled, true);
+    assert.equal((enriched.message as any).spark_media, undefined);
+    assert.match(warnings.join('\n'), /limit 1\.0 KiB/);
+    assert.doesNotMatch(warnings.join('\n'), /chunked-oversized-file/);
+  } finally {
+    console.warn = previousWarn;
+    if (previousLimit === undefined) delete process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES;
+    else process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES = previousLimit;
+  }
+});
