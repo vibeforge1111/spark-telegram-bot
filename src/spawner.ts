@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import axios from 'axios';
 import {
-  createHarnessCoreActionEnvelopeVNext,
-  createHarnessCoreAuthorizedGovernorDecision,
-  type HarnessCoreActionMutationClass
+  type HarnessCoreActionMutationClass,
+  type HarnessCoreActionType
 } from '@spark/harness-core';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { spawnerAxiosOptions } from './spawnerAuth';
@@ -12,6 +11,10 @@ import { DEFAULT_LOCAL_SERVICE_TIMEOUT_MS, localServiceDefaultTimeoutMs, positiv
 import type { SkillTier } from './userTier';
 import { creatorMissionClosureProof } from './creatorMissionClosureProof';
 import { domainChipLabsEvidenceSurfaceLine, formatDomainChipLabsContractProofLine } from './domainChipLabsCreatorContract';
+import {
+  harnessExecutionAuthorityFailureReason,
+  type HarnessExecutionAuthorityExpectation
+} from './harnessExecutionAuthority';
 const SPAWNER_UI_URL = resolveSpawnerUiUrl();
 const PROJECT_PREVIEW_URL = resolveProjectPreviewBaseUrl();
 const SPARK_RUN_PROJECT_PATH = process.env.SPARK_RUN_PROJECT_PATH?.trim();
@@ -262,41 +265,45 @@ interface CreatorMissionExecutionInput {
   executionAuthority?: unknown;
 }
 
-function governorDecisionAuthority(input: {
-  source: string;
-  reason: string;
-  toolName: string;
-  mutationClass: HarnessCoreActionMutationClass;
-  requestId?: string;
-  target?: string;
-}) {
-  const envelope = createHarnessCoreActionEnvelopeVNext({
-    surface: 'telegram',
-    ownerSystem: 'spawner-ui',
-    source: input.source,
-    reason: input.reason,
-    toolName: input.toolName,
-    mutationClass: input.mutationClass,
-    requestId: input.requestId,
-    actorKind: 'system',
-    actorIdRef: 'spark-telegram-bot',
-    target: input.target,
-    confidence: 0.9
-  });
-  return createHarnessCoreAuthorizedGovernorDecision({
-    envelope,
-    tool_name: input.toolName,
-    restrictions: {
-      network_allowed: false,
-      write_allowed: ['writes_files', 'creates_schedule', 'deletes_schedule', 'creates_chip', 'launches_mission'].includes(input.mutationClass),
-      publish_allowed: input.mutationClass === 'publishes'
-    }
-  });
+const MISSING_EXECUTION_AUTHORITY_ERROR = 'Harness Core execution authority is required before Spawner adapter calls.';
+
+function executionAuthorityError(
+  value: unknown,
+  expected: HarnessExecutionAuthorityExpectation | HarnessExecutionAuthorityExpectation[]
+): string | null {
+  const reason = harnessExecutionAuthorityFailureReason(value, expected);
+  return reason ? `${MISSING_EXECUTION_AUTHORITY_ERROR} (${reason})` : null;
+}
+
+function actionTypeForMutationClass(mutationClass: HarnessCoreActionMutationClass): HarnessCoreActionType {
+  switch (mutationClass) {
+    case 'none':
+    case 'read_only':
+      return 'read';
+    case 'writes_memory':
+      return 'write_memory';
+    case 'writes_files':
+      return 'edit_file';
+    case 'launches_mission':
+      return 'launch_mission';
+    case 'creates_schedule':
+    case 'deletes_schedule':
+      return 'schedule';
+    case 'creates_chip':
+      return 'create_domain_chip';
+    case 'external_network':
+      return 'external_api_call';
+    case 'publishes':
+      return 'publish';
+    default:
+      return 'run_command';
+  }
 }
 
 interface CreatorMissionLookupInput {
   missionId?: string;
   requestId?: string;
+  executionAuthority?: unknown;
 }
 
 interface CreatorMissionStatusResult {
@@ -326,6 +333,7 @@ interface CreatorMissionValidationInput {
   missionId?: string;
   requestId?: string;
   maxCommands?: number;
+  executionAuthority?: unknown;
 }
 
 interface CreatorValidationCommandResult {
@@ -1330,6 +1338,12 @@ async function runLoopEngineeringSpawnerAction(
   const toolName = kind === 'benchmark'
     ? 'spawner.loop_engineering.benchmark.run'
     : 'spawner.loop_engineering.loop.run';
+  const authorityError = executionAuthorityError(input.executionAuthority, {
+    toolName,
+    ownerSystem: 'spawner-ui',
+    actionType: 'launch_mission'
+  });
+  if (authorityError) return { success: false, error: authorityError };
   try {
     const res = await postLocalServiceWithRetry(
       `${SPAWNER_UI_URL}${endpoint}`,
@@ -1340,14 +1354,7 @@ async function runLoopEngineeringSpawnerAction(
         ...(input.executeNow ? { executeNow: true } : {}),
         sourceSurface: input.sourceSurface || 'telegram',
         ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
-        executionAuthority: input.executionAuthority ?? governorDecisionAuthority({
-          source: 'telegram_loop_engineering_bridge',
-          reason: `Telegram requested a private loop-engineering ${kind} mission through Spawner.`,
-          toolName,
-          mutationClass: 'launches_mission',
-          requestId: input.requestId,
-          target: chipKey
-        })
+        executionAuthority: input.executionAuthority
       },
       localServiceTimeoutMs('SPARK_LOOP_ENGINEERING_RUN_TIMEOUT_MS')
     );
@@ -1410,19 +1417,19 @@ async function postLoopEngineeringCommandResult(input: {
 }): Promise<LoopEngineeringRunResult> {
   const chipKey = safeDomainChipKey(input.chipKey);
   if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+  const mutationClass = input.mutationClass || 'writes_files';
+  const authorityError = executionAuthorityError(input.body.executionAuthority, {
+    toolName: input.toolName,
+    ownerSystem: 'spawner-ui',
+    actionType: actionTypeForMutationClass(mutationClass)
+  });
+  if (authorityError) return { success: false, error: authorityError };
   try {
     const res = await postLocalServiceWithRetry(
       `${SPAWNER_UI_URL}${input.endpoint}`,
       {
         ...input.body,
-        executionAuthority: input.body.executionAuthority ?? governorDecisionAuthority({
-          source: 'telegram_loop_engineering_bridge',
-          reason: `Telegram requested ${input.toolName} through Spawner.`,
-          toolName: input.toolName,
-          mutationClass: input.mutationClass || 'writes_files',
-          requestId: input.requestId,
-          target: input.target || chipKey
-        })
+        executionAuthority: input.body.executionAuthority
       },
       localServiceTimeoutMs('SPARK_LOOP_ENGINEERING_RUN_TIMEOUT_MS')
     );
@@ -1460,6 +1467,14 @@ export const spawner = {
   },
 
   async runGoal(input: RunGoalInput): Promise<RunGoalResult> {
+    const authorityError = executionAuthorityError(input.executionAuthority, {
+      toolName: 'spawner.run',
+      ownerSystem: 'spawner-ui',
+      actionType: 'launch_mission'
+    });
+    if (authorityError) {
+      return { success: false, error: authorityError };
+    }
     try {
       const relay = telegramRelayIdentityFromEnv();
       const res = await postLocalServiceWithRetry(
@@ -1476,14 +1491,7 @@ export const spawner = {
           ...(SPARK_RUN_PROJECT_PATH ? { projectPath: SPARK_RUN_PROJECT_PATH } : {}),
           ...(input.providers && input.providers.length > 0 ? { providers: input.providers } : {}),
           ...(input.promptMode ? { promptMode: input.promptMode } : {}),
-          executionAuthority: input.executionAuthority ?? governorDecisionAuthority({
-            source: 'telegram_spawner_run_bridge',
-            reason: 'Telegram run bridge requested Spawner mission execution.',
-            toolName: 'spawner.run',
-            mutationClass: 'launches_mission',
-            requestId: input.requestId,
-            target: input.goal
-          })
+          executionAuthority: input.executionAuthority
         },
         localServiceTimeoutMs('SPARK_SPAWNER_RUN_TIMEOUT_MS')
       );
@@ -1746,6 +1754,19 @@ export const spawner = {
   },
 
   async creatorMission(input: CreatorMissionInput): Promise<CreatorMissionResult> {
+    const authorityError = executionAuthorityError(input.executionAuthority, [
+      {
+        toolName: 'spawner.creator_mission',
+        ownerSystem: 'spawner-ui',
+        actionType: 'create_domain_chip'
+      },
+      {
+        toolName: 'creator.mission.create',
+        ownerSystem: 'spawner-ui',
+        actionType: 'create_domain_chip'
+      }
+    ]);
+    if (authorityError) return { success: false, error: authorityError };
     try {
       const res = await postLocalServiceWithRetry(
         `${SPAWNER_UI_URL}/api/creator/mission`,
@@ -1756,18 +1777,7 @@ export const spawner = {
           ...(input.privacyMode ? { privacyMode: input.privacyMode } : {}),
           ...(input.riskLevel ? { riskLevel: input.riskLevel } : {}),
           ...(input.executionPolicy ? { executionPolicy: input.executionPolicy } : {}),
-          ...(input.executionPolicy !== 'read_only'
-            ? {
-                executionAuthority: input.executionAuthority ?? governorDecisionAuthority({
-                  source: 'telegram_creator_mission_bridge',
-                  reason: 'Telegram Loop Engineering bridge requested an executable path.',
-                  toolName: 'creator.mission.create',
-                  mutationClass: 'creates_chip',
-                  requestId: input.requestId,
-                  target: input.brief
-                })
-              }
-            : {})
+          executionAuthority: input.executionAuthority
         },
         localServiceTimeoutMs('SPARK_CREATOR_MISSION_TIMEOUT_MS')
       );
@@ -1794,20 +1804,26 @@ export const spawner = {
   },
 
   async creatorMissionExecute(input: CreatorMissionExecutionInput): Promise<CreatorMissionExecutionResult> {
+    const authorityError = executionAuthorityError(input.executionAuthority, [
+      {
+        toolName: 'spawner.creator_mission.run',
+        ownerSystem: 'spawner-ui',
+        actionType: 'launch_mission'
+      },
+      {
+        toolName: 'spawner.dispatch',
+        ownerSystem: 'spawner-ui',
+        actionType: 'launch_mission'
+      }
+    ]);
+    if (authorityError) return { success: false, error: authorityError };
     try {
       const res = await postLocalServiceWithRetry(
         `${SPAWNER_UI_URL}/api/creator/mission/execute`,
         {
           ...(input.missionId ? { missionId: input.missionId } : {}),
           ...(input.requestId ? { requestId: input.requestId } : {}),
-          executionAuthority: input.executionAuthority ?? governorDecisionAuthority({
-            source: 'telegram_creator_mission_execute_bridge',
-            reason: 'Telegram Loop Engineering bridge requested execution of a staged path.',
-            toolName: 'spawner.dispatch',
-            mutationClass: 'launches_mission',
-            requestId: input.requestId,
-            target: input.missionId || input.requestId
-          })
+          executionAuthority: input.executionAuthority
         },
         localServiceTimeoutMs('SPARK_CREATOR_MISSION_EXECUTE_TIMEOUT_MS')
       );
@@ -1841,6 +1857,12 @@ export const spawner = {
   },
 
   async creatorMissionStatus(input: CreatorMissionLookupInput): Promise<CreatorMissionStatusResult> {
+    const authorityError = executionAuthorityError(input.executionAuthority, {
+      toolName: 'spawner.creator_mission.status',
+      ownerSystem: 'spawner-ui',
+      actionType: 'read'
+    });
+    if (authorityError) return { success: false, error: authorityError };
     try {
       const params = new URLSearchParams();
       if (input.missionId) params.set('missionId', input.missionId);
@@ -1875,13 +1897,20 @@ export const spawner = {
   },
 
   async creatorMissionValidate(input: CreatorMissionValidationInput): Promise<CreatorMissionValidationResult> {
+    const authorityError = executionAuthorityError(input.executionAuthority, {
+      toolName: 'spawner.creator_mission.validate',
+      ownerSystem: 'spawner-ui',
+      actionType: 'launch_mission'
+    });
+    if (authorityError) return { success: false, error: authorityError };
     try {
       const res = await postLocalServiceWithRetry(
         `${SPAWNER_UI_URL}/api/creator/mission/validate`,
         {
           ...(input.missionId ? { missionId: input.missionId } : {}),
           ...(input.requestId ? { requestId: input.requestId } : {}),
-          ...(typeof input.maxCommands === 'number' ? { maxCommands: input.maxCommands } : {})
+          ...(typeof input.maxCommands === 'number' ? { maxCommands: input.maxCommands } : {}),
+          executionAuthority: input.executionAuthority
         },
         localServiceTimeoutMs('SPARK_CREATOR_MISSION_VALIDATE_TIMEOUT_MS')
       );

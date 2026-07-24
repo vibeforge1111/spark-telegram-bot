@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import axios from 'axios';
@@ -23,7 +23,11 @@ const originalEnv = {
   BOT_DEFAULT_TIER: process.env.BOT_DEFAULT_TIER,
   SPARK_AGENT_ACCESS_PROFILE: process.env.SPARK_AGENT_ACCESS_PROFILE,
   SPARK_BOT_TEST_MODE: process.env.SPARK_BOT_TEST_MODE,
+  SPARK_CLI_COMMAND: process.env.SPARK_CLI_COMMAND,
+  SPARK_CLI_PATH: process.env.SPARK_CLI_PATH,
   SPARK_GATEWAY_STATE_DIR: process.env.SPARK_GATEWAY_STATE_DIR,
+  SPARK_HARNESS_CORE_LEDGER_PATH: process.env.SPARK_HARNESS_CORE_LEDGER_PATH,
+  SPARK_HOME: process.env.SPARK_HOME,
   PATH: process.env.PATH
 };
 
@@ -39,12 +43,73 @@ function restoreAxios(): void {
   (axios as any).get = originalGet;
 }
 
+function removeTempRoot(tempRoot: string): void {
+  try {
+    rmSync(tempRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  } catch (error) {
+    if (process.platform === 'win32' && (error as NodeJS.ErrnoException).code === 'EPERM') {
+      console.warn(`warning - left temp access repair dir after Windows handle delay: ${tempRoot}`);
+      return;
+    }
+    throw error;
+  }
+}
+
+function loadFreshIndexModule(): any {
+  const sourceRoot = `${path.sep}src${path.sep}`;
+  for (const cacheKey of Object.keys(require.cache)) {
+    if (cacheKey.includes(sourceRoot)) {
+      delete require.cache[cacheKey];
+    }
+  }
+  return require('../src/index');
+}
+
+function psSingleQuoted(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
 function writeSparkShim(input: {
   binDir: string;
   callsPath: string;
   statusPath: string;
   finalStatus: Record<string, unknown>;
-}): void {
+}): string {
+  const setupReply = JSON.stringify({
+    ok: true,
+    effective_access_level: 4,
+    recommended: { id: 'spark_workspace' },
+    next: 'spark access status'
+  });
+
+  if (process.platform === 'win32') {
+    const sparkShim = path.join(input.binDir, 'spark.ps1');
+    writeFileSync(
+      sparkShim,
+      [
+        'param([Parameter(ValueFromRemainingArguments=$true)][string[]]$SparkArgs)',
+        `$callsPath = ${psSingleQuoted(input.callsPath)}`,
+        `$statusPath = ${psSingleQuoted(input.statusPath)}`,
+        'Add-Content -LiteralPath $callsPath -Value ($SparkArgs -join " ")',
+        'if ($SparkArgs.Count -ge 3 -and $SparkArgs[0] -eq "access" -and $SparkArgs[1] -eq "status" -and $SparkArgs[2] -eq "--json") {',
+        '  Get-Content -Raw -LiteralPath $statusPath',
+        '  exit 0',
+        '}',
+        'if ($SparkArgs.Count -ge 3 -and $SparkArgs[0] -eq "access" -and $SparkArgs[1] -eq "setup" -and $SparkArgs[2] -eq "--json") {',
+        `$finalStatus = @'\n${JSON.stringify(input.finalStatus)}\n'@`,
+        '  Set-Content -LiteralPath $statusPath -Value $finalStatus -NoNewline',
+        `$setupReply = @'\n${setupReply}\n'@`,
+        '  Write-Output $setupReply',
+        '  exit 0',
+        '}',
+        'Write-Error ("unexpected spark command: " + ($SparkArgs -join " "))',
+        'exit 1',
+        ''
+      ].join('\n')
+    );
+    return sparkShim;
+  }
+
   const sparkShim = path.join(input.binDir, 'spark');
   writeFileSync(
     sparkShim,
@@ -59,12 +124,7 @@ function writeSparkShim(input: {
       `  cat > "${input.statusPath.replace(/"/g, '\\"')}" <<'JSON'`,
       JSON.stringify(input.finalStatus),
       'JSON',
-      `  echo '${JSON.stringify({
-        ok: true,
-        effective_access_level: 4,
-        recommended: { id: 'spark_workspace' },
-        next: 'spark access status'
-      })}'`,
+      `  echo '${setupReply}'`,
       '  exit 0',
       'fi',
       'echo "unexpected spark command: $*" >&2',
@@ -73,6 +133,7 @@ function writeSparkShim(input: {
     ].join('\n')
   );
   chmodSync(sparkShim, 0o755);
+  return sparkShim;
 }
 
 function fakeCtx(chatId: number, fromId: number, messageId: number, text: string, replies: string[]) {
@@ -125,35 +186,45 @@ async function runAccessRepairScenario(input: {
         : 'Workspace is not created yet. Run `spark access setup`.'
     }
   }));
-  writeSparkShim({ binDir, callsPath, statusPath, finalStatus });
+  const sparkCommand = writeSparkShim({ binDir, callsPath, statusPath, finalStatus });
 
   process.env.ADMIN_TELEGRAM_IDS = '8319079055';
   process.env.BOT_DEFAULT_TIER = 'base';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BOT_TEST_MODE = '1';
+  process.env.SPARK_CLI_COMMAND = sparkCommand;
   process.env.SPARK_GATEWAY_STATE_DIR = stateDir;
+  process.env.SPARK_HARNESS_CORE_LEDGER_PATH = path.join(tempRoot, 'harness-ledger.jsonl');
   process.env.PATH = `${binDir}${path.delimiter}${originalEnv.PATH || ''}`;
 
   const spawnerCalls: Array<{ url: string; body: unknown }> = [];
+  // The model router and memory proposer issue LLM completion calls through axios.post (z.ai,
+  // anthropic, ollama). Those are not Spawner missions. Count only non-LLM POSTs so this measures
+  // "did access repair launch a mission?", not "did any HTTP POST fire?". A real Spawner/mission
+  // POST still gets counted, so the no-mission assertions stay honest.
+  const isLlmCompletionPost = (url: string): boolean =>
+    /\/(chat\/completions|v1\/messages|api\/(chat|generate))(\?|$)/i.test(url);
   (axios as any).post = async (url: string, body: unknown) => {
-    spawnerCalls.push({ url, body });
+    if (!isLlmCompletionPost(String(url))) {
+      spawnerCalls.push({ url, body });
+    }
     return { data: { success: true, missionId: 'should-not-exist' } };
   };
   (axios as any).get = async () => ({ data: { success: true } });
 
   try {
     const replies: string[] = [];
-    const indexModule: any = await import('../src/index');
+    const indexModule: any = loadFreshIndexModule();
     await indexModule.handleTextMessage(fakeCtx(8319079055, 8319079055, 700, input.firstText, replies));
     if (input.includeDidYou) {
       await indexModule.handleTextMessage(fakeCtx(8319079055, 8319079055, 701, 'did you', replies));
     }
-    const sparkCalls = readFileSync(callsPath, 'utf-8');
+    const sparkCalls = existsSync(callsPath) ? readFileSync(callsPath, 'utf-8') : '';
     return { replies, sparkCalls, spawnerCalls };
   } finally {
-    rmSync(tempRoot, { recursive: true, force: true });
     restoreAxios();
     restoreEnv();
+    removeTempRoot(tempRoot);
   }
 }
 
@@ -175,7 +246,7 @@ void (async () => {
     assert.equal(result.spawnerCalls.length, 0);
   });
 
-  await test('access repair auto-runs safe workspace setup when workspace is not writable', async () => {
+  await test('access repair reports setup need without auto-running workspace setup', async () => {
     const result = await runAccessRepairScenario({
       name: 'setup-needed',
       initialWritable: false,
@@ -183,13 +254,13 @@ void (async () => {
     });
     const reply = result.replies.join('\n');
     assert.match(reply, /access repair, not a Spawner mission/i);
-    assert.match(reply, /repaired the safe Spark workspace/i);
-    assert.match(reply, /Safe workspace setup is ready/i);
-    assert.match(reply, /Spark workspace writable: yes/i);
+    assert.match(reply, /did not run setup from natural text/i);
+    assert.match(reply, /\/access_setup/);
+    assert.match(reply, /Spark workspace writable: no/i);
     assert.doesNotMatch(reply, /I will run that through Codex now/i);
     assert.doesNotMatch(reply, /Canvas:|Kanban:|Mission board:/i);
     assert.match(result.sparkCalls, /access status --json/);
-    assert.match(result.sparkCalls, /access setup --json/);
+    assert.doesNotMatch(result.sparkCalls, /access setup --json/);
     assert.equal(result.spawnerCalls.length, 0);
   });
 

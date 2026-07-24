@@ -59,6 +59,7 @@ interface FollowupDeps {
       objective: string;
       roundLimit: number;
       requestId?: string;
+      executionAuthority?: unknown;
     }
   ): Promise<{
     success: boolean;
@@ -341,7 +342,8 @@ export async function handleNaturalDomainChipBenchmarkAutoloopFollowup(
         ? `Run a capped private self-improvement loop for ${labelForTelegram(startTarget.chipKey)} with separated evaluator evidence.`
         : `Run a private benchmark for ${labelForTelegram(startTarget.chipKey)} with separated evaluator evidence.`,
       roundLimit: startTarget.rounds,
-      requestId: deps.requestId
+      requestId: deps.requestId,
+      executionAuthority: authorization.governorDecision
     });
     if (!result.success) {
       const error = deps.redact(result.error || `Spawner did not accept the private ${kind} run.`);

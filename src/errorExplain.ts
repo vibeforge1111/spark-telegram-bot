@@ -98,6 +98,22 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
   const lower = errorText.toLowerCase();
 
   if (
+    context === 'spawner' &&
+    (
+      lower.includes('prdbridgewrite routes require api key for non-local requests') ||
+      lower.includes('unauthorized prdbridgewrite request')
+    )
+  ) {
+    return {
+      category: 'spawner_bridge_auth',
+      userLine: 'Mission Control rejected Spark before the governed build request reached Spawner.',
+      detail,
+      check: 'Run /diagnose so Spark can check the Telegram-to-Spawner bridge and Mission Control health.',
+      repair: 'Operator fix: make sure Spark Recursive and Spawner share the same SPARK_BRIDGE_API_KEY, then restart both services.'
+    };
+  }
+
+  if (
     lower.includes('unauthorized') ||
     lower.includes('forbidden') ||
     lower.includes('invalid api') ||

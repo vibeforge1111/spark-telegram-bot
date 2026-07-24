@@ -71,7 +71,7 @@ function defaultSparkAccessProfile(): SparkAccessProfile {
   const configured = normalizeSparkAccessProfile(process.env.SPARK_AGENT_ACCESS_PROFILE);
   if (configured) return configured;
   if (sparkIsHostedRuntime() && !sparkHostedFullAccessAllowed()) return 'agent';
-  return 'developer';
+  return 'chat';
 }
 
 async function readPreferences(): Promise<SparkAccessPreferences> {

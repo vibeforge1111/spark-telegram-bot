@@ -84,7 +84,7 @@ export const ACTION_PROOF_CAPSULE_POLICIES: ProofCapsuleCoveragePolicy[] = [
       kind: 'joined_capsule',
       summary: 'Spawner and creator bridge calls preserve Governor executionAuthority for downstream mission proof.'
     },
-    requiredSourceMarkers: ['executionAuthority', 'createHarnessCoreAuthorizedGovernorDecision']
+    requiredSourceMarkers: ['executionAuthority', 'harnessExecutionAuthorityFailureReason']
   },
   {
     planeId: 'legacy-plane:telegram-builder-bridge',
@@ -117,6 +117,14 @@ export const ACTION_PROOF_CAPSULE_POLICIES: ProofCapsuleCoveragePolicy[] = [
       summary: 'Recursive, Spark QA, startup, and self-improvement routes record execution ledgers and attach reply proof capsules before replies.'
     },
     requiredSourceMarkers: ['recordTelegramHarnessCoreExecution', 'recursive.loop']
+  },
+  {
+    planeId: 'legacy-plane:telegram-mission-relay-webhook',
+    proofPath: {
+      kind: 'direct_capsule',
+      summary: 'The governed mission relay attaches its existing Telegram delivery proof capsule through the outbound relay trace context.'
+    },
+    requiredSourceMarkers: ['buildMissionRelayTraceContext', 'missionRelayTraceExtra']
   },
   {
     planeId: 'legacy-plane:telegram-pending-state-followups',

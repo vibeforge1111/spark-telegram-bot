@@ -78,6 +78,12 @@ function normalizeLookupText(text: string): string {
 export function isLoopEngineeringStatusRequest(text: string): boolean {
   const normalized = normalizeText(text);
   if (!normalized) return false;
+  const domainChipPlanning =
+    /\bdomain[-\s]?chip\b/i.test(normalized) &&
+    /\b(?:options?|proposals?|compare|comparing|discuss|discussion|which|what)\b/i.test(normalized);
+  const operationalStatus =
+    /\b(?:status|state|readiness|results?|latest|current|fresh|stale|blocked|dashboard|management)\b/i.test(normalized);
+  if (domainChipPlanning && !operationalStatus) return false;
   const prdLoopStateStatus = PRD_ALIAS_PATTERN.test(normalized) &&
     /\b(?:loop|schedule|spawner|control[-\s]?plane)\b/i.test(normalized) &&
     /\b(?:latest|current|state|status|fresh|stale|improved|distilled|reuse|rerun|link|read[-\s]?only)\b/i.test(normalized);

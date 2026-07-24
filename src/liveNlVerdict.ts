@@ -121,7 +121,7 @@ export interface LiveNlCaseObservation {
 
 export const LIVE_NL_SUITE_ALIASES: Record<string, string[]> = {
   memory_architecture: ['memory', 'self_awareness', 'wiki', 'anti_drift'],
-  routing_architecture: ['route_firewall', 'operator', 'access', 'diagnostics', 'spawner_flow', 'research']
+  routing_architecture: ['harness_core_authority', 'operator', 'access', 'diagnostics', 'spawner_flow', 'research']
 };
 
 function objectValue(value: unknown): Record<string, unknown> | null {
@@ -168,8 +168,12 @@ function parseLiveNlCommandCase(value: unknown, index: number): LiveNlCommandCas
     const label = parsed.id ? `Live NL case ${parsed.id}` : `Live NL case ${index + 1}`;
     throw new Error(`${label} is missing required field(s): ${missing.join(', ')}.`);
   }
-  if (!['safe', 'mission', 'writes_files', 'external'].includes(parsed.risk)) {
-    throw new Error(`Live NL case ${parsed.id} has unsupported risk ${parsed.risk || 'unknown'}.`);
+  const allowedRisks = ['safe', 'mission', 'writes_files', 'external'] as const;
+  if (!allowedRisks.includes(parsed.risk as (typeof allowedRisks)[number])) {
+    throw new Error(
+      `Live NL case ${parsed.id} has unsupported risk ${parsed.risk || 'unknown'}. ` +
+        `Allowed risks: ${allowedRisks.join(', ')}.`
+    );
   }
 
   return parsed;

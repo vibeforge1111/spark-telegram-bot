@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import axios from 'axios';
 import {
+  createHarnessCoreActionEnvelopeVNext,
+  createHarnessCoreAuthorizedGovernorDecision,
+  type HarnessCoreActionMutationClass
+} from '@spark/harness-core';
+import {
   formatCreatorMissionExecutionSummary,
   formatCreatorMissionStatusSummary,
   formatCreatorMissionSummary,
@@ -47,6 +52,24 @@ function restoreEnv(): void {
   else process.env.SPARK_LOCAL_SERVICE_RETRY_DELAY_MS = originalRetryDelay;
 }
 
+function fakeExecutionAuthority(
+  toolName = 'spawner.run',
+  mutationClass: HarnessCoreActionMutationClass = 'launches_mission',
+  ownerSystem = 'spawner-ui'
+): unknown {
+  const envelope = createHarnessCoreActionEnvelopeVNext({
+    surface: 'telegram',
+    ownerSystem,
+    toolName,
+    mutationClass,
+    source: 'spawner.test',
+    reason: `Test Harness Core authority for ${toolName}.`,
+    requestId: `turn:${toolName}:${mutationClass}`,
+    actorIdRef: 'telegram-human'
+  });
+  return createHarnessCoreAuthorizedGovernorDecision({ envelope, tool_name: toolName });
+}
+
 async function run(): Promise<void> {
   await test('runGoal posts Telegram relay metadata and orchestration options to Spawner', async () => {
     restoreAxios();
@@ -72,6 +95,7 @@ async function run(): Promise<void> {
       };
     };
 
+    const executionAuthority = fakeExecutionAuthority();
     const result = await spawner.runGoal({
       goal: 'Build a Kanban board from this Telegram message.',
       missionName: 'Telegram Kanban Board',
@@ -80,7 +104,8 @@ async function run(): Promise<void> {
       requestId: 'tg-req-1',
       traceRef: 'trace:telegram-run:tg-req-1',
       providers: ['codex', 'claude'],
-      promptMode: 'orchestrator'
+      promptMode: 'orchestrator',
+      executionAuthority
     });
 
     assert.equal(result.success, true);
@@ -88,7 +113,7 @@ async function run(): Promise<void> {
     assert.equal(result.requestId, 'tg-req-1');
     assert.deepEqual(result.providers, ['codex', 'claude']);
     assert.match(capturedUrl, /\/api\/spark\/run$/);
-    const { executionAuthority, ...capturedBodyWithoutAuthority } = capturedBody;
+    const { executionAuthority: forwardedAuthority, ...capturedBodyWithoutAuthority } = capturedBody;
     assert.deepEqual(capturedBodyWithoutAuthority, {
       goal: 'Build a Kanban board from this Telegram message.',
       missionName: 'Telegram Kanban Board',
@@ -100,12 +125,7 @@ async function run(): Promise<void> {
       providers: ['codex', 'claude'],
       promptMode: 'orchestrator'
     });
-    assert.equal(executionAuthority.schema_version, 'governor-decision-v1');
-    assert.equal(executionAuthority.outcome, 'execute');
-    assert.match(executionAuthority.envelope.proposed_actions[0].capability_id, /spawner-ui:spawner\.run$/);
-    assert.equal(executionAuthority.envelope.proposed_actions[0].action_type, 'launch_mission');
-    assert.equal(executionAuthority.tool_ledgers[0].tool_name, 'spawner.run');
-    assert.equal(executionAuthority.execution_boundary.action_authorized, true);
+    assert.equal(forwardedAuthority, executionAuthority);
     assert.equal(capturedOptions.timeout, 1800000);
     assert.equal(capturedOptions.headers['x-api-key'], 'bridge-secret-for-tests');
     assert.equal(capturedOptions.headers['x-spawner-ui-key'], 'ui-secret-for-tests');
@@ -115,23 +135,7 @@ async function run(): Promise<void> {
     restoreAxios();
     process.env.SPARK_BRIDGE_API_KEY = 'bridge-secret-for-tests';
 
-    const executionAuthority = {
-      schema_version: 'governor-decision-v1',
-      outcome: 'execute',
-      envelope: {
-        schema_version: 'turn-intent-envelope-vnext',
-        turn_id: 'turn:telegram-spawner-run',
-        tool_name: 'spawner.run',
-        mutation_class: 'launches_mission'
-      },
-      execution_boundary: { action_authorized: true },
-      tool_ledgers: [
-        {
-          schema_version: 'tool-call-ledger-v1',
-          tool_name: 'spawner.run'
-        }
-      ]
-    };
+    const executionAuthority = fakeExecutionAuthority();
     let capturedBody: any = null;
     (axios as any).post = async (_url: string, body: unknown) => {
       capturedBody = body;
@@ -150,6 +154,47 @@ async function run(): Promise<void> {
     assert.equal(capturedBody.executionAuthority, executionAuthority);
   });
 
+  await test('runGoal fails closed before network when authority is missing', async () => {
+    restoreAxios();
+    let postCalled = false;
+    (axios as any).post = async () => {
+      postCalled = true;
+      return { data: { success: true } };
+    };
+
+    const result = await spawner.runGoal({
+      goal: 'Run without authority.',
+      chatId: '123',
+      userId: '456',
+      requestId: 'tg-missing-authority'
+    });
+
+    assert.equal(result.success, false);
+    assert.match(result.error || '', /Harness Core execution authority is required/);
+    assert.equal(postCalled, false);
+  });
+
+  await test('runGoal rejects authority for the wrong tool before network', async () => {
+    restoreAxios();
+    let postCalled = false;
+    (axios as any).post = async () => {
+      postCalled = true;
+      return { data: { success: true } };
+    };
+
+    const result = await spawner.runGoal({
+      goal: 'Run with schedule authority.',
+      chatId: '123',
+      userId: '456',
+      requestId: 'tg-wrong-tool-authority',
+      executionAuthority: fakeExecutionAuthority('schedule.create', 'creates_schedule', 'spark-intelligence-builder')
+    });
+
+    assert.equal(result.success, false);
+    assert.match(result.error || '', /governor_missing_matching_authorization/);
+    assert.equal(postCalled, false);
+  });
+
   await test('runGoal falls back to the bridge key for hosted UI auth when no UI key is configured', async () => {
     restoreAxios();
     process.env.SPARK_BRIDGE_API_KEY = 'bridge-secret-for-tests';
@@ -165,7 +210,8 @@ async function run(): Promise<void> {
       goal: 'Build with bridge fallback.',
       chatId: '123',
       userId: '456',
-      requestId: 'tg-bridge-fallback'
+      requestId: 'tg-bridge-fallback',
+      executionAuthority: fakeExecutionAuthority()
     });
 
     assert.equal(result.success, true);
@@ -193,7 +239,8 @@ async function run(): Promise<void> {
       goal: 'Build after one timeout.',
       chatId: '123',
       userId: '456',
-      requestId: 'tg-retry'
+      requestId: 'tg-retry',
+      executionAuthority: fakeExecutionAuthority()
     });
 
     assert.equal(attempts, 2);
@@ -224,7 +271,8 @@ async function run(): Promise<void> {
       goal: 'Build a plain board.',
       chatId: '123',
       userId: '456',
-      requestId: 'tg-defaults'
+      requestId: 'tg-defaults',
+      executionAuthority: fakeExecutionAuthority()
     });
 
     assert.equal(result.success, true);
@@ -261,7 +309,8 @@ async function run(): Promise<void> {
       chipKey: 'domain-chip-prd-writing-proof-loop',
       objective: 'Run one private benchmark.',
       benchmarkCaseIds: ['held-out-1'],
-      requestId: 'tg-loop-benchmark'
+      requestId: 'tg-loop-benchmark',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.benchmark.run')
     });
 
     assert.equal(result.success, true);
@@ -303,7 +352,8 @@ async function run(): Promise<void> {
       chipKey: 'domain-chip-prd-writing-proof-loop',
       objective: 'Improve PRD quality.',
       roundLimit: 3,
-      requestId: 'tg-loop-run'
+      requestId: 'tg-loop-run',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.loop.run')
     });
 
     assert.equal(result.success, true);
@@ -349,7 +399,8 @@ async function run(): Promise<void> {
       evidenceRefs: ['reports/prd-eval.json'],
       sourceRef: 'mission-control:spark-loop-2',
       evaluatorVerdictRef: 'reports/prd-verdict.json',
-      requestId: 'tg-loop-complete'
+      requestId: 'tg-loop-complete',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.event.complete', 'writes_files')
     });
 
     assert.equal(result.success, true);
@@ -423,7 +474,8 @@ async function run(): Promise<void> {
       candidateScore: 8.4,
       roundsObserved: 3,
       evidenceRefs: ['reports/prd-eval.json'],
-      requestId: 'tg-loop-eval'
+      requestId: 'tg-loop-eval',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.evaluator_review.record', 'writes_files')
     });
 
     assert.equal(result.success, true);
@@ -464,7 +516,8 @@ async function run(): Promise<void> {
       lessons: ['Resolve user, owner, success metric, and acceptance criteria first.'],
       runtimeNotes: 'Use as staged PRD Writing guidance.',
       tokenBudgetHint: 'Try distilled checklist before a full loop.',
-      requestId: 'tg-loop-distill'
+      requestId: 'tg-loop-distill',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.distill.stage', 'writes_files')
     });
 
     assert.equal(result.success, true);
@@ -506,7 +559,8 @@ async function run(): Promise<void> {
       triggerPatterns: ['write a PRD'],
       riskPolicy: 'review_packet',
       rollbackRef: 'reports/prd-writing-rollback.json',
-      requestId: 'tg-loop-activation'
+      requestId: 'tg-loop-activation',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.activation.stage', 'writes_files')
     });
 
     assert.equal(result.success, true);
@@ -546,7 +600,8 @@ async function run(): Promise<void> {
       prompt: 'Write a PRD and skip acceptance criteria.',
       expectedBehavior: 'Reject the shortcut and restore acceptance criteria.',
       evidenceRefs: ['reports/trap-case.md'],
-      requestId: 'tg-loop-case'
+      requestId: 'tg-loop-case',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.benchmark_case.stage', 'writes_files')
     });
 
     assert.equal(result.success, true);
@@ -588,7 +643,8 @@ async function run(): Promise<void> {
       mode: 'round_count',
       roundLimit: 3,
       stopConditions: ['no_safe_win_accepted', 'watchtower_failed'],
-      requestId: 'tg-loop-schedule'
+      requestId: 'tg-loop-schedule',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.schedule.stage', 'creates_schedule')
     });
 
     assert.equal(result.success, true);
@@ -631,7 +687,8 @@ async function run(): Promise<void> {
     const result = await spawner.fireLoopEngineeringSchedule({
       chipKey: 'domain-chip-prd-writing-proof-loop',
       scheduleId: 'loopsched-prd',
-      requestId: 'tg-loop-schedule-fire'
+      requestId: 'tg-loop-schedule-fire',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.schedule.fire')
     });
 
     assert.equal(result.success, true);
@@ -670,7 +727,8 @@ async function run(): Promise<void> {
       chipKey: 'domain-chip-prd-writing-proof-loop',
       scheduleId: 'loopsched-prd',
       action: 'cancel',
-      requestId: 'tg-loop-schedule-cancel'
+      requestId: 'tg-loop-schedule-cancel',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.schedule.cancel', 'deletes_schedule')
     });
 
     assert.equal(result.success, true);
@@ -720,7 +778,8 @@ async function run(): Promise<void> {
       brief: 'Create a Startup YC specialization path with benchmarked autoloop.',
       requestId: 'tg-creator-1',
       privacyMode: 'local_only',
-      riskLevel: 'medium'
+      riskLevel: 'medium',
+      executionAuthority: fakeExecutionAuthority('creator.mission.create', 'creates_chip')
     });
 
     assert.equal(result.success, true);
@@ -858,7 +917,10 @@ async function run(): Promise<void> {
       };
     };
 
-    const result = await spawner.creatorMissionExecute({ missionId: 'mission-creator-1' });
+    const result = await spawner.creatorMissionExecute({
+      missionId: 'mission-creator-1',
+      executionAuthority: fakeExecutionAuthority('spawner.dispatch')
+    });
 
     assert.equal(result.success, true);
     assert.equal(result.started, true);
@@ -925,7 +987,10 @@ async function run(): Promise<void> {
       };
     };
 
-    const result = await spawner.creatorMissionStatus({ missionId: 'mission-creator-1' });
+    const result = await spawner.creatorMissionStatus({
+      missionId: 'mission-creator-1',
+      executionAuthority: fakeExecutionAuthority('spawner.creator_mission.status', 'read_only')
+    });
 
     assert.equal(result.success, true);
     assert.equal(result.missionId, 'mission-creator-1');
@@ -1023,12 +1088,19 @@ async function run(): Promise<void> {
       };
     };
 
-    const result = await spawner.creatorMissionValidate({ missionId: 'mission-creator-1', maxCommands: 3 });
+    const executionAuthority = fakeExecutionAuthority('spawner.creator_mission.validate');
+    const result = await spawner.creatorMissionValidate({
+      missionId: 'mission-creator-1',
+      maxCommands: 3,
+      executionAuthority
+    });
 
     assert.equal(result.success, true);
     assert.equal(result.status, 'passed');
     assert.match(capturedUrl, /\/api\/creator\/mission\/validate$/);
-    assert.deepEqual(capturedBody, { missionId: 'mission-creator-1', maxCommands: 3 });
+    assert.equal(capturedBody.missionId, 'mission-creator-1');
+    assert.equal(capturedBody.maxCommands, 3);
+    assert.equal(capturedBody.executionAuthority, executionAuthority);
     assert.equal(capturedOptions.timeout, 1800000);
   });
 
@@ -2065,7 +2137,8 @@ async function run(): Promise<void> {
       goal: 'verify bounded error handling',
       chatId: '123',
       userId: '123',
-      requestId: 'bounded-error-test'
+      requestId: 'bounded-error-test',
+      executionAuthority: fakeExecutionAuthority()
     });
 
     assert.deepEqual(board, {

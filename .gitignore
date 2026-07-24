@@ -28,4 +28,6 @@ ops/reports/
 .spark-gateway-state.db-shm
 .spark-gateway-state.db-wal
 .spark-harness-core-tool-ledger.jsonl
+.spark-natural-route-execution.jsonl
+.spark-intent-proposer-shadow.jsonl
 nul

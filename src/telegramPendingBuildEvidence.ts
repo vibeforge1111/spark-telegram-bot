@@ -13,6 +13,7 @@ export interface PendingBuildClarification {
   buildLane?: BuildLane;
   buildLaneReason?: string;
   capabilityProposalPacket?: Record<string, unknown>;
+  executionAuthority?: unknown;
   questions: string[];
   addedAssumptions: string[];
   timestamp: number;

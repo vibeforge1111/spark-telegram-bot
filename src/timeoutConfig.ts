@@ -5,13 +5,19 @@ export const DEFAULT_LOCAL_SERVICE_TIMEOUT_MS = 30 * 60 * 1000;
 export const DEFAULT_SELF_BRIDGE_TIMEOUT_MS = 180 * 1000;
 export const DEFAULT_WIKI_BRIDGE_TIMEOUT_MS = 90 * 1000;
 
+export function parsePositiveIntegerEnvValue(value: string | undefined | null, fallbackMs: number): number {
+  const raw = (value ?? '').trim();
+  if (!/^\d+$/.test(raw)) return fallbackMs;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
+}
+
 export function positiveIntegerEnv(
   env: NodeJS.ProcessEnv,
   key: string,
   fallbackMs: number
 ): number {
-  const parsed = Number.parseInt(env[key] || '', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
+  return parsePositiveIntegerEnvValue(env[key], fallbackMs);
 }
 
 export function telegramHandlerTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {

@@ -25,13 +25,20 @@ test('relay health waits for Telegram polling to become active', () => {
 });
 
 test('relay health is ready once Telegram polling is active', () => {
-  setMissionRelayRuntimeStatus({ telegramPolling: 'active', pollingStartedAt: '2026-05-08T09:30:00.000Z' });
+  setMissionRelayRuntimeStatus({
+    telegramPolling: 'active',
+    pollingStartedAt: '2026-05-08T09:30:00.000Z',
+    pollingLastGetUpdatesAttemptAt: '2026-05-08T09:30:01.000Z',
+    pollingGetUpdatesCount: 3
+  });
 
   const payload = missionRelayHealthPayload();
 
   assert.equal(payload.ok, true);
   assert.equal(payload.runtime.telegramPolling, 'active');
   assert.equal(payload.runtime.pollingStartedAt, '2026-05-08T09:30:00.000Z');
+  assert.equal(payload.runtime.pollingLastGetUpdatesAttemptAt, '2026-05-08T09:30:01.000Z');
+  assert.equal(payload.runtime.pollingGetUpdatesCount, 3);
 });
 
 test('relay health stays ready for smoke mode without Telegram polling', () => {

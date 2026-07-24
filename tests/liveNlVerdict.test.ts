@@ -245,7 +245,7 @@ test('live command copy-paste output keeps metadata out of Telegram blocks', () 
 test('rejects malformed command cases', () => {
   assert.throws(
     () => parseLiveNlCommandCases([{ id: 'bad', suite: 'memory', risk: 'danger', prompt: 'x', expectedRoute: 'x', expectedOutcome: 'x' }]),
-    /unsupported risk/
+    /unsupported risk danger\. Allowed risks: safe, mission, writes_files, external\./
   );
 });
 

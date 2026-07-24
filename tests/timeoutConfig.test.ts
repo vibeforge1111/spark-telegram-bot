@@ -54,6 +54,10 @@ test('timeout env parsing accepts positive integers only', () => {
   assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: '0' }, 'TEST_TIMEOUT_MS', 99), 99);
   assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: '-1' }, 'TEST_TIMEOUT_MS', 99), 99);
   assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: 'nope' }, 'TEST_TIMEOUT_MS', 99), 99);
+  assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: '30s' }, 'TEST_TIMEOUT_MS', 99), 99);
+  assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: '5m' }, 'TEST_TIMEOUT_MS', 99), 99);
+  assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: '1.5' }, 'TEST_TIMEOUT_MS', 99), 99);
+  assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: '  12345  ' }, 'TEST_TIMEOUT_MS', 99), 12345);
 });
 
 test('specific timeout env vars override defaults', () => {

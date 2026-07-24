@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import axios from 'axios';
+import {
+  createHarnessCoreActionEnvelopeVNext,
+  createHarnessCoreAuthorizedGovernorDecision
+} from '@spark/harness-core';
 import { spawner } from '../src/spawner';
 
 type AsyncTest = () => Promise<void> | void;
@@ -16,6 +20,20 @@ async function test(name: string, fn: AsyncTest): Promise<void> {
 
 const originalPost = axios.post;
 
+function fakeExecutionAuthority(): unknown {
+  const envelope = createHarnessCoreActionEnvelopeVNext({
+    surface: 'telegram',
+    ownerSystem: 'spawner-ui',
+    toolName: 'spawner.run',
+    mutationClass: 'launches_mission',
+    source: 'spawnerRunGoalClosure.test',
+    reason: 'Test Harness Core authority for Spawner closure.',
+    requestId: 'turn:spawner-run-closure',
+    actorIdRef: 'telegram-human'
+  });
+  return createHarnessCoreAuthorizedGovernorDecision({ envelope, tool_name: 'spawner.run' });
+}
+
 async function run(): Promise<void> {
   await test('runGoal fails closed when Spawner reports success without mission id', async () => {
     (axios as any).post = async () => ({ data: { success: true, requestId: 'tg-missing-mission', providers: ['codex'] } });
@@ -24,7 +42,8 @@ async function run(): Promise<void> {
       goal: 'Run a no-edit closure proof.',
       chatId: '123',
       userId: '456',
-      requestId: 'tg-missing-mission'
+      requestId: 'tg-missing-mission',
+      executionAuthority: fakeExecutionAuthority()
     });
 
     assert.equal(result.success, false);

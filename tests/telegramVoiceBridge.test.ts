@@ -49,12 +49,12 @@ test('downloads Telegram voice bytes through the active runner context', async (
       telegram: {
         async getFileLink(fileId: string): Promise<string> {
           assert.equal(fileId, 'voice-file-id');
-          return 'https://telegram.example/file.ogg';
+          return 'https://api.telegram.org/file/bot123/voice/file.ogg';
         },
       },
     },
     async (url: string | URL | Request) => {
-      assert.equal(String(url), 'https://telegram.example/file.ogg');
+      assert.equal(String(url), 'https://api.telegram.org/file/bot123/voice/file.ogg');
       return fakeResponse(Buffer.from('voice-bytes'), {
         'content-length': '11',
         'content-type': 'audio/ogg',
@@ -93,12 +93,12 @@ test('downloads Telegram audio bytes as audio, not voice, media evidence', async
       telegram: {
         async getFileLink(fileId: string): Promise<string> {
           assert.equal(fileId, 'audio-file-id');
-          return 'https://telegram.example/file.mp3';
+          return 'https://api.telegram.org/file/bot123/audio/file.mp3';
         },
       },
     },
     async (url: string | URL | Request) => {
-      assert.equal(String(url), 'https://telegram.example/file.mp3');
+      assert.equal(String(url), 'https://api.telegram.org/file/bot123/audio/file.mp3');
       return fakeResponse(Buffer.from('audio-bytes'), {
         'content-length': '11',
         'content-type': 'audio/mpeg',
@@ -165,7 +165,7 @@ test('logs the configured voice size limit and remediation for oversized media',
         },
         telegram: {
           async getFileLink(): Promise<string> {
-            return 'https://telegram.example/large.ogg';
+            return 'https://api.telegram.org/file/bot123/voice/large.ogg';
           },
         },
       },
@@ -208,7 +208,7 @@ test('stops a chunked voice download as soon as it exceeds the configured limit'
         },
         telegram: {
           async getFileLink(): Promise<string> {
-            return 'https://telegram.example/chunked.ogg';
+            return 'https://api.telegram.org/file/bot123/voice/chunked.ogg';
           },
         },
       },
@@ -224,4 +224,78 @@ test('stops a chunked voice download as soon as it exceeds the configured limit'
     if (previousLimit === undefined) delete process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES;
     else process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES = previousLimit;
   }
+});
+
+test('falls back when voice byte limit env has a unit suffix', async () => {
+  const originalLimit = process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES;
+  process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES = '1kb';
+  const update = {
+    update_id: 12,
+    message: {
+      message_id: 22,
+      voice: {
+        file_id: 'voice-file-id',
+        mime_type: 'audio/ogg',
+      },
+    },
+  };
+
+  try {
+    const enriched = await buildVoiceBridgeUpdate(
+      {
+        update,
+        telegram: {
+          async getFileLink(): Promise<string> {
+            return 'https://api.telegram.org/file/bot123/voice/file.ogg';
+          },
+        },
+      },
+      async () => fakeResponse(Buffer.from('voice-bytes'), {
+        'content-length': '11',
+        'content-type': 'audio/ogg',
+      })
+    );
+
+    assert.equal((enriched.message as any).spark_media.size_bytes, 11);
+  } finally {
+    if (originalLimit === undefined) delete process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES;
+    else process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES = originalLimit;
+  }
+});
+
+test('rejects a file link whose host is not api.telegram.org without fetching', async () => {
+  const update = {
+    update_id: 13,
+    message: {
+      message_id: 23,
+      voice: {
+        file_id: 'voice-file-id',
+        mime_type: 'audio/ogg',
+      },
+    },
+  };
+
+  let fetched = false;
+  const enriched = await buildVoiceBridgeUpdate(
+    {
+      update,
+      telegram: {
+        async getFileLink(): Promise<string> {
+          return 'https://evil.example/file.ogg';
+        },
+      },
+    },
+    async () => {
+      fetched = true;
+      return fakeResponse(Buffer.from('voice-bytes'), {
+        'content-length': '11',
+        'content-type': 'audio/ogg',
+      });
+    }
+  );
+
+  // The host check throws before fetch; buildVoiceBridgeUpdate swallows the
+  // error and leaves the update unchanged.
+  assert.equal(fetched, false);
+  assert.equal((enriched.message as any).spark_media, undefined);
 });

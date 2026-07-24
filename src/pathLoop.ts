@@ -8,8 +8,10 @@ import { withHiddenWindows } from './hiddenProcess';
 import { resolvePythonCommand } from './pythonCommand';
 import { redactText } from './redaction';
 import { resolveBuilderRepoPath } from './builderRepoPath';
+import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 
 const execFileAsync = promisify(execFile);
+const DEFAULT_PATH_LOOP_TIMEOUT_MS = 900000;
 
 export interface RecursiveStartTarget {
   kind: 'chip' | 'path';
@@ -195,7 +197,10 @@ function resolveConfig(): PathLoopConfig {
     ),
     swarmRuntimeRoot,
     startupBenchRepo,
-    timeoutMs: Number.parseInt(process.env.PATH_LOOP_TIMEOUT_MS || process.env.CHIP_LOOP_TIMEOUT_MS || '900000', 10) || 900000,
+    timeoutMs: parsePositiveIntegerEnvValue(
+      process.env.PATH_LOOP_TIMEOUT_MS,
+      parsePositiveIntegerEnvValue(process.env.CHIP_LOOP_TIMEOUT_MS, DEFAULT_PATH_LOOP_TIMEOUT_MS)
+    ),
   };
 }
 
@@ -295,7 +300,12 @@ async function loadBuilderAttachmentSnapshot(config: PathLoopConfig): Promise<an
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
     maxBuffer: 10 * 1024 * 1024,
   }));
-  return JSON.parse(stdout);
+  try {
+    return JSON.parse(stdout);
+  } catch (err) {
+    console.error('[pathLoop] Failed to parse attachment snapshot:', err);
+    return {};
+  }
 }
 
 export async function resolveRecursiveStartTarget(targetKey: string): Promise<RecursiveStartTarget> {
@@ -402,8 +412,12 @@ function parseLabeledLine(stdout: string, label: string): string | null {
 
 async function readJsonObject(filePath: string | null): Promise<Record<string, any> | null> {
   if (!filePath || !existsSync(filePath)) return null;
-  const parsed = JSON.parse(await readFile(filePath, 'utf-8'));
-  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  try {
+    const parsed = JSON.parse(await readFile(filePath, 'utf-8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 async function readBenchmarkCaseCount(casesPath: string): Promise<number | null> {

@@ -111,13 +111,13 @@ export function buildTelegramLegacyAuthorityPlanes(): LegacyAuthorityPlaneV1[] {
       id: 'telegram-route-firewall',
       plane_type: 'regex_router',
       source_path: 'src/routeFirewall.ts',
-      summary: 'Route firewall verdicts are boundary evidence; they cannot grant execution without envelope, authorization, Governor, and ledger.'
+      summary: 'The deterministic route firewall supplies fail-closed route evidence; the Harness envelope, Governor decision, and tool ledger retain execution authority.'
     }),
     evidenceOnlyPlane({
-      id: 'telegram-route-arbiter-shadow',
+      id: 'telegram-route-arbiter',
       plane_type: 'regex_router',
-      source_path: 'src/telegramRouteEvidence.ts',
-      summary: 'Route arbiter shadow logging records evidence and disagreements, but never owns the final action decision.'
+      source_path: 'src/routeArbiter.ts',
+      summary: 'The route arbiter records bounded shadow evidence for ambiguous routes and never grants tool, mutation, or mission authority.'
     }),
     evidenceOnlyPlane({
       id: 'telegram-build-intent-parser',
@@ -142,7 +142,7 @@ export function buildTelegramLegacyAuthorityPlanes(): LegacyAuthorityPlaneV1[] {
       id: 'telegram-action-authority',
       plane_type: 'local_dispatcher',
       source_path: 'src/telegramActionAuthority.ts',
-      summary: 'Telegram action authority is the single consumer wrapper that converts legacy route evidence into VNext envelope, authorization, Governor decision, and ledger.',
+      summary: 'Telegram action authority is the single consumer wrapper that submits route evidence to the canonical Harness Core package, consumes Governor decisions, verifies the consumer binding, and records the ledger.',
       authority_risk: {
         can_execute: true,
         can_mutate_state: true,
@@ -257,6 +257,17 @@ export function buildTelegramLegacyAuthorityPlanes(): LegacyAuthorityPlaneV1[] {
         can_launch_mission: true,
         can_call_network: true
       }
+    }),
+    consumerPlane({
+      id: 'telegram-mission-relay-webhook',
+      plane_type: 'machine_origin_policy',
+      source_path: 'src/missionRelay.ts',
+      summary: 'The /spawner-events mission relay webhook accepts machine-origin Spawner callbacks only when they bind to a mission registered by a governed dispatch (missionId plus registered requestId/traceRef when present); unbound events are refused fail-closed and each accepted notification is recorded in the Harness Core tool ledger against the dispatch Governor decision.',
+      authority_risk: {
+        can_execute: true,
+        can_call_network: true
+      },
+      kind: 'policy'
     }),
     consumerPlane({
       id: 'telegram-pending-state-followups',

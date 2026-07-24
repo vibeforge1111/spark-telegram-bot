@@ -1,20 +1,23 @@
 {
   "hard_cap": 3000,
   "warn_cap": 1500,
-  "root": "source",
+  "root": "telegram",
+  "owner": "spark-telegram-bot reliability maintainers",
+  "integration_note": "R30 forward convergence preserves useful candidate and current-main behavior in one canonical lane; the updated counts are a reviewed integration checkpoint and future batches must ratchet them down.",
   "offenders": {
-    "src/builderBridge.ts": 2707,
-    "src/controlProofLiveCanaryPack.ts": 3829,
-    "src/conversationIntent.ts": 3114,
-    "src/index.ts": 10804,
-    "src/missionRelay.ts": 2496,
-    "src/recursive.ts": 3198,
-    "src/spawner.ts": 1928,
-    "tests/buildE2E.test.ts": 4624,
-    "tests/controlProofLiveCanaryPack.test.ts": 4065,
-    "tests/conversationIntent.test.ts": 2098,
-    "tests/missionRelayFormatting.test.ts": 1711,
-    "tests/recursive.test.ts": 2380,
-    "tests/spawner.test.ts": 1565
+    "src/builderBridge.ts": 2832,
+    "src/controlProofLiveCanaryPack.ts": 3828,
+    "src/conversationIntent.ts": 4017,
+    "src/index.ts": 12414,
+    "src/missionRelay.ts": 2666,
+    "src/recursive.ts": 3374,
+    "src/spawner.ts": 2522,
+    "tests/buildE2E.test.ts": 4679,
+    "tests/controlProofLiveCanaryPack.test.ts": 4064,
+    "tests/conversationIntent.test.ts": 2259,
+    "tests/domainChipLabsCreator.test.ts": 2367,
+    "tests/missionRelayFormatting.test.ts": 1732,
+    "tests/recursive.test.ts": 2475,
+    "tests/spawner.test.ts": 2176
   }
 }

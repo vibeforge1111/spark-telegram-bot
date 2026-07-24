@@ -10,6 +10,10 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import os from 'node:os';
 import path from 'node:path';
 import axios from 'axios';
+import {
+	createHarnessCoreActionEnvelopeVNext,
+	createHarnessCoreAuthorizedGovernorDecision
+} from '@spark/harness-core';
 import { describeTier, getTierForUser } from '../src/userTier';
 import { readJsonFile, resolveStatePath } from '../src/jsonState';
 import { readHarnessCoreToolLedger } from '../src/harnessCoreLedger';
@@ -78,6 +82,20 @@ function restoreEnv(): void {
 interface CapturedCall {
 	url: string;
 	body: any;
+}
+
+function fakeGovernorExecutionAuthority(): unknown {
+	const envelope = createHarnessCoreActionEnvelopeVNext({
+		surface: 'telegram',
+		ownerSystem: 'spawner-ui',
+		toolName: 'spawner.run',
+		mutationClass: 'launches_mission',
+		source: 'buildE2E.test',
+		reason: 'Test Harness Core authority for the simple Spawner run path.',
+		requestId: 'turn:build-e2e-simple-run',
+		actorIdRef: 'telegram-human'
+	});
+	return createHarnessCoreAuthorizedGovernorDecision({ envelope, tool_name: 'spawner.run' });
 }
 
 function assertTraceContextWithProof(traceContext: any, expected: Record<string, unknown>): void {
@@ -447,13 +465,14 @@ async function run(): Promise<void> {
 		const replyExtras: any[] = [];
 		const ctx = makeFakeCtx(8319079055, 8319079055, 557, replies, replyExtras);
 		const indexModule: any = await import('../src/index');
+		const executionAuthority = fakeGovernorExecutionAuthority();
 
 		const missionId = await indexModule.handleRunCommand(
 			ctx,
 			'Summarize the Railway deployment health.',
 			['zai'],
 			undefined,
-			{ allowBuildIntent: true }
+			{ allowBuildIntent: true, executionAuthority }
 		);
 
 		assert.equal(missionId, 'spark-simple-run-test');
@@ -462,6 +481,7 @@ async function run(): Promise<void> {
 		assert.match(runCall!.body.requestId, /^tg-run-/);
 		assert.doesNotMatch(runCall!.body.requestId, /8319079055/);
 		assert.equal(runCall!.body.traceRef, `trace:telegram-run:${runCall!.body.requestId}`);
+		assert.equal(runCall!.body.executionAuthority, executionAuthority);
 		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'non-build /run should not use the PRD bridge');
 		assertTraceContextWithProof(replyExtras[0]?.__sparkTraceContext, {
 			route: 'spawner.run',
@@ -498,17 +518,20 @@ async function run(): Promise<void> {
 		const replies: string[] = [];
 		const ctx = makeFakeCtx(8319079055, 8319079055, 558, replies);
 		const indexModule: any = await import('../src/index');
+		const executionAuthority = fakeGovernorExecutionAuthority();
 
 		const missionId = await indexModule.handleRunCommand(
 			ctx,
 			'Reply exactly TESTER_REALPATH_OK and do not create files.',
 			['codex'],
 			undefined,
-			{ allowBuildIntent: true }
+			{ allowBuildIntent: true, executionAuthority }
 		);
 
 		assert.equal(missionId, 'spark-realpath-probe');
-		assert.ok(captured.some((c) => c.url.includes('/api/spark/run')), 'expected exact reply probe to POST to /api/spark/run');
+		const runCall = captured.find((c) => c.url.includes('/api/spark/run'));
+		assert.ok(runCall, 'expected exact reply probe to POST to /api/spark/run');
+		assert.equal(runCall!.body.executionAuthority, executionAuthority);
 		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'negated file creation should not use the PRD bridge');
 
 		restoreAxios();
@@ -1684,6 +1707,7 @@ async function run(): Promise<void> {
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 
 		const indexModule: any = await import('../src/index');
@@ -1712,7 +1736,10 @@ async function run(): Promise<void> {
 		);
 
 		const writeCall = captured.find((c) => c.url.includes('/api/prd-bridge/write'));
-		assert.ok(writeCall, 'expected domain chip creation to POST to /api/prd-bridge/write');
+		assert.ok(
+			writeCall,
+			`expected domain chip creation to POST to /api/prd-bridge/write; replies=${JSON.stringify(replies)} calls=${JSON.stringify(captured.map((call) => call.url))}`
+		);
 		assert.equal(writeCall!.body.projectName, 'domain-chip-creates-weird-poster-prompts-from');
 		assert.equal(writeCall!.body.buildMode, 'advanced_prd');
 		assert.match(writeCall!.body.content, /Create a Spark domain chip named domain-chip-creates-weird-poster-prompts-from/);
@@ -2830,7 +2857,7 @@ async function run(): Promise<void> {
 		}
 	});
 
-	await test('read-only repair auto-runs safe workspace setup when workspace is not writable', async () => {
+	await test('read-only repair reports setup need without auto-running workspace setup', async () => {
 		restoreAxios();
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-readonly-repair-setup-'));
 		const binDir = path.join(tempRoot, 'bin');
@@ -2901,15 +2928,15 @@ async function run(): Promise<void> {
 
 			const joined = replies.join('\n');
 			assert.match(joined, /access repair, not a Spawner mission/i);
-			assert.match(joined, /repaired the safe Spark workspace/i);
-			assert.match(joined, /Safe workspace setup is ready/);
-			assert.match(joined, /Spark workspace writable: yes/);
+			assert.match(joined, /did not run setup from natural text/i);
+			assert.match(joined, /\/access_setup/);
+			assert.match(joined, /Spark workspace writable: no/);
 			assert.doesNotMatch(joined, /I will run that through Codex now/i);
 			assert.doesNotMatch(joined, /Canvas:|Kanban:|Mission board:/i);
 			assert.equal(captured.length, 0, 'access repair setup must not call Spawner or PRD bridge');
 			const sparkCalls = readFileSync(path.join(tempRoot, 'spark-calls.log'), 'utf-8');
 			assert.match(sparkCalls, /access status --json/);
-			assert.match(sparkCalls, /access setup --json/);
+			assert.doesNotMatch(sparkCalls, /access setup --json/);
 		} finally {
 			process.env.PATH = oldPath;
 			rmSync(tempRoot, { recursive: true, force: true });

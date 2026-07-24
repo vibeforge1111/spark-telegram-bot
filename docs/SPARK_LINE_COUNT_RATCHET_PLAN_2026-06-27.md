@@ -31,3 +31,24 @@ The baseline update is accepted only as a ratchet checkpoint. Follow-up cleanup 
 ## Rule
 
 Do not grow the updated baseline during reliability work. If a later slice touches one of these files, prefer extraction or deletion of duplicated fixtures before adding new lines.
+
+## R30 Forward-Convergence Checkpoint
+
+The R30 merge reconciles the existing candidate lane with current `main`. The
+line-count census was refreshed after the full integrated test suite passed so
+the ratchet describes the actual canonical source, not either parent in
+isolation. This is integration bookkeeping, not permission for feature growth.
+
+The largest integrated files are:
+
+- `src/index.ts`: 12,414 lines.
+- `tests/buildE2E.test.ts`: 4,679 lines.
+- `tests/controlProofLiveCanaryPack.test.ts`: 4,064 lines.
+- `src/conversationIntent.ts`: 4,017 lines.
+- `src/controlProofLiveCanaryPack.ts`: 3,828 lines.
+- `src/recursive.ts`: 3,374 lines.
+
+The owner remains the `spark-telegram-bot` reliability maintainers. Extraction
+continues in the order above, with intent-route helpers and Spawner fixtures
+added to the existing cleanup list. No R30 adoption batch may raise these
+counts without another explicit owner-reviewed checkpoint and test proof.

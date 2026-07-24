@@ -267,7 +267,10 @@ import {
   runSafeOperatorAction
 } from './operatorActions';
 import { queueRouteArbiterShadow } from './routeArbiter';
-import { routeEvidenceAllowed } from './telegramRouteEvidence';
+import {
+  routeEvidenceAllowed,
+  routeEvidenceVerdict,
+} from './telegramRouteEvidence';
 import { resolveMissionDefaultProvider } from './providerRouting';
 import {
   buildIdeationFallbackReply,
@@ -1410,18 +1413,10 @@ async function renderAccessCapabilityRepairAnswer(chatId: string | number): Prom
   ]);
 
   try {
-    let accessState = await readSparkWorkspaceAccessState();
-    let workspaceAction = accessState.workspaceWritable === true
+    const accessState = await readSparkWorkspaceAccessState();
+    const workspaceAction = accessState.workspaceWritable === true
       ? 'The safe Spark workspace was already writable, so I did not rerun setup.'
-      : '';
-
-    if (accessState.workspaceWritable !== true) {
-      await runSparkCli(['access', 'setup', '--json'], 60_000);
-      accessState = await readSparkWorkspaceAccessState();
-      workspaceAction = accessState.workspaceWritable === true
-        ? 'I repaired the safe Spark workspace. Safe workspace setup is ready.'
-        : 'I ran safe Spark workspace setup, but the workspace still did not prove writable.';
-    }
+      : 'The safe Spark workspace is not writable from this route, so I did not run setup from natural text. Use `/access_setup` for a fresh authorized setup action.';
 
     const runnerLine = runnerPreflight.runnerWritable === 'yes'
       ? 'Spark can now work inside the safe workspace from this Telegram runner.'
@@ -2350,13 +2345,15 @@ async function handleNaturalRecursiveRoute(ctx: any, user: any, text: string, de
           objective: input.objective,
           roundLimit: input.roundLimit,
           sourceSurface: 'telegram',
-          requestId: input.requestId
+          requestId: input.requestId,
+          executionAuthority: input.executionAuthority
         })
       : spawner.runLoopEngineeringBenchmark({
           chipKey: input.chipKey,
           objective: input.objective,
           sourceSurface: 'telegram',
-          requestId: input.requestId
+          requestId: input.requestId,
+          executionAuthority: input.executionAuthority
         }),
     rememberAssistantReply: async (reply) => { await conversation.rememberAssistantReply(user, reply).catch(() => {}); },
     redact: redactText
@@ -2591,7 +2588,7 @@ function telegramBranchActionAuthorityDecision(
   }
 ): TelegramActionAuthorityResult {
   const canonicalAuthorization = telegramActionAuthorityDecision(baseEnvelope, input);
-  if (canonicalAuthorization.allow || !branchActionCanPromoteFromEvidence(canonicalAuthorization, input)) {
+  if (canonicalAuthorization.allow || !branchActionCanPromoteFromEvidence(input)) {
     return canonicalAuthorization;
   }
   const actionEnvelope = telegramActionEnvelope(baseEnvelope, {
@@ -2611,13 +2608,16 @@ const CONTEXTUAL_BRANCH_PROMOTION_REASONS = new Set([
 ]);
 
 function branchActionCanPromoteFromEvidence(
-  authorization: TelegramActionAuthorityResult,
   input: TelegramActionAuthorityInput & { confidence?: TelegramIntentDecisionV2['confidence'] }
 ): boolean {
-  if (!authorization.routeVerdict.allow) return false;
-  if (authorization.routeVerdict.confidence === 'explicit') return true;
+  const routeVerdict = routeEvidenceVerdict({
+    route: input.route,
+    text: input.text
+  });
+  if (!routeVerdict.allow) return false;
+  if (routeVerdict.confidence === 'explicit') return true;
   if (input.confidence !== 'contextual') return false;
-  return CONTEXTUAL_BRANCH_PROMOTION_REASONS.has(authorization.routeVerdict.reason);
+  return CONTEXTUAL_BRANCH_PROMOTION_REASONS.has(routeVerdict.reason);
 }
 
 function telegramBranchActionAuthorityAllowed(
@@ -5670,6 +5670,19 @@ export function parseNaturalRecursiveProposalIntent(text: string): NaturalRecurs
   if (!normalized) return null;
   const wantsReviewPacket = /\b(prepare|propose|package|submit|share|send)\b/.test(normalized) &&
     /\b(review|network|swarm|spark swarm|workspace)\b/.test(normalized);
+  const improvementMatch = normalized.match(/\bpropose\s+(?:an?\s+)?(?:improvement|fix|proposal)\s+(?:to|for|around|about)\s+(.{6,})$/);
+  const improvementTrap = /^(?:should|could|would|why|what|when|where|how|do|does|did|can)\b/.test(normalized) ||
+    /\b(?:report|doc|ticket|trace|memory|log)\s+(?:says|said|told|claims|claimed)\b.{0,80}\bpropose\b/.test(normalized);
+  if (improvementMatch && !improvementTrap && /\bspark\b/.test(improvementMatch[1])) {
+    const target = improvementMatch[1]
+      .replace(/\bso\b.*$/i, '')
+      .replace(/\bwithout\b.*$/i, '')
+      .replace(/\bthat\b.*$/i, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    if (target) return { target: `ad-hoc:${target}`, submit: false };
+  }
   if (!wantsReviewPacket) return null;
   const submit = /\b(submit|share|send)\b/.test(normalized) && /\b(network|swarm|spark swarm|review)\b/.test(normalized);
   if (/\bcrypto[-\s]+trading\b/.test(normalized)) return { target: 'crypto-trading', submit };
@@ -6306,7 +6319,32 @@ async function handlePendingCreatorMissionControl(ctx: any, text: string, envelo
   await safeSendChatAction(ctx, 'typing');
 
   if (action === 'status') {
-    const result = await spawner.creatorMissionStatus({ missionId: pending.missionId });
+    const statusAuthorization = envelope
+      ? telegramBranchActionAuthorityDecision(envelope, {
+          route: 'creator.mission',
+          text,
+          toolName: 'spawner.creator_mission.status',
+          ownerSystem: 'spawner-ui',
+          mutationClass: 'read_only',
+          action: 'creator.mission.status',
+          kind: 'creator_or_domain_chip',
+          confidence: 'contextual'
+        })
+      : null;
+    if (!statusAuthorization || !statusAuthorization.allow) {
+      return false;
+    }
+    const result = await spawner.creatorMissionStatus({
+      missionId: pending.missionId,
+      executionAuthority: statusAuthorization.governorDecision
+    });
+    recordTelegramHarnessCoreExecution(statusAuthorization, {
+      toolName: 'spawner.creator_mission.status',
+      status: creatorExecutionStatus(result.success),
+      summary: result.success
+        ? `Loop Engineering path ${result.missionId || pending.missionId} status was read from pending control.`
+        : `Loop Engineering pending status failed: ${result.error || 'unknown error'}`
+    });
     await ctx.reply(formatCreatorMissionStatusSummary(result));
     return true;
   }
@@ -6324,10 +6362,13 @@ async function handlePendingCreatorMissionControl(ctx: any, text: string, envelo
           confidence: 'contextual'
         })
       : null;
-    if (validateAuthorization && !validateAuthorization.allow) {
+    if (!validateAuthorization || !validateAuthorization.allow) {
       return false;
     }
-    const result = await spawner.creatorMissionValidate({ missionId: pending.missionId });
+    const result = await spawner.creatorMissionValidate({
+      missionId: pending.missionId,
+      executionAuthority: validateAuthorization.governorDecision
+    });
     recordTelegramHarnessCoreExecution(validateAuthorization, {
       toolName: 'spawner.creator_mission.validate',
       status: creatorExecutionStatus(result.success),
@@ -7737,7 +7778,10 @@ bot.command('creator', async (ctx) => {
     }
 
     if (control.action === 'status') {
-      const result = await spawner.creatorMissionStatus({ missionId });
+      const result = await spawner.creatorMissionStatus({
+        missionId,
+        executionAuthority: authorization.governorDecision
+      });
       recordTelegramHarnessCoreExecution(authorization, {
         toolName: 'spawner.creator_mission.status',
         status: creatorExecutionStatus(result.success),
@@ -7751,7 +7795,11 @@ bot.command('creator', async (ctx) => {
 
     if (control.action === 'validate') {
       await ctx.reply('Running Loop Engineering validation through Spawner...');
-      const result = await spawner.creatorMissionValidate({ missionId, maxCommands: control.maxCommands });
+      const result = await spawner.creatorMissionValidate({
+        missionId,
+        maxCommands: control.maxCommands,
+        executionAuthority: authorization.governorDecision
+      });
       recordTelegramHarnessCoreExecution(authorization, {
         toolName: 'spawner.creator_mission.validate',
         status: creatorExecutionStatus(result.success),

@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import axios from 'axios';
+import {
+  createHarnessCoreActionEnvelopeVNext,
+  createHarnessCoreAuthorizedGovernorDecision
+} from '@spark/harness-core';
 import { formatCreatorMissionSummary, spawner } from '../src/spawner';
 
 async function test(name: string, fn: () => Promise<void> | void): Promise<void> {
@@ -12,6 +16,20 @@ async function test(name: string, fn: () => Promise<void> | void): Promise<void>
   }
 }
 
+function fakeCreatorAuthority(): unknown {
+  const envelope = createHarnessCoreActionEnvelopeVNext({
+    surface: 'telegram',
+    ownerSystem: 'spawner-ui',
+    toolName: 'creator.mission.create',
+    mutationClass: 'creates_chip',
+    source: 'creatorMissionClosure.test',
+    reason: 'Test Harness Core authority for creator closure.',
+    requestId: 'turn:creator-closure',
+    actorIdRef: 'telegram-human'
+  });
+  return createHarnessCoreAuthorizedGovernorDecision({ envelope, tool_name: 'creator.mission.create' });
+}
+
 async function run(): Promise<void> {
   const originalPost = axios.post;
   try {
@@ -21,7 +39,8 @@ async function run(): Promise<void> {
         brief: 'Create a DCL Loop Engineering system for research notes.',
         requestId: 'tg-creator-missing-proof',
         privacyMode: 'local_only',
-        riskLevel: 'medium'
+        riskLevel: 'medium',
+        executionAuthority: fakeCreatorAuthority()
       });
       const message = formatCreatorMissionSummary(result);
 
@@ -50,7 +69,8 @@ async function run(): Promise<void> {
         brief: 'Create a DCL Loop Engineering system for research notes.',
         requestId: 'tg-creator-review-only',
         privacyMode: 'local_only',
-        riskLevel: 'medium'
+        riskLevel: 'medium',
+        executionAuthority: fakeCreatorAuthority()
       });
       const message = formatCreatorMissionSummary(result, 'http://spawner.test/');
 
@@ -71,7 +91,8 @@ async function run(): Promise<void> {
         brief: 'Create a private DCL Loop Engineering system.',
         requestId: 'tg-creator-local-path',
         privacyMode: 'local_only',
-        riskLevel: 'medium'
+        riskLevel: 'medium',
+        executionAuthority: fakeCreatorAuthority()
       });
 
       assert.equal(result.success, false);

@@ -20,6 +20,23 @@ function normalizedWindowsPath(value: string): string {
   return path.win32.normalize(value).replace(/[\\/]+$/, '').toLowerCase();
 }
 
+function isWithinWin32Root(filePath: string, root: string): boolean {
+  const normalizedRoot = normalizedWindowsPath(root);
+  const normalizedTarget = normalizedWindowsPath(filePath);
+  if (normalizedTarget === normalizedRoot) return true;
+  const relative = path.win32.relative(normalizedRoot, normalizedTarget);
+  return relative.length > 0 && !relative.startsWith('..') && !path.win32.isAbsolute(relative);
+}
+
+function isPathWithinAllowedRoot(action: SafeOperatorAction): boolean {
+  if (action.kind === 'level5_smoke') {
+    const directory = path.win32.dirname(path.win32.normalize(action.filePath));
+    return normalizedWindowsPath(directory).endsWith('\\appdata\\local\\temp') &&
+      isWithinWin32Root(action.filePath, directory);
+  }
+  return path.win32.basename(path.win32.normalize(action.folderPath)).toLowerCase() === 'desktop';
+}
+
 function expectedLevel5SmokePaths(env: NodeJS.ProcessEnv): string[] {
   const roots = [
     env.TEMP?.trim(),
@@ -96,6 +113,9 @@ export function operatorActionRootBoundaryReply(): string {
 
 export async function runSafeOperatorAction(action: SafeOperatorAction): Promise<string> {
   if (action.kind === 'level5_smoke') {
+    if (!isPathWithinAllowedRoot(action)) {
+      return `Refused: path outside the allowed AppData\\Local\\Temp root: ${action.filePath}`;
+    }
     await fs.writeFile(action.filePath, 'level5 ok', 'utf8');
     const contents = await fs.readFile(action.filePath, 'utf8');
     await fs.unlink(action.filePath);
@@ -114,6 +134,9 @@ export async function runSafeOperatorAction(action: SafeOperatorAction): Promise
     ].join('\n');
   }
 
+  if (!isPathWithinAllowedRoot(action)) {
+    return `Refused: path outside the allowed Desktop root: ${action.folderPath}`;
+  }
   const entries = await fs.readdir(action.folderPath, { withFileTypes: true });
   const folderNames = entries
     .filter((entry) => entry.isDirectory())

@@ -138,3 +138,17 @@ test('rejects Loop Engineering status packets that request secret paste', () => 
 
   assert.throws(() => validateCreatorMissionStatusForTelegram(unsafe), /secret paste/i);
 });
+
+test('rejects unknown allowed-value fields with the allowed choices', () => {
+  const unsafe = packet({
+    canonical: {
+      ...packet().canonical,
+      verdict: 'shipped' as never
+    }
+  });
+
+  assert.throws(
+    () => validateCreatorMissionStatusForTelegram(unsafe),
+    /Unsupported verdict: shipped\. Allowed values: prototype, ready_for_baseline, ready_for_swarm_packet, blocked\./
+  );
+});

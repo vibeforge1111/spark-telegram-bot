@@ -1,8 +1,16 @@
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { resolveChatProviderConfig } from './llm';
-import { resolveChatDefaultProvider, resolveKnownProviderId, resolveMissionDefaultProvider } from './providerRouting';
+import {
+  chatProviderAllowed,
+  formatAllowedMissionProviders,
+  missionProviderAllowed,
+  resolveAllowedChatProviders,
+  resolveChatDefaultProvider,
+  resolveKnownProviderId,
+  resolveMissionDefaultProvider
+} from './providerRouting';
 
 type ProviderId = 'zai' | 'codex' | 'anthropic' | 'openai' | 'openrouter' | 'huggingface' | 'minimax' | 'ollama' | 'lmstudio';
 type ModelRole = 'agent' | 'mission';
@@ -129,7 +137,7 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
 };
 
 const CODEX_REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']);
-const CODEX_SERVICE_TIERS = new Set(['auto', 'default', 'fast', 'flex', 'priority']);
+const CODEX_SERVICE_TIERS = new Set(['fast', 'flex']);
 
 function codexReasoningHelp(): string {
   return Array.from(CODEX_REASONING_EFFORTS).join(', ');
@@ -162,7 +170,7 @@ export function codexClientConfigArgsFromModelCommand(raw: string): CodexClientC
 
     if (['model', 'reasoning', 'reasoning-effort', 'effort', 'tier', 'service-tier'].includes(key)) {
       if (!rawValue) index += 1;
-      if (!value) return { handled: true, error: 'Use /model codex fast high, or /model codex tier=fast reasoning=high.' };
+      if (!value) return { handled: true, error: 'Use /model codex fast low, or /model codex tier=fast reasoning=low.' };
       if (key === 'model') {
         args.push('--model', value);
         modelSet = true;
@@ -205,7 +213,7 @@ export function codexClientConfigArgsFromModelCommand(raw: string): CodexClientC
       modelSet = true;
       continue;
     }
-    return { handled: true, error: `I do not recognize "${token}". Use /model codex status, /model codex fast high, or /model codex model=gpt-5.5 tier=fast reasoning=high.` };
+    return { handled: true, error: `I do not recognize "${token}". Use /model codex status, /model codex fast low, or /model codex model=gpt-5.5 tier=fast reasoning=low.` };
   }
   return { handled: true, args };
 }
@@ -346,6 +354,20 @@ function updateEnvContent(content: string, updates: Record<string, string>): str
   return lines.join('\n').replace(/\n*$/, '\n');
 }
 
+async function writeFileAtomicSameDir(filePath: string, content: string): Promise<void> {
+  const dir = path.dirname(filePath);
+  const tempPath = path.join(
+    dir,
+    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`
+  );
+  try {
+    await writeFile(tempPath, content, 'utf8');
+    await rename(tempPath, filePath);
+  } finally {
+    await rm(tempPath, { force: true }).catch(() => undefined);
+  }
+}
+
 async function persistEnvUpdates(updates: Record<string, string>): Promise<string[]> {
   const changed: string[] = [];
   for (const filePath of envFiles()) {
@@ -354,7 +376,7 @@ async function persistEnvUpdates(updates: Record<string, string>): Promise<strin
     const after = updateEnvContent(before, updates);
     if (after !== before) {
       await mkdir(path.dirname(filePath), { recursive: true });
-      await writeFile(filePath, after, 'utf8');
+      await writeFileAtomicSameDir(filePath, after);
       changed.push(filePath);
     }
   }
@@ -382,7 +404,7 @@ export function renderModelStatus(): string {
     '/model agent huggingface google/gemma-4-26B-A4B-it:fastest',
     '/model mission huggingface google/gemma-4-31B-it:fastest',
     '/model codex status',
-    '/model codex fast high',
+    '/model codex fast low',
     '',
     'You can pass an exact model id as the third value. Use /diagnose after changing to verify the route.'
   ].join('\n');
@@ -423,6 +445,14 @@ export async function switchModelRoute(role: ModelRole, provider: ProviderId, mo
     return `I cannot switch to ${provider} yet because it is not configured. Set up ${needed}, then try again.`;
   }
   const spec = PROVIDERS[provider];
+  const policyProvider = role === 'mission' ? spec.botProvider : spec.provider;
+  if (role === 'mission' && !missionProviderAllowed(policyProvider)) {
+    return `I cannot switch missions to ${policyProvider} on this install. Allowed mission provider(s): ${formatAllowedMissionProviders()}.`;
+  }
+  if (role === 'agent' && !chatProviderAllowed(policyProvider)) {
+    const allowed = resolveAllowedChatProviders();
+    return `I cannot switch agent chat/runtime/memory to ${policyProvider} on this install. Allowed chat provider(s): ${allowed ? [...allowed].join(', ') : 'any configured provider'}.`;
+  }
   if (role === 'mission' && !resolveKnownProviderId(spec.botProvider)) {
     return [
       `I cannot use ${spec.botProvider} for missions yet because Spawner does not advertise that mission provider.`,

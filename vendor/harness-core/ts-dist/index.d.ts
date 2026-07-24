@@ -1,7 +1,10 @@
+export declare const HARNESS_CORE_WIRE_CONTRACT_VERSION = 1;
+export declare const HARNESS_CORE_MIN_WIRE_CONTRACT_VERSION = 1;
 export type HarnessCoreSchemaVersion = 'turn-intent-envelope-vnext';
 export type HarnessCoreAuthorizationSchemaVersion = 'authorization-decision-v1';
 export type HarnessCoreToolLedgerSchemaVersion = 'tool-call-ledger-v1';
 export type HarnessCoreGovernorSchemaVersion = 'governor-decision-v1';
+export type HarnessCoreGovernorConsumerVerificationSchemaVersion = 'governor-consumer-verification-v1';
 export type HarnessCoreSurface = 'telegram' | 'cli' | 'builder' | 'spawner' | 'memory' | 'startup_operator' | 'recursive_swarm' | 'voice' | 'domain_chip' | 'browser' | 'computer_use' | 'api' | 'test_harness' | 'future_surface';
 export type HarnessCoreMoveType = 'chat_explain' | 'chat_plan' | 'chat_compare' | 'chat_score' | 'chat_draft_text' | 'read_current_state' | 'prepare_action' | 'confirm_action' | 'execute_action';
 export type HarnessCoreRiskTier = 'none' | 'read' | 'low' | 'medium' | 'high' | 'critical';
@@ -31,6 +34,11 @@ export interface HarnessCoreEvidenceRef {
     confidence: number;
     trace_refs: HarnessCoreTraceRef[];
 }
+export interface HarnessCoreSimulationMarker {
+    dry_run: true;
+    execution_skipped: true;
+    reason: string;
+}
 export interface HarnessCoreProposedAction {
     action_id: string;
     capability_id: string;
@@ -55,6 +63,7 @@ export interface TurnIntentEnvelopeVNext {
     intent_summary: string;
     freshness: {
         fresh_user_intent_present: boolean;
+        fresh_user_intent_ref: HarnessCoreEvidenceRef | null;
         stale_state_used_as_authority: false;
         memory_used_as_instruction: false;
         pending_state_used_as_authority: false;
@@ -84,6 +93,7 @@ export interface TurnIntentEnvelopeVNext {
 }
 export interface AuthorizationDecisionV1 {
     schema_version: HarnessCoreAuthorizationSchemaVersion;
+    wire_contract_version: number;
     decision_id: string;
     created_at: string;
     turn_id: string;
@@ -107,10 +117,12 @@ export interface AuthorizationDecisionV1 {
         publish_allowed?: boolean;
     };
     expires_at?: string;
+    simulation?: HarnessCoreSimulationMarker;
     trace: HarnessCoreTraceRef;
 }
 export interface ToolCallLedgerV1 {
     schema_version: HarnessCoreToolLedgerSchemaVersion;
+    wire_contract_version: number;
     ledger_id: string;
     created_at: string;
     turn_id: string;
@@ -136,11 +148,21 @@ export interface ToolCallLedgerV1 {
         error_ref?: HarnessCoreArtifactRef;
         rollback_ref?: HarnessCoreArtifactRef;
     };
+    simulation?: HarnessCoreSimulationMarker;
     trace: HarnessCoreTraceRef;
 }
 export type HarnessCoreGovernorOutcome = 'chat_only' | 'read_only' | 'prepare' | 'execute' | 'interrupt' | 'deny' | 'degrade';
+export interface GovernorDecisionSignatureV1 {
+    schema_version: 'governor-decision-signature-v1';
+    alg: 'hmac-sha256';
+    key_id: string;
+    nonce: string;
+    created_at: string;
+    signature: string;
+}
 export interface GovernorDecisionV1 {
     schema_version: HarnessCoreGovernorSchemaVersion;
+    wire_contract_version: number;
     decision_id: string;
     created_at: string;
     surface: HarnessCoreSurface;
@@ -167,10 +189,38 @@ export interface GovernorDecisionV1 {
         should_interrupt: boolean;
     };
     evidence: HarnessCoreEvidenceRef[];
+    signature?: GovernorDecisionSignatureV1;
+    simulation?: HarnessCoreSimulationMarker;
     trace: HarnessCoreTraceRef;
 }
+export declare function canonicalHarnessCoreJson(value: unknown): string;
+export declare function unsignedHarnessCoreGovernorDecision<T extends Record<string, unknown>>(decision: T): Omit<T, 'signature'>;
+export declare function harnessCoreGovernorDecisionSignaturePayload(decision: Record<string, unknown>, signature: Omit<GovernorDecisionSignatureV1, 'signature'>): string;
+export declare function signHarnessCoreGovernorDecision<T extends GovernorDecisionV1>(decision: T, input: {
+    key: string;
+    key_id?: string;
+    nonce?: string;
+    created_at?: string;
+}): T;
+export interface HarnessCoreWireContractNegotiation {
+    allowed: boolean;
+    agreed_version: number | null;
+    reason_codes: string[];
+}
+export declare function negotiateHarnessCoreWireContract(input: {
+    producer_version: number;
+    producer_min_version?: number | null;
+    consumer_version?: number | null;
+    consumer_min_version?: number | null;
+}): HarnessCoreWireContractNegotiation;
+export declare function harnessCoreGovernorDecisionSignatureReasonCodes(input: {
+    governor_decision?: GovernorDecisionV1 | null;
+    key?: string | null;
+    expected_key_id?: string | null;
+    require_signature?: boolean;
+}): string[];
 export interface HarnessCoreGovernorConsumerVerification {
-    schema_version: 'governor-consumer-verification-v1';
+    schema_version: HarnessCoreGovernorConsumerVerificationSchemaVersion;
     allowed: boolean;
     reason_codes: string[];
     source_kind: 'governor_decision' | 'missing_governor_decision';
@@ -184,6 +234,23 @@ export interface HarnessCoreGovernorConsumerVerification {
     capability_id: string | null;
     authorization_decision_id: string | null;
     ledger_id: string | null;
+}
+export interface HarnessCoreBoundLedgerRow {
+    turn_id: string | null;
+    action_id: string | null;
+    capability_id: string | null;
+    authorization_decision_id: string | null;
+    ledger_id: string | null;
+    tool_name: string | null;
+    owner_system: string | null;
+    mutation_class: string | null;
+    outcome: HarnessCoreGovernorOutcome | null;
+    status: ToolCallLedgerV1['result']['status'] | null;
+    surface: HarnessCoreSurface | string | null;
+    request_id: string | null;
+    trace_ref: string | null;
+    summary: string | null;
+    ledger_json: ToolCallLedgerV1;
 }
 export type HarnessCoreReadinessCategoryName = 'execution' | 'tools' | 'context' | 'lifecycle' | 'observability' | 'verification' | 'governance';
 export interface HarnessCoreCategoryScore {
@@ -445,6 +512,7 @@ export interface HarnessComponentV1 {
     tests: string[];
     rollback_ref?: HarnessCoreArtifactRef;
 }
+export type HarnessComponentType = HarnessComponentV1['component_type'];
 export interface ChangeManifestV1 {
     schema_version: 'change-manifest-v1';
     change_id: string;
@@ -486,6 +554,11 @@ export interface SelfEvolutionRunV1 {
         readiness_score: ReadinessScoreV1;
     };
 }
+export interface HarnessCoreChangeManifestRunnerDecision {
+    verdict: SelfEvolutionRunV1['promotion_decision']['verdict'];
+    summary: string;
+    reasons: string[];
+}
 export type HarnessCoreActionMutationClass = 'none' | 'read_only' | 'writes_memory' | 'writes_files' | 'launches_mission' | 'controls_mission' | 'creates_schedule' | 'deletes_schedule' | 'creates_chip' | 'publishes' | 'external_network';
 export declare const HARNESS_CORE_RISK_ORDER: Readonly<Record<HarnessCoreRiskTier, number>>;
 export declare function safeHarnessCoreId(prefix: string, raw: string): string;
@@ -524,6 +597,7 @@ export declare function createHarnessCoreActionEnvelopeVNext(input: {
     mutationClass: HarnessCoreActionMutationClass;
     source: string;
     reason: string;
+    turnId?: string | null;
     requestId?: string | null;
     actorKind?: 'human' | 'agent' | 'system';
     actorIdRef?: string | null;
@@ -542,6 +616,16 @@ export declare function createHarnessCoreGovernorDecision(input: {
     reply_style?: GovernorDecisionV1['reply_contract']['style'];
     reply_instruction?: string;
 }): GovernorDecisionV1;
+export declare function boundHarnessCoreLedgerRow(input: {
+    ledger: ToolCallLedgerV1;
+    verdict: HarnessCoreGovernorConsumerVerification;
+    owner_system?: string | null;
+    mutation_class?: string | null;
+    surface?: HarnessCoreSurface | string | null;
+    request_id?: string | null;
+    trace_ref?: string | null;
+}): HarnessCoreBoundLedgerRow;
+export declare const boundLedgerRow: typeof boundHarnessCoreLedgerRow;
 export declare function verifyHarnessCoreGovernorExecutionAuthority(input: {
     governor_decision?: GovernorDecisionV1 | null;
     expected_capability_id: string;
@@ -550,6 +634,10 @@ export declare function verifyHarnessCoreGovernorExecutionAuthority(input: {
     action_id?: string;
     allow_read_only?: boolean;
     require_pre_execution_ledger?: boolean;
+    governor_hmac_key?: string | null;
+    governor_hmac_key_id?: string | null;
+    require_signature?: boolean;
+    now?: string | Date | null;
 }): HarnessCoreGovernorConsumerVerification;
 export declare function verifyHarnessCoreGovernorToolAuthority(input: {
     governor_decision?: GovernorDecisionV1 | null;
@@ -559,6 +647,10 @@ export declare function verifyHarnessCoreGovernorToolAuthority(input: {
     action_id?: string;
     allow_read_only?: boolean;
     require_pre_execution_ledger?: boolean;
+    governor_hmac_key?: string | null;
+    governor_hmac_key_id?: string | null;
+    require_signature?: boolean;
+    now?: string | Date | null;
 }): HarnessCoreGovernorConsumerVerification;
 export declare function createHarnessCoreAuthorizedGovernorDecision(input: {
     envelope: TurnIntentEnvelopeVNext;
@@ -570,6 +662,10 @@ export declare function createHarnessCoreAuthorizedGovernorDecision(input: {
     reply_style?: GovernorDecisionV1['reply_contract']['style'];
     reply_instruction?: string;
     now?: string;
+    idempotency_key?: string;
+    ttl_seconds?: number | null;
+    dry_run?: boolean;
+    dry_run_reason?: string;
 }): GovernorDecisionV1;
 export declare function finalizeHarnessCoreToolCallLedger(input: {
     ledger: ToolCallLedgerV1;
@@ -580,7 +676,59 @@ export declare function finalizeHarnessCoreToolCallLedger(input: {
     error_ref?: HarnessCoreArtifactRef;
     rollback_ref?: HarnessCoreArtifactRef;
     now?: string;
+    idempotency_key?: string;
 }): ToolCallLedgerV1;
+export type HarnessCoreGovernedTurn = {
+    governor_decision: GovernorDecisionV1;
+    verification: HarnessCoreGovernorConsumerVerification;
+    ledger: ToolCallLedgerV1;
+    finalized_ledger: ToolCallLedgerV1 | null;
+    finalize: (input: {
+        status: ToolCallLedgerV1['result']['status'];
+        summary: string;
+        output_ref?: HarnessCoreArtifactRef;
+        output_path_or_uri?: string;
+        error_ref?: HarnessCoreArtifactRef;
+        rollback_ref?: HarnessCoreArtifactRef;
+        now?: string;
+        idempotency_key?: string;
+    }) => ToolCallLedgerV1;
+};
+export declare function withGovernedTurn<T>(input: {
+    governor_decision?: GovernorDecisionV1 | null;
+    tool_name: string;
+    action_type: HarnessCoreActionType;
+    owner_system?: string;
+    expected_capability_id?: string;
+    action_id?: string;
+    allow_read_only?: boolean;
+    require_pre_execution_ledger?: boolean;
+    governor_hmac_key?: string | null;
+    governor_hmac_key_id?: string | null;
+    require_signature?: boolean;
+    now?: string | Date | null;
+    success_summary?: string;
+    failure_summary?: string;
+    success_output_path_or_uri?: string;
+    failure_output_path_or_uri?: string;
+    failure_error_ref?: HarnessCoreArtifactRef;
+    dry_run?: boolean;
+    dry_run_summary?: string;
+    dry_run_output_path_or_uri?: string;
+    on_finalize?: (ledger: ToolCallLedgerV1) => void;
+}, execute: (turn: HarnessCoreGovernedTurn) => T | Promise<T>): Promise<T>;
+export declare function repairHarnessCoreStrandedToolCallLedger(input: {
+    ledger: ToolCallLedgerV1;
+    now?: string;
+    stranded_after_seconds?: number;
+    output_path_or_uri?: string;
+    summary?: string;
+}): ToolCallLedgerV1 | null;
+export declare function repairHarnessCoreStrandedToolCallLedgers(input: {
+    ledgers: ToolCallLedgerV1[];
+    now?: string;
+    stranded_after_seconds?: number;
+}): ToolCallLedgerV1[];
 export declare function createHarnessCoreReadinessScore(input: {
     id: string;
     target_kind: ReadinessScoreV1['target']['kind'];
@@ -652,6 +800,7 @@ export declare function createTelegramLiveQaEvidencePacket(input: {
     required_session_evidence?: Partial<TelegramLiveQaEvidencePacketV1['required_session_evidence']>;
     cases: TelegramLiveQaEvidencePacketV1['cases'];
 }): TelegramLiveQaEvidencePacketV1;
+export declare const PROTECTED_HARNESS_COMPONENT_TYPES: ReadonlySet<HarnessComponentType>;
 export declare function createHarnessCoreChangeManifest(input: {
     id: string;
     target_component: HarnessComponentV1;
@@ -682,3 +831,27 @@ export declare function createHarnessCoreSelfEvolutionRun(input: {
     roles?: Partial<SelfEvolutionRunV1['roles']>;
     live_surface_required?: boolean;
 }): SelfEvolutionRunV1;
+export declare function createHarnessCoreChangeManifestRunner(input: {
+    id: string;
+    mode: SelfEvolutionRunV1['mode'];
+    surface: HarnessCoreSurface;
+    experience_index: ExperienceIndexV1;
+    readiness_score: ReadinessScoreV1;
+    commands: string[];
+    target_components?: HarnessComponentV1[];
+    change_manifests?: ChangeManifestV1[];
+    evaluation_packs?: EvaluationPackV1[];
+    requested_verdict?: SelfEvolutionRunV1['promotion_decision']['verdict'];
+    roles?: Partial<SelfEvolutionRunV1['roles']>;
+    live_surface_required?: boolean;
+}): SelfEvolutionRunV1;
+export declare function evaluateHarnessCoreChangeManifestRunner(input: {
+    mode: SelfEvolutionRunV1['mode'];
+    readiness_score: ReadinessScoreV1;
+    target_components: HarnessComponentV1[];
+    change_manifests: ChangeManifestV1[];
+    requested_verdict?: SelfEvolutionRunV1['promotion_decision']['verdict'];
+    live_surface_required: boolean;
+}): HarnessCoreChangeManifestRunnerDecision;
+export declare function isHarnessCoreProtectedComponentType(componentType: HarnessComponentType): boolean;
+export declare function assertHarnessCoreComponentEditablePolicy(component: HarnessComponentV1): void;

@@ -28,6 +28,22 @@ test('explains provider auth failures with a repair path', () => {
   assert.doesNotMatch(reply, /Try again in a moment/);
 });
 
+test('explains Spawner bridge auth separately from provider keys', () => {
+  const reply = renderSparkErrorReply(
+    new Error('HTTP 401 - PRDBridgeWrite routes require API key for non-local requests - ERR_BAD_REQUEST'),
+    'spawner',
+    true
+  );
+
+  assert.match(reply, /Mission Control rejected Spark/);
+  assert.match(reply, /Telegram-to-Spawner bridge/);
+  assert.match(reply, /SPARK_BRIDGE_API_KEY/);
+  assert.match(reply, /Spark spawner failure: spawner_bridge_auth/);
+  assert.doesNotMatch(reply, /provider authentication is not working/);
+  assert.doesNotMatch(reply, /spark providers status/);
+  assert.doesNotMatch(reply, /spark setup/);
+});
+
 test('explains local service network failures', () => {
   const explanation = explainSparkError(new Error('ECONNREFUSED 127.0.0.1:3333'), 'spawner');
 

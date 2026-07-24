@@ -24,5 +24,6 @@ test('runtime sync includes capability upgrade/eval fixtures', () => {
   assert.match(script, /dir:\s*'src'/);
   assert.match(script, /dir:\s*'dist'/);
   assert.match(script, /dir:\s*'ops'/);
+  assert.match(script, /dir:\s*'vendor\/harness-core'/);
   assert.match(script, /--check/);
 });

@@ -10,6 +10,11 @@ C:\Users\USER\.codex\skills\spark-telegram-composition\SKILL.md
 
 This repo copy is the mergeable source for Telegram gateway behavior.
 
+Composition work must follow `docs/SPARK_SYSTEM_GOVERNANCE_RULESET.md`.
+Formatting is allowed to fix readability, spacing, link clutter, and scan
+quality. It must not be used to compensate for a wrong route, stale source,
+missing owner proof, or unsafe Harness/Governor decision.
+
 ## Goal
 
 Telegram should answer only four things:
@@ -36,6 +41,15 @@ Everything else belongs in Workspace, Canvas, Kanban, logs, traces, dashboards, 
   answer came from a deterministic state machine.
 - Prefer one or two plain sentences plus one inspect link for ordinary follow-ups.
   Section headings are optional, not the default.
+- Use Telegram HTML for polished operational cards when the sender owns the
+  escaping and delivery options. Escape dynamic text, disable link previews, and
+  render links as short labels such as `Open canvas` or `Open board`.
+- Prefer one inspect link per operational update. Do not show the same URL as
+  both link text and a raw parenthesized URL, and do not send Canvas, Board, and
+  trace links together unless the user asked for raw evidence.
+- Do not use standalone markdown divider lines such as `---` in Telegram
+  replies. Collapse them into normal paragraph spacing so sentence blocks have
+  a blank line between them without looking like a pasted report.
 - Use one status icon at the start of major outcome rows.
 - Do not combine icons with bullets, numbering, or extra markers on the same row.
 - Use dotted bullets (`•`) for grouped facts under section headings such as Score, Review, Workspace, Sharing, Why, and Move.
@@ -54,6 +68,11 @@ Everything else belongs in Workspace, Canvas, Kanban, logs, traces, dashboards, 
 - Prefer one useful next move. Avoid command menus unless the user asked for options.
 - When a row already starts with a symbol or icon, do not prefix it with `-`, `1.`, or any other decoration.
 - Avoid database voice. Convert system nouns into human nouns unless the technical noun is the useful thing.
+- Keep memory/source lane labels out of normal acknowledgement prose. If the user
+  says a preference is "for this chat only" or "don't save that", answer like a
+  person: "Got it, I will use that while we keep talking." Do not describe the
+  preference itself as "unsaved", "non-durable", or "recent-context" unless the
+  user asks whether it was saved or the boundary matters for safety.
 - Prefer `ready`, `needs review`, `blocked`, `running`, `held steady`, `improved`, and `regressed` over internal lifecycle names.
 - Do not show normal internal state like `open`, `review clear`, `ready canvas`, or evidence counts unless they change what the user should think or do.
 - Let the absence of a warning mean clear.
@@ -304,6 +323,8 @@ Before shipping a Telegram message:
 - Is there exactly one main thing to notice?
 - Is each line carrying new information?
 - Did we avoid double markers like `- <icon>` or `<icon> 1.`?
+- Did we avoid standalone divider lines and use normal paragraph spacing
+  between sentence blocks?
 - Did we collapse repeated movement and artifact rows?
 - Is raw evidence still accessible somewhere else?
 - Is the next action obvious without being noisy?

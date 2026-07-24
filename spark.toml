@@ -30,6 +30,7 @@ secrets = [
   "telegram.bot_token",
   "telegram.admin_ids",
   "telegram.relay_secret",
+  "governor.hmac_key",
   "llm.zai.api_key",
   "llm.openai.api_key",
   "llm.anthropic.api_key",
@@ -39,6 +40,7 @@ secrets = [
 secrets = [
   "telegram.bot_token",
   "telegram.relay_secret",
+  "governor.hmac_key",
   "llm.zai.api_key",
   "llm.openai.api_key",
   "llm.anthropic.api_key",
@@ -63,6 +65,12 @@ prompt = "Local Spawner-to-Telegram relay secret"
 required = false
 storage = "keychain"
 env_var = "TELEGRAM_RELAY_SECRET"
+
+[secrets.governor_hmac_key]
+prompt = "Shared Governor decision HMAC key for signing execution authority"
+required = false
+storage = "keychain"
+env_var = "SPARK_GOVERNOR_HMAC_KEY"
 
 [secrets.llm_zai_api_key]
 prompt = "Z.AI API key for GLM coding endpoint"

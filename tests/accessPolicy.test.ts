@@ -86,14 +86,24 @@ async function main(): Promise<void> {
   await test('stores access profile per chat', async () => {
     resetJsonStateForTests();
     process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-access-test-'));
+    const originalDefault = process.env.SPARK_AGENT_ACCESS_PROFILE;
+    delete process.env.SPARK_AGENT_ACCESS_PROFILE;
 
-    assert.equal(await getConfiguredSparkAccessProfile(123), null);
-    assert.equal(await getSparkAccessProfile(123), 'developer');
-    await setSparkAccessProfile(123, 'agent');
+    try {
+      assert.equal(await getConfiguredSparkAccessProfile(123), null);
+      assert.equal(await getSparkAccessProfile(123), 'chat');
+      await setSparkAccessProfile(123, 'agent');
 
-    assert.equal(await getConfiguredSparkAccessProfile(123), 'agent');
-    assert.equal(await getSparkAccessProfile(123), 'agent');
-    assert.equal(await getSparkAccessProfile(456), 'developer');
+      assert.equal(await getConfiguredSparkAccessProfile(123), 'agent');
+      assert.equal(await getSparkAccessProfile(123), 'agent');
+      assert.equal(await getSparkAccessProfile(456), 'chat');
+    } finally {
+      if (originalDefault === undefined) {
+        delete process.env.SPARK_AGENT_ACCESS_PROFILE;
+      } else {
+        process.env.SPARK_AGENT_ACCESS_PROFILE = originalDefault;
+      }
+    }
   });
 
   await test('allows environment override of default access profile', async () => {
@@ -160,7 +170,7 @@ async function main(): Promise<void> {
     assert.ok(renderSparkAccessStatus('operator').split('\n').length <= 16);
     assert.doesNotMatch(renderSparkAccessStatus('operator'), /Whole-computer operator work is on/);
     assert.match(renderSparkAccessStatus('operator'), /authorized only after live guardrail and effective-sandbox proof/);
-    assert.match(renderSparkAccessOnboarding(), /Default right now: Access level 4/);
+    assert.match(renderSparkAccessOnboarding(), /Default right now: Access level 1/);
     assert.match(renderSparkAccessOnboarding('agent'), /Choose how much access this Telegram chat has/);
     assert.match(renderSparkAccessOnboarding('agent'), /Levels:/);
     assert.match(renderSparkAccessOnboarding('agent'), /4 - Workspace files and local debugging/);

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { resolveDefaultPythonCommand } from '../src/pythonCommand';
 
 type Expectation = 'blocked_benchmark' | 'score_claim_cleared' | 'no_run_refusal';
 
@@ -93,7 +94,7 @@ async function main(): Promise<number> {
   process.env.SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
   process.env.SPAWNER_UI_PUBLIC_URL = process.env.SPAWNER_UI_PUBLIC_URL || 'http://127.0.0.1:3333';
   process.env.SPARK_SWARM_SPECIALIZATION_PATH_SPARK_QA_OPERATOR_REPO = repoRoot;
-  process.env.SPARK_SWARM_BRIDGE_PYTHON = process.env.SPARK_SWARM_BRIDGE_PYTHON || 'python3';
+  process.env.SPARK_SWARM_BRIDGE_PYTHON = process.env.SPARK_SWARM_BRIDGE_PYTHON || resolveDefaultPythonCommand();
 
   const indexModule = await import('../src/index');
   const replies: string[] = [];
