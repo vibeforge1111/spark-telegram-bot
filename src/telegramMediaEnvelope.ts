@@ -140,14 +140,16 @@ export function buildTelegramMediaTurnEnvelope(messageInput: unknown): TelegramM
 }
 
 export function attachTelegramMediaTurnEnvelope(updateInput: Record<string, unknown>): Record<string, unknown> {
-  const update = JSON.parse(JSON.stringify(updateInput)) as Record<string, unknown>;
-  const message = objectValue(update.message);
+  const update = { ...updateInput };
+  const sourceMessage = objectValue(updateInput.message);
+  const message = { ...sourceMessage };
   if (!Object.keys(message).length) {
     return update;
   }
   const envelope = buildTelegramMediaTurnEnvelope(message);
   update.spark_media_turn = envelope;
-  (update.message as Record<string, unknown>).spark_media_turn = envelope;
+  message.spark_media_turn = envelope;
+  update.message = message;
   return update;
 }
 

@@ -149,6 +149,18 @@ test('attaches a media envelope to update and message without mutating the origi
   assert.equal((update.message as any).spark_media_turn, undefined);
 });
 
+test('attaches image evidence without serializing a cyclic update', () => {
+  const update: Record<string, unknown> = {
+    update_id: 8,
+    message: { message_id: 9, photo: [{ file_id: 'photo-id' }] },
+  };
+  update.self = update;
+  const attached = attachTelegramMediaTurnEnvelope(update);
+  assert.equal((attached.spark_media_turn as any).media_kind, 'photo');
+  assert.equal(((attached.message as any).spark_media_turn as any).media_kind, 'photo');
+  assert.equal((update.message as any).spark_media_turn, undefined);
+});
+
 test('unsupported media reply is human and does not sound like raw policy', () => {
   const reply = renderUnsupportedTelegramMediaReply();
 
