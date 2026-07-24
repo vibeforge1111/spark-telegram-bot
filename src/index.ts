@@ -436,6 +436,7 @@ import { formatVoiceMediaCaption } from './voiceCaption';
 import { writeTelegramVoiceBridgeRuntimeState } from './voiceRuntimeState';
 import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
 import { renderTelegramHelp, renderTelegramStartWelcome } from './onboardingSurface';
+import { resolveSparkCliCommand } from './profileEnv';
 
 export {
   isPendingClarificationAlternativeRequest,
@@ -521,7 +522,7 @@ function renderTelegramError(prefix: string, error: unknown): string {
 }
 
 async function runSparkCli(args: string[], timeoutMs = 30_000): Promise<string> {
-  const resolvedCommand = resolveWindowsCommand('spark');
+  const resolvedCommand = resolveWindowsCommand(resolveSparkCliCommand());
   const [command, commandArgs] = process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolvedCommand)
     ? [process.env.ComSpec || 'cmd.exe', windowsCmdShimArgs(resolvedCommand, args)]
     : process.platform === 'win32' && /\.ps1$/i.test(resolvedCommand)
