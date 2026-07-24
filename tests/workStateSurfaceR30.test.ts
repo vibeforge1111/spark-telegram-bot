@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import axios from 'axios';
 import { inferMissionFromRecentContext, parseSpawnerBoardNaturalIntent } from '../src/conversationIntent';
-import { renderTelegramHelp, renderTelegramStartWelcome } from '../src/onboardingSurface';
+import {
+  postInstallFirstRunPath,
+  renderPostInstallFirstRunReply,
+  renderTelegramHelp,
+  renderTelegramStartWelcome
+} from '../src/onboardingSurface';
 import { spawner } from '../src/spawner';
 
 type AsyncTest = () => Promise<void> | void;
@@ -34,6 +39,16 @@ void (async () => {
     assert.match(reply, /private/i);
     assert.match(reply, /\/myid/);
     assert.doesNotMatch(reply, /\/run/);
+  });
+
+  await test('gives one safe next action after installation', () => {
+    assert.equal(postInstallFirstRunPath('I just installed Spark for Telegram, what next?'), 'telegram');
+    assert.equal(postInstallFirstRunPath('I finished installing Spark in the local CLI'), 'cli');
+    assert.equal(postInstallFirstRunPath('I just installed Spark, what should I do next?'), 'clarify');
+    assert.match(renderPostInstallFirstRunReply('telegram'), /^Send \/start/);
+    assert.match(renderPostInstallFirstRunReply('cli'), /spark verify --onboarding/);
+    assert.match(renderPostInstallFirstRunReply('cli'), /keep any raw output local/i);
+    assert.doesNotMatch(renderPostInstallFirstRunReply('telegram'), /spark verify/);
   });
 
   await test('moves the dense command reference to /help with access-aware commands', () => {

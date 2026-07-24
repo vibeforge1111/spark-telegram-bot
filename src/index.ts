@@ -435,7 +435,12 @@ import { buildVoiceBridgeUpdate } from './telegramVoiceBridge';
 import { formatVoiceMediaCaption } from './voiceCaption';
 import { writeTelegramVoiceBridgeRuntimeState } from './voiceRuntimeState';
 import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
-import { renderTelegramHelp, renderTelegramStartWelcome } from './onboardingSurface';
+import {
+  postInstallFirstRunPath,
+  renderPostInstallFirstRunReply,
+  renderTelegramHelp,
+  renderTelegramStartWelcome
+} from './onboardingSurface';
 import { resolveSparkCliCommand } from './profileEnv';
 
 export {
@@ -9481,6 +9486,15 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
     const reply = renderRawLogSafetyReply();
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'proof.log_safety', 'spark-telegram-bot', 'plain_chat.safety_guidance');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+  const postInstallPath = postInstallFirstRunPath(text);
+  if (postInstallPath) {
+    const reply = renderPostInstallFirstRunReply(postInstallPath);
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'onboarding.first_run', 'spark-telegram-bot', 'plain_chat.onboarding');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;

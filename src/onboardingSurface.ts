@@ -4,6 +4,33 @@ export interface TelegramStartWelcomeInput {
   admin: boolean;
 }
 
+export type PostInstallPath = 'telegram' | 'cli';
+
+export function postInstallFirstRunPath(text: string): PostInstallPath | 'clarify' | null {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const installedSpark =
+    /\bspark\b/.test(normalized) &&
+    (
+      /\b(?:just|finished?|done|completed?)\b.{0,30}\binstall(?:ed|ing)?\b/.test(normalized) ||
+      /\bafter\s+install(?:ing)?\b/.test(normalized) ||
+      (/\bwhat\s+(?:should|do)\s+(?:i|we)\s+(?:do|run|try|start)\s+(?:first|next)\b/.test(normalized) && /\binstall\b/.test(normalized))
+    );
+  if (!installedSpark) return null;
+  if (/\btelegram\b|\bbot\b/.test(normalized)) return 'telegram';
+  if (/\b(?:cli|command.?line|terminal|local)\b/.test(normalized)) return 'cli';
+  return 'clarify';
+}
+
+export function renderPostInstallFirstRunReply(path: PostInstallPath | 'clarify'): string {
+  if (path === 'telegram') {
+    return 'Send /start to the Spark bot. Once it replies, /diagnose will check the connected systems.';
+  }
+  if (path === 'cli') {
+    return 'Run `spark verify --onboarding`. It will show what installed cleanly and what still needs attention; keep any raw output local unless you redact it first.';
+  }
+  return 'Are you continuing in Telegram or in the local CLI? I’ll give you the single next check for that path.';
+}
+
 export function renderTelegramStartWelcome(input: TelegramStartWelcomeInput): string {
   const name = input.name.trim() || 'friend';
   if (!input.allowed) {
