@@ -10,7 +10,7 @@
     "prestart": "npm run build",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "build": "tsc",
+    "build": "node node_modules/typescript/bin/tsc",
     "check:line-count": "python3 scripts/harness_checks/line_count_gate.py --root .",
     "sync:runtime": "node scripts/sync-runtime.cjs",
     "sync:check": "node scripts/sync-runtime.cjs --check",
