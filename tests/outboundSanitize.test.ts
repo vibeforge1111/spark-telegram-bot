@@ -85,6 +85,18 @@ test('still replaces dash family characters', () => {
   assert.equal(sanitizeOutbound('One — two – three'), 'One - two - three');
 });
 
+test('hides labeled account email identity without erasing ordinary contact text', () => {
+  const cleaned = sanitizeOutbound([
+    'Username: operator',
+    'Email: private.owner@example.com',
+    'Support contact is help@example.com.'
+  ].join('\n'));
+
+  assert.match(cleaned, /Email: \[private email hidden\]/);
+  assert.doesNotMatch(cleaned, /private\.owner@example\.com/);
+  assert.match(cleaned, /help@example\.com/);
+});
+
 test('firewalls raw control internals from ordinary Telegram replies', () => {
   const cleaned = sanitizeOutbound([
     'Blocked by route_not_selected_by_turn_envelope from harness_core:owner_mismatch.',

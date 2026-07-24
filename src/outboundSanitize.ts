@@ -241,6 +241,9 @@ export function sanitizeOutboundForTelegramSurface(
     applyTelegramRenderFirewall(
       rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(text))),
       options
+    ).replace(
+      /\b((?:signed[- ]in\s+)?(?:account\s+)?email)\s*:\s*[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
+      '$1: [private email hidden]'
     )
   );
 }
