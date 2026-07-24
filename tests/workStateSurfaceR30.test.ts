@@ -55,6 +55,10 @@ void (async () => {
     assert.match(adminHelp, /\/authority/);
     assert.match(adminHelp, /\/capabilities/);
     assert.match(adminHelp, /\/ledger/);
+    assert.match(adminHelp, /\/runminimax/);
+    assert.match(adminHelp, /\/runall/);
+    assert.match(adminHelp, /\/workspace/);
+    assert.match(adminHelp, /\/route_probe/);
     assert.doesNotMatch(adminHelp, /\/agent_context|\/operating_context/);
   });
 
