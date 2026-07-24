@@ -65,7 +65,7 @@ import {
   postLocalServiceWithRetry,
   spawner
 } from './spawner';
-import { createChipFromPrompt } from './chipCreate';
+import { chipCreateRepairGuidance, createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
 import { evaluateDailyScheduleFastPath } from './dailyScheduleFastPath';
 import { fetchLoopEngineeringStatusPacket, resolveLoopEngineeringChipId } from './loopEngineeringStatus';
@@ -7779,7 +7779,7 @@ bot.command('chip', async (ctx) => {
   });
 
   if (!result.ok) {
-    return ctx.reply(renderTelegramError('Chip create failed', result.error));
+    return ctx.reply(chipCreateRepairGuidance(result.error) || renderTelegramError('Chip create failed', result.error));
   }
   if (result.chipKey) {
     await rememberLastCreatedDomainChip(telegramPendingDomainChipKey(ctx.chat?.id, ctx.from?.id), {

@@ -259,6 +259,14 @@ export function formatChipCreateProcessError(err: any): string {
   return stderr || message;
 }
 
+export function chipCreateRepairGuidance(error: unknown): string | null {
+  const detail = error instanceof Error ? error.message : String(error || '');
+  if (!/chip-labs root not found|domain[-\s]+chip[-\s]+labs.+(?:missing|not found)/i.test(detail)) {
+    return null;
+  }
+  return "I couldn’t create that chip because Domain Chip Labs isn’t installed or configured. Ask your Spark admin to install it, then try `/chip create` again.";
+}
+
 export function resolveConfig(): ChipCreateConfig {
   const builderRepo = resolveBuilderRepoPath({ configuredRepo: process.env.SPARK_BUILDER_REPO });
   return {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ensureChipOutputDirectory, formatChipCreateProcessError, parseChipCreateJson, resolveConfig } from '../src/chipCreate';
+import { chipCreateRepairGuidance, ensureChipOutputDirectory, formatChipCreateProcessError, parseChipCreateJson, resolveConfig } from '../src/chipCreate';
 import {
   buildChipCreateMissionContext,
   ChipCreateMissionReporter,
@@ -218,6 +218,16 @@ async function main(): Promise<void> {
     });
 
     assert.equal(message, 'chip-labs root not found: C:\\Users\\USER\\.spark\\domain-chip-labs');
+  });
+
+  await test('turns a missing Domain Chip Labs root into path-free repair guidance', () => {
+    const message = chipCreateRepairGuidance(
+      'chip-labs root not found: C:\\Users\\USER\\.spark\\domain-chip-labs'
+    );
+    assert.match(message || '', /Domain Chip Labs isn’t installed or configured/);
+    assert.match(message || '', /`\/chip create`/);
+    assert.doesNotMatch(message || '', /C:\\Users|SPARK_DOMAIN_CHIP_LABS_ROOT/);
+    assert.equal(chipCreateRepairGuidance('chip create returned invalid JSON'), null);
   });
 
   await test('emits mission-control lifecycle events for chip creation', async () => {
