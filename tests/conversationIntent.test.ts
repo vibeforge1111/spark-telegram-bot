@@ -1121,6 +1121,12 @@ test('extracts natural recursive commands for QA Operator loops', () => {
     }
   );
   assert.equal(
+    parseNaturalRecursiveCommandIntent(
+      'I am setting up Spark and the network dropped halfway through. What should I do next so I do not get stuck in a loop?'
+    ),
+    null
+  );
+  assert.equal(
     parseNaturalRecursiveCommandIntent('show Spark QA Operator benchmark score, do not run anything'),
     null
   );
