@@ -326,15 +326,30 @@ async function resolveDiagnosticsBridgeConfig(config: BuilderBridgeConfig): Prom
   return config;
 }
 
+export function sanitizeBuilderChildProcessEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const sanitized = { ...env };
+  for (const key of Object.keys(sanitized)) {
+    if (
+      /^(?:BOT_TOKEN|TEST_BOT_TOKEN|TELEGRAM_TOKEN|TELEGRAM_BOT_TOKEN|SPARK_PROFILE_TOKEN_MISSING)$/i.test(key) ||
+      /^TELEGRAM_.*_TOKEN$/i.test(key) ||
+      /^SPARK_TELEGRAM_.*TOKEN/i.test(key)
+    ) {
+      delete sanitized[key];
+    }
+  }
+  return sanitized;
+}
+
 function pythonSourceEnv(config: BuilderBridgeConfig): NodeJS.ProcessEnv {
   const sourcePath = path.join(config.builderRepo, 'src');
   const existingPythonPath = process.env.PYTHONPATH || '';
-  const env: NodeJS.ProcessEnv = {
+  const profileBotToken = process.env.BOT_TOKEN?.trim();
+  const merged: NodeJS.ProcessEnv = {
     ...process.env,
     PYTHONPATH: existingPythonPath ? `${sourcePath}${path.delimiter}${existingPythonPath}` : sourcePath,
   };
-  mergeEnvFile(env, path.join(config.builderHome, '.env'));
-  const profileBotToken = process.env.BOT_TOKEN?.trim();
+  mergeEnvFile(merged, path.join(config.builderHome, '.env'));
+  const env = sanitizeBuilderChildProcessEnv(merged);
   if (profileBotToken) {
     // Telegram file IDs are bot-scoped, so Builder must use the active runner profile token.
     env.TELEGRAM_BOT_TOKEN = profileBotToken;
