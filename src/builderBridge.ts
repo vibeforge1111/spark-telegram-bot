@@ -1886,6 +1886,24 @@ export function formatRouteProbeReply(payload: Record<string, unknown>): string 
   return lines.join('\n');
 }
 
+export function normalizeRouteProbePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const summary = String(payload.probe_summary || '').trim();
+  if (!summary) return payload;
+  const gateway = summary.match(/\bgateway ready=(True|False|true|false)\b/);
+  const providers = summary.match(/\bproviders=(\d+)\b/);
+  const degradedSurfaces = summary.match(/\bdegraded_surfaces=(\d+)\b/);
+  const degraded =
+    gateway?.[1].toLowerCase() === 'false'
+    || Number(providers?.[1]) === 0
+    || Number(degradedSurfaces?.[1]) > 0;
+  if (!degraded) return payload;
+  return {
+    ...payload,
+    status: 'degraded',
+    failure_reason: String(payload.failure_reason || '').trim() || 'route probe reported degraded runtime evidence',
+  };
+}
+
 export function formatRouteConfidenceGateReply(payload: unknown): string {
   const root = objectValue(payload);
   const decision = stringValue(root.decision) || 'explain';
@@ -1984,7 +2002,7 @@ export async function runBuilderRouteConfidenceGate(
   if (!trimmedStdout) {
     throw new Error(`Builder route confidence gate returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  const payload = normalizeRouteProbePayload(JSON.parse(trimmedStdout) as Record<string, unknown>);
   return {
     payload,
     replyText: formatRouteConfidenceGateReply(payload),

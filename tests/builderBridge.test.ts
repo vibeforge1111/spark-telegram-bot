@@ -10,6 +10,7 @@ import {
   formatMemoryInPlaySummary,
   formatRouteConfidenceGateReply,
   formatRouteProbeReply,
+  normalizeRouteProbePayload,
   formatSelfImprovementPlanReply,
   formatSelfAwarenessReply,
   formatWikiAnswerReply,
@@ -109,6 +110,25 @@ test('formats route probe replies with evidence boundary', () => {
   assert.match(reply, /Evidence: memory smoke write=succeeded\/1 read_records=1 cleanup=ok/);
   assert.match(reply, /Event: evt-123 \(tool result received\)/);
   assert.match(reply, /Run \/aoc/);
+});
+
+test('normalizes degraded route-probe evidence before Telegram renders success', () => {
+  for (const summary of [
+    'gateway ready=False providers=3 degraded_surfaces=0',
+    'gateway ready=True providers=0 degraded_surfaces=0',
+    'gateway ready=True providers=3 degraded_surfaces=1',
+  ]) {
+    const payload = normalizeRouteProbePayload({ status: 'success', probe_summary: summary });
+    assert.equal(payload.status, 'degraded');
+    assert.match(String(payload.failure_reason), /degraded runtime evidence/);
+  }
+  assert.equal(
+    normalizeRouteProbePayload({
+      status: 'success',
+      probe_summary: 'gateway ready=True providers=3 degraded_surfaces=0',
+    }).status,
+    'success'
+  );
 });
 
 test('formats route confidence gate live provider evidence without raw refs', () => {
