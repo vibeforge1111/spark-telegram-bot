@@ -80,6 +80,7 @@ import {
   isPlainChatAnswerEditingRequest,
   isMemoryAcknowledgementReply,
   isMemoryDoctorRequest,
+  isVoiceReadinessProofQuestion,
   isNoExecutionBoundary,
   isNoExecutionExplanationPrompt,
   isLowInformationLlmReply,
@@ -96,6 +97,7 @@ import {
   parseMissionUpdatePreferenceIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
+  renderVoiceReadinessProofReply,
   renderMarketChartProofBoundaryReply,
   renderXContentCredentialBoundaryReply,
   renderXPostReviewFromLinksBoundaryReply,
@@ -489,6 +491,21 @@ test('keeps combined memory and voice readiness questions in chat', () => {
   assert.match(reply, /Memory and voice aren’t proven healthy/);
   assert.match(reply, /supervised voice and recall smoke cases/);
   assert.doesNotMatch(reply, /transcript body|chat ID:/i);
+});
+
+test('voice readiness proof stays conversational and separates unproven output stages', () => {
+  const prompt = [
+    'I sent a voice note and Spark replied with text only.',
+    'Is voice fully working, partly working, or not proven?',
+    'Separate speech-to-text, spoken reply, audio encoding, and Telegram voice delivery proof.'
+  ].join(' ');
+  assert.equal(isVoiceReadinessProofQuestion(prompt), true);
+  assert.equal(isVoiceReadinessProofQuestion('Set up a voice provider for me.'), false);
+  const reply = renderVoiceReadinessProofReply();
+  assert.match(reply, /speech-to-text may be working/i);
+  assert.match(reply, /spoken generation, audio encoding, or Telegram delivery/i);
+  assert.match(reply, /playable audio reply/i);
+  assert.equal(reply.split('\n\n').length, 2);
 });
 
 test('recognizes H70 Thread QA golden-case requests as conversation fixtures', () => {

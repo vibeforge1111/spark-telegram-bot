@@ -2030,6 +2030,23 @@ export function isMemoryVoiceStateQuestion(text: string): boolean {
     /\bvoice[-\s]*(?:system|state|readiness|transcript|stt|speech[-\s]*to[-\s]*text)\b/.test(normalized);
 }
 
+export function isVoiceReadinessProofQuestion(text: string): boolean {
+  const normalized = text.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized)) return false;
+  const mentionsVoice = /\b(?:voice\s+note|voice|speech[-\s]*to[-\s]*text|spoken\s+reply|audio\s+(?:reply|encoding)|telegram\s+voice)\b/.test(normalized);
+  const asksReadiness = /\b(?:fully\s+working|partly\s+working|not\s+proven|proof|readiness|safe\s+next\s+check)\b/.test(normalized);
+  const namesStage = /\b(?:speech[-\s]*to[-\s]*text|spoken\s+reply|audio\s+encoding|telegram\s+voice\s+delivery|text\s+only)\b/.test(normalized);
+  const asksChange = /\b(?:install|set\s+up|setup|configure|add|enable|build|create)\b/.test(normalized);
+  return mentionsVoice && asksReadiness && namesStage && !asksChange;
+}
+
+export function renderVoiceReadinessProofReply(): string {
+  return [
+    'Understanding the note is evidence that speech-to-text may be working, but a text-only reply does not prove spoken generation, audio encoding, or Telegram delivery.',
+    'Run `/voice status`, then send one short note—the end-to-end pass is a playable audio reply arriving in Telegram.'
+  ].join('\n\n');
+}
+
 export function renderMemoryVoiceStateReply(): string {
   return [
     'Memory and voice aren’t proven healthy from this chat turn alone.',

@@ -296,6 +296,7 @@ import {
   isMissionRoutingFailureClassQuestion,
   isMarketChartProofBoundaryQuestion,
   isMemoryVoiceStateQuestion,
+  isVoiceReadinessProofQuestion,
   isModelSwitchGateExplanationRequest,
   isNoEditSpawnerProbeExplanationRequest,
   isNoExecutionExplanationPrompt,
@@ -335,6 +336,7 @@ import {
   renderMissionRoutingFailureClassReply,
   renderMarketChartProofBoundaryReply,
   renderMemoryVoiceStateReply,
+  renderVoiceReadinessProofReply,
   renderModelSwitchGateExplanationReply,
   renderNoEditSpawnerProbeExplanationReply,
   renderPlainChatAnswerEditingReply,
@@ -9891,6 +9893,20 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
       signal: 'memory_voice_state_question'
     }), 'conversation.memory_voice_state', 'spark-telegram-bot', 'plain_chat.state_boundary');
     await ctx.reply(reply, outboundTraceExtra(traceContext));
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isVoiceReadinessProofQuestion(text)) {
+    const reply = renderVoiceReadinessProofReply();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'conversation.voice_readiness_proof',
+      owner: 'spark-telegram-bot',
+      action: 'plain_chat.state_boundary',
+      signal: 'voice_readiness_proof_question'
+    }), 'conversation.voice_readiness_proof', 'spark-telegram-bot', 'plain_chat.state_boundary');
+    await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
