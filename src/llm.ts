@@ -525,6 +525,21 @@ function extractAnthropicText(response: AnthropicMessagesResponse): string {
     .join('\n\n');
 }
 
+const ANTHROPIC_SYSTEM_CACHE_MIN_CHARS = 4096;
+
+export function buildAnthropicSystemField(
+  systemPrompt: string
+): string | Array<Record<string, unknown>> {
+  if (systemPrompt.length < ANTHROPIC_SYSTEM_CACHE_MIN_CHARS) {
+    return systemPrompt;
+  }
+  return [{
+    type: 'text',
+    text: systemPrompt,
+    cache_control: { type: 'ephemeral' }
+  }];
+}
+
 async function anthropicMessage(
   config: ChatProviderConfig,
   input: { system: string; user: string; temperature: number; maxTokens: number; timeoutMs: number }
@@ -537,7 +552,7 @@ async function anthropicMessage(
     joinUrl(config.baseUrl, '/messages'),
     {
       model: config.model,
-      system: input.system,
+      system: buildAnthropicSystemField(input.system),
       messages: [{ role: 'user', content: input.user }],
       temperature: input.temperature,
       max_tokens: input.maxTokens

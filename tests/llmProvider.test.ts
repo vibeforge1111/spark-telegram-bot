@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
-import { buildClarificationMicrocopyPrompt, buildSparkChatSystemPrompt, codexExecArgs, isCodexProvider, loadSparkAgentKnowledgeBase, resolveChatProviderConfig } from '../src/llm';
+import {
+  buildAnthropicSystemField,
+  buildClarificationMicrocopyPrompt,
+  buildSparkChatSystemPrompt,
+  codexExecArgs,
+  isCodexProvider,
+  loadSparkAgentKnowledgeBase,
+  resolveChatProviderConfig
+} from '../src/llm';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -15,6 +23,15 @@ test('recognizes Codex as the local LLM provider', () => {
   assert.equal(isCodexProvider('codex'), true);
   assert.equal(isCodexProvider(' CODEX '), true);
   assert.equal(isCodexProvider('ollama'), false);
+});
+
+test('marks only long Anthropic system prompts for ephemeral caching', () => {
+  assert.equal(buildAnthropicSystemField('short stable prompt'), 'short stable prompt');
+  assert.deepEqual(buildAnthropicSystemField('x'.repeat(4096)), [{
+    type: 'text',
+    text: 'x'.repeat(4096),
+    cache_control: { type: 'ephemeral' }
+  }]);
 });
 
 test('uses LM Studio as OpenAI-compatible chat provider instead of implicit Ollama', () => {
