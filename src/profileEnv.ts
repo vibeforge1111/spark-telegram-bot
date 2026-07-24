@@ -119,8 +119,7 @@ export function sparkSecretPythonBridgeCommand(
   env: NodeJS.ProcessEnv = process.env
 ): { python: string; args: string[] } {
   const installedSparkCliSrc = path.join(resolveSparkHome(env), 'tools', 'spark-cli', 'src');
-  const sparkCliSrc = env.SPARK_CLI_SRC ||
-    (fs.existsSync(installedSparkCliSrc) ? installedSparkCliSrc : path.join(os.homedir(), 'Desktop', 'spark-cli', 'src'));
+  const sparkCliSrc = env.SPARK_CLI_SRC || installedSparkCliSrc;
   const python = env.SPARK_CLI_PYTHON || env.SPARK_BUILDER_PYTHON || env.PYTHON || 'python';
   const script = [
     'import sys',

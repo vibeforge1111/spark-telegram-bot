@@ -100,6 +100,17 @@ test('uses the SPARK_HOME-installed CLI source for secret reads', () => {
   }
 });
 
+test('keeps secret bridge fallback under SPARK_HOME instead of Desktop', () => {
+  const home = path.join(tmpdir(), 'spark-cli-managed-fallback');
+  const command = sparkSecretPythonBridgeCommand('telegram.bot_token', {
+    SPARK_HOME: home,
+    SPARK_CLI_PYTHON: 'python3'
+  } as NodeJS.ProcessEnv);
+
+  assert.match(command.args[1], new RegExp(path.join(home, 'tools', 'spark-cli', 'src').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.doesNotMatch(command.args[1], /Desktop[\\/]spark-cli/);
+});
+
 test('loads matching quoted env values without retaining wrapper quotes', () => {
   const home = mkdtempSync(path.join(tmpdir(), 'spark-profile-quotes-'));
   try {
