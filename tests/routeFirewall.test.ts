@@ -34,6 +34,19 @@ test('allows explicit project builds through the firewall', () => {
   assert.equal(verdict.confidence, 'explicit');
 });
 
+test('treats canonically equivalent Unicode route input the same way', () => {
+  const composed = evaluateDeterministicRoute(
+    'spawner.build',
+    'Build this at C:\\Users\\USER\\Desktop\\cafe: a tiny Café timer app'
+  );
+  const decomposed = evaluateDeterministicRoute(
+    'spawner.build',
+    'Build this at C:\\Users\\USER\\Desktop\\cafe: a tiny Cafe\u0301 timer app'
+  );
+
+  assert.deepEqual(decomposed, composed);
+});
+
 test('allows explicit no-edit Spawner missions through the firewall', () => {
   const verdict = evaluateDeterministicRoute(
     'spawner.build',
