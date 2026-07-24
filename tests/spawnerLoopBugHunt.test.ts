@@ -28,9 +28,11 @@ import {
   isPendingClarificationAlternativeRequest,
   isPendingClarificationFollowup,
   isRouteConfidenceGateUnsupportedError,
+  isSparkVersionCheckQuestion,
   latestCanvasPlanFromLoadState,
   routeConfidenceGateCompatibilityAllows,
   renderUnknownTelegramCommandReply,
+  renderSparkVersionCheckReply,
   cleanupSlidingWindowRateLimit,
   shouldSendRateLimitNotice,
   slidingWindowRateLimitAllows,
@@ -70,6 +72,14 @@ test('unknown slash commands get one compact help hint', () => {
   assert.match(reply, /don't recognize/i);
   assert.match(reply, /\/help/);
   assert.equal(reply.split('\n').length, 1);
+});
+
+test('Spark version questions stay on a truthful read-only CLI path', () => {
+  assert.equal(isSparkVersionCheckQuestion('what version of Spark is installed?'), true);
+  assert.equal(isSparkVersionCheckQuestion('spark --version'), true);
+  assert.equal(isSparkVersionCheckQuestion('what Node version is installed?'), false);
+  assert.equal(renderSparkVersionCheckReply('spark 3.2.1\nextra detail'), 'This machine is running spark 3.2.1.');
+  assert.match(renderSparkVersionCheckReply(''), /did not return a version/i);
 });
 
 test('bug hunt: strategy, QA, and route-meta conversations do not hijack into builds', () => {

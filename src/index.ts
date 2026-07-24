@@ -545,6 +545,24 @@ async function runSparkCli(args: string[], timeoutMs = 30_000): Promise<string> 
   return redactText([stdout, stderr].map((value) => String(value || '').trim()).filter(Boolean).join('\n'));
 }
 
+export function isSparkVersionCheckQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  return (
+    /\bspark\s+--version\b/.test(normalized) ||
+    /\b(?:what|which|check|show|get)\b.{0,30}\bspark\b.{0,30}\bversion\b/.test(normalized) ||
+    /\b(?:what|which)\b.{0,12}\bversion\b.{0,30}\bspark\b/.test(normalized) ||
+    /\bhow\b.{0,20}\b(?:do\s+i|to)\b.{0,20}\bcheck\b.{0,20}\bspark\b.{0,20}\bversion\b/.test(normalized)
+  );
+}
+
+export function renderSparkVersionCheckReply(cliOutput: string): string {
+  const version = cliOutput.trim().split(/\r?\n/)[0]?.trim();
+  return version
+    ? `This machine is running ${version}.`
+    : 'Spark did not return a version here. Check that the Spark CLI is installed and available to this runtime.';
+}
+
 type TelegramSourceUsedEvidence = {
   source: string;
   role: string;
@@ -9522,6 +9540,20 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
     const reply = renderPostInstallFirstRunReply(postInstallPath);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'onboarding.first_run', 'spark-telegram-bot', 'plain_chat.onboarding');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+  if (isSparkVersionCheckQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    let reply: string;
+    try {
+      reply = renderSparkVersionCheckReply(await runSparkCli(['--version'], 15_000));
+    } catch {
+      reply = 'I could not verify the Spark CLI version from this runtime. Run `spark --version` locally if you need the terminal-specific result.';
+    }
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark.version_check', 'spark-telegram-bot', 'spark.version_check');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
