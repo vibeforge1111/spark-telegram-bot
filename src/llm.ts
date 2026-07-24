@@ -19,6 +19,14 @@ const DEFAULT_AGENT_KNOWLEDGE_DIR = path.resolve(process.cwd(), 'agent-knowledge
 const MAX_AGENT_KNOWLEDGE_CHARS = 18_000;
 const agentKnowledgeCache = new Map<string, { signature: string; content: string }>();
 
+export function terminalProviderFailureDetail(
+  stderr: string,
+  stdout: string,
+  fallback: string
+): string {
+  return redactText(stderr || stdout || fallback).replace(/\s+/g, ' ').trim().slice(0, 500) || fallback;
+}
+
 interface OllamaResponse {
   model: string;
   response: string;
@@ -530,7 +538,7 @@ async function codexChat(prompt: string): Promise<string> {
   try {
     const result = await runProcess(CODEX_PATH, codexExecArgs(CODEX_MODEL, outputPath), prompt, chatCommandTimeoutMs());
     if (!result.ok) {
-      throw new Error(result.stderr || result.stdout || 'Codex CLI failed');
+      throw new Error(terminalProviderFailureDetail(result.stderr, result.stdout, 'Codex CLI failed'));
     }
     const output = readFileSync(outputPath, 'utf-8').trim();
     return output || "I'm here, but I couldn't generate a response right now.";
@@ -547,7 +555,7 @@ async function claudeChat(prompt: string, model: string): Promise<string> {
     chatCommandTimeoutMs()
   );
   if (!result.ok) {
-    throw new Error(result.stderr || result.stdout || 'Claude CLI failed');
+    throw new Error(terminalProviderFailureDetail(result.stderr, result.stdout, 'Claude CLI failed'));
   }
   return result.stdout.trim() || "I'm here, but I couldn't generate a response right now.";
 }

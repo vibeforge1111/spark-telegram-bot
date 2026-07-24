@@ -10,6 +10,7 @@ import {
   isCodexProvider,
   loadSparkAgentKnowledgeBase,
   resolveChatProviderConfig,
+  terminalProviderFailureDetail,
   unexpectedPingCompletionDetail
 } from '../src/llm';
 
@@ -27,6 +28,18 @@ test('recognizes Codex as the local LLM provider', () => {
   assert.equal(isCodexProvider('codex'), true);
   assert.equal(isCodexProvider(' CODEX '), true);
   assert.equal(isCodexProvider('ollama'), false);
+});
+
+test('terminal provider failures redact and bound stderr before surfacing', () => {
+  const detail = terminalProviderFailureDetail(
+    'failed at /Users/private/.config with ANTHROPIC_API_KEY=sk-ant-secret123',
+    '',
+    'Provider CLI failed'
+  );
+  assert.doesNotMatch(detail, /Users\/private|sk-ant-secret123/);
+  assert.match(detail, /REDACTED/);
+  assert.equal(terminalProviderFailureDetail('', '', 'Codex CLI failed'), 'Codex CLI failed');
+  assert.ok(terminalProviderFailureDetail('x'.repeat(1000), '', 'failed').length <= 500);
 });
 
 test('bounds and redacts unexpected provider health replies', () => {
