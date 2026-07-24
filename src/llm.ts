@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { config as loadEnv } from 'dotenv';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -17,6 +17,7 @@ const CODEX_PATH = process.env.CODEX_PATH || process.env.SPARK_CODEX_PATH || 'co
 const CLAUDE_PATH = process.env.CLAUDE_PATH || process.env.SPARK_CLAUDE_PATH || 'claude';
 const DEFAULT_AGENT_KNOWLEDGE_DIR = path.resolve(process.cwd(), 'agent-knowledge');
 const MAX_AGENT_KNOWLEDGE_CHARS = 18_000;
+const agentKnowledgeCache = new Map<string, { signature: string; content: string }>();
 
 interface OllamaResponse {
   model: string;
@@ -305,15 +306,34 @@ export function loadSparkAgentKnowledgeBase(env: NodeJS.ProcessEnv = process.env
   if (env.SPARK_AGENT_KNOWLEDGE_ENABLED === '0') return '';
   const root = env.SPARK_AGENT_KNOWLEDGE_DIR?.trim() || DEFAULT_AGENT_KNOWLEDGE_DIR;
   if (!existsSync(root)) return '';
+  const files = readdirSync(root).filter((file) => file.toLowerCase().endsWith('.md')).sort();
+  const readableFiles = files.flatMap((name) => {
+    try {
+      const stats = statSync(path.join(root, name));
+      return stats.isFile() ? [{ name, size: stats.size, mtimeMs: stats.mtimeMs }] : [];
+    } catch {
+      return [];
+    }
+  });
+  const signature = readableFiles.map(({ name, size, mtimeMs }) => `${name}:${size}:${mtimeMs}`).join('|');
+  const cached = agentKnowledgeCache.get(root);
+  if (cached?.signature === signature) return cached.content;
+
   const chunks: string[] = [];
-  for (const name of readdirSync(root).filter((file) => file.toLowerCase().endsWith('.md')).sort()) {
+  for (const { name } of readableFiles) {
     if (name.startsWith('.')) continue;
     const filePath = path.join(root, name);
-    const content = readFileSync(filePath, 'utf-8').trim();
+    let content = '';
+    try {
+      content = readFileSync(filePath, 'utf-8').trim();
+    } catch {
+      continue;
+    }
     if (!content) continue;
     chunks.push(`### ${name}\n${content}`);
   }
   const joined = chunks.join('\n\n').slice(0, MAX_AGENT_KNOWLEDGE_CHARS).trim();
+  agentKnowledgeCache.set(root, { signature, content: joined });
   return joined;
 }
 

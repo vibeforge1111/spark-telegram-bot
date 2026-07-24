@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   buildAnthropicSystemField,
   buildClarificationMicrocopyPrompt,
@@ -258,6 +261,24 @@ test('agent knowledge can be disabled for tests or constrained installs', () => 
   const knowledge = loadSparkAgentKnowledgeBase({ SPARK_AGENT_KNOWLEDGE_ENABLED: '0' });
 
   assert.equal(knowledge, '');
+});
+
+test('agent knowledge cache refreshes when Markdown sources change', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'spark-agent-knowledge-'));
+  const notePath = path.join(root, 'runtime.md');
+  try {
+    fs.writeFileSync(notePath, 'first runtime note');
+    const env = { SPARK_AGENT_KNOWLEDGE_DIR: root };
+    assert.match(loadSparkAgentKnowledgeBase(env), /first runtime note/);
+    assert.match(loadSparkAgentKnowledgeBase(env), /first runtime note/);
+
+    fs.writeFileSync(notePath, 'second runtime note with a different size');
+    const refreshed = loadSparkAgentKnowledgeBase(env);
+    assert.match(refreshed, /second runtime note/);
+    assert.doesNotMatch(refreshed, /first runtime note/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('system prompt includes memory and conversation context when provided', () => {
