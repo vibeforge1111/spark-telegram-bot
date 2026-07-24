@@ -528,6 +528,10 @@ function renderTelegramError(prefix: string, error: unknown): string {
   return `${prefix}: ${detail}`;
 }
 
+export function formatDiagnosticsAttachmentFallback(): string {
+  return 'I wrote the Markdown diagnostics note locally, but Telegram could not attach it here.';
+}
+
 async function runSparkCli(args: string[], timeoutMs = 30_000): Promise<string> {
   const resolvedCommand = resolveWindowsCommand(resolveSparkCliCommand());
   const [command, commandArgs] = process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolvedCommand)
@@ -11316,7 +11320,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
             });
           } catch (attachError) {
             console.warn('[Diagnostics] failed to attach markdown note:', attachError);
-            await ctx.reply(`I wrote the Markdown note, but could not attach it here:\n${scan.markdownPath}`);
+            await ctx.reply(formatDiagnosticsAttachmentFallback());
           }
         }
       } catch (error) {
