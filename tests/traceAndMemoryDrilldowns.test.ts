@@ -163,6 +163,8 @@ async function main(): Promise<void> {
 
     assert.match(renderTraceRepairSummary(trace), /spark os compile/);
     assert.match(renderMemoryMovementSummary(memory), /spark os compile/);
+    assert.match(renderMemoryMovementSummary(memory), /compiled Builder memory status/);
+    assert.match(renderMemoryMovementSummary(memory), /\/diagnose/);
   });
 }
 
