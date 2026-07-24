@@ -42,6 +42,7 @@ import {
   cleanupSlidingWindowRateLimit,
   shouldSendRateLimitNotice,
   slidingWindowRateLimitAllows,
+  telegramRateLimitIdentity,
   shouldAnswerAuthoritativeRuntimeStatus,
   shouldUsePendingClarificationForMessage
 } from '../src/index';
@@ -71,6 +72,12 @@ test('rate-limit notice is emitted once per cooldown', () => {
   assert.equal(shouldSendRateLimitNotice(notices, 7, 1_000, 30_000), true);
   assert.equal(shouldSendRateLimitNotice(notices, 7, 2_000, 30_000), false);
   assert.equal(shouldSendRateLimitNotice(notices, 7, 31_000, 30_000), true);
+});
+
+test('rate-limit identity cannot be bypassed by updates without a sender', () => {
+  assert.equal(telegramRateLimitIdentity({ from: { id: 42 }, chat: { id: -1001 } }), 42);
+  assert.equal(telegramRateLimitIdentity({ chat: { id: -1001 } }), -1001);
+  assert.equal(telegramRateLimitIdentity({}), 0);
 });
 
 test('unknown slash commands get one compact help hint', () => {

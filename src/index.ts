@@ -3433,6 +3433,14 @@ export function shouldSendRateLimitNotice(
   return true;
 }
 
+export function telegramRateLimitIdentity(ctx: { from?: { id?: unknown }; chat?: { id?: unknown } }): number {
+  const userId = ctx.from?.id;
+  if (typeof userId === 'number' && Number.isSafeInteger(userId) && userId > 0) return userId;
+  const chatId = ctx.chat?.id;
+  if (typeof chatId === 'number' && Number.isSafeInteger(chatId) && chatId !== 0) return -Math.abs(chatId);
+  return 0;
+}
+
 export function renderUnknownTelegramCommandReply(): string {
   return "I don't recognize that command. Try /help for the current command list.";
 }
@@ -4112,15 +4120,14 @@ bot.catch((err, ctx) => {
 
 // Rate limit middleware
 bot.use(async (ctx, next) => {
-  const userId = ctx.from?.id;
-  if (userId) {
-    const now = Date.now();
-    if (!slidingWindowRateLimitAllows(userRequestTimestamps, userId, now)) {
-      if (shouldSendRateLimitNotice(userLastRateNotice, userId, now)) {
-        await ctx.reply('Too many messages at once. I dropped this one; resend it in a moment.').catch(() => {});
-      }
-      return; // Rate limited
+  const identity = telegramRateLimitIdentity(ctx);
+  const now = Date.now();
+  if (!slidingWindowRateLimitAllows(userRequestTimestamps, identity, now)) {
+    if (shouldSendRateLimitNotice(userLastRateNotice, identity, now)) {
+      await ctx.reply('Too many messages at once. I dropped this one; resend it in a moment.')
+        .catch((error: unknown) => logTelegramReplyFailure('rate_limit_notice', error));
     }
+    return; // Rate limited
   }
   return next();
 });
