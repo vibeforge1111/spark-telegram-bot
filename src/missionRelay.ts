@@ -2201,15 +2201,29 @@ function pruneOldMissionLessonApprovals(pendingByUserId: Record<string, MissionL
   return next;
 }
 
-function readJsonBody(req: IncomingMessage): Promise<RelayWebhookPayload | null> {
+type RelayBodyOutcome =
+  | { kind: 'ok'; payload: RelayWebhookPayload }
+  | { kind: 'too_large' }
+  | { kind: 'invalid' };
+
+const RELAY_MAX_BODY_BYTES = 64 * 1024;
+
+export function readRelayJsonBody(req: IncomingMessage): Promise<RelayBodyOutcome> {
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
     let size = 0;
+    let settled = false;
+
+    const settle = (outcome: RelayBodyOutcome): void => {
+      if (settled) return;
+      settled = true;
+      resolve(outcome);
+    };
 
     req.on('data', (chunk: Buffer) => {
       size += chunk.length;
-      if (size > 64 * 1024) {
-        resolve(null);
+      if (size > RELAY_MAX_BODY_BYTES) {
+        settle({ kind: 'too_large' });
         req.destroy();
         return;
       }
@@ -2219,13 +2233,13 @@ function readJsonBody(req: IncomingMessage): Promise<RelayWebhookPayload | null>
     req.on('end', () => {
       try {
         const parsed = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as RelayWebhookPayload;
-        resolve(parsed);
+        settle({ kind: 'ok', payload: parsed });
       } catch {
-        resolve(null);
+        settle({ kind: 'invalid' });
       }
     });
 
-    req.on('error', () => resolve(null));
+    req.on('error', () => settle({ kind: 'invalid' }));
   });
 }
 
@@ -2344,7 +2358,17 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 			}
 		}
 
-		const payload = await readJsonBody(req);
+    const bodyOutcome = await readRelayJsonBody(req);
+    if (bodyOutcome.kind === 'too_large') {
+      writeJson(res, 413, {
+        ok: false,
+        error: 'payload_too_large',
+        message: 'Spawner relay event exceeded the Telegram relay body limit.',
+        max_bytes: RELAY_MAX_BODY_BYTES,
+      });
+      return;
+    }
+    const payload = bodyOutcome.kind === 'ok' ? bodyOutcome.payload : null;
     const event = payload?.event;
     if (!payload || !shouldDeliverEvent(event)) {
       writeJson(res, 400, { ok: false, error: 'invalid_event' });

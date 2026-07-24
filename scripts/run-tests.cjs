@@ -82,6 +82,7 @@ const tests = [
   'tests/missionRelayFormatting.test.ts',
   'tests/missionRelayCompletionDedupe.test.ts',
   'tests/missionHandoffOutcome.test.ts',
+  'tests/missionRelayBodyBoundary.test.ts',
   'tests/missionRelayHealth.test.ts',
   'tests/noEditProbeStore.test.ts',
   'tests/outboundSanitize.test.ts',
