@@ -2057,8 +2057,27 @@ async function run(): Promise<void> {
       requestId: 'bounded-error-test'
     });
 
-    assert.deepEqual(board, { success: false, message: 'Mission board is unavailable' });
+    assert.deepEqual(board, {
+      success: false,
+      message: 'Mission board is unavailable right now. Run /diagnose to check the local Spawner service.'
+    });
     assert.deepEqual(runGoal, { success: false, error: 'Spark run bridge failed' });
+  });
+
+  await test('board read failures never expose raw paths or credentials', async () => {
+    restoreAxios();
+    (axios as any).get = async () => {
+      const error: any = new Error('failed at C:\\Users\\Private\\board.json with token sk-private-token-value');
+      error.response = { data: { error: error.message } };
+      throw error;
+    };
+
+    const result = await spawner.latestProviderSummary();
+
+    assert.equal(result.success, false);
+    assert.match(result.message, /Latest provider summary is unavailable right now/);
+    assert.match(result.message, /\/diagnose/);
+    assert.doesNotMatch(result.message, /C:\\Users|sk-private|board\.json/);
   });
 }
 

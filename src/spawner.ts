@@ -422,6 +422,10 @@ function spawnerErrorMessage(error: unknown, fallback = 'Spawner request failed'
   return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : fallback;
 }
 
+export function spawnerBoardUnavailableMessage(view = 'Mission board'): string {
+  return `${view} is unavailable right now. Run /diagnose to check the local Spawner service.`;
+}
+
 export async function postLocalServiceWithRetry<T = any>(
   url: string,
   body: unknown,
@@ -2295,7 +2299,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: spawnerErrorMessage(err, 'Mission board is unavailable')
+        message: spawnerBoardUnavailableMessage('Mission board')
       };
     }
   },
@@ -2317,7 +2321,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: spawnerErrorMessage(err, 'Latest Kanban summary is unavailable')
+        message: spawnerBoardUnavailableMessage('Latest Kanban summary')
       };
     }
   },
@@ -2331,7 +2335,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: spawnerErrorMessage(err, 'Active mission summary is unavailable')
+        message: spawnerBoardUnavailableMessage('Active mission summary')
       };
     }
   },
@@ -2353,7 +2357,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: spawnerErrorMessage(err, 'Latest provider summary is unavailable')
+        message: spawnerBoardUnavailableMessage('Latest provider summary')
       };
     }
   },
@@ -2378,7 +2382,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: spawnerErrorMessage(err, 'Latest failed-provider summary is unavailable')
+        message: spawnerBoardUnavailableMessage('Latest failed-provider summary')
       };
     }
   },
@@ -2404,7 +2408,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: spawnerErrorMessage(err, 'Latest mission summary is unavailable')
+        message: spawnerBoardUnavailableMessage('Latest mission summary')
       };
     }
   },
@@ -2426,7 +2430,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: spawnerErrorMessage(err, 'Latest failure summary is unavailable')
+        message: spawnerBoardUnavailableMessage('Latest failure summary')
       };
     }
   },
@@ -2473,7 +2477,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: spawnerErrorMessage(err, 'Latest project preview is unavailable')
+        message: spawnerBoardUnavailableMessage('Latest project preview')
       };
     }
   }
