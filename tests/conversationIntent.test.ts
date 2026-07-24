@@ -9,6 +9,7 @@ import {
   buildExternalResearchGoal,
   buildLocalSparkServiceClarificationReply,
   buildLocalSparkServiceReply,
+  buildRuntimeOutputArtifactReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
   extractAgentDoctrinePreference,
@@ -66,6 +67,7 @@ import {
   isXPostReviewFromLinksRequest,
   isProjectImprovementRequest,
   isLocalSparkServiceRequest,
+  isRuntimeOutputArtifactRequest,
   isMissionExecutionConfirmation,
   isModelSwitchGateExplanationRequest,
   isNoEditSpawnerProbeExplanationRequest,
@@ -298,6 +300,16 @@ test('recognizes local Spark service URL requests', () => {
   );
   assert.match(buildLocalSparkServiceReply(true), /http:\/\/127\.0\.0\.1:3333/);
   assert.match(buildLocalSparkServiceReply(false), /spark start spawner-ui/);
+});
+
+test('keeps stdout and log questions out of the Mission Control link fallback', () => {
+  const prompt = 'show the Codex stdout/log for this run';
+  assert.equal(isRuntimeOutputArtifactRequest(prompt), true);
+  assert.equal(isLocalSparkServiceRequest(prompt, 'Completed Spawner mission spark-123.'), false);
+  const reply = buildRuntimeOutputArtifactReply();
+  assert.match(reply, /not the run’s stdout/);
+  assert.match(reply, /spark logs spark-telegram-bot/);
+  assert.doesNotMatch(reply, /~\/|\/Users\/|C:\\/);
 });
 
 test('does not confuse mission-control ideation with opening the local UI', () => {

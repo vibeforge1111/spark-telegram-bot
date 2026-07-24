@@ -1324,6 +1324,9 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
   if (shouldPreferConversationalIdeation(text)) {
     return false;
   }
+  if (isRuntimeOutputArtifactRequest(text)) {
+    return false;
+  }
   if (isProjectLocalhostRequest(normalized)) {
     return false;
   }
@@ -1354,6 +1357,27 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
       /\b(?:open|show|link|where|browser)\b/.test(normalized)
     )
   );
+}
+
+export function isRuntimeOutputArtifactRequest(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized || parseBuildIntent(normalized)) return false;
+  const asksToShow =
+    /\b(?:show|send|give|paste|print|display|fetch|get|share|provide|open)\b/.test(normalized) ||
+    /\bwhat\s+(?:did|does|is|was)\b.{0,40}\b(?:output|log|stdout|stderr)\b/.test(normalized);
+  const runtimeArtifact =
+    /\b(?:stdout|stderr|std\s*out|std\s*err|logs?|output)\b/.test(normalized) &&
+    /\b(?:codex|run|mission|spawner|telegram|this|current|latest)\b/.test(normalized);
+  return asksToShow && runtimeArtifact;
+}
+
+export function buildRuntimeOutputArtifactReply(): string {
+  return [
+    'Mission Control can help inspect a run, but it is not the run’s stdout or service log.',
+    '',
+    'For service output, use `spark logs spark-telegram-bot --lines 80` or `spark logs spawner-ui --lines 80`.',
+    'For one mission, send its mission ID and ask for the execution or proof view.'
+  ].join('\n');
 }
 
 export function buildLocalSparkServiceClarificationReply(): string {

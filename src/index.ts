@@ -260,6 +260,7 @@ import {
   buildIdeationSystemHint, buildContextualImprovementGoal,
   buildProjectImprovementGoal, buildDiagnosticFollowupTestReply,
   buildExternalResearchGoal, buildLocalSparkServiceClarificationReply, buildLocalSparkServiceReply,
+  buildRuntimeOutputArtifactReply,
   buildMemoryBridgeUnavailableReply, buildRecentBuildContextReply,
   extractSparkSelfImprovementGoal,
   extractSparkWikiAnswerQuestion,
@@ -310,6 +311,7 @@ import {
   isXContentCredentialBoundaryQuestion,
   isXPostReviewFromLinksRequest,
   isLocalSparkServiceRequest,
+  isRuntimeOutputArtifactRequest,
   isLowInformationLlmReply,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
@@ -11142,6 +11144,12 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
               ? await spawner.latestFailureSummary()
           : await spawner.board();
       await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
+      return;
+    }
+
+    if (isRuntimeOutputArtifactRequest(text) && routeEvidenceAllowed({ route: 'spawner.local_service', text, profile: activeTelegramProfile() })) {
+      await conversation.remember(user, text).catch(() => {});
+      await ctx.reply(buildRuntimeOutputArtifactReply());
       return;
     }
 
