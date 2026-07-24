@@ -1795,6 +1795,21 @@ export function isSparkSetupHealthCheckRequest(text: string): boolean {
   return setup && health && !unrelatedBuild;
 }
 
+export function isSparkMemoryOverviewQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  return (
+    /\b(?:explain|describe|how|what)\b.{0,50}\b(?:spark\s+)?memor(?:y|ies)\b/.test(normalized)
+    && !/\b(?:build|create|change|delete|forget|save|remember)\b/.test(normalized)
+  );
+}
+
+export function renderSparkMemoryOverviewReply(): string {
+  return [
+    'Spark memory keeps useful user and project context behind the conversation, with Builder as the durable memory path.',
+    'Use /remember <text> to save something, /recall <topic> to retrieve it, and /about to see what Spark currently knows about you.'
+  ].join('\n\n');
+}
+
 function compactRuntimeOutput(output: string, maxLines = 18): string {
   return output
     .split(/\r?\n/)
@@ -7433,6 +7448,14 @@ for (const variant of RUN_VARIANTS) {
       return ctx.reply(`Usage: ${variant.usage}`);
     }
     const providers = variant.name === 'run' ? [missionDefaultProvider()] : variant.providers;
+    if (variant.name === 'run' && isSparkCommandDiscoveryQuestion(goal)) {
+      await ctx.reply(renderEssentialSparkCommands({ admin: true }));
+      return;
+    }
+    if (variant.name === 'run' && isSparkMemoryOverviewQuestion(goal)) {
+      await ctx.reply(renderSparkMemoryOverviewReply());
+      return;
+    }
     if (variant.name === 'run' && isSparkSetupHealthCheckRequest(goal)) {
       await safeSendChatAction(ctx, 'typing');
       await ctx.reply(await renderAuthoritativeSparkLiveStateAnswer({ rawDetails: false }));

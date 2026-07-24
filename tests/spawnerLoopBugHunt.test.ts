@@ -28,12 +28,14 @@ import {
   isPendingClarificationAlternativeRequest,
   isPendingClarificationFollowup,
   isRouteConfidenceGateUnsupportedError,
+  isSparkMemoryOverviewQuestion,
   isSparkSetupHealthCheckRequest,
   isSparkVersionCheckQuestion,
   logInterruptedTaskPersistenceFailure,
   latestCanvasPlanFromLoadState,
   routeConfidenceGateCompatibilityAllows,
   renderUnknownTelegramCommandReply,
+  renderSparkMemoryOverviewReply,
   renderSparkVersionCheckReply,
   cleanupSlidingWindowRateLimit,
   shouldSendRateLimitNotice,
@@ -561,6 +563,15 @@ test('bug hunt: /run setup checks stay on Spark health instead of project scanni
   assert.equal(isSparkSetupHealthCheckRequest('check if there are any errors in my setup'), true);
   assert.equal(isSparkSetupHealthCheckRequest('verify the Spark installation is healthy'), true);
   assert.equal(isSparkSetupHealthCheckRequest('build a setup checker script for my project'), false);
+});
+
+test('bug hunt: informational /run questions stay in Spark user context', () => {
+  assert.equal(isSparkMemoryOverviewQuestion('explain how memory works in Spark'), true);
+  assert.equal(isSparkMemoryOverviewQuestion('build a new memory service'), false);
+  const reply = renderSparkMemoryOverviewReply();
+  assert.match(reply, /Builder.*durable memory path/i);
+  assert.match(reply, /\/remember/);
+  assert.doesNotMatch(reply, /npm run|Spawner UI codebase|CLAUDE\.md/i);
 });
 
 test('bug hunt: latest canvas plan can be restored from persisted Spawner state after restart', () => {
