@@ -99,6 +99,22 @@ test('runtime freshness reports missing source as environment failure', () => {
   });
 });
 
+test('runtime freshness treats unreadable path types as missing evidence', () => {
+  withTempRoots((sourceRoot, runtimeRoot) => {
+    fs.mkdirSync(path.join(sourceRoot, 'src', 'index.ts'), { recursive: true });
+    writeFile(runtimeRoot, 'src/index.ts', 'compiled runtime\n');
+
+    const result = checkRuntimeFreshness({
+      sourceRoot,
+      runtimeRoot,
+      paths: ['src/index.ts']
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.paths[0].status, 'missing_source');
+  });
+});
+
 test('default runtime freshness paths cover conversational routing and sync guard files', () => {
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('spark.toml'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/builderBridge.ts'));
