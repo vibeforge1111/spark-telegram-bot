@@ -3320,9 +3320,11 @@ bot.use(async (ctx, next) => {
 });
 
 const userRequestTimestamps = new Map<number, number[]>();
+const userLastRateNotice = new Map<number, number>();
 const RATE_LIMIT_WINDOW_MS = 1000;
 const RATE_LIMIT_MAX_REQUESTS = 3;
 const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60_000;
+const RATE_LIMIT_NOTICE_COOLDOWN_MS = 30_000;
 
 export function slidingWindowRateLimitAllows(
   requestsByUser: Map<number, number[]>,
@@ -3356,8 +3358,28 @@ export function cleanupSlidingWindowRateLimit(
   }
 }
 
+export function shouldSendRateLimitNotice(
+  lastNoticeByUser: Map<number, number>,
+  userId: number,
+  nowMs: number,
+  cooldownMs = RATE_LIMIT_NOTICE_COOLDOWN_MS
+): boolean {
+  const lastNotice = lastNoticeByUser.get(userId);
+  if (lastNotice !== undefined && nowMs - lastNotice < cooldownMs) return false;
+  lastNoticeByUser.set(userId, nowMs);
+  return true;
+}
+
+export function renderUnknownTelegramCommandReply(): string {
+  return "I don't recognize that command. Try /help for the current command list.";
+}
+
 const rateLimitCleanupTimer = setInterval(() => {
-  cleanupSlidingWindowRateLimit(userRequestTimestamps, Date.now());
+  const now = Date.now();
+  cleanupSlidingWindowRateLimit(userRequestTimestamps, now);
+  for (const [userId, lastNotice] of userLastRateNotice) {
+    if (now - lastNotice >= RATE_LIMIT_NOTICE_COOLDOWN_MS) userLastRateNotice.delete(userId);
+  }
 }, RATE_LIMIT_CLEANUP_INTERVAL_MS);
 rateLimitCleanupTimer.unref?.();
 
@@ -4017,7 +4039,11 @@ bot.catch((err, ctx) => {
 bot.use(async (ctx, next) => {
   const userId = ctx.from?.id;
   if (userId) {
-    if (!slidingWindowRateLimitAllows(userRequestTimestamps, userId, Date.now())) {
+    const now = Date.now();
+    if (!slidingWindowRateLimitAllows(userRequestTimestamps, userId, now)) {
+      if (shouldSendRateLimitNotice(userLastRateNotice, userId, now)) {
+        await ctx.reply('Too many messages at once. I dropped this one; resend it in a moment.').catch(() => {});
+      }
       return; // Rate limited
     }
   }
@@ -9454,6 +9480,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
   const text = ctx.message.text;
 
   if (text.startsWith('/')) {
+    await ctx.reply(renderUnknownTelegramCommandReply()).catch(() => {});
     return;
   }
   if (!isAddressedGroupText(ctx, text)) {

@@ -30,7 +30,9 @@ import {
   isRouteConfidenceGateUnsupportedError,
   latestCanvasPlanFromLoadState,
   routeConfidenceGateCompatibilityAllows,
+  renderUnknownTelegramCommandReply,
   cleanupSlidingWindowRateLimit,
+  shouldSendRateLimitNotice,
   slidingWindowRateLimitAllows,
   shouldAnswerAuthoritativeRuntimeStatus,
   shouldUsePendingClarificationForMessage
@@ -55,6 +57,20 @@ function assertBuild(prompt: string, expectedProjectName: string): void {
   assert.ok(intent, `Expected build route for:\n${prompt}`);
   assert.equal(intent.projectName, expectedProjectName);
 }
+
+test('rate-limit notice is emitted once per cooldown', () => {
+  const notices = new Map<number, number>();
+  assert.equal(shouldSendRateLimitNotice(notices, 7, 1_000, 30_000), true);
+  assert.equal(shouldSendRateLimitNotice(notices, 7, 2_000, 30_000), false);
+  assert.equal(shouldSendRateLimitNotice(notices, 7, 31_000, 30_000), true);
+});
+
+test('unknown slash commands get one compact help hint', () => {
+  const reply = renderUnknownTelegramCommandReply();
+  assert.match(reply, /don't recognize/i);
+  assert.match(reply, /\/help/);
+  assert.equal(reply.split('\n').length, 1);
+});
 
 test('bug hunt: strategy, QA, and route-meta conversations do not hijack into builds', () => {
   [
