@@ -6261,11 +6261,23 @@ export function formatCanvasReadySummary(args: {
   const buildStepLine = taskCount > 0
     ? `Spark queued ${taskCount} build ${taskCount === 1 ? 'step' : 'steps'} and is moving now.`
     : 'Spark is moving into the build now.';
+  const localOnly = isLocalCanvasUrl(args.readyCanvasUrl);
   return telegramBlocks(
     `Canvas is ready for ${args.projectName}.`,
     buildStepLine,
-    ['Canvas', `• ${args.readyCanvasUrl}`].join('\n')
+    localOnly
+      ? `${args.readyCanvasUrl}\nThat link only opens on the machine running Spark. Set SPAWNER_UI_PUBLIC_URL when you need to open it from another device.`
+      : ['Canvas', `• ${args.readyCanvasUrl}`].join('\n')
   );
+}
+
+export function isLocalCanvasUrl(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+  } catch {
+    return false;
+  }
 }
 
 function taskTitleFromAnalysisTask(task: any): string | null {
