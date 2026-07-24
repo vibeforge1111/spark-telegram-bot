@@ -72,6 +72,7 @@ import {
   isRawLogSafetyQuestion,
   isLocalSparkServiceRequest,
   isRuntimeOutputArtifactRequest,
+  isRuntimeReadinessComparisonQuestion,
   isMissionExecutionConfirmation,
   isMarketChartProofBoundaryQuestion,
   isModelSwitchGateExplanationRequest,
@@ -955,6 +956,11 @@ test('keeps private and ambiguous repository access credential-safe', () => {
   const reply = renderPrivateOrAmbiguousRepoReply();
   assert.match(reply, /never paste a PAT or deploy key/i);
   assert.doesNotMatch(reply, /proof packet|Spark Compete/i);
+});
+
+test('recognizes Telegram versus CLI readiness comparisons without stealing builds', () => {
+  assert.equal(isRuntimeReadinessComparisonQuestion('Compare Telegram readiness with the local CLI readiness'), true);
+  assert.equal(isRuntimeReadinessComparisonQuestion('Build a CLI readiness dashboard for Telegram'), false);
 });
 
 test('builds recent-turn evidence for contextual Memory Doctor requests', () => {

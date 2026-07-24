@@ -138,6 +138,15 @@ export function renderPrivateOrAmbiguousRepoReply(): string {
   ].join(' ');
 }
 
+export function isRuntimeReadinessComparisonQuestion(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized || parseBuildIntent(normalized)) return false;
+  const comparison = /\b(?:compare|difference|false[-\s]*ready|readiness)\b/.test(normalized);
+  const telegram = /\btelegram\b/.test(normalized);
+  const cli = /\b(?:cli|terminal|command\s+line|spark\s+status)\b/.test(normalized);
+  return comparison && telegram && cli;
+}
+
 const HIGH_AGENCY_WORD_PATTERN = /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|remember|draft|canvas|browser|computer-use|computer\s+use|restart)\b/;
 
 export function isActionWordMetaDiscussion(text: string): boolean {

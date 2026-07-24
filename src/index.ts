@@ -299,6 +299,7 @@ import {
   isProtectedMissionResumePronounIntent,
   isPrivateOrAmbiguousRepoQuestion,
   isRawLogSafetyQuestion,
+  isRuntimeReadinessComparisonQuestion,
   isSparkChipStatusOverclaimQuestion,
   isSparkThreadQaGoldenCaseRequest,
   isSparkUpdateConsequenceQuestion,
@@ -9579,6 +9580,19 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
       reply = 'I could not verify the Spark CLI version from this runtime. Run `spark --version` locally if you need the terminal-specific result.';
     }
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark.version_check', 'spark-telegram-bot', 'spark.version_check');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+  if (isRuntimeReadinessComparisonQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    const live = await renderAuthoritativeSparkLiveStateAnswer();
+    const reply = [
+      live,
+      '',
+      'That proves what this Telegram runner can see. It does not prove another terminal has refreshed PATH or the same Spark executable.'
+    ].join('\n');
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark.runtime_readiness_comparison', 'spark-telegram-bot', 'spark.live_status');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
