@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   defaultLocalWorkspaceRoots,
+  defaultOptionalLocalWorkspaceRoots,
   isLocalWorkspaceInspectionOnlyRequest,
   isLocalWorkspaceInspectionRequest,
   renderLocalWorkspaceInspectionReply,
@@ -37,6 +38,19 @@ async function main(): Promise<void> {
       );
       assert.equal(existsSync(root), true);
     }
+  });
+
+  await test('discovers conventional project roots portably when they exist', () => {
+    const home = path.resolve('/home/example');
+    const existing = new Set([
+      path.join(home, 'Documents'),
+      path.join(home, 'projects'),
+      path.join(home, 'Projects')
+    ]);
+    assert.deepEqual(
+      defaultOptionalLocalWorkspaceRoots(home, (candidate) => existing.has(candidate)),
+      [...existing]
+    );
   });
 
   await test('recognizes local workspace and desktop inspection requests', () => {

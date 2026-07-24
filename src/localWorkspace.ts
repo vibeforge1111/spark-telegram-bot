@@ -56,6 +56,15 @@ export function isLocalWorkspaceInspectionOnlyRequest(text: string): boolean {
   return /^\/(?:workspaces?|local-workspaces?|folders?)\b/.test(normalized) && !parseBuildIntent(text);
 }
 
+export function defaultOptionalLocalWorkspaceRoots(
+  home = os.homedir(),
+  exists: (candidate: string) => boolean = existsSync
+): string[] {
+  return ['Desktop', 'Documents', 'projects', 'Projects']
+    .map((name) => path.join(home, name))
+    .filter((candidate) => exists(candidate));
+}
+
 export function defaultLocalWorkspaceRoots(env: NodeJS.ProcessEnv = process.env): string[] {
   const configured = env.SPARK_LOCAL_WORKSPACE_ROOTS?.trim();
   if (configured) {
@@ -67,10 +76,7 @@ export function defaultLocalWorkspaceRoots(env: NodeJS.ProcessEnv = process.env)
 
   const home = os.homedir();
   const sparkHome = env.SPARK_HOME?.trim() || path.join(home, '.spark');
-  const optionalRoots = [
-    path.join(home, 'Desktop'),
-    path.join(home, 'Documents')
-  ].filter((candidate) => existsSync(candidate));
+  const optionalRoots = defaultOptionalLocalWorkspaceRoots(home);
   return [...optionalRoots, path.join(sparkHome, 'workspaces')];
 }
 
