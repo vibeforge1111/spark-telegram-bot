@@ -540,6 +540,11 @@ async function safeSendChatAction(ctx: any, action: 'typing'): Promise<void> {
   }
 }
 
+async function rememberAssistantReplyFromContext(ctx: any, reply: string): Promise<void> {
+  if (!ctx?.from) return;
+  await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+}
+
 function renderTelegramError(prefix: string, error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error || 'unknown error');
   const detail = redactText(raw).trim() || 'unknown error';
@@ -4100,7 +4105,7 @@ export async function handleRecallCommand(ctx: any): Promise<void> {
     const localRecall = await buildLocalRecallReply(ctx.from, query);
     if (localRecall) {
       await ctx.reply(localRecall);
-      await conversation.rememberAssistantReply(ctx.from, localRecall).catch(() => {});
+      await rememberAssistantReplyFromContext(ctx, localRecall);
       return;
     }
     if (await replyViaBuilder(ctx, `What do you remember about ${query}?`)) {
@@ -5012,7 +5017,7 @@ async function handleLocalWorkspaceInventory(ctx: any): Promise<void> {
     const summary = await summarizeLocalWorkspaces();
     const reply = renderLocalWorkspaceInspectionReply(summary);
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+    await rememberAssistantReplyFromContext(ctx, reply);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     await ctx.reply(`Local workspace inspection failed: ${detail}`);
@@ -6155,7 +6160,7 @@ async function handlePendingDomainChipBuild(ctx: any, text: string, envelope?: T
     }).catch(() => {});
   }
   await ctx.reply(reply);
-  await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+  await rememberAssistantReplyFromContext(ctx, reply);
   return true;
 }
 
@@ -6224,7 +6229,7 @@ async function handlePendingCreatorMissionControl(ctx: any, text: string, envelo
     await conversation.remember(ctx.from, text).catch(() => {});
     const reply = 'That Loop Engineering follow-up expired, so I did not start anything. Send the Domain Chip or Loop Engineering request again and I will stage a fresh private path first.';
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+    await rememberAssistantReplyFromContext(ctx, reply);
     return true;
   }
 
@@ -9100,7 +9105,7 @@ bot.command('access', async (ctx) => {
   if (next === 'operator' && current === 'operator' && !accessLevelChangeConfirmed(raw)) {
     if (await level5FullAccessProofAvailable()) {
       const reply = await renderLevel5ActivationAnswer(ctx.chat.id);
-      await ctx.reply(reply); await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {}); return;
+      await ctx.reply(reply); await rememberAssistantReplyFromContext(ctx, reply); return;
     }
   }
 
@@ -9182,7 +9187,7 @@ async function applySparkAccessProfileChange(ctx: any, next: SparkAccessProfile)
     'I lowered this Telegram chat setting. The Level 5 service lane may still be enabled underneath until an interactive terminal runs `spark access disable-level5` and Spark Live restarts.'
   ].filter(Boolean).join('\n') : baseReply;
   await ctx.reply(reply, buildSparkAccessChangeKeyboard(next));
-  await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+  await rememberAssistantReplyFromContext(ctx, reply);
   return { status: 'success', summary: `Access profile changed to ${next}.` };
 }
 
@@ -9214,7 +9219,7 @@ async function prepareLevel5AndApplyAccess(ctx: any): Promise<TelegramAuthorityE
         formatSparkAccessAutomaticRestartNotice('level5_enable')
       ].join('\n');
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+      await rememberAssistantReplyFromContext(ctx, reply);
       scheduleSparkRestartAfterAccessChange();
       return { status: 'partial', summary: 'Access Level 5 guardrails were prepared and Spark restart was scheduled.' };
     }
@@ -9236,7 +9241,7 @@ async function prepareLevel5AndApplyAccess(ctx: any): Promise<TelegramAuthorityE
       await renderSparkAccessChangeReply('operator'),
     ].join('\n');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+    await rememberAssistantReplyFromContext(ctx, reply);
     return {
       status: 'success',
       summary: 'Access profile changed to operator.'
@@ -9293,7 +9298,7 @@ async function handleSparkAccessAction(
       ? [result.reply, '', formatSparkAccessAutomaticRestartNotice(actionId)].join('\n')
       : result.reply;
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+    await rememberAssistantReplyFromContext(ctx, reply);
     if (result.needsSparkRestart) {
       scheduleSparkRestartAfterAccessChange();
     }
@@ -9359,7 +9364,7 @@ async function handleAccessChangeRequest(ctx: any, raw: string): Promise<boolean
   if (next === 'operator' && current === 'operator' && !accessLevelChangeConfirmed(raw)) {
     if (await level5FullAccessProofAvailable()) {
       const reply = await renderLevel5ActivationAnswer(ctx.chat.id);
-      await ctx.reply(reply); await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {}); return true;
+      await ctx.reply(reply); await rememberAssistantReplyFromContext(ctx, reply); return true;
     }
   }
 
