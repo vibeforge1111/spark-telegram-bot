@@ -14,7 +14,15 @@ function readArg(name) {
 
 function loadEnvFile(filePath) {
   if (!filePath) return;
-  const text = readFileSync(filePath, "utf8");
+  let text;
+  try {
+    text = readFileSync(filePath, "utf8");
+  } catch (error) {
+    const code = error && error.code ? error.code : "read failed";
+    const reason = code === "ENOENT" ? "file not found" : code;
+    console.error(`FAIL --env-file: ${filePath}: ${reason}`);
+    process.exit(2);
+  }
   for (const line of text.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
