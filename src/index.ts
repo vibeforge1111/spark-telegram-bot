@@ -285,6 +285,7 @@ import {
   isExplicitContextualBuildRequest,
   isGlobalAgentDoctrineRequest,
   isMissionRoutingFailureClassQuestion,
+  isMemoryVoiceStateQuestion,
   isModelSwitchGateExplanationRequest,
   isNoEditSpawnerProbeExplanationRequest,
   isNoExecutionExplanationPrompt,
@@ -318,6 +319,7 @@ import {
   renderChatRuntimeFailureReply,
   renderAccessProductRuleReply,
   renderMissionRoutingFailureClassReply,
+  renderMemoryVoiceStateReply,
   renderModelSwitchGateExplanationReply,
   renderNoEditSpawnerProbeExplanationReply,
   renderPlainChatAnswerEditingReply,
@@ -9647,6 +9649,27 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
       action: 'plain_chat.safety_guidance',
       signal: 'suspicious_proof_file_question'
     }), 'conversation.proof_file_safety', 'spark-telegram-bot', 'plain_chat.safety_guidance');
+    await ctx.reply(reply, outboundTraceExtra(traceContext));
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isMemoryVoiceStateQuestion(text)) {
+    const reply = renderMemoryVoiceStateReply();
+    await conversation.remember(user, text).catch(() => {});
+    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, {
+      route: 'conversation.memory_voice_state',
+      intentKind: 'conversation.memory_voice_state',
+      command: 'telegram_memory_voice_state',
+      reasonSummary: 'Telegram explained the memory and voice proof boundary; it did not launch a mission or expose private evidence.'
+    });
+    setTurnOutboundTraceContext(ctx, traceContext);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'conversation.memory_voice_state',
+      owner: 'spark-telegram-bot',
+      action: 'plain_chat.state_boundary',
+      signal: 'memory_voice_state_question'
+    }), 'conversation.memory_voice_state', 'spark-telegram-bot', 'plain_chat.state_boundary');
     await ctx.reply(reply, outboundTraceExtra(traceContext));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;

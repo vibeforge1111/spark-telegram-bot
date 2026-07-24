@@ -50,9 +50,11 @@ import {
   isSparkUpdateConsequenceQuestion,
   isSparkUpdateGuidanceQuestion,
   isSuspiciousProofFileQuestion,
+  isMemoryVoiceStateQuestion,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkUpdateGuidanceReply,
   renderSuspiciousProofFileReply,
+  renderMemoryVoiceStateReply,
   renderAccessProductRuleReply,
   renderMissionRoutingFailureClassReply,
   renderModelSwitchGateExplanationReply,
@@ -451,6 +453,17 @@ test('keeps suspicious proof files on a no-download safety route', () => {
   assert.match(reply, /redacted screenshot/);
   assert.match(reply, /isolated environment/);
   assert.doesNotMatch(reply, /open it|download it first/i);
+});
+
+test('keeps combined memory and voice readiness questions in chat', () => {
+  const prompt = 'Show me the memory-quality state and voice-system state. Separate readiness, evidence, unknowns, and the safe next check. Do not start a mission.';
+  assert.equal(isMemoryVoiceStateQuestion(prompt), true);
+  assert.equal(isSparkWorkflowBugHuntRequest(prompt), false);
+
+  const reply = renderMemoryVoiceStateReply();
+  assert.match(reply, /Memory and voice aren’t proven healthy/);
+  assert.match(reply, /supervised voice and recall smoke cases/);
+  assert.doesNotMatch(reply, /transcript body|chat ID:/i);
 });
 
 test('recognizes H70 Thread QA golden-case requests as conversation fixtures', () => {

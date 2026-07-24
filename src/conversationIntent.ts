@@ -1915,6 +1915,32 @@ export function renderSuspiciousProofFileReply(): string {
   ].join('\n');
 }
 
+export function isMemoryVoiceStateQuestion(text: string): boolean {
+  const normalized = text.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized)) return false;
+  const asksState = /\b(?:show|summari[sz]e|report|state|status|readiness|evidence|unknowns?)\b/.test(normalized);
+  return asksState &&
+    /\bmemory[-\s]*(?:quality|state|readiness)\b/.test(normalized) &&
+    /\bvoice[-\s]*(?:system|state|readiness|transcript|stt|speech[-\s]*to[-\s]*text)\b/.test(normalized);
+}
+
+export function renderMemoryVoiceStateReply(): string {
+  return [
+    'Memory and voice aren’t proven healthy from this chat turn alone.',
+    '',
+    'Readiness',
+    '- Memory needs a fresh source-aware recall check.',
+    '- Voice needs both a short note understood and an audio reply delivered in Telegram.',
+    '',
+    'Evidence and unknowns',
+    '- No raw memory, transcript, token, chat ID, log, or private path is needed.',
+    '- Until those two focused checks pass, current end-to-end readiness is unknown.',
+    '',
+    'Safe next check',
+    '- Run `/diagnose`, then use the supervised voice and recall smoke cases in the approved Telegram QA window.'
+  ].join('\n');
+}
+
 export function isNoExecutionExplanationPrompt(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!normalized || parseBuildIntent(normalized) || !isNoExecutionBoundary(normalized)) {
