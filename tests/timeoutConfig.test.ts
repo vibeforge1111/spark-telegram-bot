@@ -42,6 +42,7 @@ test('cold context bridge defaults above live memory startup latency', () => {
 });
 
 test('self-awareness and wiki bridges default above slow live wiki refresh latency', () => {
+  assert.equal(DEFAULT_SELF_BRIDGE_TIMEOUT_MS, 180000);
   assert.equal(selfAwarenessBridgeTimeoutMs({}), DEFAULT_SELF_BRIDGE_TIMEOUT_MS);
   assert.equal(wikiBridgeTimeoutMs({}), DEFAULT_WIKI_BRIDGE_TIMEOUT_MS);
   assert.equal(selfAwarenessBridgeTimeoutMs({}, 5000), 5000);

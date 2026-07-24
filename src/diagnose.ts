@@ -255,6 +255,12 @@ async function fetchProviders(): Promise<{ ok: boolean; status?: number; err?: s
   }
 }
 
+export function providerPingPolling(providerId: string): { maxPolls: number; intervalMs: number } {
+  return ['ollama', 'lmstudio'].includes(providerId)
+    ? { maxPolls: 60, intervalMs: 3000 }
+    : { maxPolls: 25, intervalMs: 2000 };
+}
+
 async function pingProvider(providerId: string): Promise<PingResult> {
   const started = Date.now();
   try {
@@ -276,8 +282,9 @@ async function pingProvider(providerId: string): Promise<PingResult> {
       return { providerId, ok: false, error: 'no missionId' };
     }
 
-    for (let i = 0; i < 25; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    const polling = providerPingPolling(providerId);
+    for (let i = 0; i < polling.maxPolls; i++) {
+      await new Promise((resolve) => setTimeout(resolve, polling.intervalMs));
       try {
         const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/results`, {
           ...spawnerAxiosOptions(3000),

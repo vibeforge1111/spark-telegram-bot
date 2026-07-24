@@ -8,6 +8,7 @@ import {
   describeSpawnerPublicLinkHealth,
   getRelayIdentityFromEnv,
   inferDiagnoseLikelyIssue,
+  providerPingPolling,
   readableLocalServiceUrl,
   resolveDiagnoseRouteProviders,
   selectPingProviderIds,
@@ -109,6 +110,12 @@ test('pings selected Spawner route providers only', () => {
   ];
 
   assert.deepEqual(selectPingProviderIds(providers, ['zai']), ['zai']);
+});
+
+test('gives local provider pings enough time to complete without slowing hosted checks', () => {
+  assert.deepEqual(providerPingPolling('ollama'), { maxPolls: 60, intervalMs: 3000 });
+  assert.deepEqual(providerPingPolling('lmstudio'), { maxPolls: 60, intervalMs: 3000 });
+  assert.deepEqual(providerPingPolling('codex'), { maxPolls: 25, intervalMs: 2000 });
 });
 
 test('diagnostics keep OpenAI-compatible chat separate from Codex mission routing', () => {
