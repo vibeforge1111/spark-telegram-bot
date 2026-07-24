@@ -11606,6 +11606,9 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
 }
 
 export async function handleImageMessage(ctx: any): Promise<void> {
+  if (!isAddressedGroupText(ctx, ctx.message?.caption || '')) {
+    return;
+  }
   const user = ctx.from;
   const imageMemoryText = telegramImageMemoryText(ctx.message);
   const authorization = telegramMediaActionAuthorityDecision(ctx, {
@@ -11705,6 +11708,9 @@ export async function handleImageMessage(ctx: any): Promise<void> {
 }
 
 export async function handleVoiceMessage(ctx: any): Promise<void> {
+  if (!isAddressedGroupText(ctx, ctx.message?.caption || '')) {
+    return;
+  }
   const user = ctx.from;
   const startedAt = Date.now();
   const mediaKind: 'voice' | 'audio' = ctx.message?.audio ? 'audio' : 'voice';
