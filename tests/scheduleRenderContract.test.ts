@@ -80,6 +80,15 @@ test('redacts schedule status before normalizing and truncating it', () => {
   assert.match(reply, /private detail hidden/);
 });
 
+test('surfaces a validated scheduler timezone without exposing malformed detail', () => {
+  const timezoneReply = formatScheduleList([record({ timezone: 'Europe/Zurich' })]);
+  assert.match(timezoneReply, /Schedule: Daily at 9 AM \(Europe\/Zurich\)/);
+
+  const malformedReply = formatScheduleList([record({ timezone: '/Users/operator/private' })]);
+  assert.match(malformedReply, /Schedule: Daily at 9 AM\n/);
+  assert.doesNotMatch(malformedReply, /operator|private/);
+});
+
 function record(overrides: Partial<ScheduleRecord>): ScheduleRecord {
   return {
     id: 'schedule-1',

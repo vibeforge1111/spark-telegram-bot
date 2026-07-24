@@ -112,6 +112,18 @@ function safeScheduleStatus(status: string): string {
   return redacted.replace(/\s+/g, ' ').trim().slice(0, 80);
 }
 
+function safeScheduleTimezone(timezone: unknown): string {
+  if (typeof timezone !== 'string') return '';
+  const normalized = timezone.trim();
+  if (
+    normalized.length === 0
+    || normalized.length > 80
+    || redactText(normalized) !== normalized
+    || !/^[A-Za-z][A-Za-z0-9._+-]*(?:\/[A-Za-z0-9._+-]+)*$/.test(normalized)
+  ) return '';
+  return normalized;
+}
+
 export function formatScheduleList(schedules: ScheduleRecord[]): string {
   if (schedules.length === 0) {
     return [
@@ -122,8 +134,9 @@ export function formatScheduleList(schedules: ScheduleRecord[]): string {
   }
   const lines = [`Schedules (${schedules.length}):`, ''];
   for (const s of schedules) {
+    const timezone = safeScheduleTimezone(s.timezone);
     lines.push(humanSummary(s));
-    lines.push(`  Schedule: ${humanizeCron(s.cron)}`);
+    lines.push(`  Schedule: ${humanizeCron(s.cron)}${timezone ? ` (${timezone})` : ''}`);
     lines.push(`  Next: ${formatNextFireLocal(s.nextFireAt)}`);
     lines.push(`  Fires so far: ${s.fireCount}${s.lastStatus ? ` | last: ${safeScheduleStatus(s.lastStatus)}` : ''}`);
     lines.push(`  Id: ${s.id}`);
@@ -138,6 +151,7 @@ export interface ScheduleRecord {
   action: 'mission' | 'loop';
   payload: Record<string, unknown>;
   chatId?: string | null;
+  timezone?: string | null;
   createdAt: string;
   lastFiredAt: string | null;
   nextFireAt: string | null;
