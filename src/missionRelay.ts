@@ -2205,21 +2205,30 @@ function pruneOldMissionLessonApprovals(pendingByUserId: Record<string, MissionL
 type RelayBodyOutcome =
   | { kind: 'ok'; payload: RelayWebhookPayload }
   | { kind: 'too_large' }
+  | { kind: 'timeout' }
   | { kind: 'invalid' };
 
 const RELAY_MAX_BODY_BYTES = 64 * 1024;
 
-export function readRelayJsonBody(req: IncomingMessage): Promise<RelayBodyOutcome> {
+export function readRelayJsonBody(req: IncomingMessage, timeoutMs = 10_000): Promise<RelayBodyOutcome> {
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
     let size = 0;
     let settled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
     const settle = (outcome: RelayBodyOutcome): void => {
       if (settled) return;
       settled = true;
+      if (timer) clearTimeout(timer);
       resolve(outcome);
     };
+
+    timer = setTimeout(() => {
+      settle({ kind: 'timeout' });
+      req.destroy();
+    }, timeoutMs);
+    timer.unref?.();
 
     req.on('data', (chunk: Buffer) => {
       size += chunk.length;
@@ -2366,6 +2375,14 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
         error: 'payload_too_large',
         message: 'Spawner relay event exceeded the Telegram relay body limit.',
         max_bytes: RELAY_MAX_BODY_BYTES,
+      });
+      return;
+    }
+    if (bodyOutcome.kind === 'timeout') {
+      writeJson(res, 408, {
+        ok: false,
+        error: 'relay_body_timeout',
+        message: 'Spawner relay event body did not finish within the allowed window.',
       });
       return;
     }

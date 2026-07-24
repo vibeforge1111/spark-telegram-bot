@@ -28,6 +28,12 @@ async function main(): Promise<void> {
     const outcome = await result;
     assert.equal(outcome.kind, 'ok');
   });
+
+  await test('bounds a relay client that never finishes its body', async () => {
+    const stream = new PassThrough();
+    const outcome = await readRelayJsonBody(stream as unknown as IncomingMessage, 5);
+    assert.equal(outcome.kind, 'timeout');
+  });
 }
 
 main().catch((error) => {
