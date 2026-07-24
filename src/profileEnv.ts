@@ -30,7 +30,13 @@ export function loadEnvFileIntoProcess(
   options: LoadEnvFileOptions = {}
 ): void {
   if (!fs.existsSync(file)) return;
-  for (const line of fs.readFileSync(file, 'utf-8').split(/\r?\n/)) {
+  let text: string;
+  try {
+    text = fs.readFileSync(file, 'utf-8');
+  } catch {
+    return;
+  }
+  for (const line of text.split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
     if (!match) continue;
     if (options.preserveKeys?.has(match[1])) continue;

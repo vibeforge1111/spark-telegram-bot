@@ -138,6 +138,17 @@ test('loads matching quoted env values without retaining wrapper quotes', () => 
   }
 });
 
+test('ignores an env path that becomes unreadable instead of crashing startup', () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'spark-profile-unreadable-'));
+  try {
+    const env = { EXISTING: 'preserved' } as NodeJS.ProcessEnv;
+    loadEnvFileIntoProcess(home, env);
+    assert.deepEqual(env, { EXISTING: 'preserved' });
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test('runtime health wrapper forwards profile arguments', () => {
   const wrapper = readFileSync('scripts/run-health-runtime.cjs', 'utf-8');
 
