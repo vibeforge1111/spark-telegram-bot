@@ -187,6 +187,16 @@ export async function runSparkAccessActionDetailed(
     result = await runner(action.command, action.timeoutMs);
   } catch (error) {
     const anyError = error as { stdout?: unknown; stderr?: unknown; message?: unknown };
+    const failedPayload = parseSparkJson(
+      Buffer.isBuffer(anyError.stdout) ? anyError.stdout.toString('utf8') : String(anyError.stdout || '')
+    );
+    if (failedPayload) {
+      return {
+        reply: formatSparkAccessActionReply(actionId, failedPayload),
+        payload: failedPayload,
+        needsSparkRestart: false,
+      };
+    }
     const output = redactText([
       anyError.stdout,
       anyError.stderr,

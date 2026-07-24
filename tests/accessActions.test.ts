@@ -308,6 +308,20 @@ void (async () => {
     assert.doesNotMatch(result.reply, /configuration problem/i);
   });
 
+  await test('preserves structured Spark JSON from a non-zero CLI exit', async () => {
+    const result = await runSparkAccessActionDetailed('docker_doctor', async () => {
+      const error = new Error('Command failed: spark access docker-doctor --json') as Error & { stdout?: string };
+      error.stdout = JSON.stringify({ ok: false, error: 'Docker is not reachable.', next: 'Start Docker and check again.' });
+      throw error;
+    });
+
+    assert.equal(result.payload?.ok, false);
+    assert.match(result.reply, /Docker sandbox is not ready yet/i);
+    assert.match(result.reply, /Start Docker and check again/i);
+    assert.doesNotMatch(result.reply, /Command failed/i);
+    assert.equal(result.needsSparkRestart, false);
+  });
+
   await test('formats workspace setup failures with safe recovery guidance', () => {
     const reply = formatSparkAccessActionFailureReply(
       'workspace_setup',
