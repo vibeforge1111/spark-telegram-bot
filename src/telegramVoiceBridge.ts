@@ -27,6 +27,15 @@ function humanSize(bytes: number): string {
     : `${(bytes / 1024).toFixed(1)} KiB`;
 }
 
+export function voiceBridgeDownloadLog(downloadMs: number, bytes: number, mimeType: string): string {
+  return JSON.stringify({
+    event: 'voice_bridge_download',
+    downloadMs: Math.max(0, Math.trunc(downloadMs)),
+    bytes: Math.max(0, Math.trunc(bytes)),
+    mime: redactText(mimeType).replace(/\s+/g, ' ').trim().slice(0, 80)
+  });
+}
+
 function redactTelegramVoiceAudioMessage(message: Record<string, unknown>): Record<string, unknown> {
   const clean = { ...message };
   for (const key of ['voice', 'audio']) {
@@ -99,7 +108,7 @@ export async function buildVoiceBridgeUpdate(
     const mimeType = String(media.mime_type || response.headers.get('content-type') || (voice ? 'audio/ogg' : 'application/octet-stream'));
     const filename = `${voice ? 'telegram-voice' : 'telegram-audio'}${mediaExtension(mimeType)}`;
     const downloadMs = Date.now() - startedAt;
-    console.log(`[VoiceBridgeTiming] runner_download_ms=${downloadMs} bytes=${audioBuffer.length} mime=${mimeType}`);
+    console.log(voiceBridgeDownloadLog(downloadMs, audioBuffer.length, mimeType));
     return {
       ...redactedEnvelopedUpdate,
       message: {

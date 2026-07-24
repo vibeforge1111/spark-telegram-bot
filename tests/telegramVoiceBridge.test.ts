@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildVoiceBridgeUpdate } from '../src/telegramVoiceBridge';
+import { buildVoiceBridgeUpdate, voiceBridgeDownloadLog } from '../src/telegramVoiceBridge';
 
 function fakeResponse(body: Buffer, headers: Record<string, string> = {}): Response {
   return {
@@ -19,6 +19,16 @@ function fakeResponse(body: Buffer, headers: Record<string, string> = {}): Respo
     },
   } as Response;
 }
+
+test('voice download timing uses bounded structured diagnostics', () => {
+  const parsed = JSON.parse(voiceBridgeDownloadLog(12.9, 44, 'audio/ogg /Users/operator/private'));
+  assert.deepEqual(parsed, {
+    event: 'voice_bridge_download',
+    downloadMs: 12,
+    bytes: 44,
+    mime: 'audio/ogg [REDACTED_PATH]'
+  });
+});
 
 test('downloads Telegram voice bytes through the active runner context', async () => {
   const update = {
