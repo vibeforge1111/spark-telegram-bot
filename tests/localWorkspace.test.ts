@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -77,6 +77,27 @@ async function main(): Promise<void> {
       assert.equal(byName.get('spark-repo')?.isGitRepo, true);
       assert.deepEqual(byName.get('spark-repo')?.signals, ['git', 'node']);
       assert.deepEqual(byName.get('plain-app')?.signals, ['docs']);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await test('selects the most recently modified project beyond the old alphabetical scan cap', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'spark-local-workspace-recency-'));
+    try {
+      for (let index = 0; index < 7; index += 1) {
+        const directory = path.join(root, `a-project-${index}`);
+        mkdirSync(directory);
+        utimesSync(directory, new Date(1_000 + index), new Date(1_000 + index));
+      }
+      const recent = path.join(root, 'z-recent-project');
+      mkdirSync(recent);
+      utimesSync(recent, new Date(20_000), new Date(20_000));
+
+      const summary = await summarizeLocalWorkspaces({ roots: [root], limit: 2 });
+
+      assert.equal(summary.projects[0]?.name, 'z-recent-project');
+      assert.equal(summary.projects.length, 2);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

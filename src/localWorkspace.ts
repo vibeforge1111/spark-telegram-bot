@@ -100,21 +100,30 @@ async function summarizeRoot(root: string, limit: number): Promise<{
     const entries = await readdir(resolvedRoot, { withFileTypes: true });
     const directories = entries
       .filter((entry) => entry.isDirectory())
-      .filter((entry) => !SKIP_NAMES.has(entry.name.toLowerCase()))
-      .slice(0, Math.max(limit * 3, limit));
+      .filter((entry) => !SKIP_NAMES.has(entry.name.toLowerCase()));
 
     const projects: LocalWorkspaceProject[] = [];
-    for (const entry of directories) {
-      const projectPath = path.join(resolvedRoot, entry.name);
-      const info = await stat(projectPath);
-      const signals = projectSignals(projectPath);
-      projects.push({
-        name: entry.name,
-        path: projectPath,
-        isGitRepo: signals.includes('git'),
-        modifiedAt: info.mtime.toISOString(),
-        signals
-      });
+    const batchSize = 32;
+    for (let offset = 0; offset < directories.length; offset += batchSize) {
+      const batch = await Promise.all(
+        directories.slice(offset, offset + batchSize).map(async (entry): Promise<LocalWorkspaceProject | null> => {
+          const projectPath = path.join(resolvedRoot, entry.name);
+          try {
+            const info = await stat(projectPath);
+            const signals = projectSignals(projectPath);
+            return {
+              name: entry.name,
+              path: projectPath,
+              isGitRepo: signals.includes('git'),
+              modifiedAt: info.mtime.toISOString(),
+              signals
+            };
+          } catch {
+            return null;
+          }
+        })
+      );
+      projects.push(...batch.filter((project): project is LocalWorkspaceProject => project !== null));
     }
 
     projects.sort((a, b) => Date.parse(b.modifiedAt) - Date.parse(a.modifiedAt));

@@ -158,6 +158,12 @@ function isLocalOpenAICompatProvider(provider: ProviderStatus): boolean {
 export function describeRelayHealth(status: HttpStatusResult, expected: RelayIdentity): string {
   const label = `:${expected.port}/${expected.profile}`;
   if (!status.ok) {
+    if (status.status === 404) {
+      return `• Bot mission relay (${label}): ❌ HTTP 404 — relay is reachable, but this route or profile is missing; check the expected port/profile, then restart Spark`;
+    }
+    if (status.status === 401 || status.status === 403) {
+      return `• Bot mission relay (${label}): ❌ HTTP ${status.status} — relay access was rejected; check relay authentication and profile alignment`;
+    }
     return `• Bot mission relay (${label}): ❌ ${formatDiagnoseErrorDetail(status.err || status.status, 'unreachable')}`;
   }
 

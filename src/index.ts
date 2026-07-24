@@ -16,6 +16,7 @@ import {
 } from './conversation';
 import { credentialSafetyReply } from './credentialSafety';
 import { extractNaturalLocalMemoryRecallQuery, formatLocalMemoryDirectiveAcknowledgement } from './telegramMemorySurface';
+import { telegramCommandPayload } from './telegramCommandText';
 import { domainChipLabsCreatorContractLines, FULL_CREATOR_SYSTEM_ARTIFACT_PATTERN } from './domainChipLabsCreatorContract';
 import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
@@ -3891,7 +3892,7 @@ function authorizeMemoryDeleteCommand(ctx: any, text: string): TelegramActionAut
 }
 
 export async function handleRememberCommand(ctx: any): Promise<void> {
-  const text = ctx.message.text.replace('/remember', '').trim();
+  const text = telegramCommandPayload(ctx.message.text, 'remember');
 
   if (!text) {
     return ctx.reply(
@@ -3948,7 +3949,7 @@ export async function handleRememberCommand(ctx: any): Promise<void> {
 }
 
 export async function handleRecallCommand(ctx: any): Promise<void> {
-  const query = ctx.message.text.replace('/recall', '').trim();
+  const query = telegramCommandPayload(ctx.message.text, 'recall');
 
   if (!query) {
     return ctx.reply(
@@ -7441,7 +7442,7 @@ bot.command('board', async (ctx) => {
 bot.command('creator', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  const raw = ctx.message.text.replace('/creator', '').trim();
+  const raw = telegramCommandPayload(ctx.message.text, 'creator');
   const control = parseCreatorMissionControlCommand(raw);
   const parsed = control ? null : parseCreatorPlanCommand(raw);
   if (!control && !parsed) {

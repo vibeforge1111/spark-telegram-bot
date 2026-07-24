@@ -170,10 +170,14 @@ test('describes relay identity mismatches clearly', () => {
   );
 });
 
-test('describes HTTP failures as relay errors', () => {
+test('describes relay route and authentication failures with bounded next steps', () => {
+  assert.match(
+    describeRelayHealth({ ok: false, status: 404, err: 'HTTP 404' }, { port: 8788, profile: 'primary' }),
+    /reachable, but this route or profile is missing; check the expected port\/profile/
+  );
   assert.match(
     describeRelayHealth({ ok: false, status: 401, err: 'HTTP 401' }, { port: 8788, profile: 'primary' }),
-    /HTTP 401$/
+    /HTTP 401 — relay access was rejected; check relay authentication and profile alignment$/
   );
 });
 
