@@ -49,8 +49,10 @@ import {
   isSparkThreadQaGoldenCaseRequest,
   isSparkUpdateConsequenceQuestion,
   isSparkUpdateGuidanceQuestion,
+  isSuspiciousProofFileQuestion,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkUpdateGuidanceReply,
+  renderSuspiciousProofFileReply,
   renderAccessProductRuleReply,
   renderMissionRoutingFailureClassReply,
   renderModelSwitchGateExplanationReply,
@@ -437,6 +439,18 @@ test('keeps Spark update safety and consequence questions in truthful chat guida
   assert.match(reply, /spark update --continue/);
   assert.match(reply, /spark verify --onboarding/);
   assert.doesNotMatch(reply, /spark update --version|git checkout/);
+});
+
+test('keeps suspicious proof files on a no-download safety route', () => {
+  const prompt = 'Someone sent a suspicious file link as proof for a bug. Should I download it and attach it to the PR?';
+  assert.equal(isSuspiciousProofFileQuestion(prompt), true);
+  assert.equal(isSuspiciousProofFileQuestion('Build a file review app called Proof Garden'), false);
+
+  const reply = renderSuspiciousProofFileReply();
+  assert.match(reply, /Don’t download or attach an untrusted proof file/);
+  assert.match(reply, /redacted screenshot/);
+  assert.match(reply, /isolated environment/);
+  assert.doesNotMatch(reply, /open it|download it first/i);
 });
 
 test('recognizes H70 Thread QA golden-case requests as conversation fixtures', () => {

@@ -1896,6 +1896,25 @@ export function renderSparkUpdateGuidanceReply(consequence = false): string {
   ].join('\n');
 }
 
+export function isSuspiciousProofFileQuestion(text: string): boolean {
+  const normalized = text.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized)) return false;
+  const proofContext = /\b(?:proof|evidence|pr|bug\s+report|submission)\b/.test(normalized);
+  const suspiciousFile =
+    /\b(?:suspicious|unknown|untrusted|random)\b.{0,45}\b(?:file|download|link|attachment|archive|zip|pdf|binary)\b/.test(normalized) ||
+    /\b(?:file|download|link|attachment|archive|zip|pdf|binary)\b.{0,45}\b(?:suspicious|unknown|untrusted|random)\b/.test(normalized);
+  const handling = /\b(?:download|open|attach|include|use|trust|safest|alternative)\b/.test(normalized);
+  return proofContext && suspiciousFile && handling;
+}
+
+export function renderSuspiciousProofFileReply(): string {
+  return [
+    'Don’t download or attach an untrusted proof file. Ask for bounded evidence instead: a redacted screenshot, a short text excerpt, exact reproduction steps, and a public inspectable source link when one exists.',
+    '',
+    'Keep tokens, cookies, login codes, raw logs, private paths, chat IDs, private Telegram data, archives, and binaries out of the PR. If the file is truly required, have a maintainer inspect it in an isolated environment.'
+  ].join('\n');
+}
+
 export function isNoExecutionExplanationPrompt(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!normalized || parseBuildIntent(normalized) || !isNoExecutionBoundary(normalized)) {

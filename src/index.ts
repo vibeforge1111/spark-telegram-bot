@@ -297,6 +297,7 @@ import {
   isSparkThreadQaGoldenCaseRequest,
   isSparkUpdateConsequenceQuestion,
   isSparkUpdateGuidanceQuestion,
+  isSuspiciousProofFileQuestion,
   isSparkWorkflowBugHuntRequest,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
@@ -322,6 +323,7 @@ import {
   renderPlainChatAnswerEditingReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkUpdateGuidanceReply,
+  renderSuspiciousProofFileReply,
   renderSparkWorkflowBugHuntReply,
   renderXContentCredentialBoundaryReply,
   renderXPostReviewFromLinksBoundaryReply,
@@ -9624,6 +9626,27 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
       action: 'plain_chat.update_guidance',
       signal: sparkUpdateConsequence ? 'spark_update_consequence_question' : 'spark_update_guidance_question'
     }), 'conversation.spark_update_guidance', 'spark-telegram-bot', 'plain_chat.update_guidance');
+    await ctx.reply(reply, outboundTraceExtra(traceContext));
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isSuspiciousProofFileQuestion(text)) {
+    const reply = renderSuspiciousProofFileReply();
+    await conversation.remember(user, text).catch(() => {});
+    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, {
+      route: 'conversation.proof_file_safety',
+      intentKind: 'conversation.proof_file_safety',
+      command: 'telegram_proof_file_safety',
+      reasonSummary: 'Telegram provided evidence-safety guidance; it did not open, download, inspect, or attach a file.'
+    });
+    setTurnOutboundTraceContext(ctx, traceContext);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'conversation.proof_file_safety',
+      owner: 'spark-telegram-bot',
+      action: 'plain_chat.safety_guidance',
+      signal: 'suspicious_proof_file_question'
+    }), 'conversation.proof_file_safety', 'spark-telegram-bot', 'plain_chat.safety_guidance');
     await ctx.reply(reply, outboundTraceExtra(traceContext));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
