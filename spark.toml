@@ -9,7 +9,7 @@ license = "MIT"
 
 [runtime]
 kind = "node"
-version = ">=22"
+version = ">=22.5.0"
 package_manager = "npm"
 lockfile = "package-lock.json"
 
