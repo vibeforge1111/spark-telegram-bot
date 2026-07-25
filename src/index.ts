@@ -313,6 +313,7 @@ import {
   isNoExecutionExplanationPrompt,
   isNoExecutionBoundary,
   isProviderRuntimeConfigQuestion,
+  isRouteWordMetaExplanationDiscussion,
   isPlainChatAnswerEditingRequest,
   isProtectedMissionCancelPronounIntent,
   isProtectedMissionPausePronounIntent,
@@ -1017,6 +1018,7 @@ function classifySparkReadOnlyStateQuestion(text: string): SparkReadOnlyStateQue
     /\b(?:read|show|check|tell|what|whether|is|are|current|status)\b/.test(normalized) ||
     /\b(?:any|if)\b.{0,40}\b(?:blockers?|drift|pending|waiting)\b/.test(normalized);
   if (!asksRead) return null;
+  if (isRouteWordMetaExplanationDiscussion(text)) return null;
   if (isPublicReleaseBlockerQuestion(normalized)) {
     return 'public_release_blockers';
   }
