@@ -1,183 +1,24 @@
 #!/usr/bin/env node
 
 const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
-const tests = [
-  'tests/launchMode.test.ts',
-  'tests/packageLifecycle.test.ts',
-  'tests/telegramPollingStartup.test.ts',
-  'tests/gatewayOwnership.test.ts',
-  'tests/onboardingBridge.test.ts',
-  'tests/buildIntent.test.ts',
-  'tests/buildRoutingMatrix.test.ts',
-  'tests/scopedBuildAdoption.test.ts',
-  'tests/buildE2E.test.ts',
-  'tests/conversationIntent.test.ts',
-  'tests/runtimeRouteGuards.test.ts',
-  'tests/memoryDoctorBridge.test.ts',
-  'tests/builderDiagnosticBoundary.test.ts',
-  'tests/builderRepoPath.test.ts',
-  'tests/externalResearchBoundary.test.ts',
-  'tests/noExecutionBridgeBoundary.test.ts',
-  'tests/spawnerIdeationBoundary.test.ts',
-  'tests/buildClarificationProofContext.test.ts',
-  'tests/routeConfidenceTelegram.test.ts',
-  'tests/naturalRouteDecision.test.ts',
-  'tests/routeFirewall.test.ts',
-  'tests/routeArbiter.test.ts',
-  'tests/intentProposerEnforce.test.ts',
-  'tests/intentProposerShadow.test.ts',
-  'tests/intentProposerWiring.test.ts',
-  'tests/modelRouter.test.ts',
-  'tests/modelRouterConfirm.test.ts',
-  'tests/conversationSmoke.test.ts',
-  'tests/conversationFrame.test.ts',
-  'tests/naturalRouteTelemetry.test.ts',
-  'tests/naturalRouteLedger.test.ts',
-  'tests/naturalRouteReplay.test.ts',
-  'tests/liveNlVerdict.test.ts',
-  'tests/routeBoundaryHandlerHarness.test.ts',
-  'tests/harnessContract.test.ts',
-  'tests/harnessProofCapsule.test.ts',
-  'tests/harnessProofNaturalRequest.test.ts',
-  'tests/harnessProofProjection.test.ts',
-  'tests/finalAnswerGateAudit.test.ts',
-  'tests/finalAnswerTraceRepair.test.ts',
-  'tests/freshRuntimeProofContext.test.ts',
-  'tests/harnessCoreVNext.test.ts',
-  'tests/harnessCoreLedger.test.ts',
-  'tests/legacyAuthorityInventory.test.ts',
-  'tests/telegramActionAuthority.test.ts',
-  'tests/telegramCommandAuthority.test.ts',
-  'tests/telegramDeliveryProof.test.ts',
-  'tests/telegramMediaAuthority.test.ts',
-  'tests/telegramMediaEnvelope.test.ts',
-  'tests/telegramMediaHandlers.test.ts',
-  'tests/telegramMediaTrace.test.ts',
-  'tests/groupMediaAddressing.test.ts',
-  'tests/telegramImageBridge.test.ts',
-  'tests/controlProofTraceAudit.test.ts',
-  'tests/controlProofTraceJoin.test.ts',
-  'tests/controlProofSourceInventory.test.ts',
-  'tests/controlProofCapsuleCoverage.test.ts',
-  'tests/controlProofReliabilityEvalCoverage.test.ts',
-  'tests/controlProofLegacyPromptSurface.test.ts',
-  'tests/controlProofCapabilityEvidence.test.ts',
-  'tests/controlProofSurfaceEval.test.ts',
-  'tests/traceAndMemoryDrilldowns.test.ts',
-  'tests/turnTraceLine.test.ts',
-  'tests/outboundTraceRepair.test.ts',
-  'tests/routeConfidenceTraceRepair.test.ts',
-  'tests/legacyTraceProofRepair.test.ts',
-  'tests/controlProofGoalPrompt.test.ts',
-  'tests/controlProofLiveCanaryPack.test.ts',
-  'tests/liveTelegramCanaryEvidence.test.ts',
-  'tests/runtimeFreshness.test.ts',
-  'tests/longPasteRoutingBoundary.test.ts',
-  'tests/runtimeSyncCompatibility.test.ts',
-  'tests/runnerPreflight.test.ts',
-  'tests/turnIntent350Matrix.test.ts',
-  'tests/capabilityNaturalLanguageMatrix.test.ts',
-  'tests/projectImprovementRouting.test.ts',
-  'tests/spawnerLoopBugHunt.test.ts',
-  'tests/conversationMemory.test.ts',
-  'tests/conversationRetention.test.ts',
-  'tests/memoryProposer.test.ts',
-  'tests/jsonStateInitialization.test.ts',
-  'tests/jsonState.test.ts',
-  'tests/credentialSafety.test.ts',
-  'tests/credentialSafetyRouting.test.ts',
-  'tests/datamarkingSpotlight.test.ts',
-  'tests/test_builder_bridge_redact.test.ts',
-  'tests/test_chip_loop_redact.test.ts',
-  'tests/test_gateway_ownership_disclosure.test.ts',
-  'tests/test_llm_claude_redact.test.ts',
-  'tests/test_llm_codex_redact.test.ts',
-  'tests/shippedProjectContext.test.ts',
-  'tests/shippedProjectSummaryTruncation.test.ts',
-  'tests/commandTelemetry.test.ts',
-  'tests/pointsSafetyReply.test.ts',
-  'tests/accessPolicy.test.ts',
-  'tests/accessLevel5Natural.test.ts',
-  'tests/level5RuntimeEnv.test.ts',
-  'tests/accessActions.test.ts',
-  'tests/accessRepairE2E.test.ts',
-  'tests/authorityStatus.test.ts',
-  'tests/operatorActions.test.ts',
-  'tests/providerRouting.test.ts',
-  'tests/providerRuntimeReply.test.ts',
-  'tests/modelSwitch.test.ts',
-  'tests/missionRelayFormatting.test.ts',
-  'tests/missionRelayCompletionDedupe.test.ts',
-  'tests/missionHandoffOutcome.test.ts',
-  'tests/missionRelayBodyBoundary.test.ts',
-  'tests/missionRelayHealth.test.ts',
-  'tests/test_mission_control_random_id.test.ts',
-  'tests/taskFailedMessage.test.ts',
-  'tests/spawnerBoardTrace.test.ts',
-  'tests/noEditProbeStore.test.ts',
-  'tests/outboundSanitize.test.ts',
-  'tests/redaction.test.ts',
-  'tests/errorExplain.test.ts',
-  'tests/spawnerAuth.test.ts',
-  'tests/spawner.test.ts',
-  'tests/creatorMissionClosure.test.ts',
-  'tests/creatorMissionPrivacy.test.ts',
-  'tests/spawnerUrl.test.ts',
-  'tests/timeoutConfig.test.ts',
-  'tests/localWorkspace.test.ts',
-  'tests/llmProvider.test.ts',
-  'tests/llmStreaming.test.ts',
-  'tests/telegramDraft.test.ts',
-  'tests/telegramCommandText.test.ts',
-  'tests/telegramVoiceBridge.test.ts',
-  'tests/voiceRuntimeState.test.ts',
-  'tests/telegramSurface.test.ts',
-  'tests/workStateSurfaceR30.test.ts',
-  'tests/llmProviderSmoke.test.ts',
-  'tests/profileEnv.test.ts',
-  'tests/deployDoctor.test.ts',
-  'tests/deployDoctorUrls.test.ts',
-  'tests/previewFetchCredentialScope.test.ts',
-  'tests/previewFetchPrivateBoundary.test.ts',
-  'tests/pathAuthority.test.ts',
-  'tests/healthPolling.test.ts',
-  'tests/liveStateNoActionRouteE2E.test.ts',
-  'tests/liveStatusFollowup.test.ts',
-  'tests/schedule.test.ts',
-  'tests/dailyScheduleFastPath.test.ts',
-  'tests/prdWritingFastPath.test.ts',
-  'tests/prdWritingFastPathEvidence.test.ts',
-  'tests/scheduleEmptyState.test.ts',
-  'tests/scheduleRenderContract.test.ts',
-  'tests/diagnose.test.ts',
-  'tests/diagnosticsPrivacy.test.ts',
-  'tests/sparkQaOperatorSurface.test.ts',
-  'tests/recursive.test.ts',
-  'tests/recursiveCommand.test.ts',
-  'tests/loopEngineeringCommand.test.ts',
-  'tests/loopEngineeringNoActionProof.test.ts',
-  'tests/loopEngineeringStatus.test.ts',
-  'tests/creatorMissionStatus.test.ts',
-  'tests/launchConversationQuality.test.ts',
-  'tests/builderBridge.test.ts',
-  'tests/builderWarmBridge.test.ts',
-  'tests/telegramVoiceBridge.test.ts',
-  'tests/voiceCaption.test.ts',
-  'tests/pythonCommand.test.ts',
-  'tests/capabilityGarden.test.ts',
-  'tests/canvasLocalhostLink.test.ts',
-  'tests/chipCreate.test.ts',
-  'tests/chipLoop.test.ts',
-  'tests/domainChipBenchmarkFollowup.test.ts',
-  'tests/domainChipCreatedContext.test.ts',
-  'tests/domainChipFastPathCanary.test.ts',
-  'tests/domainChipLabsCreator.test.ts',
-  'tests/domainChipPendingAuthority.test.ts',
-  'tests/xBasic.test.ts',
-  'tests/hiddenProcess.test.ts'
-];
+// Every skipped test must name the superseded or external lane that owns it.
+const SKIP = new Map([
+  [
+    'tests/scheduleParser.test.ts',
+    'Superseded legacy SPARK_MODEL_ROUTER parser. Governed Spawner schedule mutation is covered by schedule.test.ts, spawnerAuth.test.ts, telegramCommandAuthority.test.ts, scheduleEmptyState.test.ts, and scheduleRenderContract.test.ts.'
+  ]
+]);
+
+const testsDir = path.join(__dirname, '..', 'tests');
+const tests = fs.readdirSync(testsDir)
+  .filter((fileName) => fileName.endsWith('.test.ts'))
+  .sort()
+  .map((fileName) => `tests/${fileName}`)
+  .filter((testFile) => !SKIP.has(testFile));
 
 const requireRealToken = process.argv.includes('--require-real-token');
 const token = process.env.BOT_TOKEN || '';
@@ -201,10 +42,17 @@ const env = {
 const tsNodeBin = path.join(__dirname, '..', 'node_modules', 'ts-node', 'dist', 'bin.js');
 
 for (const testFile of testsToRun) {
+  console.log(`[test] ${testFile}`);
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spark-telegram-test-'));
+  const testEnv = {
+    ...env,
+    SPARK_TURN_TRACE_PATH: path.join(tempDir, 'turn-trace.jsonl')
+  };
   const result = spawnSync(process.execPath, [tsNodeBin, testFile], {
-    env,
+    env: testEnv,
     stdio: 'inherit'
   });
+  fs.rmSync(tempDir, { recursive: true, force: true });
 
   if (result.status !== 0) {
     process.exit(result.status ?? 1);

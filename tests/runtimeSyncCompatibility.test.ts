@@ -19,7 +19,12 @@ test('runtime sync includes capability upgrade/eval fixtures', () => {
   assert.match(script, /package-lock\.json/);
   assert.match(script, /tsconfig\.json/);
   assert.match(script, /spark\.toml/);
-  assert.match(testRunner, /tests\/telegramVoiceBridge\.test\.ts/);
+  assert.match(testRunner, /const SKIP = new Map/);
+  assert.match(testRunner, /fs\.readdirSync\(testsDir\)/);
+  assert.match(testRunner, /fileName\.endsWith\('\.test\.ts'\)/);
+  assert.match(testRunner, /scheduleParser\.test\.ts/);
+  assert.match(testRunner, /Superseded legacy SPARK_MODEL_ROUTER parser/);
+  assert.match(testRunner, /SPARK_TURN_TRACE_PATH/);
   assert.match(testRunner, /SPARK_NATURAL_ROUTE_LEDGER/);
   assert.match(script, /dir:\s*'src'/);
   assert.match(script, /dir:\s*'dist'/);
