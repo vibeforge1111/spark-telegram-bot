@@ -112,6 +112,7 @@ const tests = [
   'tests/deployDoctorUrls.test.ts',
   'tests/pathAuthority.test.ts',
   'tests/healthPolling.test.ts',
+  'tests/schedule.test.ts',
   'tests/scheduleEmptyState.test.ts',
   'tests/scheduleRenderContract.test.ts',
   'tests/diagnose.test.ts',

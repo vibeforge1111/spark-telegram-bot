@@ -136,7 +136,17 @@ import {
   renderLocalWorkspaceInspectionReply,
   summarizeLocalWorkspaces
 } from './localWorkspace';
-import { createSchedule, deleteSchedule, listSchedules, formatScheduleList, humanizeCron, formatNextFireLocal } from './schedule';
+import {
+  createSchedule,
+  deleteSchedule,
+  listSchedules,
+  formatScheduleList,
+  humanizeCron,
+  formatNextFireLocal,
+  SCHEDULE_CREATE_TOOL,
+  SCHEDULE_DELETE_TOOL,
+  SCHEDULE_OWNER_SYSTEM
+} from './schedule';
 import { probeTelegramRunnerWritability } from './runnerPreflight';
 import { describeSparkAccessProfile, getConfiguredSparkAccessProfile, getSparkAccessProfile, normalizeSparkAccessProfile, renderSparkAccessBriefStatus, renderSparkAccessChangeSummary, renderSparkAccessCapabilityStatus, renderSparkAccessChangeConfirmation, renderSparkAccessLevel5ConfirmationPrompt, renderSparkAccessConversationHelp, renderSparkAccessDenial, renderSparkAccessOnboarding, renderSparkAccessRuntimeHint, renderSparkAccessStatus, setSparkAccessProfile, sparkAccessAllows, sparkAccessLevel, sparkLevel5PayloadProvesFullAccess, sparkLevel5TelegramPermissionProofError, sparkMissionNeedsOperatingSystemAccess, validateSparkAccessProfileForRuntime, type SparkAccessProfile, type SparkAccessRequirement } from './accessPolicy';
 import {
@@ -9418,10 +9428,10 @@ bot.command('schedule', async (ctx) => {
       commandName: 'schedule',
       route: 'schedule.create',
       text: ctx.message.text,
-      toolName: 'schedule.create',
-      ownerSystem: 'spark-intelligence-builder',
+      toolName: SCHEDULE_CREATE_TOOL,
+      ownerSystem: SCHEDULE_OWNER_SYSTEM,
       mutationClass: 'creates_schedule',
-      action: 'schedule.create',
+      action: SCHEDULE_CREATE_TOOL,
       kind: 'schedule_mutation'
     });
     if (!authorization.allow) {
@@ -9433,9 +9443,10 @@ bot.command('schedule', async (ctx) => {
       action: 'mission',
       payload: { goal },
       chatId: String(ctx.chat.id),
+      executionAuthority: authorization.governorDecision
     });
     recordTelegramHarnessCoreExecution(authorization, {
-      toolName: 'schedule.create',
+      toolName: SCHEDULE_CREATE_TOOL,
       status: res.ok && res.schedule ? 'success' : 'failure',
       summary: res.ok && res.schedule
         ? `Slash /schedule created mission schedule ${res.schedule.id}.`
@@ -9454,10 +9465,10 @@ bot.command('schedule', async (ctx) => {
       commandName: 'schedule',
       route: 'schedule.create',
       text: ctx.message.text,
-      toolName: 'schedule.create',
-      ownerSystem: 'spark-intelligence-builder',
+      toolName: SCHEDULE_CREATE_TOOL,
+      ownerSystem: SCHEDULE_OWNER_SYSTEM,
       mutationClass: 'creates_schedule',
-      action: 'schedule.create',
+      action: SCHEDULE_CREATE_TOOL,
       kind: 'schedule_mutation'
     });
     if (!authorization.allow) {
@@ -9469,9 +9480,10 @@ bot.command('schedule', async (ctx) => {
       action: 'loop',
       payload: { chipKey, rounds },
       chatId: String(ctx.chat.id),
+      executionAuthority: authorization.governorDecision
     });
     recordTelegramHarnessCoreExecution(authorization, {
-      toolName: 'schedule.create',
+      toolName: SCHEDULE_CREATE_TOOL,
       status: res.ok && res.schedule ? 'success' : 'failure',
       summary: res.ok && res.schedule
         ? `Slash /schedule created loop schedule ${res.schedule.id}.`
@@ -9497,19 +9509,19 @@ bot.command('schedules', async (ctx) => {
       commandName: 'schedules',
       route: 'schedule.delete',
       text: ctx.message.text,
-      toolName: 'schedule.delete',
-      ownerSystem: 'spark-intelligence-builder',
+      toolName: SCHEDULE_DELETE_TOOL,
+      ownerSystem: SCHEDULE_OWNER_SYSTEM,
       mutationClass: 'deletes_schedule',
-      action: 'schedule.delete',
+      action: SCHEDULE_DELETE_TOOL,
       kind: 'schedule_mutation'
     });
     if (!authorization.allow) {
       await replyTelegramCommandAuthorityBlocked(ctx);
       return;
     }
-    const res = await deleteSchedule(id);
+    const res = await deleteSchedule(id, { executionAuthority: authorization.governorDecision });
     recordTelegramHarnessCoreExecution(authorization, {
-      toolName: 'schedule.delete',
+      toolName: SCHEDULE_DELETE_TOOL,
       status: res.ok ? 'success' : 'failure',
       summary: res.ok
         ? `Slash /schedules deleted schedule ${id}.`
