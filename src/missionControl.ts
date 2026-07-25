@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
 
 export interface MissionControlEvent {
@@ -29,8 +29,8 @@ function truncate(value: string, maxLength: number): string {
   return clean.length > maxLength ? `${clean.slice(0, Math.max(0, maxLength - 3)).trim()}...` : clean;
 }
 
-function randomId(): string {
-  return randomUUID().slice(0, 6);
+export function randomId(): string {
+  return randomBytes(8).toString('hex');
 }
 
 function missionControlDisabled(): boolean {

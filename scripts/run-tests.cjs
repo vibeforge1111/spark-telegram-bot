@@ -91,6 +91,7 @@ const tests = [
   'tests/missionHandoffOutcome.test.ts',
   'tests/missionRelayBodyBoundary.test.ts',
   'tests/missionRelayHealth.test.ts',
+  'tests/test_mission_control_random_id.test.ts',
   'tests/taskFailedMessage.test.ts',
   'tests/spawnerBoardTrace.test.ts',
   'tests/noEditProbeStore.test.ts',
