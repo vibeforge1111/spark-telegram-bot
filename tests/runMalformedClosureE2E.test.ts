@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import axios from 'axios';
+import {
+  createHarnessCoreActionEnvelopeVNext,
+  createHarnessCoreAuthorizedGovernorDecision
+} from '@spark/harness-core';
 
 type AsyncTest = () => Promise<void> | void;
 
@@ -48,6 +52,20 @@ function makeFakeCtx(chatId: number, fromId: number, messageId: number, replies:
   };
 }
 
+function fakeExecutionAuthority(): unknown {
+  const envelope = createHarnessCoreActionEnvelopeVNext({
+    surface: 'telegram',
+    ownerSystem: 'spawner-ui',
+    toolName: 'spawner.run',
+    mutationClass: 'launches_mission',
+    source: 'runMalformedClosureE2E.test',
+    reason: 'Test Telegram fail-closed behavior when Spawner omits mission closure proof.',
+    requestId: 'turn:run-malformed-closure',
+    actorIdRef: 'telegram-human'
+  });
+  return createHarnessCoreAuthorizedGovernorDecision({ envelope, tool_name: 'spawner.run' });
+}
+
 async function run(): Promise<void> {
   await test('/run malformed success without mission id fails with closure proof reason', async () => {
     restore();
@@ -74,7 +92,7 @@ async function run(): Promise<void> {
       'Reply exactly SPARK_QA_NO_EDIT_OK and do not edit files.',
       ['codex'],
       undefined,
-      { allowBuildIntent: true }
+      { allowBuildIntent: true, executionAuthority: fakeExecutionAuthority() }
     );
 
     assert.equal(missionId, null);
