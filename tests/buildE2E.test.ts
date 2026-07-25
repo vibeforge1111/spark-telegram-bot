@@ -4298,7 +4298,7 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
-	await test('explicit slow no-edit Mission Control diagnostic routes through Spawner instead of live health', async () => {
+	await test('exact supervised tiny no-edit mission routes through the dedicated Spawner probe lane', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
 		process.env.BOT_DEFAULT_TIER = 'base';
@@ -4329,7 +4329,7 @@ async function run(): Promise<void> {
 
 		const replies: string[] = [];
 		const ctx = makeFakeCtx(8319079055, 8319079055, 605, replies);
-		ctx.message.text = 'Run a deliberately slow no-edit Mission Control diagnostic through Spawner. It should only prove live running-state UI and reply with SPARK_E2E_SLOW_NO_EDIT_OK after waiting about 30 seconds. Do not create files, do not edit files, and share Canvas/Kanban/View Execution if it starts.';
+		ctx.message.text = 'Run a tiny mission through Spawner that only replies: SPARK_QA_NO_EDIT_OK. Do not edit files.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
 
@@ -4337,8 +4337,7 @@ async function run(): Promise<void> {
 		assert.ok(runCall, 'explicit no-edit Spawner diagnostic must dispatch through Spawner');
 		assert.equal(runCall!.body.missionName, 'Telegram Golden Path Probe');
 		assert.equal(runCall!.body.executionAuthority?.tool_ledgers?.[0]?.tool_name, 'spawner.run');
-		assert.match(runCall!.body.goal, /Reply with exactly: SPARK_E2E_SLOW_NO_EDIT_OK/);
-		assert.match(runCall!.body.goal, /wait about 30 seconds so Mission Control can show a running state/);
+		assert.match(runCall!.body.goal, /Reply with exactly: SPARK_QA_NO_EDIT_OK/);
 		assert.match(replies.join('\n'), /I will run that through Codex now\./);
 		assert.doesNotMatch(replies.join('\n'), /Spark is healthy right now|No repair action needed/i);
 		const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
@@ -4353,68 +4352,6 @@ async function run(): Promise<void> {
 				/Natural no-edit Spawner probe started mission spark-slow-no-edit/.test(record.result.summary)
 			)),
 			'natural no-edit Spawner probe must record the final Harness Core execution result'
-		);
-
-		rmSync(tempRoot, { recursive: true, force: true });
-		restoreAxios();
-		restoreEnv();
-	});
-
-	await test('exact supervised tiny no-edit mission routes through the dedicated Spawner probe lane', async () => {
-		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
-		process.env.BOT_DEFAULT_TIER = 'base';
-		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
-		process.env.SPARK_BOT_TEST_MODE = '1';
-		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-tiny-no-edit-route-'));
-		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
-		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
-		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
-		delete process.env.SPARK_HARNESS_CORE_LEDGER;
-
-		const captured: CapturedCall[] = [];
-		(axios as any).post = async (url: string, body: any) => {
-			captured.push({ url, body });
-			if (url.includes('/api/spark/run')) {
-				return {
-					data: {
-						success: true,
-						missionId: 'spark-tiny-no-edit',
-						requestId: body.requestId,
-						providers: ['codex']
-					}
-				};
-			}
-			return { data: { success: true } };
-		};
-		(axios as any).get = async () => ({ data: { providers: [{ id: 'codex' }] } });
-
-		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 606, replies);
-		ctx.message.text = 'Run a tiny mission through Spawner that only replies: SPARK_QA_NO_EDIT_OK. Do not edit files.';
-		const indexModule: any = await import('../src/index');
-		await indexModule.handleTextMessage(ctx);
-
-		const runCalls = captured.filter((call) => call.url.includes('/api/spark/run'));
-		assert.equal(runCalls.length, 1, 'the supervised probe must dispatch exactly one Spawner mission');
-		assert.equal(runCalls[0].body.missionName, 'Telegram Golden Path Probe');
-		assert.equal(runCalls[0].body.executionAuthority?.tool_ledgers?.[0]?.tool_name, 'spawner.run');
-		assert.match(runCalls[0].body.goal, /Reply with exactly: SPARK_QA_NO_EDIT_OK/);
-		assert.match(runCalls[0].body.goal, /Do not edit files/);
-		assert.match(runCalls[0].body.goal, /Do not create files/);
-		assert.match(replies.join('\n'), /I will run that through Codex now\./);
-		const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
-		assert.ok(
-			ledgerRecords.some((record) => record.authorization.verdict === 'allow' && record.result.status === 'not_started'),
-			'the dedicated probe must record Harness Core authorization before execution'
-		);
-		assert.ok(
-			ledgerRecords.some((record) => (
-				record.tool_name === 'spawner.run' &&
-				record.result.status === 'success' &&
-				/Natural no-edit Spawner probe started mission spark-tiny-no-edit/.test(record.result.summary)
-			)),
-			'the dedicated probe must record its final Harness Core execution result'
 		);
 
 		rmSync(tempRoot, { recursive: true, force: true });

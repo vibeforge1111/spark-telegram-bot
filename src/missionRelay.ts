@@ -2356,11 +2356,10 @@ export function relayEventMatchesSubscription(
   event: DeliverableRelayEvent,
   subscription: MissionSubscription
 ): boolean {
+  if (event.missionId !== subscription.missionId) return false;
   const identity = relayIdentityFromEvent(event);
-  if (!identity.chatId && !identity.userId) {
-    return false;
-  }
-  return identity.chatId === subscription.chatId && identity.userId === subscription.userId;
+  if (!identity.chatId && !identity.userId) return true; // Authenticated Spawner webhooks redact raw Telegram ids.
+  return Boolean(identity.chatId && identity.userId && identity.chatId === subscription.chatId && identity.userId === subscription.userId);
 }
 
 export function relayIdentityMismatchPayload(): Record<string, unknown> {

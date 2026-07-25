@@ -1184,7 +1184,7 @@ test('accepts legacy flat Telegram relay target fields for this bot only', () =>
   }
 });
 
-test('requires relay events to match registered Telegram identity', () => {
+test('requires relay events to match the registered mission and any supplied Telegram identity', () => {
   const subscription = {
     missionId: 'spark-1',
     chatId: '12345',
@@ -1215,7 +1215,7 @@ test('requires relay events to match registered Telegram identity', () => {
   assert.equal(relayEventMatchesSubscription({
     type: 'task_completed',
     missionId: 'spark-1'
-  }, subscription), false);
+  }, subscription), true);
 
   assert.equal(relayEventMatchesSubscription({
     type: 'task_completed',
