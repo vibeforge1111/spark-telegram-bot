@@ -4154,24 +4154,37 @@ async function replyViaBuilder(ctx: any, text: string, envelope?: TurnIntentEnve
         reasonSummary: 'Builder gateway reply was delivered to Telegram.'
       })
     : null;
-  await deliverBuilderReply(
-    ctx,
-    { ...builderReply, responseText },
-    envelope && deliveryProofCapsule ? builderReplyTraceContext(envelope, builderReply, deliveryProofCapsule, 'builder_reply') : undefined
-  );
+  await deliverBuilderReply(ctx, { ...builderReply, responseText }, {
+    traceContext: envelope && deliveryProofCapsule
+      ? builderReplyTraceContext(envelope, builderReply, deliveryProofCapsule, 'builder_reply')
+      : undefined
+  });
   if (user && responseText) {
     await conversation.rememberAssistantReply(user, responseText).catch(() => {});
   }
   return true;
 }
 
-async function deliverBuilderReply(
+export async function deliverBuilderReply(
   ctx: any,
   builderReply: Awaited<ReturnType<typeof runBuilderTelegramBridge>>,
-  traceContext?: NodeOutboundTraceContext
+  options: {
+    allowVoiceMedia?: boolean;
+    traceContext?: NodeOutboundTraceContext;
+  } = {}
 ): Promise<void> {
+  const traceContext = options.traceContext;
   if (builderReply.voiceMedia) {
-    await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia, builderReply.responseText, traceContext);
+    if (options.allowVoiceMedia) {
+      await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia, builderReply.responseText, traceContext);
+    } else if (builderReply.responseText) {
+      console.warn('[BridgeVoice] dropped voice media without matching delivery authorization.');
+      await replyWithSanitizedTelegramText(
+        ctx,
+        builderReply.responseText,
+        traceContext ? outboundTraceExtra(traceContext) : undefined
+      );
+    }
     return;
   }
   if (builderReply.responseText) {
@@ -12392,11 +12405,14 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
           replyShape: 'natural',
           reasonSummary: 'Builder gateway reply was delivered to Telegram.'
         });
-        await deliverBuilderReply(
-          ctx,
-          { ...builderReply, responseText },
-          builderReplyTraceContext(turnIntentEnvelope, builderReply, deliveryProofCapsule, 'builder_reply')
-        );
+        await deliverBuilderReply(ctx, { ...builderReply, responseText }, {
+          traceContext: builderReplyTraceContext(
+            turnIntentEnvelope,
+            builderReply,
+            deliveryProofCapsule,
+            'builder_reply'
+          )
+        });
         if (responseText) {
           await conversation.rememberAssistantReply(user, responseText).catch(() => {});
         }
@@ -12519,7 +12535,6 @@ export async function handleImageMessage(ctx: any): Promise<void> {
     return;
   }
 
-  await conversation.remember(user, imageMemoryText).catch(() => {});
   await safeSendChatAction(ctx, 'typing');
 
   try {
@@ -12559,13 +12574,11 @@ export async function handleImageMessage(ctx: any): Promise<void> {
             reasonSummary: 'Builder image analysis reply was delivered to Telegram.'
           })
         : null;
-      await deliverBuilderReply(
-        ctx,
-        builderReply,
-        authorization.legacyEnvelope && deliveryProofCapsule
+      await deliverBuilderReply(ctx, builderReply, {
+        traceContext: authorization.legacyEnvelope && deliveryProofCapsule
           ? builderReplyTraceContext(authorization.legacyEnvelope, builderReply, deliveryProofCapsule, 'builder_image_reply')
           : undefined
-      );
+      });
       await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
       return;
     }
@@ -12627,8 +12640,7 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
     return;
   }
 
-  await conversation.remember(user, mediaMemoryText).catch(() => {});
-  const rememberedAt = Date.now();
+  const authorizedAt = Date.now();
   await safeSendChatAction(ctx, 'typing');
 
   try {
@@ -12666,16 +12678,15 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
             reasonSummary: `Builder ${mediaKind} reply was delivered to Telegram.`
           })
         : null;
-      await deliverBuilderReply(
-        ctx,
-        builderReply,
-        authorization.legacyEnvelope && deliveryProofCapsule
+      await deliverBuilderReply(ctx, builderReply, {
+        allowVoiceMedia: true,
+        traceContext: authorization.legacyEnvelope && deliveryProofCapsule
           ? builderReplyTraceContext(authorization.legacyEnvelope, builderReply, deliveryProofCapsule, `builder_${mediaKind}_reply`)
           : undefined
-      );
+      });
       const deliveredAt = Date.now();
       console.log(
-        `[VoiceBridgeTiming] user=${userRef(ctx.from?.id)} remember_ms=${rememberedAt - startedAt} media_ms=${mediaReadyAt - rememberedAt} builder_ms=${builderReadyAt - mediaReadyAt} deliver_ms=${deliveredAt - builderReadyAt} total_ms=${deliveredAt - startedAt}`
+        `[VoiceBridgeTiming] user=${userRef(ctx.from?.id)} auth_ms=${authorizedAt - startedAt} media_ms=${mediaReadyAt - authorizedAt} builder_ms=${builderReadyAt - mediaReadyAt} deliver_ms=${deliveredAt - builderReadyAt} total_ms=${deliveredAt - startedAt}`
       );
       if (builderReply.responseText) {
         await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
