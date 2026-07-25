@@ -210,8 +210,8 @@ async function main(): Promise<void> {
 
     assert.equal(replies.length, 1);
     assert.match(replies[0], /Spark is healthy right now\./);
-    assert.match(replies[0], /Spawner: reachable\./);
-    assert.match(replies[0], /Telegram: polling\./);
+    assert.match(replies[0], /Spawner is reachable/);
+    assert.match(replies[0], /Telegram is polling/);
   });
 
   await test('provider runtime config question answers from fresh provider status', async () => {

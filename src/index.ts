@@ -721,6 +721,19 @@ function isLiveSparkHealthQuestion(text: string): boolean {
   );
 }
 
+function isDirectSparkRuntimeStatusQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const scopedToAnotherSystem =
+    /\b(?:wiki|memory|builder\s+memory|domain[-\s]*chip|chips?|provider|providers|model|models|llm|build|building|updates?|upgrades?|ledger)\b/.test(normalized);
+  if (scopedToAnotherSystem) return false;
+  return (
+    /\b(?:are|is)\s+(?:you|spark|the\s+bot|this\s+bot|telegram|spawner|mission\s+control|the\s+system|systems?|everything)\b.*\b(?:healthy|working|running|online|up|live|ready|ok|okay)\b/.test(normalized) ||
+    /\bwhat(?:'s| is)\s+(?:your|the)\s+current\s+(?:live\s+)?(?:state|status|health)\b/.test(normalized) ||
+    /\bhow\s+(?:are|is)\s+(?:you|spark|the\s+bot|this\s+bot|telegram|spawner|the\s+system|systems?|everything)\s+(?:doing|running)\b/.test(normalized)
+  );
+}
+
 function isSpawnerGoldenPathRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   const explicitlyStopsExecution = /\b(?:do\s+not|don't|dont|no\s+need\s+to|without)\s+(?:start|run|launch|queue|dispatch|execute)\b/.test(normalized);
@@ -1796,6 +1809,7 @@ function runtimeTruthSignals(text: string): RuntimeTruthSignals {
     return { access: false, live: false, providers: false, memory: false };
   }
   const sourceCheck = /\b(?:old\s+memory|fresh\s+state|fresh\s+runtime|current\s+truth|using\s+memory|using\s+fresh)\b/.test(normalized);
+  const directRuntimeStatus = isDirectSparkRuntimeStatusQuestion(text);
   const access = (
     sourceCheck ||
     /\blevel\s*[1-5]\b/.test(normalized) ||
@@ -1804,6 +1818,7 @@ function runtimeTruthSignals(text: string): RuntimeTruthSignals {
     /\b(?:runner|read[-\s]*only|writable|operator\s+mode|whole[-\s]*computer|full\s+access)\b/.test(normalized)
   );
   const live = (
+    directRuntimeStatus ||
     sourceCheck ||
     isRepairNeededStatusQuestion(normalized) ||
     /\b(?:raw|debug|details?|full|exact)\b.*\b(?:live|health|status|state)\b/.test(normalized) ||
@@ -1853,6 +1868,7 @@ export function shouldAnswerAuthoritativeRuntimeStatus(text: string): boolean {
   if (isMetaNoActionTriggerDiscussion(text)) return false;
   if (!runtimeTruthSignals(text).live) return false;
   return (
+    isDirectSparkRuntimeStatusQuestion(text) ||
     isRepairNeededStatusQuestion(normalized) ||
     /\b(?:raw|debug|details?|full|exact)\b.*\b(?:live|health|status|state)\b/.test(normalized) ||
     /\b(?:live|health|status|state)\b.*\b(?:raw|debug|details?|full|exact)\b/.test(normalized) ||
