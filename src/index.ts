@@ -3092,6 +3092,17 @@ function readOnlyStateOutboundTraceExtra(
   });
 }
 
+function buildContextRecallOutboundTraceExtra(ctx: any): Record<string, unknown> {
+  const telegramUpdateId = telegramUpdateIdFromUpdate(ctx.update);
+  return outboundTraceExtra({
+    turnId: telegramUpdateId === null ? undefined : `telegram-update:${telegramUpdateId}`,
+    telegramUpdateId: telegramUpdateId ?? undefined,
+    route: 'build_context.recall',
+    command: 'build_context.recall',
+    replyKind: 'build_context_recall'
+  });
+}
+
 function telegramRenderSurfaceForTraceContext(traceContext?: NodeOutboundTraceContext | null): TelegramRenderSurface {
   const route = String(traceContext?.route || '').trim().toLowerCase().replace(/_/g, '.');
   const command = String(traceContext?.command || '').trim().toLowerCase().replace(/_/g, '.');
@@ -11850,7 +11861,14 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
     if (isBuildContextRecallQuestion(text)) {
       const recentBuildContext = buildRecentBuildContextReply(contextualTurns);
       if (recentBuildContext) {
-        await ctx.reply(recentBuildContext);
+        recordNaturalRouteExecution(
+          ctx,
+          naturalRouteShadow,
+          'build_context.recall',
+          'spark-telegram-bot',
+          'build_context.recall'
+        );
+        await ctx.reply(recentBuildContext, buildContextRecallOutboundTraceExtra(ctx));
         return;
       }
     }
