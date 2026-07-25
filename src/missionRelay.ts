@@ -10,6 +10,7 @@ import { protectRelayHealthPayload } from './relayHealthPrivacy';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { redactIdentifier, redactText } from './redaction';
 import { recordShippedProjectFromMission } from './shippedProjectContext';
+import { spawnerAuthHeaders } from './spawnerAuth';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
 
 const MISSION_LESSON_APPROVAL_PATH = resolveStatePath('.spark-mission-lesson-approvals.json');
@@ -759,13 +760,13 @@ async function fetchMissionCompletionSummary(
       const timeout = setTimeout(() => controller.abort(), 3000);
       try {
         const response = await fetch(`${spawnerUiUrl()}/api/mission-control/trace?mission=${encodeURIComponent(missionId)}`, {
-          signal: controller.signal
+          headers: spawnerAuthHeaders(), signal: controller.signal
         });
         if (!response.ok) continue;
         const payload = asRecord(await response.json());
         if (!payload) continue;
         const phase = typeof payload.phase === 'string' ? payload.phase.toLowerCase() : '';
-        const providerSummary = typeof payload.providerSummary === 'string' ? payload.providerSummary.trim() : '';
+        const providerSummary = typeof payload.providerSummary === 'string' && payload.providerSummary.trim() !== 'Provider summary requires control auth.' ? payload.providerSummary.trim() : '';
         const providerResults = Array.isArray(payload.providerResults) ? payload.providerResults.map(asRecord).filter(Boolean) : [];
         const completedProvider =
           providerResults.find((entry) => String(entry?.status || '').toLowerCase() === 'completed') ||
