@@ -53,10 +53,20 @@ test('the sentinel is random per turn (cannot be forged by injected text)', () =
   assert.notEqual(a, b, 'sentinel must change every turn');
 });
 
-test('no untrusted content means no fence and no fence instruction', () => {
-  const prompt = buildSparkChatSystemPrompt('', '');
-  assert.doesNotMatch(prompt, /SPARK_DATA/, 'no fence when there is nothing untrusted');
-  assert.doesNotMatch(prompt, /Untrusted context boundary/, 'no fence instruction when unused');
+test('no supporting context means no fence and no fence instruction', () => {
+  const previous = process.env.SPARK_AGENT_KNOWLEDGE_ENABLED;
+  process.env.SPARK_AGENT_KNOWLEDGE_ENABLED = '0';
+  try {
+    const prompt = buildSparkChatSystemPrompt('', '');
+    assert.doesNotMatch(prompt, /SPARK_DATA/, 'no fence when there is nothing untrusted');
+    assert.doesNotMatch(prompt, /Untrusted context boundary/, 'no fence instruction when unused');
+  } finally {
+    if (previous === undefined) {
+      delete process.env.SPARK_AGENT_KNOWLEDGE_ENABLED;
+    } else {
+      process.env.SPARK_AGENT_KNOWLEDGE_ENABLED = previous;
+    }
+  }
 });
 
 test('trusted operator instructions are preserved alongside the fences', () => {
