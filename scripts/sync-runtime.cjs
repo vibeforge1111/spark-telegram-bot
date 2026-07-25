@@ -25,6 +25,7 @@ const os = require('os');
 const SOURCE_ROOT = path.resolve(__dirname, '..');
 const MODULE_ID = 'spark-telegram-bot';
 const FALLBACK_RUNTIME_ROOT = path.join(os.homedir(), '.spark', 'modules', MODULE_ID, 'source');
+const RUNTIME_BACKUP_DIR = '.spark-runtime-sync-backups';
 
 function installedRuntimeRoot() {
 	if (process.env.SPARK_TELEGRAM_RUNTIME_ROOT) {
@@ -151,10 +152,60 @@ function copyOne(rel) {
 	return true;
 }
 
+function staleRuntimeDistPaths() {
+	const canonicalDist = new Set(discoverDistJs(SOURCE_ROOT));
+	return discoverDistJs(RUNTIME_ROOT).filter((rel) => !canonicalDist.has(rel));
+}
+
+function archiveStaleRuntimeDist() {
+	const stale = staleRuntimeDistPaths();
+	if (stale.length === 0) return null;
+
+	const stamp = `${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}`;
+	const backupRel = path.join(RUNTIME_BACKUP_DIR, stamp).replace(/\\/g, '/');
+	const backupRoot = path.join(RUNTIME_ROOT, backupRel);
+	const moved = [];
+
+	try {
+		for (const rel of stale) {
+			const src = path.join(RUNTIME_ROOT, rel);
+			const dst = path.join(backupRoot, rel);
+			fs.mkdirSync(path.dirname(dst), { recursive: true });
+			fs.renameSync(src, dst);
+			moved.push(rel);
+		}
+		fs.writeFileSync(
+			path.join(backupRoot, 'manifest.json'),
+			`${JSON.stringify({
+				schemaVersion: 1,
+				createdAt: new Date().toISOString(),
+				reason: 'stale runtime dist paths absent from the canonical source build',
+				moved
+			}, null, 2)}\n`,
+			'utf8'
+		);
+	} catch (error) {
+		for (const rel of moved.reverse()) {
+			const src = path.join(backupRoot, rel);
+			const dst = path.join(RUNTIME_ROOT, rel);
+			if (!exists(src) || exists(dst)) continue;
+			fs.mkdirSync(path.dirname(dst), { recursive: true });
+			fs.renameSync(src, dst);
+		}
+		throw error;
+	}
+
+	return { backupRel, moved };
+}
+
 function syncOnce({ silent = false } = {}) {
 	if (!exists(RUNTIME_ROOT)) {
 		console.warn(`[sync] runtime not present at ${RUNTIME_ROOT} — skipping.`);
 		return;
+	}
+	const archived = archiveStaleRuntimeDist();
+	if (archived && !silent) {
+		console.log(`[sync] archived ${archived.moved.length} stale dist path(s) to ${archived.backupRel}.`);
 	}
 	let synced = 0;
 	for (const rel of discoverSyncedPaths()) {

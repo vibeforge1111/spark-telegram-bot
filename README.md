@@ -244,19 +244,25 @@ npm run health:polling
 
 ## Deploy To The Live Mirror
 
-For local Spark installs, deploy the Telegram gateway with one guarded command
-from the source checkout:
+For local Spark installs, prepare the Telegram gateway from the source checkout
+and prove the runtime mirror is exact before asking the Spark supervisor to
+restart its sole Telegram profile:
 
 ```bash
-npm run restart:safe
+npm run build:sync
+npm run sync:check:strict
 ```
 
-The command rebuilds `dist/`, syncs the declared runtime files into the live
-mirror, runs the strict runtime drift check, and only then restarts the
-`spark-recursive` Telegram profile through `spark.cmd`. If the check prints
-`DRIFT`, do not restart from stale output. Read the listed paths, rerun
-`npm run build:sync`, and repeat `npm run sync:check:strict` until it prints
-`[check] runtime in sync.`
+The build starts from a clean `dist/`. Runtime sync copies the declared source
+and generated files, and moves compiled files that no longer exist in the
+canonical build into
+`.spark-runtime-sync-backups/<timestamp>/dist/` instead of deleting them. The
+backup manifest lists every moved path for rollback. If the strict check still
+prints `DRIFT`, do not restart from stale output; inspect the listed paths and
+repeat the guarded preparation until it prints `[check] runtime in sync.`
+
+Restart only after local proof and operator approval, using the one profile
+already owned by the Spark supervisor. Do not launch a second polling process.
 
 ## Railway / Docker
 
