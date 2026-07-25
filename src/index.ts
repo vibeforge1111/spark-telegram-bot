@@ -337,6 +337,7 @@ import {
   isLocalSparkServiceRequest,
   isRuntimeOutputArtifactRequest,
   isLowInformationLlmReply,
+  classifyStaleContextAuthorityBoundary,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
@@ -356,6 +357,7 @@ import {
   renderRawLogSafetyReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkUpdateGuidanceReply,
+  renderStaleContextAuthorityBoundaryReply,
   renderSuspiciousProofFileReply,
   renderSparkWorkflowBugHuntReply,
   renderXContentCredentialBoundaryReply,
@@ -2043,6 +2045,25 @@ async function recordNaturalRouteShadow(ctx: any, text: string): Promise<Natural
       ? recentTurns.map((turn) => `${turn.role === 'assistant' ? 'Spark' : 'User'}: ${turn.text}`)
       : await conversation.getRecentMessages(ctx.from, 15).catch(() => []);
     const key = telegramPendingDomainChipKey(ctx.chat?.id, ctx.from?.id);
+    const pendingDomainChip = getPendingDomainChipBuild(key);
+    if (
+      pendingDomainChip &&
+      !isPendingDomainChipBuildExpired(pendingDomainChip) &&
+      isDomainChipPendingDirection(text)
+    ) {
+      return {
+        schema_version: 'spark.nlp.route_decision.v1',
+        route: 'domain_chip.pending',
+        owner_system: 'spark-intelligence-builder',
+        confidence: 'contextual',
+        action: 'domain_chip.create',
+        payload: { projectName: pendingDomainChip.projectName },
+        context_source: 'pending_state',
+        matched_signals: ['pending_domain_chip', 'pending_domain_chip_direction'],
+        blocked_by: [],
+        requires_confirmation: false
+      };
+    }
     const lastCreatedChipContext = formatLastCreatedDomainChipContext(
       await getLastCreatedDomainChip(key).catch(() => null)
     );
@@ -10951,6 +10972,22 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
       action: 'plain_chat.no_action',
       signal: 'domain_chip_chat_only_proposal'
     }), 'conversation.domain_chip_chat_only_proposal', 'spark-telegram-bot', 'plain_chat.no_action');
+    await ctx.reply(response);
+    await conversation.rememberAssistantReply(user, response).catch(() => {});
+    return;
+  }
+  const staleContextAuthorityBoundary = !earlyBuildIntent
+    ? classifyStaleContextAuthorityBoundary(text)
+    : null;
+  if (staleContextAuthorityBoundary) {
+    await conversation.remember(user, text).catch(() => {});
+    const response = renderStaleContextAuthorityBoundaryReply(text, staleContextAuthorityBoundary);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'conversation.stale_context_authority_boundary',
+      owner: 'spark-telegram-bot',
+      action: 'plain_chat.stale_context_authority_boundary',
+      signal: staleContextAuthorityBoundary
+    }), 'conversation.stale_context_authority_boundary', 'spark-telegram-bot', 'plain_chat.stale_context_authority_boundary');
     await ctx.reply(response);
     await conversation.rememberAssistantReply(user, response).catch(() => {});
     return;
