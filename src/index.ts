@@ -3120,6 +3120,103 @@ function buildContextRecallOutboundTraceExtra(ctx: any): Record<string, unknown>
   });
 }
 
+function spawnerBoardReadOutboundTraceExtra(
+  ctx: any,
+  route: string,
+  intent: string,
+  replyKind = 'spawner_board_read'
+): Record<string, unknown> {
+  const telegramUpdateId = telegramUpdateIdFromUpdate(ctx.update);
+  return outboundTraceExtra({
+    turnId: telegramUpdateId === null ? undefined : `telegram-update:${telegramUpdateId}`,
+    telegramUpdateId: telegramUpdateId ?? undefined,
+    route,
+    command: 'spawner.board_read',
+    replyKind: `${replyKind}.${intent}`
+  });
+}
+
+async function handleNaturalSpawnerBoardRead(
+  ctx: any,
+  user: any,
+  text: string,
+  naturalRouteShadow: NaturalRouteDecision | null,
+  turnIntentEnvelope: TurnIntentEnvelopeV1,
+  contextualTurns: string[]
+): Promise<boolean> {
+  const intent = parseContextualSpawnerBoardNaturalIntent(text, contextualTurns);
+  if (!intent) return false;
+
+  const route = intent === 'board' ? 'spawner.board' : `spawner.board/${intent}`;
+  const authorization = telegramActionAuthorityDecision(turnIntentEnvelope, {
+    route: 'spawner.board',
+    text,
+    toolName: 'spawner.board',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'read_only'
+  });
+  if (!authorization.allow) {
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, route, 'spawner-ui', 'spawner.board_read');
+    await ctx.reply(
+      'I did not read Mission Control because the fresh turn did not authorize that Spawner read.',
+      spawnerBoardReadOutboundTraceExtra(ctx, route, intent, 'spawner_board_denied')
+    );
+    return true;
+  }
+
+  const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+  if (!sparkAccessAllows(accessProfile, 'spawner_build')) {
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, route, 'spawner-ui', 'spawner.board_read');
+    recordTelegramHarnessCoreExecution(authorization, {
+      toolName: 'spawner.board',
+      status: 'failure',
+      summary: 'Natural Spawner board read was authorized by Harness Core but blocked by Spark access policy.'
+    });
+    await ctx.reply(
+      renderSparkAccessDenial(accessProfile, 'spawner_build'),
+      spawnerBoardReadOutboundTraceExtra(ctx, route, intent, 'spawner_board_denied')
+    );
+    return true;
+  }
+
+  await conversation.remember(user, text).catch(() => {});
+  await safeSendChatAction(ctx, 'typing');
+  const result = intent === 'latest_provider'
+    ? await spawner.latestProviderSummary()
+    : intent === 'latest_failed_provider'
+      ? await spawner.latestFailedProviderSummary()
+      : intent === 'latest_mission'
+        ? await spawner.latestMissionSummary()
+        : intent === 'active_missions'
+          ? await spawner.activeMissionSummary()
+          : intent === 'latest_on_kanban'
+            ? await spawner.latestKanbanSummary()
+            : intent === 'latest_project_preview'
+              ? await spawner.latestProjectPreview()
+              : intent === 'latest_failure'
+                ? await spawner.latestFailureSummary()
+                : await spawner.board();
+  recordNaturalRouteExecution(
+    ctx,
+    naturalRouteShadow,
+    route,
+    'spawner-ui',
+    'spawner.board_read'
+  );
+  recordTelegramHarnessCoreExecution(authorization, {
+    toolName: 'spawner.board',
+    status: result.success ? 'success' : 'failure',
+    summary: result.success
+      ? `Natural Spawner board ${intent} read completed.`
+      : `Natural Spawner board ${intent} read failed: ${result.message}.`
+  });
+  await ctx.reply(
+    result.success ? result.message : `Board failed: ${result.message}`,
+    spawnerBoardReadOutboundTraceExtra(ctx, route, intent)
+  );
+  return true;
+}
+
 function telegramRenderSurfaceForTraceContext(traceContext?: NodeOutboundTraceContext | null): TelegramRenderSurface {
   const route = String(traceContext?.route || '').trim().toLowerCase().replace(/_/g, '.');
   const command = String(traceContext?.command || '').trim().toLowerCase().replace(/_/g, '.');
@@ -11382,7 +11479,11 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
     await ctx.reply('Got it, no build or mission started. We can keep talking here.');
     return;
   }
-  if (!earlyBuildIntent && shouldPreferConversationalIdeation(text)) {
+  if (
+    !earlyBuildIntent &&
+    !naturalRouteShadow?.route?.startsWith('spawner.board') &&
+    shouldPreferConversationalIdeation(text)
+  ) {
     console.log(`[ConversationIntent] early ideation route user=${userRef(ctx.from?.id)} textLen=${text.length}`);
     if (isPendingClarificationAlternativeRequest(text)) {
       deletePendingBuildClarification(telegramPendingBuildKey(ctx.chat.id, ctx.from.id));
@@ -11680,6 +11781,17 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
       return;
     }
 
+    if (await handleNaturalSpawnerBoardRead(
+      ctx,
+      user,
+      text,
+      naturalRouteShadow,
+      turnIntentEnvelope,
+      contextualTurns
+    )) {
+      return;
+    }
+
 	    const latestShippedProject = await getLatestShippedProjectContext(ctx.chat.id);
     const projectImprovementAuthorization = isProjectImprovementRequest(text, latestShippedProject)
       ? telegramActionAuthorityDecision(turnIntentEnvelope, {
@@ -11961,35 +12073,6 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
       return;
     }
 
-    const spawnerBoardIntent = parseContextualSpawnerBoardNaturalIntent(text, contextualTurns);
-    if (spawnerBoardIntent && routeEvidenceAllowed({ route: 'spawner.board', text, profile: activeTelegramProfile() })) {
-      const accessProfile = await getSparkAccessProfile(ctx.chat.id);
-      if (!sparkAccessAllows(accessProfile, 'spawner_build')) {
-        await ctx.reply(renderSparkAccessDenial(accessProfile, 'spawner_build'));
-        return;
-      }
-
-      await conversation.remember(user, text).catch(() => {});
-      await safeSendChatAction(ctx, 'typing');
-      const result = spawnerBoardIntent === 'latest_provider'
-        ? await spawner.latestProviderSummary()
-        : spawnerBoardIntent === 'latest_failed_provider'
-          ? await spawner.latestFailedProviderSummary()
-        : spawnerBoardIntent === 'latest_mission'
-          ? await spawner.latestMissionSummary()
-        : spawnerBoardIntent === 'active_missions'
-          ? await spawner.activeMissionSummary()
-        : spawnerBoardIntent === 'latest_on_kanban'
-          ? await spawner.latestKanbanSummary()
-          : spawnerBoardIntent === 'latest_project_preview'
-            ? await spawner.latestProjectPreview()
-            : spawnerBoardIntent === 'latest_failure'
-              ? await spawner.latestFailureSummary()
-          : await spawner.board();
-      await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
-      return;
-    }
-
     if (isRuntimeOutputArtifactRequest(text) && routeEvidenceAllowed({ route: 'spawner.local_service', text, profile: activeTelegramProfile() })) {
       await conversation.remember(user, text).catch(() => {});
       await ctx.reply(buildRuntimeOutputArtifactReply());
@@ -12174,7 +12257,10 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
 
     await conversation.remember(user, text).catch(() => {});
 
-    if (shouldPreferConversationalIdeation(text)) {
+    if (
+      !naturalRouteShadow?.route?.startsWith('spawner.board') &&
+      shouldPreferConversationalIdeation(text)
+    ) {
       console.log(`[ConversationIntent] ideation route user=${userRef(ctx.from?.id)} textLen=${text.length}`);
       if (isPendingClarificationAlternativeRequest(text)) {
         deletePendingBuildClarification(telegramPendingBuildKey(ctx.chat.id, ctx.from.id));
