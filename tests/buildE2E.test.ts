@@ -3767,7 +3767,7 @@ async function run(): Promise<void> {
 				{
 					text: 'Tell me whether Telegram primary is polling right now.',
 					matches: [/Telegram primary is polling/i, /I did not restart Telegram/i],
-					not: [/restarting|Mission:/i]
+					not: [/restarting|Mission:|pid=|relay=/i]
 				},
 				{
 					text: 'Read whether there are contract coverage blockers.',

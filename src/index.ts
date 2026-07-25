@@ -1114,13 +1114,11 @@ async function renderTelegramPrimaryPollingAnswer(): Promise<string> {
     const status = await readSparkLiveStatusJson();
     const primary = objectArray(status.telegram_profiles).find((item) => item.primary === true || String(item.profile || '') === 'primary');
     const running = primary?.running === true;
-    const pid = primary?.pid ? ` pid=${primary.pid}` : '';
-    const relayPort = primary?.relay_port ? ` relay=${primary.relay_port}` : '';
     return [
       running ? 'Yes. Telegram primary is polling right now.' : 'Telegram primary is not proven polling right now.',
       '',
       primary
-        ? `Fresh status shows \`primary\` ${running ? 'running' : 'not running'}${pid}${relayPort}.`
+        ? `Fresh Spark Live status confirms the supervised receiver is ${running ? 'active' : 'not active'}.`
         : 'Fresh status did not list a primary Telegram profile.',
       'I did not restart Telegram.'
     ].join('\n');
