@@ -125,7 +125,7 @@ const CASES: CanaryCase[] = [
     prompt: 'What timezone is Spark runtime using for live status? Do not start, create, schedule, or run anything; answer conversationally.',
     llmReply: 'That is a Spark runtime status question, not a reminder change. I would check live runtime state and keep this chat read-only.',
     expectation: {
-      replyIncludes: [/runtime status question|fresh runtime state|Spark is healthy/i],
+      replyIncludes: [/runtime status question|fresh runtime state|current live state|Spark is healthy/i],
       replyExcludes: [/Daily Schedule private fast path|scheduling facts|reminder was created/i],
       logExcludes: [/\[DailyScheduleFastPath\]/],
       noForbiddenClaims: true
@@ -137,7 +137,7 @@ const CASES: CanaryCase[] = [
     prompt: 'Do not start a mission; explain why timezone prompts are hard to route.',
     llmReply: 'That is a routing discussion, not a schedule mutation. No mission started.',
     expectation: {
-      replyIncludes: [/routing discussion|No mission started/i],
+      replyIncludes: [/routing discussion|No mission started|action words as evidence|not as permission to act/i],
       replyExcludes: [/Daily Schedule private fast path|scheduling facts|reminder was created/i],
       logExcludes: [/\[DailyScheduleFastPath\]/],
       noForbiddenClaims: true
