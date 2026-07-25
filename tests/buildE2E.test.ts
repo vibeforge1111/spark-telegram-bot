@@ -2795,6 +2795,7 @@ async function run(): Promise<void> {
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_HOME = tempRoot;
 		mkdirSync(binDir, { recursive: true });
 		writeFileSync(
 			path.join(tempRoot, 'spark-access-status.json'),
@@ -2874,6 +2875,7 @@ async function run(): Promise<void> {
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_HOME = tempRoot;
 		mkdirSync(binDir, { recursive: true });
 		writeFileSync(
 			statusPath,
@@ -3692,6 +3694,7 @@ async function run(): Promise<void> {
 		mkdirSync(systemMapDir, { recursive: true });
 		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
 		process.env.SPARK_SYSTEM_MAP_STATE_DIR = systemMapDir;
+		process.env.SPARK_HOME = tempRoot;
 		const oldPath = process.env.PATH || '';
 		const sparkShim = path.join(binDir, 'spark');
 		writeFileSync(
@@ -4374,6 +4377,7 @@ async function run(): Promise<void> {
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'operator';
 		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_HOME = tempRoot;
 		writeFileSync(
 			path.join(tempRoot, 'spark-access-status.json'),
 			JSON.stringify({
@@ -4455,6 +4459,7 @@ async function run(): Promise<void> {
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-live-state-source-'));
 		const binDir = path.join(tempRoot, 'bin');
 		const oldPath = process.env.PATH || '';
+		process.env.SPARK_HOME = tempRoot;
 		await import('node:fs/promises').then(({ mkdir }) => mkdir(binDir, { recursive: true }));
 		const sparkShim = path.join(binDir, 'spark');
 		writeFileSync(
@@ -4516,6 +4521,7 @@ async function run(): Promise<void> {
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-repair-status-no-action-'));
 		const binDir = path.join(tempRoot, 'bin');
 		const oldPath = process.env.PATH || '';
+		process.env.SPARK_HOME = tempRoot;
 		await import('node:fs/promises').then(({ mkdir }) => mkdir(binDir, { recursive: true }));
 		const sparkShim = path.join(binDir, 'spark');
 		writeFileSync(
