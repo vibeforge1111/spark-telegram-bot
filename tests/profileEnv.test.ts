@@ -83,6 +83,26 @@ test('honors an available PATH Spark command before the installed fallback', () 
   }
 });
 
+test('an explicit installed SPARK_HOME outranks an ambient PATH Spark command', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'spark-explicit-home-precedence-'));
+  try {
+    const home = path.join(root, 'home');
+    const homeExecutable = path.join(home, 'bin', process.platform === 'win32' ? 'spark.cmd' : 'spark');
+    const pathBin = path.join(root, 'path-bin');
+    mkdirSync(path.dirname(homeExecutable), { recursive: true });
+    mkdirSync(pathBin, { recursive: true });
+    writeFileSync(homeExecutable, '');
+    writeFileSync(path.join(pathBin, process.platform === 'win32' ? 'spark.cmd' : 'spark'), '');
+
+    assert.equal(
+      resolveSparkCliCommand({ PATH: pathBin, SPARK_HOME: home }),
+      homeExecutable
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('uses the SPARK_HOME-installed CLI source for secret reads', () => {
   const home = mkdtempSync(path.join(tmpdir(), 'spark-cli-prefix-'));
   try {
