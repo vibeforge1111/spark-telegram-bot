@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import axios from 'axios';
@@ -35,6 +35,12 @@ import { resetJsonStateForTests } from '../src/jsonState';
 
 type CapturedCall = { url: string; body: any };
 
+class TestSkip extends Error {}
+
+function skip(reason: string): never {
+  throw new TestSkip(reason);
+}
+
 async function test(name: string, fn: () => Promise<void> | void): Promise<void> {
   const originalGatewayStateDir = process.env.SPARK_GATEWAY_STATE_DIR;
   const testStateDir = mkdtempSync(path.join(os.tmpdir(), 'spark-domain-chip-test-state-'));
@@ -44,6 +50,10 @@ async function test(name: string, fn: () => Promise<void> | void): Promise<void>
     await fn();
     console.log(`ok - ${name}`);
   } catch (error) {
+    if (error instanceof TestSkip) {
+      console.log(`skip - ${name}: ${error.message}`);
+      return;
+    }
     console.error(`not ok - ${name}`);
     throw error;
   } finally {
@@ -1399,10 +1409,17 @@ await test('pending domain-chip draft can create and evaluate a real Builder sta
   const outputDir = path.join(tempDir, 'chips');
   const resultPath = path.join(tempDir, 'create-result.json');
   const invocationPath = path.join(tempDir, 'builder-invocations.jsonl');
-  const builderSource = '/Users/alchemistab/.spark/modules/spark-intelligence-builder/source/src';
+  const builderSource = path.resolve(process.env.SPARK_R30_BUILDER_SOURCE || path.join('..', 'builder', 'src'));
+  const harnessSource = path.resolve(process.env.SPARK_R30_HARNESS_SOURCE || path.join('..', 'harness'));
   deletePendingCreatorMission(PENDING_KEY);
   deletePendingDomainChipBuild(DOMAIN_CHIP_PENDING_KEY);
   try {
+    if (
+      !existsSync(path.join(builderSource, 'spark_intelligence', 'chip_create', 'pipeline.py')) ||
+      !existsSync(path.join(harnessSource, 'src', 'spark_harness_core', 'kernel.py'))
+    ) {
+      skip('requires the sibling R30 Builder and Harness owner lanes');
+    }
     writeFileSync(builderHarness, [
       '#!/usr/bin/env python3',
       'from __future__ import annotations',
@@ -1539,6 +1556,7 @@ await test('pending domain-chip draft can create and evaluate a real Builder sta
     process.env.SPARK_MISSION_CONTROL_DISABLED = '1';
     process.env.REAL_CHIP_CREATE_RESULT_PATH = resultPath;
     process.env.REAL_CHIP_CREATE_INVOCATIONS_PATH = invocationPath;
+    process.env.SPARK_HARNESS_CORE_SOURCE = harnessSource;
 
     rememberPendingDomainChipBuild(DOMAIN_CHIP_PENDING_KEY, {
       brief: 'pull request risk review',
