@@ -76,6 +76,7 @@ const tests = [
   'tests/credentialSafety.test.ts',
   'tests/credentialSafetyRouting.test.ts',
   'tests/shippedProjectContext.test.ts',
+  'tests/shippedProjectSummaryTruncation.test.ts',
   'tests/commandTelemetry.test.ts',
   'tests/accessPolicy.test.ts',
   'tests/accessActions.test.ts',

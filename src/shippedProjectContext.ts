@@ -149,15 +149,22 @@ function projectNameFromGoal(goal: string, projectPath: string): string {
   return titleFromFolder(projectPath);
 }
 
+function truncateSummary(value: string): string {
+  const maxLength = 500;
+  const clean = value.trim();
+  if (clean.length <= maxLength) return clean;
+  return `${clean.slice(0, Math.max(0, maxLength - 12)).trimEnd()} [truncated]`;
+}
+
 function summaryFromResponse(response: string): string | undefined {
   const parsed = parseJsonObject(response);
   const parsedSummary = parsed ? stringField(parsed.summary) || stringField(parsed.message) : null;
-  if (parsedSummary) return parsedSummary.slice(0, 500);
+  if (parsedSummary) return truncateSummary(parsedSummary);
   const line = response
     .split(/\r?\n/)
     .map((entry) => entry.trim())
     .find((entry) => entry && !entry.startsWith('-') && !/\[[^\]]+\]\(/.test(entry));
-  return line ? line.slice(0, 500) : undefined;
+  return line ? truncateSummary(line) : undefined;
 }
 
 export async function recordShippedProjectFromMission(
