@@ -1346,7 +1346,19 @@ async function renderSparkReadOnlyStateAnswer(kind: SparkReadOnlyStateQuestion, 
 
 function shouldAnswerRestartNeededQuestion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  return /\brestart\b/.test(normalized) && /\b(?:needed|need|recommend|should|improve|healthy|right now)\b/.test(normalized);
+  if (!/\brestart(?:ed|ing)?\b/.test(normalized)) return false;
+  const asksIfRestartNeeded =
+    /\brestart(?:ed|ing)?\b.{0,50}\b(?:needed|need|required|recommended|recommend|help|fix|repair|healthy|right now|now|worth|safe)\b/.test(normalized) ||
+    /\b(?:need|needs|needed|recommend|recommended|should|must|safe|okay|ok|enough)\b.{0,50}\brestart(?:ed|ing)?\b/.test(normalized);
+  if (!asksIfRestartNeeded) return false;
+  if (/\bafter\s+(?:the\s+|a\s+)?restart\b/.test(normalized) && /\bwhat\s+should\s+i\b/.test(normalized)) {
+    return false;
+  }
+  const explicitSparkScope = /\b(?:spark|bot|telegram|spawner|mission control|runtime|system|stack|it|you|we)\b/.test(normalized);
+  const unscopedRuntimeRestartQuestion =
+    /^(?:is|are|do|does|should|would|could|need|needs|needed)\b.{0,40}\brestart(?:ed|ing)?\b/.test(normalized) ||
+    /\brestart(?:ed|ing)?\b.{0,30}\b(?:needed|required|recommended|safe|okay|ok)\b/.test(normalized);
+  return explicitSparkScope || unscopedRuntimeRestartQuestion;
 }
 
 async function renderRestartNeededAnswer(): Promise<string> {
@@ -1356,14 +1368,13 @@ async function renderRestartNeededAnswer(): Promise<string> {
       runSparkCli(['verify', '--deep'], 90_000).catch((error) => `verify_failed: ${error instanceof Error ? error.message : String(error)}`)
     ]);
     return renderSparkLiveSummary(parseSparkLiveSummary(liveStatus, deepVerify), { restartGuidance: true });
-  } catch (error) {
-    const detail = redactText(error instanceof Error ? error.message : String(error));
+  } catch {
     return [
-      'I cannot prove whether restart is needed from this Telegram runtime.',
+      'Restart verdict: unproven from this Telegram runtime.',
       '',
-      `Fresh check failed: ${detail}`,
+      'Fresh live-status check was unavailable, so I did not use stale memory as proof.',
       '',
-      'So I will not recommend restart from stale memory.'
+      'Next move: run `spark live status` locally or ask again after the Spark CLI is reachable.'
     ].join('\n');
   }
 }
@@ -10732,7 +10743,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
   if (!earlyBuildIntent && shouldAnswerRestartNeededQuestion(text)) {
     await conversation.remember(user, text).catch(() => {});
     const reply = await renderRestartNeededAnswer();
-    await ctx.reply(reply);
+    await ctx.reply(reply, readOnlyStateOutboundTraceExtra(ctx, 'restart_needed'));
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_restart_needed_answer', runtimeTruthSourceEvidence(text));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
