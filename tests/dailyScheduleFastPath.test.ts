@@ -105,7 +105,10 @@ test('renderer returns null for unrelated chat', () => {
 
 test('Telegram handler routes daily schedule fast path before Builder or Spawner work', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  // index.ts snapshots the configured admin set on first import. Keep every
+  // fixture identity used later in this file present before that import so the
+  // route assertions do not depend on test order or a mid-process env change.
+  process.env.ADMIN_TELEGRAM_IDS = '8319079055,8319079056';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
