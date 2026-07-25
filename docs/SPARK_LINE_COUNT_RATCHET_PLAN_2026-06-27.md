@@ -52,3 +52,30 @@ The owner remains the `spark-telegram-bot` reliability maintainers. Extraction
 continues in the order above, with intent-route helpers and Spawner fixtures
 added to the existing cleanup list. No R30 adoption batch may raise these
 counts without another explicit owner-reviewed checkpoint and test proof.
+
+## R30 Adoption Closeout Checkpoint — 2026-07-26
+
+Owner: `spark-telegram-bot` reliability maintainers.
+
+The sealed R30 adoption batches intentionally retained contributor work for
+authority, fresh owner truth, release-readiness evidence, schedule and Spawner
+reads, Telegram media privacy, and joined delivery traces. Those integrations
+raised three existing baseline entries:
+
+- `src/index.ts`: 12,414 to 13,052 lines.
+- `tests/buildE2E.test.ts`: 4,679 to 4,690 lines.
+- `tests/domainChipLabsCreator.test.ts`: 2,367 to 2,385 lines.
+
+This checkpoint records the integrated canonical source; it is not permission
+for additional feature growth. The next behavior-preserving extraction order
+is:
+
+1. Move turn-trace record construction and delivery joins out of `src/index.ts`.
+2. Move public release-readiness evidence parsing out of `src/index.ts`.
+3. Move Browser-use owner-status rendering out of `src/index.ts`.
+4. Move the new top-level route fixtures into focused test files when those
+   routes are next changed.
+
+All three entries must remain at or below this checkpoint until those
+extractions shrink them. The full Telegram suite, focused authority/privacy
+tests, build, artifact, and runtime-sync gates remain mandatory.
