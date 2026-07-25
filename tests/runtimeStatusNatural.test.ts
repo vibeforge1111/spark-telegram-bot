@@ -481,7 +481,7 @@ async function main(): Promise<void> {
     assert.equal(replies.length, 1);
     assert.match(replies[0], /Spark is healthy right now\./);
     assert.match(replies[0], /fresh runtime state here, not memory/);
-    assert.match(replies[0], /No repair action needed right now\./);
+    assert.match(replies[0], /no repair action is needed/i);
     assert.doesNotMatch(replies[0], /setup conversation|\/access_setup|Owner setup/i);
   });
 

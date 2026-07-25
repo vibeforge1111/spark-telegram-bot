@@ -717,6 +717,7 @@ function isLiveSparkHealthQuestion(text: string): boolean {
     /\bspark live status\b/.test(normalized) ||
     /\blive spark health\b/.test(normalized) ||
     /\bsame source as spark live status\b/.test(normalized) ||
+    /\b(?:check|show|refresh|inspect|probe|verify)\b.*\bspark\b.*\b(?:health|healthy|status|state|ready|working)\b/.test(normalized) ||
     connectionCheckScoped ||
     (/\bspawner\b/.test(normalized) && /\btelegram\b/.test(normalized) && /\b(?:supervised|running|stopped|health|live)\b/.test(normalized))
   );
@@ -1990,6 +1991,7 @@ function runtimeTruthSignals(text: string): RuntimeTruthSignals {
   const live = (
     directRuntimeStatus ||
     sourceCheck ||
+    isLiveSparkHealthQuestion(text) ||
     isRepairNeededStatusQuestion(normalized) ||
     /\b(?:raw|debug|details?|full|exact)\b.*\b(?:live|health|status|state)\b/.test(normalized) ||
     /\b(?:live|health|status|state)\b.*\b(?:raw|debug|details?|full|exact)\b/.test(normalized) ||
