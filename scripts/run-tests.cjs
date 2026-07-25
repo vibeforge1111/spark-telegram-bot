@@ -87,6 +87,7 @@ const tests = [
   'tests/shippedProjectSummaryTruncation.test.ts',
   'tests/commandTelemetry.test.ts',
   'tests/accessPolicy.test.ts',
+  'tests/accessLevel5Natural.test.ts',
   'tests/accessActions.test.ts',
   'tests/accessRepairE2E.test.ts',
   'tests/authorityStatus.test.ts',

@@ -61,6 +61,7 @@ async function run(): Promise<void> {
     PATH: process.env.PATH,
     SPARK_BOT_TEST_MODE: process.env.SPARK_BOT_TEST_MODE,
     SPARK_GATEWAY_STATE_DIR: process.env.SPARK_GATEWAY_STATE_DIR,
+    SPARK_HOME: process.env.SPARK_HOME,
   };
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-natural-access-level5-'));
   const binDir = path.join(tempRoot, 'bin');
@@ -69,6 +70,7 @@ async function run(): Promise<void> {
     process.env.BOT_DEFAULT_TIER = 'base';
     process.env.SPARK_BOT_TEST_MODE = '1';
     process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+    process.env.SPARK_HOME = tempRoot;
     mkdirSync(binDir, { recursive: true });
     installSparkStatusShim(binDir, tempRoot);
     process.env.PATH = `${binDir}${path.delimiter}${originalEnv.PATH || ''}`;

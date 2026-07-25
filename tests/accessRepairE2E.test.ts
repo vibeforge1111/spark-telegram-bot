@@ -23,6 +23,7 @@ const originalEnv = {
   BOT_DEFAULT_TIER: process.env.BOT_DEFAULT_TIER,
   SPARK_AGENT_ACCESS_PROFILE: process.env.SPARK_AGENT_ACCESS_PROFILE,
   SPARK_BOT_TEST_MODE: process.env.SPARK_BOT_TEST_MODE,
+  SPARK_CLI_BIN: process.env.SPARK_CLI_BIN,
   SPARK_CLI_COMMAND: process.env.SPARK_CLI_COMMAND,
   SPARK_CLI_PATH: process.env.SPARK_CLI_PATH,
   SPARK_GATEWAY_STATE_DIR: process.env.SPARK_GATEWAY_STATE_DIR,
@@ -192,6 +193,7 @@ async function runAccessRepairScenario(input: {
   process.env.BOT_DEFAULT_TIER = 'base';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BOT_TEST_MODE = '1';
+  process.env.SPARK_CLI_BIN = sparkCommand;
   process.env.SPARK_CLI_COMMAND = sparkCommand;
   process.env.SPARK_GATEWAY_STATE_DIR = stateDir;
   process.env.SPARK_HARNESS_CORE_LEDGER_PATH = path.join(tempRoot, 'harness-ledger.jsonl');
