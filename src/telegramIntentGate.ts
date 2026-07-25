@@ -25,7 +25,10 @@ import {
 import { parseBuildIntent } from './buildIntent';
 import { decideNaturalRoute, type NaturalRouteDecision, type NaturalRouteDecisionContext } from './naturalRouteDecision';
 import { isLiveSparkHealthQuestion } from './runtimeRouteGuards';
-import { isLocalBuildWithPublicationBoundary } from './scopedBuildCommand';
+import {
+  isFreshScopedBuildReplacement,
+  isLocalBuildWithPublicationBoundary
+} from './scopedBuildCommand';
 import type {
   TelegramIntentCandidateV2,
   TelegramIntentConstraintsV2,
@@ -273,6 +276,9 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   if (constraints.noExecution && isExplicitSpawnerNoEditMissionRequest(normalized)) {
     constraints.noExecution = false;
   }
+  if (constraints.noExecution && isFreshScopedBuildReplacement(normalized)) {
+    constraints.noExecution = false;
+  }
   if (constraints.noExecution && isAccessSetupOnlyBoundary(normalized)) {
     constraints.noExecution = false;
   }
@@ -399,9 +405,10 @@ function isExplicitSpawnerBuildRequest(text: string): boolean {
   const explicitNoEditMission = isExplicitSpawnerNoEditMissionRequest(normalized);
   const domainChipCreateRequest = isDomainChipCreateRequest(normalized);
   const buildIntent = parseBuildIntent(text);
+  const freshScopedReplacement = isFreshScopedBuildReplacement(normalized);
   if (
     !normalized ||
-    (isNoExecutionBoundary(normalized) && !explicitNoEditMission) ||
+    (isNoExecutionBoundary(normalized) && !explicitNoEditMission && !freshScopedReplacement) ||
     isScheduleDeleteRequest(normalized) ||
     isCreatorBenchmarkPackRequest(normalized)
   ) return false;

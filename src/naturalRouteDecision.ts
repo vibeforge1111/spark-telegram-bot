@@ -51,7 +51,10 @@ import {
   shouldPreferConversationalIdeation
 } from './conversationIntent';
 import { isLoopEngineeringStatusRequest, resolveLoopEngineeringChipId } from './loopEngineeringStatus';
-import { isLocalBuildWithPublicationBoundary } from './scopedBuildCommand';
+import {
+  isFreshScopedBuildReplacement,
+  isLocalBuildWithPublicationBoundary
+} from './scopedBuildCommand';
 import type {
   NaturalRecursiveCommandTarget
 } from './conversationIntent';
@@ -617,7 +620,11 @@ export function decideNaturalRoute(
 
   if (
     buildIntent &&
-    (!isNoExecutionBoundary(normalized) || isLocalBuildWithPublicationBoundary(normalized)) &&
+    (
+      !isNoExecutionBoundary(normalized) ||
+      isLocalBuildWithPublicationBoundary(normalized) ||
+      isFreshScopedBuildReplacement(normalized)
+    ) &&
     (!harnessArchitectureQuestion || concreteBuildBrief) &&
     ((!earlyCreatorMission && !conversationalIdeation) || concreteStandaloneBuildBrief)
   ) {

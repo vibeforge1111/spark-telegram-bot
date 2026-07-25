@@ -10,6 +10,7 @@ const tests = [
   'tests/onboardingBridge.test.ts',
   'tests/buildIntent.test.ts',
   'tests/buildRoutingMatrix.test.ts',
+  'tests/scopedBuildAdoption.test.ts',
   'tests/buildE2E.test.ts',
   'tests/conversationIntent.test.ts',
   'tests/runtimeRouteGuards.test.ts',
