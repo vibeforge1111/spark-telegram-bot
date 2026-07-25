@@ -877,20 +877,48 @@ async function renderAuthoritativeProviderRuntimeConfigAnswer(
     const releaseAnswer = renderReleaseDecisionModelAnswer(roles, questionText);
     if (releaseAnswer) return releaseAnswer;
     if (!roles.length) {
-      return 'I checked fresh provider status, but it did not expose structured chat or mission roles. I did not change provider settings.';
+      return telegramBlocks(
+        'Provider runtime truth',
+        'I could read fresh provider status, but it did not expose structured roles.',
+        'The answer came from the provider status owner, not memory.',
+        shouldShowRawSparkLiveDetails(questionText)
+          ? compactRuntimeOutput(providerStatus, 10)
+          : 'I did not change provider settings; ask for raw details if you need the owner output.'
+      );
     }
     if (shouldShowRawSparkLiveDetails(questionText)) {
-      return [
+      return telegramBlocks(
+        'Provider runtime truth',
         'Fresh provider status is readable right now.',
-        ...roles.map((role) => (
-          `• ${role.role}: ${role.provider} (${role.model}), reasoning=${role.reasoning || 'not reported'}, service tier=${role.serviceTier || 'not reported'}.`
-        )),
+        [
+          '• The answer came from the provider status owner, not memory.',
+          `• Roles returned OK: ${roles.map((role) => role.role).join(', ')}.`
+        ].join('\n'),
+        [
+          'Details',
+          ...roles.map((role) => (
+            `• ${role.role}: ${role.provider} (${role.model}), reasoning=${role.reasoning || 'not reported'}, service tier=${role.serviceTier || 'not reported'}.`
+          ))
+        ].join('\n'),
         'I did not change provider settings.'
-      ].join('\n');
+      );
     }
-    return `Provider roles are configured and readable right now: ${roles.map((role) => `${role.role} uses ${role.model} through ${role.provider}`).join('; ')}. I did not change provider settings.`;
+    return telegramBlocks(
+      'Provider runtime truth',
+      'Provider roles are configured and readable right now.',
+      [
+        '• The answer came from the provider status owner, not memory.',
+        `• Roles returned OK: ${roles.map((role) => role.role).join(', ')}.`
+      ].join('\n'),
+      'I did not change provider settings; ask for raw details if you need exact model or tier values.'
+    );
   } catch {
-    return 'I could not read fresh provider status from this Telegram runtime, so I will not guess which model is active. I did not change provider settings.';
+    return telegramBlocks(
+      'Provider runtime truth',
+      'Provider runtime truth is unknown from this Telegram runner.',
+      'I could not read fresh provider status, so I will not guess which model is active.',
+      'I did not change provider settings.'
+    );
   }
 }
 
@@ -2856,6 +2884,8 @@ const TELEGRAM_TURN_OUTBOUND_TRACE_CONTEXT = Symbol.for('spark.telegram.turnOutb
 const HARNESS_PROOF_REF_PATTERN = /^turn:sha256:[a-f0-9]{16}$/;
 
 type NodeOutboundTraceContext = {
+  turnId?: string;
+  telegramUpdateId?: number | string;
   route?: string;
   command?: string;
   replyKind?: string;
@@ -2895,6 +2925,29 @@ function outboundTraceExtra(traceContext: NodeOutboundTraceContext): Record<stri
   return {
     [OUTBOUND_TRACE_CONTEXT_KEY]: traceContext
   };
+}
+
+function telegramUpdateIdFromUpdate(update: unknown): number | null {
+  if (!update || typeof update !== 'object') return null;
+  const value = (update as Record<string, unknown>).update_id;
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return value;
+  if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
+  return null;
+}
+
+function readOnlyStateOutboundTraceExtra(
+  ctx: any,
+  kind: SparkReadOnlyStateQuestion | 'browser_use_availability' | string,
+  replyKind = 'read_only_state'
+): Record<string, unknown> {
+  const telegramUpdateId = telegramUpdateIdFromUpdate(ctx.update);
+  return outboundTraceExtra({
+    turnId: telegramUpdateId === null ? undefined : `telegram-update:${telegramUpdateId}`,
+    telegramUpdateId: telegramUpdateId ?? undefined,
+    route: `spark.read_only_state.${kind}`,
+    command: 'read_only_state',
+    replyKind
+  });
 }
 
 function telegramRenderSurfaceForTraceContext(traceContext?: NodeOutboundTraceContext | null): TelegramRenderSurface {
@@ -3136,6 +3189,15 @@ export function buildNodeOutboundAuditRecord(
   const missionId = typeof traceContext?.missionId === 'string' && traceContext.missionId.trim()
     ? traceContext.missionId.trim()
     : null;
+  const route = typeof traceContext?.route === 'string' && traceContext.route.trim()
+    ? traceContext.route.trim()
+    : null;
+  const command = typeof traceContext?.command === 'string' && traceContext.command.trim()
+    ? traceContext.command.trim()
+    : null;
+  const replyKind = typeof traceContext?.replyKind === 'string' && traceContext.replyKind.trim()
+    ? traceContext.replyKind.trim()
+    : null;
   const fallbackSeed = JSON.stringify({
     event: 'telegram_node_delivered',
     ts: timestamp,
@@ -3169,16 +3231,16 @@ export function buildNodeOutboundAuditRecord(
     chat_id_present: String(chatId ?? '').trim().length > 0,
     chat_ref,
     text_length: text.length,
-    trace_context_present: Boolean(requestId || traceRef || missionId),
+    trace_context_present: Boolean(requestId || traceRef || missionId || route || command || replyKind),
     trace_context_scope: traceContextScope,
     mission_id_present: Boolean(missionId),
     ...(requestId ? { request_id: requestId } : { request_ref: redactedRef('request', fallbackSeed) }),
     ...(traceRef ? { trace_ref: traceRef } : { trace_ref: redactedRef('trace', fallbackSeed) }),
     ...proofContinuityFields,
     ...(traceContext?.mediaTurn ? { media_turn: traceContext.mediaTurn } : {}),
-    ...(typeof traceContext?.route === 'string' && traceContext.route.trim() ? { route: traceContext.route.trim() } : {}),
-    ...(typeof traceContext?.command === 'string' && traceContext.command.trim() ? { command: traceContext.command.trim() } : {}),
-    ...(typeof traceContext?.replyKind === 'string' && traceContext.replyKind.trim() ? { reply_kind: traceContext.replyKind.trim() } : {})
+    ...(route ? { route } : {}),
+    ...(command ? { command } : {}),
+    ...(replyKind ? { reply_kind: replyKind } : {})
   };
 }
 
@@ -10020,7 +10082,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
     return;
   }
 
-  if (!earlyBuildIntent && isSparkWorkflowBugHuntRequest(text)) {
+  if (!earlyBuildIntent && !classifySparkReadOnlyStateQuestion(text) && isSparkWorkflowBugHuntRequest(text)) {
     const reply = renderSparkWorkflowBugHuntReply(text);
     await conversation.remember(user, text).catch(() => {});
     const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, { route: 'conversation.qa_planning', intentKind: 'conversation.qa_planning', command: 'telegram_qa_planning', reasonSummary: 'Telegram answered QA planning in chat; no mission launch or owner execution was authorized.' });
@@ -10323,7 +10385,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
     await conversation.remember(user, text).catch(() => {});
     const reply = await renderSparkReadOnlyStateAnswer(readOnlyStateQuestion, ctx, user);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, `spark.read_only_state.${readOnlyStateQuestion}`, 'spark-telegram-bot', 'harness_core.read_only_state');
-    await ctx.reply(reply);
+    await ctx.reply(reply, readOnlyStateOutboundTraceExtra(ctx, readOnlyStateQuestion));
     recordTelegramSourceUsedEvidence(ctx, user, text, `telegram_read_only_state_${readOnlyStateQuestion}`, [
       {
         source: 'current_diagnostics',
