@@ -6,14 +6,26 @@ process.env.TELEGRAM_RELAY_SECRET = process.env.TELEGRAM_RELAY_SECRET || 'group-
 process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
 
 async function run(): Promise<void> {
-  const { handleImageMessage, handleVoiceMessage } = await import('../src/index');
+  const {
+    __setBuilderBridgeRunnerForTest,
+    handleImageMessage,
+    handleVoiceMessage
+  } = await import('../src/index');
   const { conversation } = await import('../src/conversation');
   const botInfo = { id: 42, username: 'SparkTestBot' };
-  let remembered = false;
-  const originalRemember = conversation.remember.bind(conversation);
+  let bridgeCalls = 0;
   const originalGetRecent = conversation.getRecentMessages.bind(conversation);
-  (conversation as any).remember = async () => { remembered = true; };
   (conversation as any).getRecentMessages = async () => [];
+  __setBuilderBridgeRunnerForTest(async () => {
+    bridgeCalls += 1;
+    return {
+      used: true,
+      responseText: 'Media handled.',
+      decision: 'media.read',
+      bridgeMode: 'test',
+      routingDecision: 'media.read'
+    };
+  });
 
   function ctxFor(chatType: string, message: Record<string, unknown>): any {
     return {
@@ -29,9 +41,9 @@ async function run(): Promise<void> {
   }
 
   async function proceeds(handler: (ctx: any) => Promise<void>, ctx: any): Promise<boolean> {
-    remembered = false;
+    bridgeCalls = 0;
     try { await handler(ctx); } catch { /* Later media steps are outside this boundary test. */ }
-    return remembered;
+    return bridgeCalls > 0;
   }
 
   try {
@@ -44,7 +56,7 @@ async function run(): Promise<void> {
     );
     console.log('ok - group media handlers only act when Spark is addressed');
   } finally {
-    (conversation as any).remember = originalRemember;
+    __setBuilderBridgeRunnerForTest(null);
     (conversation as any).getRecentMessages = originalGetRecent;
   }
 }
