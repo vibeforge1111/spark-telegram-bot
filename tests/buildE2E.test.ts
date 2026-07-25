@@ -2030,7 +2030,7 @@ async function run(): Promise<void> {
 			restoreEnv();
 		});
 
-		await test('browser proof health questions use runtime probe before recursive context', async () => {
+		await test('browser proof health questions use owner status before recursive context', async () => {
 			restoreAxios();
 			process.env.ADMIN_TELEGRAM_IDS = '8319079055';
 			process.env.SPARK_BOT_TEST_MODE = '1';
@@ -2075,8 +2075,10 @@ async function run(): Promise<void> {
 
 			const reply = replies.join('\n');
 			assert.equal(recursiveStatusCalls, 0);
-			assert.match(reply, /fresh `\/probe browser` result/i);
-			assert.match(reply, /logged-in pages are unproven|screenshots, clicks, cookies/i);
+			assert.match(reply, /Browser-use is not currently proven ready/i);
+			assert.match(reply, /Owner status: <code>installed_unproven<\/code>/i);
+			assert.match(reply, /spark browser-use probe/i);
+			assert.doesNotMatch(reply, /fresh `\/probe browser` result/i);
 			assert.doesNotMatch(reply, /benchmark-backed evidence for an improvement claim/i);
 		} finally {
 			(pathLoop as any).readSpecializationPathLoopStatus = originalRead;
@@ -2100,7 +2102,8 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 614, replies);
+		const replyExtras: any[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 614, replies, replyExtras);
 		ctx.message.text = 'Do not use browser or computer-use. How should those capabilities be authorized?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -2112,6 +2115,9 @@ async function run(): Promise<void> {
 		assert.match(reply, /stays chat-only/i);
 		assert.doesNotMatch(reply, /Run `\/probe browser`/i);
 		assert.equal(captured.length, 0, 'tool authorization discussion must not call Spawner or PRD bridge');
+		assert.equal(replyExtras[0]?.parse_mode, 'HTML');
+		assert.equal(replyExtras[0]?.__sparkTraceContext?.route, 'conversation.browser_tool_authorization_boundary');
+		assert.equal(replyExtras[0]?.__sparkTraceContext?.command, 'telegram_browser_tool_authorization_boundary');
 
 		rmSync(tempRoot, { recursive: true, force: true });
 		restoreAxios();

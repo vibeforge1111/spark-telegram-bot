@@ -45,6 +45,11 @@ import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicroc
 import { sanitizeAndSplitTelegramText, type TelegramRenderSurface } from './outboundSanitize';
 import { applyPlainWordsSurfaceRequest } from './telegramSurface';
 import {
+  escapeTelegramHtml,
+  TELEGRAM_HTML_REPLY_OPTIONS,
+  telegramHtmlBold
+} from './telegramHtml';
+import {
   createTelegramDraftStreamer,
   parseTelegramStreamingConfigText,
   replayTelegramDraftPreview,
@@ -4834,15 +4839,23 @@ export function formatAocQuestionAnswer(query: string): string {
   return '';
 }
 
-export function formatBrowserProofQuestionAnswer(query: string): string {
+function isBrowserToolAuthorizationQuestion(query: string): boolean {
   const normalized = query.toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!normalized) return '';
-  if (normalized.length > 240) return '';
+  if (!normalized || normalized.length > 240) return false;
   const asksAboutBrowser = /\b(browser|browse|browsing|web pages?)\b/.test(normalized);
   const asksAboutComputerUse = /\bcomputer[-\s]*use\b/.test(normalized);
   const asksAuthorization = /\b(?:authori[sz]e|authori[sz]ed|authorization|permission|approval|approve|tool approval|how should)\b/.test(normalized);
   const blocksUseNow = /\b(?:do\s+not|don't|dont|without|not)\s+(?:use|open|call|run)\b/.test(normalized);
-  if (asksAboutBrowser && (asksAboutComputerUse || asksAuthorization) && (asksAuthorization || blocksUseNow)) {
+  return asksAboutBrowser &&
+    (asksAboutComputerUse || asksAuthorization) &&
+    (asksAuthorization || blocksUseNow);
+}
+
+export function formatBrowserProofQuestionAnswer(query: string): string {
+  const normalized = query.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+  if (normalized.length > 240) return '';
+  if (isBrowserToolAuthorizationQuestion(normalized)) {
     return [
       'Browser and computer-use should be authorized as tools, not triggered by capability names.',
       '',
@@ -4851,6 +4864,7 @@ export function formatBrowserProofQuestionAnswer(query: string): string {
       'A probe can supply evidence about what is available, but this message stays chat-only because you explicitly said not to use those capabilities.'
     ].join('\n');
   }
+  const asksAboutBrowser = /\b(browser|browse|browsing|web pages?)\b/.test(normalized);
   const asksForProof = /\b(capabilit(?:y|ies)|available|definitely|prove|proof|proven|right now|can you)\b/.test(normalized);
   if (!asksAboutBrowser || !asksForProof) return '';
 
@@ -4884,18 +4898,107 @@ function formatBrowserProofScope(proofNames: string[]): string {
   return `The fresh probe covered ${scope}.`;
 }
 
+type BrowserUseCliStatus = {
+  ok?: boolean;
+  status?: string;
+  proof_fresh?: boolean;
+  proofs?: unknown;
+  proven_scope?: unknown;
+  unproven_scope?: unknown;
+  last_failure_reason?: string;
+  next_action?: string;
+};
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+    : [];
+}
+
+function parseCliJsonObject(raw: string): Record<string, unknown> {
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start < 0 || end < start) {
+    throw new Error('Spark CLI returned no JSON object.');
+  }
+  const parsed = JSON.parse(raw.slice(start, end + 1));
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Spark CLI returned non-object JSON.');
+  }
+  return parsed as Record<string, unknown>;
+}
+
+async function readBrowserUseCliStatus(): Promise<BrowserUseCliStatus> {
+  const raw = await runSparkCli(['browser-use', 'status', '--json'], 45_000);
+  return parseCliJsonObject(raw) as BrowserUseCliStatus;
+}
+
+function browserUseCliStatusIsReady(status: BrowserUseCliStatus): boolean {
+  return status.ok === true && status.status === 'ready' && status.proof_fresh === true;
+}
+
+function formatBrowserUseCliStatusAnswer(status: BrowserUseCliStatus): string {
+  const provenScope = stringList(status.proven_scope);
+  const proofNames = stringList(status.proofs);
+  const unprovenScope = stringList(status.unproven_scope);
+
+  if (browserUseCliStatusIsReady(status)) {
+    return telegramBlocks(
+      telegramHtmlBold('Browser-use is currently proven for the scoped lane.'),
+      provenScope.length
+        ? `Proven: ${escapeTelegramHtml(provenScope.join(', '))}.`
+        : escapeTelegramHtml(formatBrowserProofScope(proofNames)),
+      unprovenScope.length
+        ? `Still unproven: ${escapeTelegramHtml(unprovenScope.join(', '))}.`
+        : 'Still unproven: logged-in pages, cookies, sensitive clicks, arbitrary sites, and Spawner browser automation.',
+      'I did not open a browser from this Telegram turn.'
+    );
+  }
+
+  const ownerStatus = status.status || 'unknown';
+  const reason = status.last_failure_reason ||
+    (status.proof_fresh === false ? 'browser-use proof is stale or incomplete.' : '');
+  const nextAction = status.next_action || 'Run spark browser-use probe to refresh owner proof.';
+  return telegramBlocks(
+    telegramHtmlBold('Browser-use is not currently proven ready.'),
+    `Owner status: <code>${escapeTelegramHtml(ownerStatus)}</code>.`,
+    reason ? `Why: ${escapeTelegramHtml(sentenceWithPeriod(reason))}` : null,
+    `Next: ${escapeTelegramHtml(sentenceWithPeriod(nextAction))}`,
+    'I did not open a browser from this Telegram turn.'
+  );
+}
+
+function telegramHtmlFromEvidenceReply(reply: string): string {
+  if (/<\/?(?:a|b|strong|i|em|u|s|strike|del|code|pre)\b/i.test(reply)) {
+    return reply;
+  }
+  const blocks = reply.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+  return blocks
+    .map((block, index) => index === 0 ? telegramHtmlBold(block) : escapeTelegramHtml(block))
+    .join('\n\n');
+}
+
 async function buildBrowserProofQuestionAnswer(query: string): Promise<string> {
   const fallback = formatBrowserProofQuestionAnswer(query);
   if (!fallback) return '';
+  if (isBrowserToolAuthorizationQuestion(query)) {
+    return telegramHtmlFromEvidenceReply(fallback);
+  }
+
+  try {
+    return formatBrowserUseCliStatusAnswer(await readBrowserUseCliStatus());
+  } catch (error) {
+    console.warn('[BrowserProof] owner browser-use status read failed:', redactText(error instanceof Error ? error.message : String(error)));
+  }
 
   try {
     const receipt = await readLatestCapabilityProbeReceipt('spark_browser');
-    if (!receipt) return fallback;
+    if (!receipt) return telegramHtmlFromEvidenceReply(fallback);
 
     const status = receipt.status.toLowerCase();
     if (status === 'success') {
       const proofNames = extractBrowserProofNames(receipt.probeSummary || '');
-      return [
+      return telegramHtmlFromEvidenceReply([
         proofNames.length
           ? 'Yes, for the small browser check Spark just proved. Not for full browser automation yet.'
           : 'The browser probe succeeded, but I should still keep the claim narrow.',
@@ -4903,19 +5006,19 @@ async function buildBrowserProofQuestionAnswer(query: string): Promise<string> {
         formatBrowserProofScope(proofNames),
         '',
         'Still unproven: logged-in pages, cookies, sensitive clicks, arbitrary sites, and Spawner browser automation. Those need their own probe.'
-      ].filter(Boolean).join('\n');
+      ].filter(Boolean).join('\n'));
     }
 
-    return [
+    return telegramHtmlFromEvidenceReply([
       'No. The latest browser probe failed, so browser automation is unavailable right now.',
       '',
       receipt.failureReason ? `Reason: ${receipt.failureReason}` : '',
       '',
       'Once browser-use is fixed and `/probe browser` succeeds, I can claim only the scope that probe proves.'
-    ].filter(Boolean).join('\n');
+    ].filter(Boolean).join('\n'));
   } catch (error) {
     console.warn('[BrowserProof] latest probe receipt read failed:', redactText(error instanceof Error ? error.message : String(error)));
-    return fallback;
+    return telegramHtmlFromEvidenceReply(fallback);
   }
 }
 
@@ -10529,8 +10632,41 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
   const browserProofAnswer = !earlyBuildIntent ? await buildBrowserProofQuestionAnswer(text) : '';
   if (browserProofAnswer) {
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.browser_proof_boundary', 'spark-telegram-bot', 'answer');
-    await ctx.reply(browserProofAnswer);
+    if (isBrowserToolAuthorizationQuestion(text)) {
+      const route = 'conversation.browser_tool_authorization_boundary';
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, route, 'spark-telegram-bot', 'chat_only');
+      await ctx.reply(browserProofAnswer, {
+        ...TELEGRAM_HTML_REPLY_OPTIONS,
+        ...outboundTraceExtra(buildTurnOutboundTraceContext(turnIntentEnvelope, {
+          route,
+          intentKind: route,
+          command: 'telegram_browser_tool_authorization_boundary',
+          reasonSummary: 'Telegram explained browser and computer-use authorization without querying or invoking either capability.'
+        }))
+      } as any);
+      await conversation.rememberAssistantReply(user, browserProofAnswer).catch(() => {});
+      return;
+    }
+    recordNaturalRouteExecution(
+      ctx,
+      naturalRouteShadow,
+      'spark.read_only_state.browser_use_availability',
+      'spark-telegram-bot',
+      'harness_core.read_only_state'
+    );
+    await ctx.reply(browserProofAnswer, {
+      ...TELEGRAM_HTML_REPLY_OPTIONS,
+      ...readOnlyStateOutboundTraceExtra(ctx, 'browser_use_availability')
+    } as any);
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_browser_use_availability_boundary', [
+      {
+        source: 'spark_browser_use_status',
+        role: 'browser_use_availability_evidence',
+        freshness: 'fresh',
+        sourceRef: 'spark browser-use status --json, with capability receipt fallback only if owner status is unreadable',
+        summary: 'Telegram answered browser-use availability as a read-only status claim and did not open a browser.'
+      }
+    ]);
     await conversation.rememberAssistantReply(user, browserProofAnswer).catch(() => {});
     return;
   }
