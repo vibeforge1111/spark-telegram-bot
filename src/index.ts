@@ -55,7 +55,7 @@ import {
   type TelegramStreamingConfigSet
 } from './telegramDraft';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
-import { readJsonFile } from './jsonState';
+import { closeJsonState, readJsonFile } from './jsonState';
 import {
   formatCreatorMissionExecutionSummary,
   formatCreatorMissionStatusSummary,
@@ -12341,6 +12341,7 @@ process.once('SIGINT', async () => {
   await releaseGatewayOwnership().catch((error) => {
     console.warn(`[Shutdown] gateway ownership release failed: ${redactText(error instanceof Error ? error.message : String(error))}`);
   });
+  await closeJsonState();
   if (pollingActive) {
     bot.stop('SIGINT');
   }
@@ -12350,6 +12351,7 @@ process.once('SIGTERM', async () => {
   await releaseGatewayOwnership().catch((error) => {
     console.warn(`[Shutdown] gateway ownership release failed: ${redactText(error instanceof Error ? error.message : String(error))}`);
   });
+  await closeJsonState();
   if (pollingActive) {
     bot.stop('SIGTERM');
   }
