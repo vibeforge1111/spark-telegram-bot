@@ -9,8 +9,8 @@
     },
     {
       "path": "AGENTS.md",
-      "sha256": "c9b2725bce635cef5cede71ffd1e8ea654a95a380fba84c7174dca68b81716de",
-      "bytes": 2413
+      "sha256": "d51c17cca33baf347a533e1806186b135c93d78608a506b95e05aa0315ef1e11",
+      "bytes": 4614
     },
     {
       "path": "docs/CONSUMER_INTEGRATION_GUIDE.md",
@@ -144,8 +144,8 @@
     },
     {
       "path": "schemas/tool-call-ledger-v1.schema.json",
-      "sha256": "a879a985f38104fa7c1d10397cab92586372bbede8c7c46a9afb9bae7603a86c",
-      "bytes": 3675
+      "sha256": "6c6fe3fe1751a5eac56903637cc4885852d9a1b4a1df3da5c9c802bfe9c4c45f",
+      "bytes": 3674
     },
     {
       "path": "schemas/turn-intent-envelope-vnext.schema.json",
@@ -154,7 +154,7 @@
     },
     {
       "path": "SOURCE_MANIFEST.md",
-      "sha256": "ef56ea0a3d20fcd4cbf9dd2d24b26174a41040dd1183c2de583205378c6e5d77",
+      "sha256": "4d1de449d34c772defd8b8f69d4879ff848fae2574e5d352a754df372abbf4a5",
       "bytes": 877
     },
     {
@@ -164,18 +164,18 @@
     },
     {
       "path": "ts-dist/index.d.ts",
-      "sha256": "e0c1a638f1fc49ea86686123834acef2db4f84291e085e45680cf9b59c8e4767",
-      "bytes": 32932
+      "sha256": "89230414bb857c30c57f0073e947930677c10181895b9b404d9870a8ff8b29fb",
+      "bytes": 32531
     },
     {
       "path": "ts-dist/index.js",
-      "sha256": "3bcd31327a1b38ad49360dd5a49e67defacac0c235ac34c7fb446f3134c06c42",
-      "bytes": 76649
+      "sha256": "84b19fb031e8d4e2c5d9c900009ffcde5df83643b38a7dbe33fb04c857ce6e95",
+      "bytes": 74889
     },
     {
       "path": "ts-dist-esm/index.mjs",
-      "sha256": "c5cce32463f855877aa8604e436da1987c476e91598f2a93a1581d908569e69b",
-      "bytes": 73684
+      "sha256": "eb9772160c55fb20e3ebc3ebd4ceb79e7dbf81269d3c79dd2494a86211f51339",
+      "bytes": 71924
     },
     {
       "path": "tsconfig.esm.json",

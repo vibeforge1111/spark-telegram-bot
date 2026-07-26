@@ -1,7 +1,7 @@
 import { createHmac, randomUUID } from 'node:crypto';
-const DEFAULT_AUTHORIZATION_TTL_SECONDS = 600;
 export const HARNESS_CORE_WIRE_CONTRACT_VERSION = 1;
 export const HARNESS_CORE_MIN_WIRE_CONTRACT_VERSION = 1;
+const DEFAULT_AUTHORIZATION_TTL_SECONDS = 600;
 export function canonicalHarnessCoreJson(value) {
     if (value === undefined)
         return 'null';
@@ -68,29 +68,6 @@ export function negotiateHarnessCoreWireContract(input) {
         return { allowed: false, agreed_version: null, reason_codes: ['wire_contract_no_overlap'] };
     }
     return { allowed: true, agreed_version: agreedVersion, reason_codes: [] };
-}
-function harnessCoreSimulationMarker(reason) {
-    return {
-        dry_run: true,
-        execution_skipped: true,
-        reason
-    };
-}
-function simulatedHarnessCoreGovernorDecision(decision, reason) {
-    if (decision.signature) {
-        throw new Error('dry-run mode cannot retrofit a signed governor decision');
-    }
-    const marker = harnessCoreSimulationMarker(reason);
-    const simulated = JSON.parse(JSON.stringify(decision));
-    simulated.simulation = marker;
-    for (const authorization of simulated.authorizations || []) {
-        authorization.simulation = marker;
-    }
-    for (const ledger of simulated.tool_ledgers || []) {
-        ledger.simulation = marker;
-        ledger.authorization.simulation = marker;
-    }
-    return simulated;
 }
 export function harnessCoreGovernorDecisionSignatureReasonCodes(input) {
     const key = (input.key || '').trim();
@@ -798,9 +775,6 @@ export function createHarnessCoreAuthorizedGovernorDecision(input) {
     const expiresAt = verdict === 'allow' && ttlSeconds !== null
         ? new Date(Date.parse(now) + ttlSeconds * 1000).toISOString()
         : undefined;
-    const simulation = input.dry_run
-        ? harnessCoreSimulationMarker(input.dry_run_reason || 'Dry-run governed turn skipped execution.')
-        : undefined;
     const authorization = {
         schema_version: 'authorization-decision-v1',
         wire_contract_version: HARNESS_CORE_WIRE_CONTRACT_VERSION,
@@ -838,7 +812,6 @@ export function createHarnessCoreAuthorizedGovernorDecision(input) {
             ...(freshnessReasons.length === 0 && authorityReasons.length === 0 ? input.restrictions || {} : {})
         },
         ...(expiresAt ? { expires_at: expiresAt } : {}),
-        ...(simulation ? { simulation } : {}),
         trace
     };
     const ledgerId = safeHarnessCoreId('ledger', input.idempotency_key || `${input.envelope.turn_id}:${action.action_id}`);
@@ -879,7 +852,6 @@ export function createHarnessCoreAuthorizedGovernorDecision(input) {
                 redaction_class: 'metadata_only'
             })
         },
-        ...(simulation ? { simulation } : {}),
         trace: input.idempotency_key
             ? createHarnessCoreTraceRef({
                 id: `record:${input.idempotency_key}`,
@@ -895,7 +867,7 @@ export function createHarnessCoreAuthorizedGovernorDecision(input) {
         reply_style: input.reply_style,
         reply_instruction: input.reply_instruction
     });
-    return simulation ? { ...governorDecision, simulation } : governorDecision;
+    return governorDecision;
 }
 function executeStageVerdictForHarnessStatus(status) {
     if (status === 'not_started')
@@ -978,10 +950,7 @@ export function finalizeHarnessCoreToolCallLedger(input) {
     };
 }
 export async function withGovernedTurn(input, execute) {
-    const dryRunSummary = input.dry_run_summary || 'Dry-run governed turn skipped execution.';
-    const governorDecision = input.governor_decision && input.dry_run
-        ? simulatedHarnessCoreGovernorDecision(input.governor_decision, dryRunSummary)
-        : input.governor_decision || null;
+    const governorDecision = input.governor_decision || null;
     if (!governorDecision) {
         throw new Error('withGovernedTurn requires a governor decision');
     }
@@ -1039,14 +1008,6 @@ export async function withGovernedTurn(input, execute) {
             return finalizedLedger;
         }
     };
-    if (input.dry_run) {
-        turn.finalize({
-            status: 'not_started',
-            summary: dryRunSummary,
-            output_path_or_uri: input.dry_run_output_path_or_uri || `harness-core://governed-turns/${activeLedger.ledger_id}/dry-run`
-        });
-        return undefined;
-    }
     try {
         const result = await execute(turn);
         if (!finalizedLedger) {
@@ -1434,7 +1395,6 @@ export function createTelegramLiveQaEvidencePacket(input) {
         authority_claim_boundary: [
             'This packet is a live QA evidence container.',
             'It does not prove release readiness until each case has observed replies, side-effect checks, ledger or trace evidence where required, and a human verdict.',
-            'Even when every selected case passes, it remains legacy breadth evidence unless promoted into a Harness-shaped control-proof canary packet.',
             'It must not be treated as authority to execute high-agency actions.'
         ].join(' '),
         required_session_evidence: sessionEvidence,
