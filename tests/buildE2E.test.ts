@@ -2038,7 +2038,6 @@ async function run(): Promise<void> {
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 		process.env.SPARK_CLI_BIN = path.join(os.tmpdir(), 'spark-cli-intentionally-unavailable');
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
-
 		const pathLoop = require('../src/pathLoop') as typeof import('../src/pathLoop');
 		const originalRead = pathLoop.readSpecializationPathLoopStatus;
 		let recursiveStatusCalls = 0;
