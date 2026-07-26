@@ -2,11 +2,11 @@
 
 This is the intended natural-language flow for improving Spark through recursive QA loops.
 
-For the public creator-system guide, see `spark-domain-chip-labs/docs/creator_system/NATURAL_LANGUAGE_RECURSIVE_LOOP_GUIDE.md`.
+For the public Loop Engineering guide, see the legacy path `spark-domain-chip-labs/docs/creator_system/NATURAL_LANGUAGE_RECURSIVE_LOOP_GUIDE.md`.
 
 ## Parent Lane
 
-Root every QA-tester creator mission at:
+Root every QA-tester Loop Engineering mission at:
 
 `spark-qa-operator`
 
@@ -16,11 +16,11 @@ Treat Telegram, Workspace, Spawner UI, Canvas, Kanban, auth pairing, and recursi
 
 Users should be able to say these as normal chat messages. Slash commands remain useful for exact operator control, but they should not be required for the main experience.
 
-Plan the full creator system:
+Plan the full Loop Engineering system:
 
 `make the QA tester better by creating better benchmarks and autoloops for Spark Telegram and Workspace`
 
-Run the planned creator mission:
+Run the planned Loop Engineering mission:
 
 `run it`
 
@@ -94,13 +94,13 @@ Dynamic Workspace names should work too. When `/recursive sessions` has shown a 
 
 Spark should resolve that against the recent Workspace session list. It should only use this contextual routing when the last 10-15 messages are actually about recursive loops, reports, traces, review decisions, scores, or Workspace recursions.
 
-Creator setup can use the same recent context. After discussing QA Operator or another capability, users can say:
+Loop Engineering setup can use the same recent context. After discussing QA Operator or another capability, users can say:
 
 `make this better with benchmarks and autoloops`
 
 `turn this into a benchmark pack and specialization path`
 
-Spark should plan the creator mission from the recent working context. Without a clear recent subject, it should not create a vague mission from `this` or `it`.
+Spark should plan the Loop Engineering mission from the recent working context. Without a clear recent subject, it should not create a vague mission from `this` or `it`.
 
 ## Expected Artifact Map
 
@@ -108,7 +108,7 @@ Spark should plan the creator mission from the recent working context. Without a
 - Benchmark pack: `spark-qa-operator-bench`
 - Specialization path and autoloop policy: `specialization-path-spark-qa-operator`
 - Telegram integration: `spark-telegram-bot`
-- Swarm contribution packet: `swarm/contribution_packet.json` inside the local creator-run bundle
+- Swarm contribution packet: `swarm/contribution_packet.json` inside the local Loop Engineering bundle
 
 ## Telegram Message Shape
 

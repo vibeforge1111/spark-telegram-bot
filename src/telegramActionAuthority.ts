@@ -21,11 +21,12 @@ import {
 import { signGovernorDecisionIfConfigured } from './governorSignature';
 import { recordHarnessCoreAuthorizationLedger } from './harnessCoreLedger';
 import type { DeterministicRouteId } from './routeTypes';
+import { routeEvidenceVerdict } from './telegramRouteEvidence';
 
 export interface RouteEvidenceVerdict {
   allow: boolean;
-  reason: 'envelope_selected_route' | 'route_not_selected_by_turn_envelope';
-  confidence: 'explicit' | 'blocked';
+  reason: string;
+  confidence: 'explicit' | 'contextual' | 'blocked';
 }
 
 export interface TelegramActionAuthorityInput extends ToolAuthorizationInput {
@@ -108,11 +109,17 @@ export function authorizeTelegramActionFromEnvelope(
   envelope: TurnIntentEnvelopeV1 | null | undefined,
   input: TelegramActionAuthorityInput
 ): TelegramActionAuthorityResult {
+  const deterministicVerdict = routeEvidenceVerdict({
+    route: input.route,
+    text: input.text
+  });
   const routeSelectedByEnvelope = envelopeSelectedRoute(envelope, input.route);
-  const routeVerdict: RouteEvidenceVerdict = routeSelectedByEnvelope
-    ? { allow: true, reason: 'envelope_selected_route', confidence: 'explicit' }
-    : { allow: false, reason: 'route_not_selected_by_turn_envelope', confidence: 'blocked' };
-  const routeAuthorizedByTurn = routeSelectedByEnvelope;
+  const routeVerdict: RouteEvidenceVerdict = !deterministicVerdict.allow
+    ? deterministicVerdict
+    : routeSelectedByEnvelope
+      ? deterministicVerdict
+      : { allow: false, reason: 'route_not_selected_by_turn_envelope', confidence: 'blocked' };
+  const routeAuthorizedByTurn = deterministicVerdict.allow && routeSelectedByEnvelope;
   const rawToolAuthorization = authorizeToolCallFromEnvelope(envelope, {
     toolName: input.toolName,
     ownerSystem: input.ownerSystem,
@@ -174,6 +181,7 @@ export function authorizeTelegramActionFromEnvelope(
     : null;
   const allow = consumerVerification?.allowed === true;
   const reasonCodes = Array.from(new Set([
+    ...(!deterministicVerdict.allow ? [`route_firewall:${deterministicVerdict.reason}`] : []),
     ...(routeAuthorizedByTurn ? [] : ['route_not_selected_by_turn_envelope']),
     ...toolAuthorization.reasonCodes,
     ...(!allow && envelope?.directive.noExecution ? ['no_execution_boundary'] : []),

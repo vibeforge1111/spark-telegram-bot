@@ -3,13 +3,18 @@
 // a small in-process context buffer so plain chat can stay coherent immediately
 // after the user says "remember that..." while durable memory catches up.
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { sanitizeCredentialMemoryText } from './credentialSafety';
+import {
+  ConversationRetentionPolicy,
+  type ConversationRetentionDiagnostics
+} from './conversationRetention';
 import {
   buildConversationFrameFromState,
   emptyRollingConversationFrameState,
   renderConversationFrameDiagnostics,
   updateRollingConversationFrameState,
   type ConversationFrame,
-  type ConversationTurn,
   type RollingConversationFrameState
 } from './conversationFrame';
 
@@ -22,17 +27,23 @@ export function parseTelegramUserIds(raw: string | undefined): number[] {
     .filter((id) => Number.isSafeInteger(id) && id > 0);
 }
 
-function currentAdminIds(): number[] {
-  return parseTelegramUserIds(process.env.ADMIN_TELEGRAM_IDS);
+export function adminTelegramIdsStartupWarning(raw: string | undefined): string | null {
+  if (!raw?.trim() || parseTelegramUserIds(raw).length > 0) {
+    return null;
+  }
+  return [
+    '[Telegram] ADMIN_TELEGRAM_IDS is set but has no valid numeric IDs.',
+    'Send /myid in your bot chat and add that number to .env.'
+  ].join(' ');
 }
 
-function currentAllowedIds(): number[] {
-  return parseTelegramUserIds(process.env.ALLOWED_TELEGRAM_IDS || process.env.TELEGRAM_ALLOWED_USER_IDS);
-}
+const ADMIN_IDS: number[] = parseTelegramUserIds(process.env.ADMIN_TELEGRAM_IDS);
 
-function publicChatEnabled(): boolean {
-  return process.env.TELEGRAM_PUBLIC_CHAT_ENABLED === '1';
-}
+const ALLOWED_IDS: number[] = (
+  parseTelegramUserIds(process.env.ALLOWED_TELEGRAM_IDS || process.env.TELEGRAM_ALLOWED_USER_IDS)
+);
+
+const PUBLIC_CHAT_ENABLED = process.env.TELEGRAM_PUBLIC_CHAT_ENABLED === '1';
 
 interface TelegramUser {
   id: number;
@@ -45,6 +56,12 @@ interface ConversationSnapshot {
   notesByUser?: Record<string, string[]>;
   interruptedByUser?: Record<string, PendingTaskRecovery>;
   frameStateByUser?: Record<string, RollingConversationFrameState>;
+  retentionOrder?: {
+    recent?: Array<string | number>;
+    notes?: number[];
+    interrupted?: Array<string | number>;
+    frame?: Array<string | number>;
+  };
 }
 
 export interface PendingTaskRecovery {
@@ -72,11 +89,6 @@ export interface ResolvedOptionReference {
 export interface RecentConversationTurn {
   role: 'user' | 'assistant';
   text: string;
-}
-
-export interface RecentMemoryDirective {
-  note: string;
-  sourceText: string;
 }
 
 const ORDINAL_WORDS: Record<string, number> = {
@@ -174,6 +186,20 @@ function userFacingMemoryContent(text: string): string {
   return cleaned;
 }
 
+function orderedEntries<T>(record: Record<string, T>, order: Array<string | number> | undefined): Array<[string, T]> {
+  const entries = new Map(Object.entries(record));
+  const ordered: Array<[string, T]> = [];
+  for (const orderedKey of order || []) {
+    const key = String(orderedKey);
+    const value = entries.get(key);
+    if (value === undefined) continue;
+    ordered.push([key, value]);
+    entries.delete(key);
+  }
+  ordered.push(...entries.entries());
+  return ordered;
+}
+
 function isPollutedInstructionMemoryLine(text: string): boolean {
   const normalized = text
     .replace(/^Spark:\s*/i, '')
@@ -186,62 +212,6 @@ function isPollutedInstructionMemoryLine(text: string): boolean {
     normalized.startsWith('saved to memory') ||
     normalized.includes('will apply to future replies')
   );
-}
-
-function isMemoryWriteTranscriptResidueLine(text: string): boolean {
-  const normalized = compactLine(text)
-    .replace(/^[_*~`(\s]+|[_*~`)\s]+$/g, '')
-    .toLowerCase();
-  return (
-    /^user:\s*\/remember\b/.test(normalized) ||
-    /^user:\s*(?:please\s+)?(?:remember|save|store)\s+(?:this|that)?\s*[:,-]?/.test(normalized) ||
-    /^user:\s*(?:please\s+)?(?:save|store)\s+(?:this|that)?\s+(?:to\s+)?memory\b/.test(normalized) ||
-    /^user:\s*memory (?:update|note)\b/.test(normalized) ||
-    /^spark:\s*(?:i remember this:|noted:)/.test(normalized) ||
-    /^spark:\s*you told me\b/.test(normalized)
-  );
-}
-
-function extractRecentMemoryDirective(text: string): string | null {
-  const line = compactLine(text).replace(/^User:\s*/i, '').trim();
-  const memoryUpdate = line.match(/^memory update\s*:\s*(.+?)(?:\s+please\s+save\s+this\b.*)?$/i)?.[1]?.trim();
-  if (memoryUpdate) return userFacingMemoryContent(memoryUpdate);
-
-  const explicit = line.match(
-    /^(?:spark,?\s*)?(?:please\s+|can\s+you\s+|could\s+you\s+)?(?:remember|save|store)\s+(?:this|that|it)?\s*(?:as\s+[^:]{1,80})?\s*[:,-]?\s*(.+)$/i
-  )?.[1]?.trim();
-  if (!explicit) return null;
-
-  const cleaned = explicit
-    .replace(/\b(?:please\s+)?(?:save|store|remember)\s+(?:this|that|it)\b.*$/i, '')
-    .replace(/\bthis\s+turn\s+is\s+only\s+a\s+memory\s+update\b.*$/i, '')
-    .trim();
-  return cleaned ? userFacingMemoryContent(cleaned) : null;
-}
-
-function isContextualRecentLine(text: string): boolean {
-  return !isPollutedInstructionMemoryLine(text) && !isMemoryWriteTranscriptResidueLine(text);
-}
-
-function isContextualTurn(turn: ConversationTurn | RecentConversationTurn): boolean {
-  const prefix = turn.role === 'assistant'
-    ? 'Spark'
-    : turn.role === 'user'
-      ? 'User'
-      : turn.role;
-  return isContextualRecentLine(`${prefix}: ${turn.text}`);
-}
-
-function sanitizeRollingFrameState(state: RollingConversationFrameState): RollingConversationFrameState {
-  const hotTurns = state.hotTurns.filter(isContextualTurn);
-  const warmSummary = /\b(?:remember this|please remember|save this|store this|memory update|memory note|asked spark to remember)\b/i.test(state.warmSummary)
-    ? ''
-    : state.warmSummary;
-  return {
-    ...state,
-    hotTurns,
-    warmSummary
-  };
 }
 
 export function optionOrdinalFromText(text: string): number | null {
@@ -322,90 +292,143 @@ export function extractAssistantOptions(message: string): string[] {
 }
 
 export class ConversationMemory {
-  private readonly recentByUser = new Map<number, string[]>();
+  private readonly chatScope = new AsyncLocalStorage<number>();
+  private readonly recentByUser = new Map<string, string[]>();
   private readonly notesByUser = new Map<number, string[]>();
-  private readonly interruptedByUser = new Map<number, PendingTaskRecovery>();
-  private readonly frameStateByUser = new Map<number, RollingConversationFrameState>();
+  private readonly interruptedByUser = new Map<string, PendingTaskRecovery>();
+  private readonly frameStateByUser = new Map<string, RollingConversationFrameState>();
   private readonly maxRecent = 40;
   private readonly maxNotes = 20;
+  private readonly retention: ConversationRetentionPolicy;
   private loaded = false;
-  private loadingPromise: Promise<void> | null = null;
   private readonly statePath = resolveStatePath('.spark-conversation-memory.json');
 
+  constructor(options: { maxUsers?: number } = {}) {
+    this.retention = new ConversationRetentionPolicy(options.maxUsers);
+  }
+
   isAdmin(user: TelegramUser): boolean {
-    return currentAdminIds().includes(user.id);
+    return ADMIN_IDS.includes(user.id);
   }
 
   isAllowed(user: TelegramUser): boolean {
-    return publicChatEnabled() || this.isAdmin(user) || currentAllowedIds().includes(user.id);
+    return PUBLIC_CHAT_ENABLED || this.isAdmin(user) || ALLOWED_IDS.includes(user.id);
   }
 
   hasAnyOperatorConfigured(): boolean {
-    return currentAdminIds().length > 0 || currentAllowedIds().length > 0 || publicChatEnabled();
+    return ADMIN_IDS.length > 0 || ALLOWED_IDS.length > 0 || PUBLIC_CHAT_ENABLED;
   }
 
   private userKey(user: TelegramUser): number {
     return user.id;
   }
 
-  private async ensureLoaded(): Promise<void> {
-    if (this.loaded) return;
-    if (this.loadingPromise) return this.loadingPromise;
-    this.loadingPromise = this._doLoad();
-    await this.loadingPromise;
-    this.loadingPromise = null;
+  private conversationKey(user: TelegramUser): string {
+    const chatId = this.chatScope.getStore() ?? user.id;
+    return `${user.id}:${chatId}`;
   }
 
-  private async _doLoad(): Promise<void> {
+  private snapshotConversationKey(key: string): string | null {
+    if (/^[1-9]\d*:-?\d+$/.test(key)) return key;
+    const legacyUserId = Number(key);
+    return Number.isSafeInteger(legacyUserId) && legacyUserId > 0
+      ? `${legacyUserId}:${legacyUserId}`
+      : null;
+  }
+
+  runInChatScope<T>(chatId: unknown, operation: () => T): T {
+    const normalizedChatId = Number(chatId);
+    if (!Number.isSafeInteger(normalizedChatId)) return operation();
+    return this.chatScope.run(normalizedChatId, operation);
+  }
+
+  private durableNotesPath(userId: number): string {
+    return resolveStatePath(`.spark-conversation-notes-${userId}.json`);
+  }
+
+  private sanitizedNotes(value: unknown): string[] {
+    return Array.isArray(value)
+      ? value.filter((item) => typeof item === 'string').map(sanitizeCredentialMemoryText).slice(-this.maxNotes)
+      : [];
+  }
+
+  private async durableNotes(userId: number, legacyFallback?: unknown): Promise<string[]> {
+    const stored = await readJsonFile<unknown>(this.durableNotesPath(userId));
+    if (Array.isArray(stored)) return this.sanitizedNotes(stored);
+    const migrated = this.sanitizedNotes(legacyFallback);
+    if (legacyFallback !== undefined) await writeJsonAtomic(this.durableNotesPath(userId), migrated);
+    return migrated;
+  }
+
+  private async notesForUser(userId: number): Promise<string[]> {
+    await this.ensureLoaded();
+    const cached = this.notesByUser.get(userId);
+    if (cached) {
+      this.retention.set('notes', this.notesByUser, userId, cached);
+      return cached;
+    }
+    const stored = await this.durableNotes(userId);
+    if (stored.length > 0) this.retention.set('notes', this.notesByUser, userId, stored);
+    return stored;
+  }
+
+  private async persistNotes(userId: number, notes: string[]): Promise<void> {
+    await writeJsonAtomic(this.durableNotesPath(userId), notes);
+  }
+
+  private async ensureLoaded(): Promise<void> {
+    if (this.loaded) return;
+    const evictionsBeforeLoad = this.retention.totalEvictions();
     const snapshot = await readJsonFile<ConversationSnapshot>(this.statePath);
     if (snapshot?.recentByUser) {
-      for (const [key, value] of Object.entries(snapshot.recentByUser)) {
-        const userId = Number(key);
-        if (Number.isSafeInteger(userId) && userId > 0 && Array.isArray(value)) {
-          this.recentByUser.set(userId, value.filter((item) => typeof item === 'string').slice(-this.maxRecent));
+      for (const [key, value] of orderedEntries(snapshot.recentByUser, snapshot.retentionOrder?.recent)) {
+        const conversationKey = this.snapshotConversationKey(key);
+        if (conversationKey && Array.isArray(value)) {
+          this.retention.set('recent', this.recentByUser, conversationKey, value.filter((item) => typeof item === 'string').map(sanitizeCredentialMemoryText).slice(-this.maxRecent));
         }
       }
     }
     if (snapshot?.notesByUser) {
-      for (const [key, value] of Object.entries(snapshot.notesByUser)) {
+      for (const [key, value] of orderedEntries(snapshot.notesByUser, snapshot.retentionOrder?.notes)) {
         const userId = Number(key);
         if (Number.isSafeInteger(userId) && userId > 0 && Array.isArray(value)) {
-          this.notesByUser.set(userId, value.filter((item) => typeof item === 'string').slice(-this.maxNotes));
+          const notes = await this.durableNotes(userId, value);
+          if (notes.length > 0) this.retention.set('notes', this.notesByUser, userId, notes);
         }
       }
     }
     if (snapshot?.interruptedByUser) {
-      for (const [key, value] of Object.entries(snapshot.interruptedByUser)) {
-        const userId = Number(key);
+      for (const [key, value] of orderedEntries(snapshot.interruptedByUser, snapshot.retentionOrder?.interrupted)) {
+        const conversationKey = this.snapshotConversationKey(key);
         if (
-          Number.isSafeInteger(userId) &&
-          userId > 0 &&
+          conversationKey &&
           value &&
           typeof value.message === 'string' &&
           typeof value.failure === 'string' &&
           typeof value.recordedAt === 'string'
         ) {
-          this.interruptedByUser.set(userId, {
-            message: value.message,
-            failure: value.failure,
-            stage: typeof value.stage === 'string' ? value.stage : undefined,
+          this.retention.set('interrupted', this.interruptedByUser, conversationKey, {
+            message: sanitizeCredentialMemoryText(value.message),
+            failure: sanitizeCredentialMemoryText(value.failure),
+            stage: typeof value.stage === 'string' ? sanitizeCredentialMemoryText(value.stage) : undefined,
             recordedAt: value.recordedAt
           });
         }
       }
     }
     if (snapshot?.frameStateByUser) {
-      for (const [key, value] of Object.entries(snapshot.frameStateByUser)) {
-        const userId = Number(key);
-        if (Number.isSafeInteger(userId) && userId > 0 && value && typeof value === 'object') {
-          this.frameStateByUser.set(userId, value);
+      for (const [key, value] of orderedEntries(snapshot.frameStateByUser, snapshot.retentionOrder?.frame)) {
+        const conversationKey = this.snapshotConversationKey(key);
+        if (conversationKey && value && typeof value === 'object') {
+          this.retention.set('frame', this.frameStateByUser, conversationKey, value);
         }
       }
     }
     this.loaded = true;
+    if (this.retention.totalEvictions() > evictionsBeforeLoad) await this.persist();
   }
 
-  private recordFromMap(map: Map<number, string[]>): Record<string, string[]> {
+  private recordFromMap<K>(map: Map<K, string[]>): Record<string, string[]> {
     const record: Record<string, string[]> = {};
     for (const [key, value] of map.entries()) {
       record[String(key)] = value;
@@ -422,74 +445,88 @@ export class ConversationMemory {
     for (const [key, value] of this.frameStateByUser.entries()) {
       frameStateByUser[String(key)] = value;
     }
-    try {
-      await writeJsonAtomic(this.statePath, {
-        recentByUser: this.recordFromMap(this.recentByUser),
-        notesByUser: this.recordFromMap(this.notesByUser),
-        interruptedByUser,
-        frameStateByUser
-      });
-    } catch (error) {
-      // Diagnostic only: callers already swallow persist() rejections, so this
-      // makes the failure visible in logs without changing control flow.
-      console.error('[ConversationMemory] persist failed:', error);
-      throw error;
-    }
+    await writeJsonAtomic(this.statePath, {
+      recentByUser: this.recordFromMap(this.recentByUser),
+      notesByUser: this.recordFromMap(this.notesByUser),
+      interruptedByUser,
+      frameStateByUser,
+      retentionOrder: {
+        recent: [...this.recentByUser.keys()],
+        notes: [...this.notesByUser.keys()],
+        interrupted: [...this.interruptedByUser.keys()],
+        frame: [...this.frameStateByUser.keys()]
+      }
+    });
   }
 
-  private async pushBounded(map: Map<number, string[]>, key: number, value: string, limit: number): Promise<void> {
+  private async pushBounded(
+    bucket: 'recent' | 'notes',
+    map: Map<string | number, string[]>,
+    key: string | number,
+    value: string,
+    limit: number
+  ): Promise<void> {
     await this.ensureLoaded();
-    const normalized = value.trim();
+    const normalized = sanitizeCredentialMemoryText(value).trim();
     if (!normalized) return;
-    const items = map.get(key) || [];
+    const items = bucket === 'notes' ? await this.notesForUser(key as number) : map.get(key) || [];
     const deduped = items.filter((item) => item.toLowerCase() !== normalized.toLowerCase());
     deduped.push(normalized);
-    map.set(key, deduped.slice(-limit));
+    const next = deduped.slice(-limit);
+    if (bucket === 'notes') await this.persistNotes(key as number, next);
+    this.retention.set(bucket, map, key, next);
     await this.persist();
   }
 
   async remember(user: TelegramUser, message: string): Promise<Memory | null> {
-    await this.pushBounded(this.recentByUser, this.userKey(user), `User: ${message}`, this.maxRecent);
-    if (isContextualRecentLine(`User: ${message}`)) {
-      await this.updateRollingFrame(user, 'user', message);
-    }
+    await this.pushBounded('recent', this.recentByUser, this.conversationKey(user), `User: ${message}`, this.maxRecent);
+    await this.updateRollingFrame(user, 'user', message);
     return null;
   }
 
   async rememberAssistantReply(user: TelegramUser, message: string): Promise<Memory | null> {
-    await this.pushBounded(this.recentByUser, this.userKey(user), `Spark: ${message}`, this.maxRecent);
-    if (isContextualRecentLine(`Spark: ${message}`)) {
-      await this.updateRollingFrame(user, 'assistant', message);
-    }
+    await this.pushBounded('recent', this.recentByUser, this.conversationKey(user), `Spark: ${message}`, this.maxRecent);
+    await this.updateRollingFrame(user, 'assistant', message);
     return null;
+  }
+
+  async clearUserStateForTests(user: TelegramUser): Promise<void> {
+    await this.ensureLoaded();
+    const userKey = this.userKey(user);
+    const conversationKey = this.conversationKey(user);
+    this.recentByUser.delete(conversationKey);
+    this.notesByUser.delete(userKey);
+    this.interruptedByUser.delete(conversationKey);
+    this.frameStateByUser.delete(conversationKey);
+    await this.persistNotes(userKey, []);
+    await this.persist();
   }
 
   private async updateRollingFrame(user: TelegramUser, role: 'user' | 'assistant', text: string): Promise<void> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
+    const key = this.conversationKey(user);
     const previous = this.frameStateByUser.get(key) || emptyRollingConversationFrameState();
     const next = updateRollingConversationFrameState(previous, {
       role,
-      text,
+      text: sanitizeCredentialMemoryText(text),
       createdAt: new Date().toISOString()
     });
-    this.frameStateByUser.set(key, next);
+    this.retention.set('frame', this.frameStateByUser, key, next);
     await this.persist();
   }
 
   async learnAboutUser(user: TelegramUser, insight: string): Promise<Memory | null> {
-    void user;
-    void insight;
+    await this.pushBounded('notes', this.notesByUser, this.userKey(user), insight, this.maxNotes);
     return null;
   }
 
   async storeAgentDoctrinePreference(user: TelegramUser, preference: string): Promise<Memory | null> {
     await this.ensureLoaded();
-    const normalized = preference.trim();
+    const normalized = sanitizeCredentialMemoryText(preference).trim();
     if (!normalized) return null;
 
     const key = this.userKey(user);
-    const items = this.notesByUser.get(key) || [];
+    const items = await this.notesForUser(key);
     const dimension = normalized.match(/^Agent interaction preference \[([a-z_]+)\]:/i)?.[1]?.toLowerCase();
     const prefix = dimension ? `agent interaction preference [${dimension}]:` : null;
     const next = items.filter((item) => {
@@ -497,14 +534,15 @@ export class ConversationMemory {
       return lower !== normalized.toLowerCase() && (!prefix || !lower.startsWith(prefix));
     });
     next.push(normalized);
-    this.notesByUser.set(key, next.slice(-this.maxNotes));
+    const bounded = next.slice(-this.maxNotes);
+    await this.persistNotes(key, bounded);
+    this.retention.set('notes', this.notesByUser, key, bounded);
     await this.persist();
     return null;
   }
 
   async getAgentDoctrinePreferences(user: TelegramUser): Promise<string[]> {
-    await this.ensureLoaded();
-    const notes = this.notesByUser.get(this.userKey(user)) || [];
+    const notes = await this.notesForUser(this.userKey(user));
     return notes.filter((note) => /^Agent interaction preference \[[a-z_]+\]:/i.test(note));
   }
 
@@ -513,13 +551,13 @@ export class ConversationMemory {
     input: { message: string; failure: string; stage?: string }
   ): Promise<void> {
     await this.ensureLoaded();
-    const message = input.message.trim();
-    const failure = input.failure.trim();
+    const message = sanitizeCredentialMemoryText(input.message).trim();
+    const failure = sanitizeCredentialMemoryText(input.failure).trim();
     if (!message || !failure) return;
-    this.interruptedByUser.set(this.userKey(user), {
+    this.retention.set('interrupted', this.interruptedByUser, this.conversationKey(user), {
       message,
       failure,
-      stage: input.stage?.trim() || undefined,
+      stage: input.stage ? sanitizeCredentialMemoryText(input.stage).trim() || undefined : undefined,
       recordedAt: new Date().toISOString()
     });
     await this.persist();
@@ -527,20 +565,61 @@ export class ConversationMemory {
 
   async getPendingTaskRecovery(user: TelegramUser): Promise<PendingTaskRecovery | null> {
     await this.ensureLoaded();
-    return this.interruptedByUser.get(this.userKey(user)) || null;
+    return this.interruptedByUser.get(this.conversationKey(user)) || null;
   }
 
   async storePreference(user: TelegramUser, preference: string): Promise<Memory | null> {
-    void user;
-    void preference;
+    await this.pushBounded('notes', this.notesByUser, this.userKey(user), `Preference: ${preference}`, this.maxNotes);
     return null;
   }
 
   async recall(user: TelegramUser, query: string, limit: number = 5): Promise<Memory[]> {
-    void user;
-    void query;
-    void limit;
-    return [];
+    await this.ensureLoaded();
+    const userKey = this.userKey(user);
+    const conversationKey = this.conversationKey(user);
+    const queryText = normalizeMemorySearchText(query);
+    const queryTokens = memorySearchTokens(query);
+    if (!queryText && queryTokens.length === 0) return [];
+
+    const recallNoise = (text: string): boolean => {
+      const lower = text.toLowerCase();
+      return (
+        /^user:\s*\/recall\b/.test(lower) ||
+        /^user:\s*what do you remember about\b/.test(lower) ||
+        /^spark:\s*i remember this:/.test(lower) ||
+        /^user:\s*please remember this:/.test(lower) ||
+        lower.includes("don't currently have saved entity state") ||
+        lower.includes('do not currently have saved entity state')
+      );
+    };
+
+    const notes = await this.notesForUser(userKey);
+    const candidates = [
+      ...notes.map((content, index) => ({ content, source: 'note', index })),
+      ...(this.recentByUser.get(conversationKey) || []).filter((content) => !recallNoise(content)).map((content, index) => ({ content, source: 'recent', index }))
+    ];
+    const minTokenMatches = queryTokens.length <= 2 ? queryTokens.length : Math.max(2, Math.ceil(queryTokens.length * 0.5));
+
+    return candidates
+      .map((candidate) => {
+        const normalized = normalizeMemorySearchText(candidate.content);
+        const tokenMatches = queryTokens.filter((token) => normalized.includes(token)).length;
+        const exactMatch = Boolean(queryTokens.length > 0 && queryText && normalized.includes(queryText));
+        const score = (exactMatch ? queryTokens.length + 3 : 0) + tokenMatches + (candidate.source === 'note' ? 1 : 0);
+        return { ...candidate, tokenMatches, exactMatch, score };
+      })
+      .filter((candidate) => candidate.exactMatch || (queryTokens.length > 0 && candidate.tokenMatches >= minTokenMatches))
+      .sort((a, b) => b.score - a.score || b.index - a.index)
+      .slice(0, Math.max(1, limit))
+      .map((candidate, index) => ({
+        memory_id: `telegram-${candidate.source}-${candidate.index}`,
+        content: userFacingMemoryContent(candidate.content),
+        temporal_level: 0,
+        salience: Math.max(1, candidate.score - index),
+        content_type: candidate.source,
+        created_at: undefined
+      }))
+      .filter((memory) => memory.content.length > 0);
   }
 
   async recallRecent(_user: TelegramUser, _limit: number = 5): Promise<Memory[]> {
@@ -549,9 +628,10 @@ export class ConversationMemory {
 
   async getContext(user: TelegramUser, _currentMessage: string): Promise<string> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
-    const notes = (this.notesByUser.get(key) || []).filter((note) => /^Agent interaction preference \[[a-z_]+\]:/i.test(note));
-    const recent = this.recentByUser.get(key) || [];
+    const userKey = this.userKey(user);
+    const conversationKey = this.conversationKey(user);
+    const notes = await this.notesForUser(userKey);
+    const recent = this.recentByUser.get(conversationKey) || [];
     const lines: string[] = [];
 
     if (notes.length > 0) {
@@ -564,7 +644,7 @@ export class ConversationMemory {
       }
     }
 
-    const interrupted = this.interruptedByUser.get(key);
+    const interrupted = this.interruptedByUser.get(conversationKey);
     if (interrupted) {
       lines.push('Interrupted task to recover:');
       lines.push(`- User request: ${interrupted.message}`);
@@ -573,7 +653,7 @@ export class ConversationMemory {
     }
 
     if (recent.length > 0) {
-      const cleanRecent = recent.filter(isContextualRecentLine).slice(-12);
+      const cleanRecent = recent.filter((item) => !isPollutedInstructionMemoryLine(item)).slice(-12);
       if (cleanRecent.length > 0) {
         lines.push('Recent Telegram turns:');
       }
@@ -587,11 +667,10 @@ export class ConversationMemory {
 
   async getRecentMessages(user: TelegramUser, limit: number = 6): Promise<string[]> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
+    const key = this.conversationKey(user);
     const recent = this.recentByUser.get(key) || [];
     return recent
       .filter((item) => !/^Spark:\s*/i.test(item))
-      .filter(isContextualRecentLine)
       .slice(-Math.max(1, limit))
       .map((item) => item.replace(/^User:\s*/i, '').trim())
       .filter(Boolean);
@@ -599,10 +678,9 @@ export class ConversationMemory {
 
   async getRecentTurns(user: TelegramUser, limit: number = 16): Promise<RecentConversationTurn[]> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
+    const key = this.conversationKey(user);
     const recent = this.recentByUser.get(key) || [];
     return recent
-      .filter(isContextualRecentLine)
       .slice(-Math.max(1, limit))
       .map((item) => {
         const assistant = item.match(/^Spark:\s*(.+)$/is);
@@ -615,22 +693,13 @@ export class ConversationMemory {
       .filter((turn) => turn.text.length > 0);
   }
 
-  async getRecentMemoryDirectives(user: TelegramUser, limit: number = 8): Promise<RecentMemoryDirective[]> {
-    await this.ensureLoaded();
-    void user;
-    void limit;
-    // Raw "remember/save" turns are transcript residue until Builder/domain-chip memory accepts them.
-    // Telegram-local context can support conversation, but it must not masquerade as durable recall.
-    return [];
-  }
-
   async resolveRecentOptionReference(user: TelegramUser, text: string): Promise<ResolvedOptionReference | null> {
     const ordinal = optionOrdinalFromText(text);
     const wantsLast = /\b(?:last|final|bottom)\s+(?:one|option|idea|direction|item|path|choice)?\b/i.test(text);
     if (!ordinal && !wantsLast) return null;
 
     await this.ensureLoaded();
-    const recent = this.recentByUser.get(this.userKey(user)) || [];
+    const recent = this.recentByUser.get(this.conversationKey(user)) || [];
     for (const item of [...recent].reverse()) {
       if (!/^Spark:\s*/i.test(item)) continue;
       const options = extractAssistantOptions(item);
@@ -650,13 +719,13 @@ export class ConversationMemory {
 
   async getConversationFrame(user: TelegramUser, currentMessage: string): Promise<ConversationFrame> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
-    const state = sanitizeRollingFrameState(this.frameStateByUser.get(key) || emptyRollingConversationFrameState());
+    const key = this.conversationKey(user);
+    const state = this.frameStateByUser.get(key) || emptyRollingConversationFrameState();
     if (state.hotTurns.length > 0 || state.warmSummary || state.artifacts.length > 0) {
-      return buildConversationFrameFromState(currentMessage, state);
+      return buildConversationFrameFromState(sanitizeCredentialMemoryText(currentMessage), state);
     }
     const recentTurns = await this.getRecentTurns(user, 24);
-    return buildConversationFrameFromState(currentMessage, {
+    return buildConversationFrameFromState(sanitizeCredentialMemoryText(currentMessage), {
       ...emptyRollingConversationFrameState(),
       hotTurns: recentTurns
     });
@@ -664,30 +733,29 @@ export class ConversationMemory {
 
   async getConversationFrameDiagnostics(user: TelegramUser): Promise<string> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
+    const key = this.conversationKey(user);
     return renderConversationFrameDiagnostics(this.frameStateByUser.get(key) || emptyRollingConversationFrameState());
   }
 
   async getMemoryCount(user: TelegramUser): Promise<number> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
-    return (this.notesByUser.get(key) || []).length + (this.recentByUser.get(key) || []).length;
+    const userKey = this.userKey(user);
+    const conversationKey = this.conversationKey(user);
+    return (await this.notesForUser(userKey)).length + (this.recentByUser.get(conversationKey) || []).length;
+  }
+
+  async getRetentionDiagnostics(): Promise<ConversationRetentionDiagnostics> {
+    await this.ensureLoaded();
+    return this.retention.diagnostics({
+      recent: this.recentByUser,
+      notes: this.notesByUser,
+      interrupted: this.interruptedByUser,
+      frame: this.frameStateByUser
+    });
   }
 
   async isAvailable(): Promise<boolean> {
     return true;
-  }
-
-  async resetUser(user: TelegramUser, keepNotes: boolean = false): Promise<void> {
-    await this.ensureLoaded();
-    const key = this.userKey(user);
-    this.recentByUser.delete(key);
-    this.interruptedByUser.delete(key);
-    this.frameStateByUser.delete(key);
-    if (!keepNotes) {
-      this.notesByUser.delete(key);
-    }
-    await this.persist();
   }
 }
 

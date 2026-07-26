@@ -1,15 +1,14 @@
 import assert from 'node:assert/strict';
 import {
-  collapseTelegramHorizontalRules,
-  replaceEmDashes,
+  inspectTelegramRenderFirewall,
   rewriteSpawnerSurfaceStandaloneQuestion,
   sanitizeAndSplitTelegramText,
   sanitizeOutbound,
   splitTelegramText,
-  stripFormatControls,
   TELEGRAM_SAFE_MESSAGE_LIMIT,
   stripMarkdownEmphasis
 } from '../src/outboundSanitize';
+import { LEGACY_PROMPT_SURFACE_BLOCKED_REFS } from '../src/legacyPromptRefs';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -41,6 +40,11 @@ test('strips Markdown bold markers from Telegram replies', () => {
     stripMarkdownEmphasis('Short answer: **yes**.\n\n**Two directions to consider:**'),
     'Short answer: yes.\n\nTwo directions to consider:'
   );
+});
+
+test('strips single-character and adjacent emphasis spans independently', () => {
+  assert.equal(stripMarkdownEmphasis('**a** then **b** and __x__'), 'a then b and x');
+  assert.equal(stripMarkdownEmphasis('***x*** + ***y***'), 'x + y');
 });
 
 test('rewrites stale standalone Spawner surface question', () => {
@@ -77,48 +81,89 @@ test('keeps bullets while removing bold emphasis', () => {
   );
 });
 
-test('collapses standalone markdown dividers into Telegram paragraph spacing', () => {
-  const raw = [
-    'Make a Day Triage Button, not a planner.',
-    '',
-    '---',
-    '',
-    'One screen:',
-    '• Pick state.',
-    '',
-    '---',
-    '',
-    'The product should feel like a reset button.'
-  ].join('\n');
-
-  const cleaned = collapseTelegramHorizontalRules(raw);
-
-  assert.doesNotMatch(cleaned, /^---$/m);
-  assert.match(cleaned, /planner\.\n\nOne screen:/);
-  assert.match(sanitizeOutbound(raw), /state\.\n\nThe product should feel/);
-});
-
 test('still replaces dash family characters', () => {
-  assert.equal(sanitizeOutbound('One \u2014 two \u2013 three'), 'One - two - three');
+  assert.equal(sanitizeOutbound('One — two – three'), 'One - two - three');
 });
 
-test('preserves unrelated indentation while replacing dash characters', () => {
-  const text = 'Plan:\n  1. ship it\n  2. measure \u2014 then iterate';
-  assert.equal(replaceEmDashes(text), 'Plan:\n  1. ship it\n  2. measure - then iterate');
+test('hides labeled account email identity without erasing ordinary contact text', () => {
+  const cleaned = sanitizeOutbound([
+    'Username: operator',
+    'Email: private.owner@example.com',
+    'Support contact is help@example.com.'
+  ].join('\n'));
+
+  assert.match(cleaned, /Email: \[private email hidden\]/);
+  assert.doesNotMatch(cleaned, /private\.owner@example\.com/);
+  assert.match(cleaned, /help@example\.com/);
 });
 
-test('preserves unrelated double spaces while replacing dash characters', () => {
-  assert.equal(replaceEmDashes('a  b'), 'a  b');
+test('firewalls raw control internals from ordinary Telegram replies', () => {
+  const cleaned = sanitizeOutbound([
+    'Blocked by route_not_selected_by_turn_envelope from harness_core:owner_mismatch.',
+    'Proof ref: turn:sha256:abcdef1234567890 and trace:telegram-run:abcdef1234567890.',
+    'Telegram ids: chat_id=123456 user_id=456789 message_id=42 file_id=abcDEF123.',
+    'Read docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md and context_packet.',
+    'Path: /Users/example/private/source.ts',
+    '    at run (/Users/example/private/source.ts:12:3)'
+  ].join('\n'));
+
+  assert.doesNotMatch(cleaned, /route_not_selected_by_turn_envelope|harness_core|owner_mismatch/);
+  assert.doesNotMatch(cleaned, /turn:sha256|trace:telegram-run|context_packet/);
+  assert.doesNotMatch(cleaned, /chat_id|user_id|message_id|file_id|123456|456789|abcDEF123/);
+  assert.doesNotMatch(cleaned, /SPARK_LEGACY_SOURCE_INVENTORY|\/Users\/example|source\.ts:12:3/);
+  assert.match(cleaned, /internal policy reason/);
+  assert.match(cleaned, /proof detail/);
+  assert.match(cleaned, /trace detail/);
+  assert.match(cleaned, /platform id detail/);
+  assert.match(cleaned, /legacy source evidence/);
+  assert.match(cleaned, /\[stack trace hidden\]/);
 });
 
-test('single-spaces adjacent dash whitespace', () => {
-  assert.equal(replaceEmDashes('word \u2014 word'), 'word - word');
-  assert.equal(replaceEmDashes('word\u2014word'), 'word - word');
+test('firewalls legacy source titles and old runbook names from ordinary replies', () => {
+  const cleaned = sanitizeOutbound([
+    'Use the Genesis live Telegram 100 benchmark as the source.',
+    'Compare it with SPARK_QA_STARTUP_BENCH_SHOWCASE_RUNBOOK_2026-05-26.md and codex-handoffs/old-note.md.'
+  ].join('\n'));
+
+  assert.doesNotMatch(cleaned, /Genesis live Telegram 100 benchmark/i);
+  assert.doesNotMatch(cleaned, /SPARK_QA_STARTUP_BENCH_SHOWCASE_RUNBOOK_2026-05-26\.md/i);
+  assert.doesNotMatch(cleaned, /codex-handoffs/i);
+  assert.match(cleaned, /legacy source evidence/);
 });
 
-test('removes Unicode format controls from outbound text', () => {
-  assert.equal(stripFormatControls('alpha\u200bbeta\u202egamma'), 'alphabetagamma');
-  assert.equal(sanitizeOutbound('alpha\u200b \u2014 beta'), 'alpha - beta');
+test('firewalls every prompt-surface blocked legacy ref from ordinary replies', () => {
+  for (const ref of LEGACY_PROMPT_SURFACE_BLOCKED_REFS) {
+    for (const pattern of ref.patterns) {
+      const cleaned = sanitizeOutbound(`Ordinary reply mentioned ${pattern} as current context.`);
+
+      assert.equal(
+        cleaned.toLowerCase().includes(pattern.toLowerCase()),
+        false,
+        `${ref.id} pattern ${pattern} leaked through ordinary Telegram render`
+      );
+      assert.match(cleaned, /legacy source evidence/);
+    }
+  }
+});
+
+test('allows inspect surfaces to keep proof refs while still hiding paths and stack traces', () => {
+  const text = [
+    'Proof ref: turn:sha256:abcdef1234567890',
+    'Trace ref: trace:telegram-run:abcdef1234567890',
+    'Telegram ids: chat_id=123456 user_id=456789 message_id=42 file_id=abcDEF123',
+    'Path: /Users/example/private/source.ts',
+    '    at inspect (/Users/example/private/source.ts:12:3)'
+  ].join('\n');
+  const issues = inspectTelegramRenderFirewall(text, { surface: 'inspect' });
+  const cleaned = sanitizeOutbound(text, { surface: 'inspect' });
+
+  assert.deepEqual(issues.map((issue) => issue.code).sort(), ['local_path', 'stack_trace']);
+  assert.match(cleaned, /turn:sha256:abcdef1234567890/);
+  assert.match(cleaned, /trace:telegram-run:abcdef1234567890/);
+  assert.match(cleaned, /chat_id=123456/);
+  assert.match(cleaned, /file_id=abcDEF123/);
+  assert.doesNotMatch(cleaned, /\/Users\/example|source\.ts:12:3/);
+  assert.match(cleaned, /\[stack trace hidden\]/);
 });
 
 test('chunks long Telegram text under the safe message limit', () => {

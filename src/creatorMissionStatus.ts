@@ -50,44 +50,44 @@ export interface CreatorMissionStatusPacket {
 }
 
 export function validateCreatorMissionStatusForTelegram(value: unknown): CreatorMissionStatusPacket {
-  const packet = requireRecord(value, 'creator mission status');
+  const packet = requireRecord(value, 'Loop Engineering status');
   if (packet.schema_version !== CREATOR_MISSION_STATUS_SCHEMA_VERSION) {
-    throw new Error(`Unexpected creator mission status schema: ${String(packet.schema_version)}`);
+    throw new Error(`Unexpected Loop Engineering status schema: ${String(packet.schema_version)}`);
   }
   if (packet.read_only !== true) {
-    throw new Error('Creator mission status must be read-only');
+    throw new Error('Loop Engineering status must be read-only');
   }
   if (!nonEmptyString(packet.mission_id)) {
-    throw new Error('Creator mission status missing mission_id');
+    throw new Error('Loop Engineering status missing mission_id');
   }
 
-  const canonical = requireRecord(packet.canonical, 'creator mission canonical');
+  const canonical = requireRecord(packet.canonical, 'Loop Engineering canonical');
   requireAllowed(canonical.verdict, ['prototype', 'ready_for_baseline', 'ready_for_swarm_packet', 'blocked'], 'verdict');
   requireAllowed(canonical.stage_status, ['prototype', 'ready_for_baseline', 'review_required', 'blocked', 'unknown'], 'stage status');
   requireAllowed(canonical.evidence_tier, ['local_only', 'candidate_review', 'transfer_supported'], 'evidence tier');
 
-  const publication = requireRecord(packet.publication, 'creator mission publication');
+  const publication = requireRecord(packet.publication, 'Loop Engineering publication');
   requireAllowed(publication.publish_mode, ['local_only', 'github_pr', 'swarm_shared'], 'publish mode');
   if (typeof publication.swarm_shared_allowed !== 'boolean') {
-    throw new Error('Creator mission publication missing swarm_shared_allowed boolean');
+    throw new Error('Loop Engineering publication missing swarm_shared_allowed boolean');
   }
   if (publication.network_absorbable !== false) {
-    throw new Error('Telegram must not accept network absorption from read-only creator mission packets');
+    throw new Error('Telegram must not accept network absorption from read-only Loop Engineering packets');
   }
   if (!Array.isArray(publication.missing_gates)) {
-    throw new Error('Creator mission publication missing gate blockers');
+    throw new Error('Loop Engineering publication missing gate blockers');
   }
 
   if (!Array.isArray(packet.blockers)) {
-    throw new Error('Creator mission status missing blockers array');
+    throw new Error('Loop Engineering status missing blockers array');
   }
-  const adapters = requireRecord(packet.surface_adapters, 'creator mission surface adapters');
+  const adapters = requireRecord(packet.surface_adapters, 'Loop Engineering surface adapters');
   for (const surface of ['builder', 'telegram', 'spawner', 'canvas', 'kanban']) {
     requireRecord(adapters[surface], `${surface} surface adapter`);
   }
   const telegram = adapters.telegram as Record<string, unknown>;
   if (telegram.may_request_secret_paste !== false) {
-    throw new Error('Telegram creator mission adapter must not request secret paste');
+    throw new Error('Telegram Loop Engineering adapter must not request secret paste');
   }
 
   return packet as unknown as CreatorMissionStatusPacket;
@@ -97,7 +97,9 @@ export function formatCreatorMissionStatusForTelegram(value: unknown): string {
   const packet = validateCreatorMissionStatusForTelegram(value);
   const adapterText = packet.surface_adapters.telegram.text;
   const lines = [
-    adapterText && adapterText.trim() ? adapterText.trim() : `Creator mission ${packet.mission_id} is ${packet.canonical.stage_status}.`,
+    adapterText && adapterText.trim()
+      ? normalizeLoopEngineeringSurfaceText(adapterText.trim())
+      : `Loop Engineering mission ${packet.mission_id} is ${packet.canonical.stage_status}.`,
     `Verdict: ${packet.canonical.verdict}.`,
     `Evidence tier: ${packet.canonical.evidence_tier}.`,
     publicationLine(packet),
@@ -107,9 +109,22 @@ export function formatCreatorMissionStatusForTelegram(value: unknown): string {
   }
   const next = packet.next_actions?.filter((action) => action.trim()).slice(0, 3) || [];
   if (next.length > 0) {
-    lines.push('Next:', ...next.map((action) => `- ${action}`));
+    lines.push('Next:', ...next.map((action) => `- ${normalizeLoopEngineeringSurfaceText(action)}`));
   }
   return lines.filter(Boolean).join('\n');
+}
+
+function normalizeLoopEngineeringSurfaceText(text: string): string {
+  return text
+    .replace(/\b[Cc]reator-system\b/g, 'Loop Engineering system')
+    .replace(/\b[Cc]reator system\b/g, 'Loop Engineering system')
+    .replace(/\b[Cc]reator mission gate\b/g, 'Loop Engineering gate')
+    .replace(/\bCreator mission\b/g, 'Loop Engineering mission')
+    .replace(/\bcreator mission\b/g, 'Loop Engineering mission')
+    .replace(/\bCreator plan\b/g, 'Loop Engineering plan')
+    .replace(/\bcreator plan\b/g, 'Loop Engineering plan')
+    .replace(/\bCreator validation\b/g, 'Loop Engineering validation')
+    .replace(/\bcreator validation\b/g, 'Loop Engineering validation');
 }
 
 function publicationLine(packet: CreatorMissionStatusPacket): string {
@@ -125,10 +140,10 @@ function publicationLine(packet: CreatorMissionStatusPacket): string {
 
 function blockerLabel(blocker: Record<string, unknown>): string {
   const source = blocker.source;
-  if (typeof source === 'string' && source.trim()) return source.trim();
+  if (typeof source === 'string' && source.trim()) return normalizeLoopEngineeringSurfaceText(source.trim());
   const message = blocker.message;
-  if (typeof message === 'string' && message.trim()) return message.trim();
-  return 'creator mission gate';
+  if (typeof message === 'string' && message.trim()) return normalizeLoopEngineeringSurfaceText(message.trim());
+  return 'Loop Engineering gate';
 }
 
 function requireRecord(value: unknown, label: string): Record<string, unknown> {

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { redactText } from './redaction';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
 import { harnessExecutionAuthorityFailureReason } from './harnessExecutionAuthority';
@@ -19,10 +20,26 @@ function formatTime12(h: number, m: number): string {
   return mm === '00' ? `${hh} ${suffix}` : `${hh}:${mm} ${suffix}`;
 }
 
+function isSimpleCronField(value: string, min: number, max: number, allowStep = false): boolean {
+  if (value === '*') return true;
+  const step = allowStep ? /^\*\/(\d+)$/.exec(value) : null;
+  const raw = step?.[1] ?? value;
+  if (!/^\d+$/.test(raw)) return false;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed >= min && parsed <= max;
+}
+
 export function humanizeCron(cron: string): string {
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return cron;
   const [minute, hour, dom, month, dow] = parts;
+  if (
+    !isSimpleCronField(minute, 0, 59, true)
+    || !isSimpleCronField(hour, 0, 23, true)
+    || !isSimpleCronField(dom, 1, 31)
+    || !isSimpleCronField(month, 1, 12)
+    || !isSimpleCronField(dow, 0, 7)
+  ) return `Custom: ${cron}`;
   if (hour === '*' && dom === '*' && month === '*' && dow === '*') {
     if (minute === '*') return 'Every minute';
     const m = /^\*\/(\d+)$/.exec(minute);
@@ -35,7 +52,7 @@ export function humanizeCron(cron: string): string {
     if (/^\d+$/.test(hour) && /^\d+$/.test(minute)) return `Daily at ${formatTime12(+hour, +minute)}`;
   }
   if (/^\d+$/.test(minute) && /^\d+$/.test(hour) && dom === '*' && month === '*' && /^\d$/.test(dow)) {
-    return `Every ${DOW[+dow]} at ${formatTime12(+hour, +minute)}`;
+    return `Every ${DOW[+dow === 7 ? 0 : +dow]} at ${formatTime12(+hour, +minute)}`;
   }
   if (/^\d+$/.test(minute) && /^\d+$/.test(hour) && /^\d+$/.test(dom) && month === '*' && dow === '*') {
     return `Monthly on day ${dom} at ${formatTime12(+hour, +minute)}`;
@@ -50,8 +67,9 @@ export function formatNextFireLocal(iso: string | null): string {
   if (!iso) return '-';
   try {
     const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    const ms = d.getTime() - Date.now();
+    const timestamp = d.getTime();
+    if (Number.isNaN(timestamp)) return iso;
+    const ms = timestamp - Date.now();
     const local = d.toLocaleString(undefined, {
       weekday: 'short',
       hour: 'numeric',
@@ -78,17 +96,54 @@ export function humanSummary(rec: ScheduleRecord): string {
   }
   const p = rec.payload as { chipKey?: string; rounds?: number };
   const n = p.rounds ?? 1;
-  return `Run ${n} loop round${n === 1 ? '' : 's'} on ${p.chipKey}`;
+  return `Run ${n} loop round${n === 1 ? '' : 's'} on ${p.chipKey ?? '(no chip)'}`;
+}
+
+export function formatScheduleError(error: unknown, fallback: string): string {
+  const redacted = redactText(String(error ?? '')).replace(/\s+/g, ' ').trim().toLowerCase();
+  if (/\b(?:timeout|timed out|econn(?:aborted|refused|reset)?|network|socket|unreachable|502|503|504)\b/.test(redacted)) {
+    return 'schedule service unavailable';
+  }
+  if (/\b(?:invalid cron|cron (?:expression )?invalid)\b/.test(redacted)) return 'invalid timing expression';
+  if (/\b(?:not found|404)\b/.test(redacted)) return 'schedule not found';
+  if (/\b(?:denied|forbidden|401|403)\b/.test(redacted)) return 'schedule request denied';
+  if (/\b(?:conflict|409)\b/.test(redacted)) return 'schedule conflict';
+  return String(fallback || 'schedule request failed').replace(/\s+/g, ' ').trim().slice(0, 80) || 'schedule request failed';
+}
+
+function safeScheduleStatus(status: string): string {
+  const redacted = redactText(status);
+  if (redacted !== status) return 'private detail hidden';
+  return redacted.replace(/\s+/g, ' ').trim().slice(0, 80);
+}
+
+function safeScheduleTimezone(timezone: unknown): string {
+  if (typeof timezone !== 'string') return '';
+  const normalized = timezone.trim();
+  if (
+    normalized.length === 0
+    || normalized.length > 80
+    || redactText(normalized) !== normalized
+    || !/^[A-Za-z][A-Za-z0-9._+-]*(?:\/[A-Za-z0-9._+-]+)*$/.test(normalized)
+  ) return '';
+  return normalized;
 }
 
 export function formatScheduleList(schedules: ScheduleRecord[]): string {
-  if (schedules.length === 0) return 'No schedules.';
+  if (schedules.length === 0) {
+    return [
+      'No schedules yet. Add one with:',
+      '/schedule "<cron>" mission <goal>',
+      '/schedule "<cron>" loop <chipKey> [rounds]',
+    ].join('\n');
+  }
   const lines = [`Schedules (${schedules.length}):`, ''];
   for (const s of schedules) {
+    const timezone = safeScheduleTimezone(s.timezone);
     lines.push(humanSummary(s));
-    lines.push(`  Schedule: ${humanizeCron(s.cron)}`);
+    lines.push(`  Schedule: ${humanizeCron(s.cron)}${timezone ? ` (${timezone})` : ''}`);
     lines.push(`  Next: ${formatNextFireLocal(s.nextFireAt)}`);
-    lines.push(`  Fires so far: ${s.fireCount}${s.lastStatus ? ` | last: ${s.lastStatus.slice(0, 80)}` : ''}`);
+    lines.push(`  Fires so far: ${s.fireCount}${s.lastStatus ? ` | last: ${safeScheduleStatus(s.lastStatus)}` : ''}`);
     lines.push(`  Id: ${s.id}`);
     lines.push('');
   }
@@ -101,6 +156,7 @@ export interface ScheduleRecord {
   action: 'mission' | 'loop';
   payload: Record<string, unknown>;
   chatId?: string | null;
+  timezone?: string | null;
   createdAt: string;
   lastFiredAt: string | null;
   nextFireAt: string | null;
@@ -125,19 +181,26 @@ export async function createSchedule(input: {
     return { ok: false, error: `${MISSING_EXECUTION_AUTHORITY_ERROR} (${authorityReason})` };
   }
   try {
-    const res = await axios.post(`${SPAWNER_UI_URL}/api/scheduled`, input, spawnerAxiosOptions(10000, {}, { mode: 'events' }));
-    return { ok: Boolean(res.data?.ok), schedule: res.data?.schedule, error: res.data?.error };
+    const res = await axios.post(
+      `${SPAWNER_UI_URL}/api/scheduled`,
+      input,
+      spawnerAxiosOptions(10000, {}, { mode: 'events' })
+    );
+    return { ok: Boolean(res.data?.ok), schedule: res.data?.schedule, error: res.data?.error ? formatScheduleError(res.data.error, 'create failed') : undefined };
   } catch (err: any) {
-    return { ok: false, error: err?.response?.data?.error || err?.message || 'create failed' };
+    return { ok: false, error: formatScheduleError(err?.response?.data?.error || err?.message, 'create failed') };
   }
 }
 
 export async function listSchedules(): Promise<{ ok: boolean; schedules?: ScheduleRecord[]; error?: string }> {
   try {
-    const res = await axios.get(`${SPAWNER_UI_URL}/api/scheduled`, spawnerAxiosOptions(10000, {}, { mode: 'events' }));
-    return { ok: Boolean(res.data?.ok), schedules: res.data?.schedules || [], error: res.data?.error };
+    const res = await axios.get(
+      `${SPAWNER_UI_URL}/api/scheduled`,
+      spawnerAxiosOptions(10000, {}, { mode: 'events' })
+    );
+    return { ok: Boolean(res.data?.ok), schedules: res.data?.schedules || [], error: res.data?.error ? formatScheduleError(res.data.error, 'list failed') : undefined };
   } catch (err: any) {
-    return { ok: false, error: err?.message || 'list failed' };
+    return { ok: false, error: formatScheduleError(err?.message, 'list failed') };
   }
 }
 
@@ -156,10 +219,14 @@ export async function deleteSchedule(
   try {
     const res = await axios.delete(
       `${SPAWNER_UI_URL}/api/scheduled?id=${encodeURIComponent(id)}`,
-      spawnerAxiosOptions(10000, { data: { executionAuthority: options.executionAuthority } }, { mode: 'events' })
+      spawnerAxiosOptions(
+        10000,
+        { data: { executionAuthority: options.executionAuthority } },
+        { mode: 'events' }
+      )
     );
-    return { ok: Boolean(res.data?.ok), error: res.data?.error };
+    return { ok: Boolean(res.data?.ok), error: res.data?.error ? formatScheduleError(res.data.error, 'delete failed') : undefined };
   } catch (err: any) {
-    return { ok: false, error: err?.message || 'delete failed' };
+    return { ok: false, error: formatScheduleError(err?.message, 'delete failed') };
   }
 }

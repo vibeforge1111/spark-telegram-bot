@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
+  defaultLocalWorkspaceRoots,
+  defaultOptionalLocalWorkspaceRoots,
   isLocalWorkspaceInspectionOnlyRequest,
   isLocalWorkspaceInspectionRequest,
   renderLocalWorkspaceInspectionReply,
@@ -20,6 +22,37 @@ async function test(name: string, fn: () => Promise<void> | void): Promise<void>
 }
 
 async function main(): Promise<void> {
+  await test('uses SPARK_HOME for the managed workspace root', () => {
+    const sparkHome = path.resolve('/opt/spark');
+    const roots = defaultLocalWorkspaceRoots({ SPARK_HOME: sparkHome } as NodeJS.ProcessEnv);
+
+    assert.equal(roots.at(-1), path.join(sparkHome, 'workspaces'));
+  });
+
+  await test('only includes optional home workspace roots that exist', () => {
+    const roots = defaultLocalWorkspaceRoots({} as NodeJS.ProcessEnv);
+    for (const root of roots.slice(0, -1)) {
+      assert.equal(
+        root.endsWith(`${path.sep}Desktop`) || root.endsWith(`${path.sep}Documents`),
+        true
+      );
+      assert.equal(existsSync(root), true);
+    }
+  });
+
+  await test('discovers conventional project roots portably when they exist', () => {
+    const home = path.resolve('/home/example');
+    const existing = new Set([
+      path.join(home, 'Documents'),
+      path.join(home, 'projects'),
+      path.join(home, 'Projects')
+    ]);
+    assert.deepEqual(
+      defaultOptionalLocalWorkspaceRoots(home, (candidate) => existing.has(candidate)),
+      [...existing]
+    );
+  });
+
   await test('recognizes local workspace and desktop inspection requests', () => {
     assert.equal(isLocalWorkspaceInspectionRequest('can you scan my desktop and what projects i am focused on'), true);
     assert.equal(isLocalWorkspaceInspectionRequest('look at the repos in my Desktop'), true);
@@ -77,6 +110,27 @@ async function main(): Promise<void> {
       assert.equal(byName.get('spark-repo')?.isGitRepo, true);
       assert.deepEqual(byName.get('spark-repo')?.signals, ['git', 'node']);
       assert.deepEqual(byName.get('plain-app')?.signals, ['docs']);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await test('selects the most recently modified project beyond the old alphabetical scan cap', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'spark-local-workspace-recency-'));
+    try {
+      for (let index = 0; index < 7; index += 1) {
+        const directory = path.join(root, `a-project-${index}`);
+        mkdirSync(directory);
+        utimesSync(directory, new Date(1_000 + index), new Date(1_000 + index));
+      }
+      const recent = path.join(root, 'z-recent-project');
+      mkdirSync(recent);
+      utimesSync(recent, new Date(20_000), new Date(20_000));
+
+      const summary = await summarizeLocalWorkspaces({ roots: [root], limit: 2 });
+
+      assert.equal(summary.projects[0]?.name, 'z-recent-project');
+      assert.equal(summary.projects.length, 2);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

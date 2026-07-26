@@ -9,6 +9,8 @@ import {
 
 test('detects Telegram photo messages as image input', () => {
   assert.equal(isTelegramImageMessage({ photo: [{ file_id: 'small' }] }), true);
+  assert.equal(isTelegramImageMessage(null), false);
+  assert.equal(isTelegramImageMessage('photo'), false);
 });
 
 test('detects Telegram image documents only by mime type', () => {
@@ -26,6 +28,7 @@ test('formats image memory text from captions and filenames', () => {
     '[image] screenshot.png'
   );
   assert.equal(telegramImageMemoryText({ photo: [{ file_id: 'photo' }] }), '[image]');
+  assert.equal(telegramImageMemoryText(null), '[image]');
 });
 
 test('detects whether image messages already have captions', () => {
@@ -51,6 +54,8 @@ test('adds recent context as caption for captionless image updates', () => {
   const caption = (enriched.message as any).caption;
   assert.match(caption, /shared this image without a caption/);
   assert.match(caption, /can you inspect the next screenshot/);
+  assert.equal((enriched.message as any).spark_media_turn.schema, 'spark.media_turn.v1');
+  assert.equal((enriched.message as any).spark_media_turn.media_kind, 'photo');
   assert.equal((update.message as any).caption, undefined);
 });
 

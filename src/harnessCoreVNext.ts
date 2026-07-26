@@ -251,8 +251,10 @@ export function buildTurnIntentEnvelopeVNextFromTelegram(
     : null;
   const proposedAction = actionEnvelope?.proposed_actions[0] || null;
   const evidence = routeEvidence(envelope);
-  const freshUserIntentRef = evidence.find((item) => item.kind === 'fresh_user_intent') || null;
   const authorityState = authorityStateForMove(move);
+
+  const combinedEvidence = actionEnvelope ? [...evidence, ...actionEnvelope.evidence] : evidence;
+  const freshUserIntentRef = combinedEvidence.find((item) => item.kind === 'fresh_user_intent') || null;
 
   return {
     schema_version: 'turn-intent-envelope-vnext',
@@ -273,8 +275,8 @@ export function buildTurnIntentEnvelopeVNextFromTelegram(
       stale_state_used_as_authority: false,
       memory_used_as_instruction: false,
       pending_state_used_as_authority: false
-    },
-    evidence: actionEnvelope ? [...evidence, ...actionEnvelope.evidence] : evidence,
+    } as any,
+    evidence: combinedEvidence,
     action_authority: {
       state: authorityState,
       risk_tier: riskTier,
@@ -355,7 +357,7 @@ export function authorizeHarnessCoreAction(
     },
     restrictions: {
       network_allowed: Boolean(input.externalNetwork) && verdict === 'allow',
-      write_allowed: ['writes_files', 'writes_memory', 'creates_chip', 'creates_schedule', 'deletes_schedule'].includes(input.mutationClass) && verdict === 'allow',
+      write_allowed: ['writes_files', 'writes_memory', 'creates_chip', 'creates_schedule', 'deletes_schedule', 'launches_mission'].includes(input.mutationClass) && verdict === 'allow',
       publish_allowed: Boolean(input.publishes) && verdict === 'allow'
     },
     trace: traceRef(envelope.trace.id, 'Harness Core authorization decision for Telegram action.')

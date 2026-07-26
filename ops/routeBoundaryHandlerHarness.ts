@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { config as loadEnv } from 'dotenv';
@@ -13,6 +13,11 @@ import {
   parseNaturalRouteExecutionLedger,
   type NaturalRouteExecutionRecord
 } from '../src/naturalRouteLedger';
+import {
+  auditControlProofTraceJoins,
+  formatControlProofTraceJoinReport,
+  type ControlProofTraceJoinSummary
+} from '../src/controlProofTraceJoin';
 
 interface HarnessTurn {
   caseId: string;
@@ -24,6 +29,13 @@ interface HarnessTurn {
   verdict: 'pass' | 'fail';
   issue: string;
 }
+
+type BuildNodeOutboundAuditRecord = (
+  chatId: unknown,
+  deliveredText: unknown,
+  now?: Date,
+  traceContext?: Record<string, unknown> | null
+) => Record<string, unknown>;
 
 interface FakeTelegramUser {
   id: number;
@@ -183,6 +195,9 @@ function renderReport(input: {
   generatedAt: Date;
   stateDir: string;
   ledgerPath: string;
+  outboundAuditPath: string;
+  finalAnswerAuditPath: string;
+  traceJoin: ControlProofTraceJoinSummary;
   realLlm: boolean;
   turns: HarnessTurn[];
 }): string {
@@ -193,6 +208,8 @@ function renderReport(input: {
     `Generated: ${input.generatedAt.toISOString()}`,
     `State dir: ${input.stateDir}`,
     `Ledger path: ${input.ledgerPath}`,
+    `Outbound audit path: ${input.outboundAuditPath}`,
+    `Final-answer audit path: ${input.finalAnswerAuditPath}`,
     `LLM mode: ${input.realLlm ? 'real configured chat provider' : 'deterministic harness stub'}`,
     '',
     'Runtime path:',
@@ -204,6 +221,10 @@ function renderReport(input: {
     '- This harness does not call getUpdates, start polling, or create inbound Telegram user messages. It proves handler behavior, not Bot API delivery.',
     '',
     `Summary: ${passed}/${input.turns.length} cases passed.`,
+    '',
+    'Trace join:',
+    '',
+    `    ${formatControlProofTraceJoinReport(input.traceJoin).trim().replace(/\n/g, '\n    ')}`,
     ''
   ];
 
@@ -255,6 +276,8 @@ async function main(): Promise<void> {
   const reportDir = path.join(process.cwd(), 'ops', 'reports');
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const ledgerPath = path.join(stateDir, 'route-ledger.jsonl');
+  const outboundAuditPath = path.join(stateDir, 'node-outbound-audit.jsonl');
+  const finalAnswerAuditPath = path.join(stateDir, 'final-answer-gate-audit.jsonl');
   const reportPath = path.resolve(argValue('out') || path.join(reportDir, `route-boundary-handler-${stamp}.md`));
   const configuredAdmin = firstConfiguredTelegramId(process.env.ADMIN_TELEGRAM_IDS);
   const userId = Number(argValue('user-id') || String(configuredAdmin || 8900000001));
@@ -267,6 +290,8 @@ async function main(): Promise<void> {
   process.env.ALLOWED_TELEGRAM_IDS = String(userId);
   process.env.SPARK_NATURAL_ROUTE_LEDGER = '1';
   process.env.SPARK_NATURAL_ROUTE_LEDGER_PATH = ledgerPath;
+  process.env.SPARK_NODE_OUTBOUND_AUDIT_PATH = outboundAuditPath;
+  process.env.SPARK_FINAL_ANSWER_GATE_AUDIT_PATH = finalAnswerAuditPath;
   process.env.SPARK_AGENT_PERSONA_BUILDER_SYNC = '0';
   process.env.SPARK_TELEGRAM_CHAT_STREAMING = '0';
   process.env.SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES = '0';
@@ -286,6 +311,8 @@ async function main(): Promise<void> {
 
   const imported = await import('../src/index');
   const handleTextMessage = imported.handleTextMessage as (ctx: any) => Promise<void>;
+  const buildNodeOutboundAuditRecord = imported.buildNodeOutboundAuditRecord as BuildNodeOutboundAuditRecord;
+  const turnTraceContextKey = Symbol.for('spark.telegram.turnOutboundTraceContext');
   const user: FakeTelegramUser = {
     id: userId,
     is_bot: false,
@@ -321,12 +348,17 @@ async function main(): Promise<void> {
           text: prompt
         }
       };
-      const addReply = (text: unknown) => {
+      const addReply = async (text: unknown) => {
         const reply = String(text ?? '');
         replies.push(prompts.length > 1 ? `Turn ${turnIndex + 1}: ${reply}` : reply);
+        const traceContext = ctx[turnTraceContextKey] && typeof ctx[turnTraceContextKey] === 'object'
+          ? ctx[turnTraceContextKey] as Record<string, unknown>
+          : null;
+        const auditRecord = buildNodeOutboundAuditRecord(chat.id, reply, new Date(), traceContext);
+        await appendFile(outboundAuditPath, `${JSON.stringify(auditRecord)}\n`, 'utf8');
         return { message_id: replies.length + 1 };
       };
-      const ctx = {
+      const ctx: any = {
         update,
         from: user,
         chat,
@@ -361,18 +393,42 @@ async function main(): Promise<void> {
     console.log(`${turn.verdict.toUpperCase()} ${entry.id}: ${record?.shadow_route || 'none'} -> ${record?.executed_route || 'none'} (${preview(replyText(turn), 180) || 'no reply'})`);
   }
 
+  const traceJoin = auditControlProofTraceJoins({
+    sparkHome: stateDir,
+    naturalRouteLedger: ledgerPath,
+    finalAnswerAudit: finalAnswerAuditPath,
+    outboundAudit: outboundAuditPath
+  });
+
   const report = renderReport({
     generatedAt: new Date(),
     stateDir,
     ledgerPath,
+    outboundAuditPath,
+    finalAnswerAuditPath,
+    traceJoin,
     realLlm,
     turns
   });
   await writeFile(reportPath, report, 'utf8');
   console.log(`Report: ${reportPath}`);
+  console.log(`Summary: ${turns.filter((turn) => turn.verdict === 'pass').length}/${turns.length} cases passed.`);
+  console.log([
+    'Trace join:',
+    `Status: ${traceJoin.ok ? 'clean' : 'gaps found'}`,
+    `Route rows: ${traceJoin.sampledRouteRows}/${traceJoin.totalRouteRows} sampled`,
+    `Joined rows: ${traceJoin.joinedRows}`,
+    `Gap rows: ${traceJoin.gapRows}`,
+    `Parse errors: ${traceJoin.parseErrors}`,
+    `- missing join keys: ${traceJoin.missingJoinKeyRows}`,
+    `- missing reply joins: ${traceJoin.missingReplyJoinRows}`,
+    `- missing proof joins: ${traceJoin.missingProofJoinRows}`,
+    `- missing action/no-action evidence: ${traceJoin.missingActionEvidenceRows}`,
+    `- route mismatches: ${traceJoin.routeMismatchRows}`
+  ].join('\n'));
 
   const failed = turns.filter((turn) => turn.verdict === 'fail');
-  if (failed.length > 0 && !hasFlag('allow-fail')) {
+  if ((failed.length > 0 || !traceJoin.ok) && !hasFlag('allow-fail')) {
     process.exitCode = 1;
   }
 }

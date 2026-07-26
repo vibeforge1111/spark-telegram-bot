@@ -2,7 +2,7 @@ export const DEFAULT_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
 export const DEFAULT_BUILDER_BRIDGE_TIMEOUT_MS = 15 * 60 * 1000;
 export const DEFAULT_CONTEXT_BRIDGE_TIMEOUT_MS = 15000;
 export const DEFAULT_LOCAL_SERVICE_TIMEOUT_MS = 30 * 60 * 1000;
-export const DEFAULT_SELF_BRIDGE_TIMEOUT_MS = 90 * 1000;
+export const DEFAULT_SELF_BRIDGE_TIMEOUT_MS = 180 * 1000;
 export const DEFAULT_WIKI_BRIDGE_TIMEOUT_MS = 90 * 1000;
 
 export function parsePositiveIntegerEnvValue(value: string | undefined | null, fallbackMs: number): number {

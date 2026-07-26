@@ -43,7 +43,7 @@ export function cleanupPendingCreatorMissions(now = Date.now()): number {
 export function parsePendingCreatorMissionAction(text: string): PendingCreatorMissionAction | null {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!normalized) return null;
-  if (/^(?:run|start|execute|kick off|go|go ahead|do it|run it|start it|execute it|kick it off)(?:\s+(?:the\s+)?(?:(?:creator\s+)?mission|private\s+path|specialization\s+path|path|autoloop))?$/i.test(normalized)) {
+  if (/^(?:run|start|execute|kick off|go|go ahead|do it|run it|start it|execute it|kick it off|use defaults?|use your defaults?|defaults?|recommended defaults?|doesn'?t matter|dont care|whatever|your call)(?:\s+(?:the\s+)?(?:(?:creator\s+)?mission|private\s+path|specialization\s+path|path|autoloop))?$/i.test(normalized)) {
     return 'run';
   }
   if (/^(?:validate|verify|test)(?:\s+(?:it|the\s+(?:creator\s+)?mission|the\s+private\s+path|the\s+specialization\s+path|the\s+path|the\s+benchmark(?:\s+pack)?|the\s+autoloop|the\s+evidence|the\s+capability\s+gain))?$/i.test(normalized) ||

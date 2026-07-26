@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { spawnHidden, withHiddenWindows, resolveWindowsCommand, windowsCmdShimArgs, windowsPowerShellShimArgs } from './hiddenProcess';
+import { spawnHidden, withHiddenWindows } from './hiddenProcess';
+import { effectiveLevel5RuntimeEnv } from './level5RuntimeEnv';
 import { redactText } from './redaction';
 
 const execFileAsync = promisify(execFile);
@@ -169,11 +170,6 @@ function buttonForAction(actionId: SparkAccessActionId): { text: string; callbac
   };
 }
 
-function localTerminalCommandForAccessAction(actionId: SparkAccessActionId): string {
-  const args = SPARK_ACCESS_ACTIONS[actionId].command.filter((arg) => arg !== '--json');
-  return ['spark', ...args].join(' ');
-}
-
 export async function runSparkAccessAction(
   actionId: SparkAccessActionId,
   runner: SparkCommandRunner = defaultSparkCommandRunner
@@ -191,24 +187,33 @@ export async function runSparkAccessActionDetailed(
     result = await runner(action.command, action.timeoutMs);
   } catch (error) {
     const anyError = error as { stdout?: unknown; stderr?: unknown; message?: unknown };
+    const failedPayload = parseSparkJson(
+      Buffer.isBuffer(anyError.stdout) ? anyError.stdout.toString('utf8') : String(anyError.stdout || '')
+    );
+    if (failedPayload) {
+      return {
+        reply: formatSparkAccessActionReply(actionId, failedPayload),
+        payload: failedPayload,
+        needsSparkRestart: false,
+      };
+    }
     const output = redactText([
       anyError.stdout,
       anyError.stderr,
       anyError.message,
     ].filter(Boolean).map(String).join('\n').trim());
-    const needsLocalApproval = /non-interactive|interactive terminal|requires?.*confirmation|needs confirmation before continuing|Approval phrase:/i.test(output);
-    const localCommand = localTerminalCommandForAccessAction(actionId);
-    const reply = needsLocalApproval
+    const nonInteractive = /non-interactive|interactive terminal|requires?.*confirmation/i.test(output);
+    const reply = nonInteractive && (actionId === 'level5_enable' || actionId === 'level5_disable')
       ? [
-          'Spark could not change the Level 5 service lane from this Telegram process because the Spark CLI requires a trusted local confirmation.',
-          `Run \`${localCommand}\` in a trusted local terminal, type the Spark approval phrase there, then restart Spark Live if the command asks you to. The Telegram chat access setting can still be lowered separately.`
+          'Spark could not change the Level 5 service lane from this Telegram process because the Spark CLI requires an interactive confirmation.',
+          'Run `spark access disable-level5` in a trusted local terminal, then restart Spark Live. The Telegram chat access setting can still be lowered separately.'
         ].join('\n')
-      : [`Spark access action failed: ${action.id}`, output || 'No output.'].join('\n');
+      : formatSparkAccessActionFailureReply(actionId, output || error);
     return {
       reply,
       payload: {
         ok: false,
-        error: needsLocalApproval ? 'non_interactive_confirmation_required' : 'command_failed'
+        error: nonInteractive ? 'non_interactive_confirmation_required' : 'command_failed'
       },
       needsSparkRestart: false,
     };
@@ -229,29 +234,14 @@ export async function runSparkAccessActionDetailed(
   };
 }
 
-// Resolve the spark CLI the same way runSparkCli does, so access actions work on Windows.
-// Bare execFile('spark') ENOENTs on Windows (the CLI is spark.cmd, and execFile does not apply
-// PATHEXT or use a shell), which is why level5_enable / workspace_setup failed with "spawn spark
-// ENOENT". Honor SPARK_CLI_COMMAND/SPARK_CLI_PATH, else resolve 'spark' against PATH+PATHEXT.
-function resolveSparkCliForAccessActions(): string {
-  const explicit = process.env.SPARK_CLI_COMMAND?.trim() || process.env.SPARK_CLI_PATH?.trim();
-  if (explicit) return explicit;
-  return resolveWindowsCommand('spark');
-}
-
 async function defaultSparkCommandRunner(args: string[], timeoutMs: number): Promise<{ stdout: string; stderr: string }> {
-  const resolved = resolveSparkCliForAccessActions();
-  const [command, commandArgs] = process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolved)
-    ? [process.env.ComSpec || 'cmd.exe', windowsCmdShimArgs(resolved, args)]
-    : process.platform === 'win32' && /\.ps1$/i.test(resolved)
-      ? ['powershell.exe', windowsPowerShellShimArgs(resolved, args)]
-      : [resolved, args];
   const { stdout, stderr } = await execFileAsync(
-    command,
-    commandArgs,
+    'spark',
+    args,
     withHiddenWindows({
       timeout: timeoutMs,
       maxBuffer: 1024 * 1024,
+      env: effectiveLevel5RuntimeEnv(process.env),
     })
   );
   return {
@@ -295,11 +285,25 @@ export function formatSparkAccessActionReply(actionId: SparkAccessActionId, payl
   }
   if (actionId === 'level5_enable') {
     const state = objectValue(payload.level5);
+    const stateMachine = objectValue(payload.state_machine);
     const activation = String(state.activation_state || '');
+    const activeForServices = state.service_enabled === true || stateMachine.service_can_operate_whole_computer === true;
+    const effectiveCodexSandbox = String(state.effective_codex_sandbox || '');
+    const fullAccessEffective = effectiveCodexSandbox === 'danger-full-access';
+    const sandboxProofLine = activeForServices
+      ? fullAccessEffective
+        ? 'Effective Codex sandbox: danger-full-access.'
+        : `Attention: effective Codex sandbox is ${effectiveCodexSandbox || 'unknown'}, so Level 5 is not full-access yet.`
+      : '';
     return [
       ok ? 'Level 5 guardrails were configured.' : 'Level 5 setup did not complete.',
       activation ? `Activation state: ${activation}.` : '',
-      'Spark needs to reload Telegram and Spawner before whole-computer operator mode becomes active.',
+      activeForServices
+        ? fullAccessEffective
+          ? 'Whole-computer operator mode is active for Telegram and Spawner.'
+          : 'Level 5 service restart is visible, but full access is blocked until the effective Codex sandbox is danger-full-access.'
+        : 'Spark needs to reload Telegram and Spawner before whole-computer operator mode becomes active.',
+      sandboxProofLine,
       nextLine(payload),
     ].filter(Boolean).join('\n');
   }
@@ -311,6 +315,26 @@ export function formatSparkAccessActionReply(actionId: SparkAccessActionId, payl
     ].filter(Boolean).join('\n');
   }
   return ok ? 'Spark access action finished.' : 'Spark access action failed.';
+}
+
+export function formatSparkAccessActionFailureReply(actionId: SparkAccessActionId, error: unknown): string {
+  const detail = compactAccessActionFailureDetail(error);
+  if (actionId === 'workspace_setup') {
+    return [
+      'Safe workspace setup could not complete.',
+      'The Spark CLI may be unavailable, the workspace may not be writable, or local setup may be incomplete.',
+      'Send /diagnose here, or ask the device holder to run `spark access setup --json` locally.',
+      'Do not paste tokens, .env files, private keys, full logs, or secrets into chat.',
+      detail ? `Redacted detail: ${detail}` : '',
+    ].filter(Boolean).join('\n\n');
+  }
+
+  return [
+    `${sparkAccessActionLabel(actionId)} could not complete.`,
+    'Send /diagnose here, or ask the device holder to run the matching Spark command locally.',
+    'Do not paste tokens, .env files, private keys, full logs, or secrets into chat.',
+    detail ? `Redacted detail: ${detail}` : '',
+  ].filter(Boolean).join('\n\n');
 }
 
 export function accessActionNeedsSparkRestart(actionId: SparkAccessActionId, payload: Record<string, unknown>): boolean {
@@ -345,7 +369,7 @@ export function scheduleSparkRestartAfterAccessChange(delayMs = 2_000): void {
   const child = spawnHidden(process.execPath, ['-e', script, String(delayMs)], {
     detached: true,
     stdio: 'ignore',
-    env: process.env,
+    env: effectiveLevel5RuntimeEnv(process.env),
   });
   child.unref();
 }
@@ -363,6 +387,18 @@ function accessSummary(payload: Record<string, unknown>): string {
 function nextLine(payload: Record<string, unknown>): string {
   const next = String(payload.next || '').trim();
   return next ? `Next: ${next}` : '';
+}
+
+function compactAccessActionFailureDetail(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error || 'unknown error');
+  const detail = redactText(raw)
+    .replace(/\b(token|secret|password|api[_ -]?key)\b\s*[:=]?\s*\S+/gi, '$1 [REDACTED]')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !/^at\s+/.test(line))
+    .slice(0, 3)
+    .join(' ');
+  return detail.length > 360 ? `${detail.slice(0, 357)}...` : detail;
 }
 
 function objectValue(value: unknown): Record<string, unknown> {

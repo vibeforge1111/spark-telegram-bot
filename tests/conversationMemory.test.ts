@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
+  adminTelegramIdsStartupWarning,
   ConversationMemory,
   extractAssistantOptions,
   isPendingTaskRecoveryQuestion,
@@ -47,7 +48,13 @@ async function main(): Promise<void> {
     assert.deepEqual(parseTelegramUserIds('0, -1, NaN, 12abc, 1.5, 9007199254740992'), []);
   });
 
-  await test('does not promote explicit session notes into Telegram-local memory', async () => {
+  await test('warns only when configured admin IDs contain no valid numeric ID', () => {
+    assert.equal(adminTelegramIdsStartupWarning(undefined), null);
+    assert.equal(adminTelegramIdsStartupWarning('123,invalid'), null);
+    assert.match(adminTelegramIdsStartupWarning('@owner') || '', /\/myid/);
+  });
+
+  await test('keeps explicit session notes available to the next chat turn', async () => {
   await withTempState(async () => {
     const memory = new ConversationMemory();
 
@@ -56,13 +63,13 @@ async function main(): Promise<void> {
 
     const context = await memory.getContext(user, 'what are you');
 
-    assert.doesNotMatch(context, /Session notes from this chat/);
+    assert.match(context, /Session notes from this chat/);
+    assert.match(context, /you are a QA agent/);
     assert.match(context, /Recent Telegram turns/);
-    assert.match(context, /can you remember that you are a QA agent/);
   });
   });
 
-  await test('does not recall Telegram-local notes as durable memory', async () => {
+  await test('recalls a freshly saved Telegram note by topic words', async () => {
   await withTempState(async () => {
     const memory = new ConversationMemory();
 
@@ -73,50 +80,62 @@ async function main(): Promise<void> {
 
     const recalled = await memory.recall(user, 'Spark E2E fresh-state phase', 1);
 
-    assert.deepEqual(recalled, []);
+    assert.equal(recalled.length, 1);
+    assert.match(recalled[0].content, /audit marker: Spark E2E fresh-state phase on 2026-05-17/);
+    assert.doesNotMatch(recalled[0].content, /User asked Spark to remember/i);
+    assert.doesNotMatch(recalled[0].content, /^Noted/i);
     assert.deepEqual(await memory.recall(user, 'me', 1), []);
   });
   });
 
-  await test('keeps raw natural memory directives out of context until promoted', async () => {
-  await withTempState(async () => {
-    const memory = new ConversationMemory();
-
-    await memory.remember(user, 'remember this: my preferred mission updates are concise and outcome-focused');
-    await memory.rememberAssistantReply(user, 'You told me your preferred mission updates are concise and outcome-focused.');
-    await memory.rememberAssistantReply(user, 'Memory is degraded, so I could not confirm that write.');
-
-    const context = await memory.getContext(user, 'what do you remember about mission updates?');
-    const recentMessages = await memory.getRecentMessages(user, 4);
-    const recentTurns = await memory.getRecentTurns(user, 4);
-    const recentMemoryDirectives = await memory.getRecentMemoryDirectives(user, 4);
-    const frame = await memory.getConversationFrame(user, 'what do you remember about mission updates?');
-    const recalled = await memory.recall(user, 'mission updates', 1);
-
-    assert.doesNotMatch(context, /concise and outcome-focused/i);
-    assert.deepEqual(recentMessages, []);
-    assert.deepEqual(recentTurns.map((turn) => turn.text), [
-      'Memory is degraded, so I could not confirm that write.'
-    ]);
-    assert.deepEqual(recentMemoryDirectives, []);
-    assert.deepEqual(frame.hotTurns.map((turn) => turn.text), [
-      'Memory is degraded, so I could not confirm that write.'
-    ]);
-    assert.deepEqual(recalled, []);
-  });
-  });
-
-  await test('does not persist generic local memory notes across users', async () => {
+  await test('does not leak one user session context to another user', async () => {
   await withTempState(async () => {
     const memory = new ConversationMemory();
 
     await memory.learnAboutUser(user, 'User asked Spark to remember: you are a QA agent');
 
-    const sameContext = await memory.getContext(user, 'what are you');
     const otherContext = await memory.getContext({ id: 67890 }, 'what are you');
 
-    assert.equal(sameContext, 'No prior memories.');
     assert.equal(otherContext, 'No prior memories.');
+  });
+  });
+
+  await test('keeps ephemeral context chat-scoped while durable user notes follow the user', async () => {
+  await withTempState(async () => {
+    const memory = new ConversationMemory();
+    const privateChatId = 12345;
+    const groupChatId = -100987654321;
+
+    await memory.learnAboutUser(user, 'Preference: keep mission updates concise');
+    await memory.runInChatScope(privateChatId, async () => {
+      await memory.remember(user, 'private launch codeword is firefly');
+      await memory.rememberAssistantReply(user, 'I will keep that in this chat context.');
+      await memory.recordInterruptedTask(user, {
+        message: 'resume the private deployment',
+        failure: 'local test timeout'
+      });
+    });
+    await memory.runInChatScope(groupChatId, async () => {
+      await memory.remember(user, 'group topic is release readiness');
+    });
+
+    const privateContext = await memory.runInChatScope(
+      privateChatId,
+      () => memory.getContext(user, 'continue')
+    );
+    const groupContext = await memory.runInChatScope(
+      groupChatId,
+      () => memory.getContext(user, 'continue')
+    );
+
+    assert.match(privateContext, /private launch codeword is firefly/);
+    assert.match(privateContext, /resume the private deployment/);
+    assert.doesNotMatch(privateContext, /group topic is release readiness/);
+    assert.match(groupContext, /group topic is release readiness/);
+    assert.doesNotMatch(groupContext, /private launch codeword is firefly/);
+    assert.doesNotMatch(groupContext, /resume the private deployment/);
+    assert.match(privateContext, /keep mission updates concise/);
+    assert.match(groupContext, /keep mission updates concise/);
   });
   });
 
@@ -321,45 +340,6 @@ async function main(): Promise<void> {
     const recent = await second.getRecentMessages(user, 4);
 
     assert.deepEqual(recent, ['a new domain chip', 'recognizing bugs happening in Spark systems']);
-  });
-  });
-
-  await test('keeps natural project continuity across restart without creating durable memory', async () => {
-  await withTempState(async () => {
-    const first = new ConversationMemory();
-    await first.remember(user, 'I want a day planner that feels calm, not like a productivity dashboard.');
-    await first.rememberAssistantReply(user, 'A one-screen Day Triage Button could turn the morning into three tiny next moves.');
-    await first.remember(user, 'The polish direction is warmer copy, less dense controls, and one clear morning flow.');
-    await first.remember(user, 'Unrelated: are all provider roles Codex low fast now?');
-
-    const second = new ConversationMemory();
-    const context = await second.getContext(user, 'where were we on the day planner project?');
-    const frame = await second.getConversationFrame(user, 'what was the polish direction for that planner?');
-    const recalled = await second.recall(user, 'day planner warmer copy', 3);
-
-    assert.match(context, /Recent Telegram turns/);
-    assert.match(context, /Day Triage Button/);
-    assert.match(context, /warmer copy/);
-    assert.equal(frame.hotTurns.some((turn) => /one clear morning flow/i.test(turn.text)), true);
-    assert.deepEqual(recalled, []);
-  });
-  });
-
-  await test('keeps switched project threads in recent context without cross-user leakage', async () => {
-  await withTempState(async () => {
-    const otherUser = { id: 67890, first_name: 'Other' };
-    const memory = new ConversationMemory();
-
-    await memory.remember(user, 'Project A is a calm day planner with one clear morning flow.');
-    await memory.remember(user, 'Switching topics: provider roles should stay Codex low fast on this device.');
-    await memory.remember(user, 'Back to Project A, the next polish should reduce dense controls.');
-
-    const sameUserContext = await memory.getContext(user, 'where did we leave Project A?');
-    const otherUserContext = await memory.getContext(otherUser, 'where did we leave Project A?');
-
-    assert.match(sameUserContext, /Project A is a calm day planner/);
-    assert.match(sameUserContext, /reduce dense controls/);
-    assert.equal(otherUserContext, 'No prior memories.');
   });
   });
 

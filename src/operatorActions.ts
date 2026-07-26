@@ -16,50 +16,61 @@ function extractWindowsPath(text: string): string | null {
   return rawPath.replace(/\s+\b(?:exists?|and|then)\b.*$/i, '').trim();
 }
 
-function isExpectedLevel5SmokePath(filePath: string): boolean {
-  const normalized = path.win32.normalize(filePath).toLowerCase();
-  return normalized.endsWith('\\appdata\\local\\temp\\spark-telegram-level5-smoke.txt');
+function normalizedWindowsPath(value: string): string {
+  return path.win32.normalize(value).replace(/[\\/]+$/, '').toLowerCase();
 }
 
-// Containment check using path.win32.relative rather than startsWith.
-// startsWith allows a sibling-prefix bypass (e.g. an allowed root of
-// "...\\Temp" would also match "...\\Temp-evil"); a relative path that neither
-// escapes with ".." nor is absolute is genuinely inside `root`.
-// The action paths are always Windows paths emitted by the parser, so the
-// guard is pinned to the Windows roots the feature actually targets
-// (AppData\\Local\\Temp for the smoke file, the user Desktop for the listing)
-// instead of os.homedir()/os.tmpdir() of the running host — those would refuse
-// every legit request on a POSIX server.
 function isWithinWin32Root(filePath: string, root: string): boolean {
-  const normalizedRoot = path.win32.normalize(root).toLowerCase().replace(/\\+$/, '');
-  const normalizedTarget = path.win32.normalize(filePath).toLowerCase().replace(/\\+$/, '');
+  const normalizedRoot = normalizedWindowsPath(root);
+  const normalizedTarget = normalizedWindowsPath(filePath);
   if (normalizedTarget === normalizedRoot) return true;
-  const rel = path.win32.relative(normalizedRoot, normalizedTarget);
-  return rel.length > 0 && !rel.startsWith('..') && !path.win32.isAbsolute(rel);
+  const relative = path.win32.relative(normalizedRoot, normalizedTarget);
+  return relative.length > 0 && !relative.startsWith('..') && !path.win32.isAbsolute(relative);
 }
 
 function isPathWithinAllowedRoot(action: SafeOperatorAction): boolean {
   if (action.kind === 'level5_smoke') {
-    // The smoke file lives directly under the user's AppData\Local\Temp.
-    // Derive that root from the (already shape-validated) target path so the
-    // check works regardless of the Windows username, and confirm the file is
-    // contained within it.
-    const dir = path.win32.dirname(path.win32.normalize(action.filePath));
-    return dir.toLowerCase().endsWith('\\appdata\\local\\temp')
-      && isWithinWin32Root(action.filePath, dir);
+    const directory = path.win32.dirname(path.win32.normalize(action.filePath));
+    return normalizedWindowsPath(directory).endsWith('\\appdata\\local\\temp') &&
+      isWithinWin32Root(action.filePath, directory);
   }
-  // folder_list targets the user's Desktop; the parser guarantees the basename
-  // is "desktop", so the path is its own allowed root.
   return path.win32.basename(path.win32.normalize(action.folderPath)).toLowerCase() === 'desktop';
 }
 
-export function parseSafeOperatorAction(text: string): SafeOperatorAction | null {
+function expectedLevel5SmokePaths(env: NodeJS.ProcessEnv): string[] {
+  const roots = [
+    env.TEMP?.trim(),
+    env.TMP?.trim(),
+    env.USERPROFILE?.trim() ? path.win32.join(env.USERPROFILE.trim(), 'AppData', 'Local', 'Temp') : null
+  ].filter((value): value is string => Boolean(value && path.win32.isAbsolute(value)));
+  return roots.map((root) => normalizedWindowsPath(path.win32.join(root, 'spark-telegram-level5-smoke.txt')));
+}
+
+function isExpectedLevel5SmokePath(filePath: string, env: NodeJS.ProcessEnv): boolean {
+  const normalized = path.win32.normalize(filePath).toLowerCase();
+  return expectedLevel5SmokePaths(env).includes(normalized);
+}
+
+function ownedFolderInspectionRoot(env: NodeJS.ProcessEnv): string | null {
+  const configured = env.SPARK_PROJECT_ROOT?.trim();
+  if (configured && path.win32.isAbsolute(configured)) return normalizedWindowsPath(configured);
+  const userProfile = env.USERPROFILE?.trim();
+  if (!userProfile || !path.win32.isAbsolute(userProfile)) return null;
+  return normalizedWindowsPath(path.win32.join(userProfile, 'Desktop'));
+}
+
+function isOwnedFolderInspectionPath(folderPath: string, env: NodeJS.ProcessEnv): boolean {
+  const ownerRoot = ownedFolderInspectionRoot(env);
+  return Boolean(ownerRoot && normalizedWindowsPath(folderPath) === ownerRoot);
+}
+
+export function classifySafeOperatorAction(text: string): SafeOperatorAction | null {
   const normalized = normalizeMessage(text);
   const windowsPath = extractWindowsPath(text);
 
   if (
     windowsPath &&
-    isExpectedLevel5SmokePath(windowsPath) &&
+    normalizedWindowsPath(windowsPath).endsWith('\\appdata\\local\\temp\\spark-telegram-level5-smoke.txt') &&
     /\blevel\s*5\b/.test(normalized) &&
     /\bsmoke\s+test\b/.test(normalized) &&
     /\bcreate\b.*\bwrite\b.*\bread\b.*\b(?:delete|remove)\b/.test(normalized) &&
@@ -70,7 +81,6 @@ export function parseSafeOperatorAction(text: string): SafeOperatorAction | null
 
   if (
     windowsPath &&
-    path.win32.basename(path.win32.normalize(windowsPath)).toLowerCase() === 'desktop' &&
     /\bcheck\s+whether\b.*\bexists\b/.test(normalized) &&
     /\blist\s+only\s+the\s+first\s+\d+\s+top[-\s]+level\s+folder\s+names\b/.test(normalized) &&
     /\b(?:do\s+not|don't|dont)\s+open\s+files\b/.test(normalized) &&
@@ -84,6 +94,21 @@ export function parseSafeOperatorAction(text: string): SafeOperatorAction | null
   }
 
   return null;
+}
+
+export function parseSafeOperatorAction(text: string, env: NodeJS.ProcessEnv = process.env): SafeOperatorAction | null {
+  const candidate = classifySafeOperatorAction(text);
+  if (candidate?.kind === 'level5_smoke') {
+    return isExpectedLevel5SmokePath(candidate.filePath, env) ? candidate : null;
+  }
+  if (candidate?.kind === 'folder_list') {
+    return isOwnedFolderInspectionPath(candidate.folderPath, env) ? candidate : null;
+  }
+  return null;
+}
+
+export function operatorActionRootBoundaryReply(): string {
+  return "I can run that bounded check only inside the active Spark workspace or this Windows user's approved temporary folder. Nothing was opened or changed.";
 }
 
 export async function runSafeOperatorAction(action: SafeOperatorAction): Promise<string> {
@@ -126,4 +151,19 @@ export async function runSafeOperatorAction(action: SafeOperatorAction): Promise
       ? folderNames.map((name) => `- ${name}`).join('\n')
       : 'No top-level folders found.'
   ].join('\n');
+}
+
+export function isSparkOsCompileExplanationQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const namesCommand = /\bspark\s+os\s+compile\b/.test(normalized);
+  const asksExplanation = /\b(?:what|why|how|explain|describe|does|read[-\s]*only|safe)\b/.test(normalized);
+  const asksExecution = /^(?:please\s+)?(?:run|execute|start)\b/.test(normalized);
+  return namesCommand && asksExplanation && !asksExecution;
+}
+
+export function renderSparkOsCompileExplanation(): string {
+  return [
+    '`spark os compile --json` reads local Spark evidence and builds redacted capability, authority, trace, memory, repository, and gap views.',
+    'The compile itself is read-only and does not publish private maps. Use the output as local diagnostic evidence; publishing or changing anything remains a separate reviewed action.'
+  ].join('\n\n');
 }

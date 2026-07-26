@@ -79,32 +79,20 @@ function parseReplayCase(value: unknown, lineNumber: number): NaturalRouteReplay
 }
 
 export function parseNaturalRouteReplayCases(jsonl: string): NaturalRouteReplayCase[] {
-  const results: NaturalRouteReplayCase[] = [];
-  const lines = jsonl.split(/\r?\n/).map((line) => line.trim());
-
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
-    const lineNumber = index + 1;
-
-    if (!line || line.startsWith('#')) {
-      continue;
+  const cases = jsonl
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .map((line, index) => ({ line, lineNumber: index + 1 }))
+    .filter(({ line }) => line && !line.startsWith('#'))
+    .map(({ line, lineNumber }) => parseReplayCase(JSON.parse(line), lineNumber));
+  const seen = new Set<string>();
+  for (const testCase of cases) {
+    if (seen.has(testCase.id)) {
+      throw new Error(`Replay case id ${testCase.id} is duplicated.`);
     }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      continue;
-    }
-
-    try {
-      results.push(parseReplayCase(parsed, lineNumber));
-    } catch {
-      continue;
-    }
+    seen.add(testCase.id);
   }
-
-  return results;
+  return cases;
 }
 
 export function evaluateNaturalRouteReplayCase(testCase: NaturalRouteReplayCase): NaturalRouteReplayResult {

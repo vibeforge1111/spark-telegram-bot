@@ -126,6 +126,35 @@ test('slash schedule create and delete commands authorize distinct schedule tool
   assert.equal(remove.toolAuthorization.verdict, 'allowed');
 });
 
+test('slash loop schedule lifecycle commands authorize Spawner lifecycle tools', () => {
+  const pause = commandAuth({
+    text: '/loop schedule-lifecycle domain-chip-prd-writing-proof-loop loopsched-prd pause',
+    commandName: 'loop',
+    route: 'loop_engineering.command',
+    toolName: 'spawner.loop_engineering.schedule.pause',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'writes_files',
+    action: 'spawner.loop_engineering.schedule.pause',
+    kind: 'slash_command'
+  });
+  const cancel = commandAuth({
+    text: '/loop cancel-schedule domain-chip-prd-writing-proof-loop loopsched-prd',
+    commandName: 'loop',
+    route: 'loop_engineering.command',
+    toolName: 'spawner.loop_engineering.schedule.cancel',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'deletes_schedule',
+    action: 'spawner.loop_engineering.schedule.cancel',
+    kind: 'slash_command'
+  });
+
+  assert.equal(pause.allow, true);
+  assert.equal(pause.toolAuthorization.verdict, 'allowed');
+  assert.equal(cancel.allow, true);
+  assert.equal(cancel.toolAuthorization.verdict, 'allowed');
+  assert.equal(cancel.governorDecision?.tool_ledgers[0]?.tool_name, 'spawner.loop_engineering.schedule.cancel');
+});
+
 test('slash schedule command blocks contradictory no-schedule text', () => {
   const result = commandAuth({
     text: '/schedule "*/5 * * * *" mission summarize deployment health but do not schedule anything',
@@ -173,6 +202,22 @@ test('slash access changes block contradictory no-change text', () => {
 
   assert.equal(result.allow, false);
   assert.ok(result.reasonCodes.includes('no_execution_boundary'));
+});
+
+test('slash access changes allow repair setup bans as constraints', () => {
+  const result = commandAuth({
+    text: '/access 3 but do not run local repair setup',
+    commandName: 'access',
+    route: 'access.change',
+    toolName: 'access.change',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'writes_files',
+    action: 'access.change',
+    kind: 'access_help'
+  });
+
+  assert.equal(result.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
 });
 
 test('access action commands and callbacks authorize operator tools', () => {

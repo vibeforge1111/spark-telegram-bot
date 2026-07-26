@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
+import { describeTelegramTokenError, formatTelegramPollingHealth } from '../src/healthPolling';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { describeTelegramTokenError } from '../src/healthPolling';
-import { relayHealthUrl, validateRelayRuntime } from '../src/healthRuntime';
+import {
+  DEFAULT_RELAY_HEALTH_TIMEOUT_MS,
+  relayHealthTimeoutMs,
+  relayHealthUrl,
+  validateRelayRuntime
+} from '../src/healthRuntime';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -22,11 +26,16 @@ test('explains rejected Telegram tokens without echoing token material', () => {
   assert.doesNotMatch(message, /\d+:[A-Za-z0-9_-]+/);
 });
 
-test('README health polling guidance points installed operators at source directory', () => {
-  const readme = readFileSync(join(__dirname, '..', 'README.md'), 'utf8');
-
-  assert.match(readme, /run from this package directory/i);
-  assert.match(readme, /~\/\.spark\/modules\/spark-telegram-bot\/source/);
+test('polling health keeps human output by default and offers one structured JSON object', () => {
+  const info = {
+    status: 'ok' as const,
+    botToken: 'accepted (@spark_recursive)',
+    ingressMode: 'polling',
+    webhookIngress: 'disabled for this launch build' as const,
+    relayAuth: 'configured' as const
+  };
+  assert.match(formatTelegramPollingHealth(info), /Telegram health: OK\nBot token: accepted/);
+  assert.deepEqual(JSON.parse(formatTelegramPollingHealth(info, true)), info);
 });
 
 test('keeps unknown Telegram health failures actionable', () => {
@@ -35,9 +44,37 @@ test('keeps unknown Telegram health failures actionable', () => {
   assert.equal(message, 'Telegram token check failed: network timeout');
 });
 
+test('health wrappers bound Telegram API hangs with a watchdog', () => {
+  const runtimeWrapper = readFileSync('scripts/run-health-runtime.cjs', 'utf8');
+  const pollingWrapper = readFileSync('scripts/run-health-polling.cjs', 'utf8');
+
+  for (const source of [runtimeWrapper, pollingWrapper]) {
+    assert.match(source, /SPARK_TELEGRAM_HEALTH_TIMEOUT_MS/);
+    assert.match(source, /timeout:\s*healthTimeoutMs/);
+    assert.match(source, /SIGTERM/);
+  }
+});
+
 test('builds relay health URL from configured relay port', () => {
   assert.equal(relayHealthUrl({ TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv), 'http://127.0.0.1:8789/health');
   assert.equal(relayHealthUrl({ TELEGRAM_RELAY_PORT: 'not-a-port' } as NodeJS.ProcessEnv), 'http://127.0.0.1:8788/health');
+});
+
+test('gives relay health enough time to cross slow startup boundaries', () => {
+  assert.equal(DEFAULT_RELAY_HEALTH_TIMEOUT_MS, 8000);
+  assert.equal(relayHealthTimeoutMs({} as NodeJS.ProcessEnv), 8000);
+  assert.equal(
+    relayHealthTimeoutMs({ SPARK_TELEGRAM_RELAY_HEALTH_TIMEOUT_MS: '12000' } as NodeJS.ProcessEnv),
+    12000
+  );
+  assert.equal(
+    relayHealthTimeoutMs({ SPARK_TELEGRAM_RELAY_HEALTH_TIMEOUT_MS: '100' } as NodeJS.ProcessEnv),
+    500
+  );
+  assert.equal(
+    relayHealthTimeoutMs({ SPARK_TELEGRAM_RELAY_HEALTH_TIMEOUT_MS: '90000' } as NodeJS.ProcessEnv),
+    30000
+  );
 });
 
 test('builds relay health URL from hosted relay callback URL', () => {
@@ -45,58 +82,63 @@ test('builds relay health URL from hosted relay callback URL', () => {
     relayHealthUrl({ TELEGRAM_RELAY_URL: 'http://spark-telegram-bot.railway.internal:8788/spawner-events' } as NodeJS.ProcessEnv),
     'http://spark-telegram-bot.railway.internal:8788/health'
   );
+  assert.equal(
+    relayHealthUrl({ TELEGRAM_RELAY_URL: 'https://relay.example/api/spark/spawner-events?token=hidden#fragment' } as NodeJS.ProcessEnv),
+    'https://relay.example/api/spark/health'
+  );
 });
 
 test('validates relay runtime without exposing secrets', async () => {
+  let observedHeaders: RequestInit['headers'];
+  const fetchImpl = async (_url: string | URL | Request, init?: RequestInit) => {
+    observedHeaders = init?.headers;
+    return new Response(
+      JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, runtime: { telegramPolling: 'active' } }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+  };
+
+  const detail = await validateRelayRuntime(fetchImpl as typeof fetch, {
+    TELEGRAM_RELAY_PORT: '8789',
+    TELEGRAM_RELAY_SECRET: 'relay-health-secret-abcdefghijklmnopqrstuvwxyz'
+  } as NodeJS.ProcessEnv);
+
+  assert.equal(detail, 'spark-agi@8789 pid=123 polling=active');
+  assert.deepEqual(observedHeaders, {
+    'x-spark-telegram-relay-secret': 'relay-health-secret-abcdefghijklmnopqrstuvwxyz'
+  });
+});
+
+test('rejects relay runtime when Telegram polling reports an error', async () => {
   const fetchImpl = async () => new Response(
     JSON.stringify({
-      ok: true,
+      ok: false,
       relay: { profile: 'spark-agi', port: 8789 },
       pid: 123,
       runtime: {
-        telegramPolling: 'active',
-        pollingLastGetUpdatesAttemptAt: new Date().toISOString()
+        telegramPolling: 'error',
+        pollingLastErrorAt: '2026-06-29T15:10:00.000Z',
+        pollingLastError: 'Telegram token check failed: network timeout'
       }
     }),
+    { status: 503, headers: { 'content-type': 'application/json' } }
+  );
+
+  await assert.rejects(
+    () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
+    /Telegram relay runtime is not reachable at http:\/\/127\.0\.0\.1:8789\/health: HTTP 503/
+  );
+});
+
+test('validates relay runtime smoke-disabled polling state', async () => {
+  const fetchImpl = async () => new Response(
+    JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, runtime: { telegramPolling: 'disabled' } }),
     { status: 200, headers: { 'content-type': 'application/json' } }
   );
 
   const detail = await validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv);
 
-  assert.equal(detail, 'spark-agi@8789 pid=123 polling=active');
-});
-
-test('rejects relay runtime that claims active polling without Bot API proof', async () => {
-  const fetchImpl = async () => new Response(
-    JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, runtime: { telegramPolling: 'active' } }),
-    { status: 200, headers: { 'content-type': 'application/json' } }
-  );
-
-  await assert.rejects(
-    () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
-    /no Bot API getUpdates attempt is recorded/
-  );
-});
-
-test('rejects relay runtime with stale Bot API polling proof', async () => {
-  const fetchImpl = async () => new Response(
-    JSON.stringify({
-      ok: true,
-      relay: { profile: 'spark-agi', port: 8789 },
-      pid: 123,
-      runtime: {
-        telegramPolling: 'active',
-        pollingLastGetUpdatesAttemptAt: '2026-05-08T09:30:00.000Z',
-        pollingLastError: 'Conflict: terminated by other getUpdates request'
-      }
-    }),
-    { status: 200, headers: { 'content-type': 'application/json' } }
-  );
-
-  await assert.rejects(
-    () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
-    /Telegram polling getUpdates attempt is stale/
-  );
+  assert.equal(detail, 'spark-agi@8789 pid=123 polling=disabled');
 });
 
 test('rejects relay runtime before Telegram polling is active', async () => {
@@ -121,6 +163,17 @@ test('rejects stale relay runtime without Telegram polling status', async () => 
     () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
     /Telegram relay runtime is not reachable at http:\/\/127\.0\.0\.1:8789\/health: Telegram polling status is missing/
   );
+});
+
+test('health runtime preserves loaded env token while profile secrets are unavailable', () => {
+  const source = readFileSync('src/healthRuntime.ts', 'utf8');
+
+  assert.match(
+    source,
+    /loadSparkTelegramProfileEnv\(args, process\.env, \{ preserveExisting: true \}\)/
+  );
+  assert.match(source, /args\.includes\('--json'\)/);
+  assert.match(source, /output: json \? 'silent' : 'text'/);
 });
 
 test('explains unreachable relay runtime', async () => {

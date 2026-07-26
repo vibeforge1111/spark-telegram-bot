@@ -10,7 +10,10 @@ export type ConversationStyleIssueCode =
   | 'generic_chatbox_voice'
   | 'double_marker'
   | 'emoji_spam'
-  | 'report_card_voice';
+  | 'report_card_voice'
+  | 'raw_reason_code'
+  | 'raw_proof_ref'
+  | 'raw_trace_ref';
 
 export type ConversationStyleIssue = {
   code: ConversationStyleIssueCode;
@@ -55,7 +58,11 @@ const GENERIC_CHATBOX_PATTERNS: RegExp[] = [
 const STATUS_ICON_PATTERN = /[✅⚠️🟢🟡🔴⚪🛠️✨]/u;
 const TELEGRAM_STATUS_ICON_GLOBAL = /✅|⚠️|🟢|🟡|🔴|⚪|🛠️|✨/gu;
 
-const REPORT_CARD_HEADING_PATTERN = /^(?:Mission|Provider|Move|Status|Result|Tasks|Relay|Title)$/im;
+const REPORT_CARD_HEADING_PATTERN = /^(?:Mission|Provider|Move|Status|Result|Tasks|Relay|Title):?\s*$/im;
+const RAW_REASON_CODE_PATTERN =
+  /\b(?:tool_not_allowed_by_policy|owner_mismatch|route_not_selected_by_turn_envelope|governor_outcome_deny|harness_core(?::[A-Za-z0-9_-]+)?|raw-request|trace:raw)\b/i;
+const RAW_PROOF_REF_PATTERN = /\bturn:sha256:[a-f0-9]{12,}\b/i;
+const RAW_TRACE_REF_PATTERN = /\btrace:(?:sha256:)?[a-z0-9][a-z0-9_.:-]{7,}\b/i;
 
 function wordsIn(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -141,6 +148,18 @@ export function lintTelegramConversationStyle(
 
   if (REPORT_CARD_HEADING_PATTERN.test(text)) {
     pushOnce(issues, 'report_card_voice', 'Avoid Mission/Provider/Move report-card headings in natural follow-ups.');
+  }
+
+  if (RAW_REASON_CODE_PATTERN.test(text)) {
+    pushOnce(issues, 'raw_reason_code', 'Keep raw policy and Harness reason codes out of normal replies.');
+  }
+
+  if (RAW_PROOF_REF_PATTERN.test(text)) {
+    pushOnce(issues, 'raw_proof_ref', 'Keep raw proof refs behind proof/status inspect surfaces unless explicitly requested.');
+  }
+
+  if (RAW_TRACE_REF_PATTERN.test(text)) {
+    pushOnce(issues, 'raw_trace_ref', 'Keep raw trace refs behind proof/status inspect surfaces unless explicitly requested.');
   }
 
   for (const line of text.split(/\r?\n/)) {

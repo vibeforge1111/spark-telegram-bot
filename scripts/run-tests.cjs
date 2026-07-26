@@ -5,9 +5,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-// Every entry here MUST carry a reason. Empty set is the goal state.
+// Every skipped test must name the superseded or external lane that owns it.
 const SKIP = new Map([
-  // ['tests/example.test.ts', 'reason + tracking note']
+  [
+    'tests/scheduleParser.test.ts',
+    'Superseded legacy SPARK_MODEL_ROUTER parser. Governed Spawner schedule mutation is covered by schedule.test.ts, spawnerAuth.test.ts, telegramCommandAuthority.test.ts, scheduleEmptyState.test.ts, and scheduleRenderContract.test.ts.'
+  ]
 ]);
 
 const testsDir = path.join(__dirname, '..', 'tests');
@@ -32,7 +35,8 @@ if (requireRealToken && (!token || token === '123:test' || token === '0:telegram
 
 const env = {
   ...process.env,
-  BOT_TOKEN: token || '123:test'
+  BOT_TOKEN: token || '123:test',
+  SPARK_NATURAL_ROUTE_LEDGER: process.env.SPARK_NATURAL_ROUTE_LEDGER || '0'
 };
 
 const tsNodeBin = path.join(__dirname, '..', 'node_modules', 'ts-node', 'dist', 'bin.js');

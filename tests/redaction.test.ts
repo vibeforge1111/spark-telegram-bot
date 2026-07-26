@@ -36,6 +36,38 @@ test('redacts common credential shapes', () => {
   assert(!redacted.includes('user:pass'));
 });
 
+test('redacts authorization header variants without depending on Bearer syntax', () => {
+  const credentials = [
+    'custom-token-secret-value-123456',
+    'custom-apikey-secret-value-123456',
+    'custom-oauth-secret-value-123456',
+    'dXNlcjpwYXNzd29yZC1zZWNyZXQ=',
+  ];
+  const redacted = redactText([
+    `Authorization: Token ${credentials[0]}`,
+    `authorization: ApiKey ${credentials[1]}`,
+    `Authorization: OAuth ${credentials[2]}`,
+    `Proxy-Authorization: Basic ${credentials[3]}`,
+  ].join('\n'));
+
+  for (const credential of credentials) {
+    assert(!redacted.includes(credential));
+  }
+  assert.match(redacted, /Authorization: Token /);
+  assert.match(redacted, /authorization: ApiKey /);
+  assert.match(redacted, /Authorization: OAuth /);
+  assert.match(redacted, /Proxy-Authorization: Basic /);
+});
+
+test('redacts quoted authorization fields in structured log text', () => {
+  const secret = 'structured-authorization-secret-value-123456';
+  const redacted = redactText(`{"authorization":"Bearer ${secret}","status":401}`);
+
+  assert(!redacted.includes(secret));
+  assert.match(redacted, /"authorization":"Bearer /);
+  assert.match(redacted, /"status":401/);
+});
+
 test('redacts bare fe provider keys without hiding ordinary feature flags', () => {
   const openAiFederatedKey = `fe_oa_${'A'.repeat(24)}`;
   const bringKey = `fe_bri_${'B'.repeat(24)}`;
@@ -51,6 +83,15 @@ test('redacts bare fe provider keys without hiding ordinary feature flags', () =
   assert(!redacted.includes(bringKey));
   assert(!redacted.includes(mcpKey));
   assert(redacted.includes('feature_flag_enabled=true'));
+});
+
+test('redacts GLM and MiniMax token formats used by Spark providers', () => {
+  const glm = `glm-${'a'.repeat(28)}`;
+  const minimax = `eyJ${'b'.repeat(48)}`;
+  const redacted = redactText(`zai=${glm} minimax=${minimax}`);
+
+  assert(!redacted.includes(glm));
+  assert(!redacted.includes(minimax));
 });
 
 test('redacts private key blocks', () => {
@@ -74,50 +115,53 @@ test('redacts stable Telegram identifiers without raw IDs', () => {
   assert.equal(redactIdentifier(null, 'user'), 'unknown');
 });
 
-test('redacts unix absolute paths', () => {
+test('redacts common unix, macOS, container, and file URL paths', () => {
   const paths = [
-    '/home/user/project/src/index.ts',
-    '/tmp/spark-12345/output.json',
-    '/root/.ssh/id_rsa',
-    '/var/log/syslog',
-    '/opt/app/config.yaml',
-    '/etc/nginx/nginx.conf',
-    '/srv/www/htdocs/index.html',
+    '/home/user/project/src/index.ts:42:15',
+    '/Users/alchemist/Spark Bot/config.json',
+    '/private/var/folders/task/output.json',
+    '/workspace/spark/dist/index.js',
+    '/app/runtime/config.yaml',
+    '/Volumes/Private Build/report.md',
+    'file:///tmp/spark/report.json',
+    '~/spark/private.env',
   ];
-  for (const p of paths) {
-    const redacted = redactText(`Error at ${p}`);
-    assert(!redacted.includes(p), `path not redacted: ${p}`);
-    assert(redacted.includes('[REDACTED_PATH]'), `missing [REDACTED_PATH] for: ${p}`);
+  for (const localPath of paths) {
+    const redacted = redactText(`Local file unavailable: "${localPath}"`);
+    assert.doesNotMatch(redacted, /(?:alchemist|private\.env|spark\/dist|report\.json|config\.yaml)/i);
+    assert.match(redacted, /\[REDACTED_PATH\]/);
   }
 });
 
-test('redacts windows absolute paths', () => {
+test('redacts Windows drive, forward-slash, UNC, and extended paths', () => {
   const paths = [
-    'C:\\Users\\admin\\AppData\\Local\\temp\\file.txt',
-    'C:\\Users\\john\\Desktop\\project\\main.ts',
-    'D:\\Program Files\\app\\bin.exe',
-    'C:\\Windows\\System32\\cmd.exe',
-    'C:\\ProgramData\\app\\config.json',
+    String.raw`C:\Users\admin\Desktop\spark\main.ts`,
+    'D:/projects/spark/private.json',
+    String.raw`\\server\share\spark\secret.txt`,
+    String.raw`\\?\C:\private\spark\trace.log`,
   ];
-  for (const p of paths) {
-    const redacted = redactText(`Error at ${p}`);
-    assert(!redacted.includes(p), `path not redacted: ${p}`);
-    assert(redacted.includes('[REDACTED_PATH]'), `missing [REDACTED_PATH] for: ${p}`);
+  for (const localPath of paths) {
+    const redacted = redactText(`Local file unavailable: "${localPath}"`);
+    assert.doesNotMatch(redacted, /(?:admin|projects|server|secret\.txt|trace\.log)/i);
+    assert.match(redacted, /\[REDACTED_PATH\]/);
   }
 });
 
-test('does not redact normal words containing path segments', () => {
-  const text = 'The variable name is temporary and the root cause is clear';
-  const redacted = redactText(text);
-  assert.equal(redacted, text);
+test('preserves public URLs, slash commands, cron, and ordinary prose', () => {
+  const text = [
+    'Docs: https://example.com/home/user/help',
+    'Board: https://spark.example/Users/guide?tab=/tmp/demo',
+    'Run /schedule "0 9 * * *" mission Review priorities',
+    'Use /tmp as an example root, not a concrete private file.',
+  ].join('\n');
+  assert.equal(redactText(text), text);
 });
 
-test('redacts paths inside error stacks via redactForLog', () => {
-  const error = new Error('ENOENT: no such file or directory');
-  (error as any).stack = 'Error: ENOENT: no such file or directory\n' +
-    '    at Object.readFileSync (/home/user/app/node_modules/fs/index.js:42:15)\n' +
-    '    at loadConfig (/home/user/app/src/config.ts:15:3)';
-  const rendered = String(redactForLog(error));
-  assert(!rendered.includes('/home/user/app'), 'unix path leaked from error stack');
-  assert(rendered.includes('[REDACTED_PATH]'));
+test('path redaction is idempotent and applies inside Error stacks', () => {
+  const error = new Error('ENOENT');
+  error.stack = 'Error: ENOENT\n    at load (/home/user/app/src/config.ts:15:3)';
+  const once = String(redactForLog(error));
+  assert.doesNotMatch(once, /\/home\/user/);
+  assert.match(once, /\[REDACTED_PATH\]/);
+  assert.equal(redactText(once), once);
 });

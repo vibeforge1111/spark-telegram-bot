@@ -1,11 +1,10 @@
-import { appendFileSync, mkdirSync } from 'node:fs';
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import {
   type NaturalRouteDecision,
   type NaturalRouteOwnerSystem
 } from './naturalRouteDecision';
-import { resolveStatePath } from './jsonState';
 import { naturalRouteExecutionOutcome } from './naturalRouteTelemetry';
 import { redactIdentifier } from './redaction';
 
@@ -14,6 +13,9 @@ export type NaturalRouteExecutionDelivery = 'selected' | 'delivered' | 'failed' 
 export interface NaturalRouteExecutionRecord {
   schema_version: 'spark.nlp.route_execution.v1';
   recorded_at: string;
+  request_id?: string;
+  trace_ref?: string;
+  harness_proof_ref?: string;
   profile: string;
   user_id: string;
   chat_id: string;
@@ -44,6 +46,9 @@ export interface NaturalRouteExecutionRecordInput {
   executedOwner: NaturalRouteOwnerSystem;
   executedAction: string;
   delivery?: NaturalRouteExecutionDelivery;
+  requestId?: string | null;
+  traceRef?: string | null;
+  proofRef?: string | null;
   now?: Date;
 }
 
@@ -65,26 +70,25 @@ function safeList(values: string[]): string[] {
 }
 
 export function naturalRouteLedgerPath(env: NodeJS.ProcessEnv = process.env): string {
-  return env.SPARK_NATURAL_ROUTE_LEDGER_PATH?.trim() || resolveStatePath('.spark-natural-route-execution.jsonl');
+  return env.SPARK_NATURAL_ROUTE_LEDGER_PATH?.trim() ||
+    path.join(env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark'), 'state', 'spark-telegram-bot', 'natural-route-execution.jsonl');
 }
 
 export function shouldWriteNaturalRouteLedger(env: NodeJS.ProcessEnv = process.env): boolean {
-  const mode = env.SPARK_NATURAL_ROUTE_LEDGER?.trim();
-  if (mode === '0') return false;
-  if (mode === '1') return true;
-  if (env.SPARK_BOT_TEST_MODE === '1' && !env.SPARK_NATURAL_ROUTE_LEDGER_PATH?.trim()) return false;
+  if (env.SPARK_NATURAL_ROUTE_LEDGER === '0') return false;
   return true;
 }
 
-export function shouldWriteNaturalRouteLedgerSynchronously(env: NodeJS.ProcessEnv = process.env): boolean {
-  if (env.SPARK_NATURAL_ROUTE_LEDGER_STRICT === '1') return true;
-  return env.SPARK_BOT_TEST_MODE === '1' && Boolean(env.SPARK_NATURAL_ROUTE_LEDGER_PATH?.trim());
-}
-
 export function createNaturalRouteExecutionRecord(input: NaturalRouteExecutionRecordInput): NaturalRouteExecutionRecord {
+  const requestId = safeOptionalRef(input.requestId);
+  const traceRef = safeOptionalRef(input.traceRef);
+  const proofRef = safeOptionalRef(input.proofRef);
   return {
     schema_version: 'spark.nlp.route_execution.v1',
     recorded_at: (input.now || new Date()).toISOString(),
+    ...(requestId ? { request_id: requestId } : {}),
+    ...(traceRef ? { trace_ref: traceRef } : {}),
+    ...(proofRef ? { harness_proof_ref: proofRef } : {}),
     profile: safeScalar(input.profile),
     user_id: redactIdentifier(input.userId, 'user'),
     chat_id: redactIdentifier(input.chatId, 'chat'),
@@ -105,6 +109,13 @@ export function createNaturalRouteExecutionRecord(input: NaturalRouteExecutionRe
   };
 }
 
+function safeOptionalRef(value: string | null | undefined): string | null {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  if (/[/\\]|(?:^|[\\/])Users[\\/]|[A-Za-z]:[\\/]|\.jsonl?$/i.test(text)) return null;
+  return text.replace(/\s+/g, '_');
+}
+
 export function serializeNaturalRouteExecutionRecord(record: NaturalRouteExecutionRecord): string {
   return JSON.stringify(record);
 }
@@ -117,26 +128,12 @@ export async function appendNaturalRouteExecutionRecord(
   await appendFile(filePath, `${serializeNaturalRouteExecutionRecord(record)}\n`, 'utf-8');
 }
 
-export function appendNaturalRouteExecutionRecordSync(
-  record: NaturalRouteExecutionRecord,
-  filePath = naturalRouteLedgerPath()
-): void {
-  mkdirSync(path.dirname(filePath), { recursive: true });
-  appendFileSync(filePath, `${serializeNaturalRouteExecutionRecord(record)}\n`, 'utf-8');
-}
-
 export function parseNaturalRouteExecutionLedger(jsonl: string): NaturalRouteExecutionRecord[] {
-  const records: NaturalRouteExecutionRecord[] = [];
-  for (const line of jsonl.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    try {
-      records.push(JSON.parse(trimmed) as NaturalRouteExecutionRecord);
-    } catch {
-      // Skip malformed JSONL lines instead of crashing the entire bot
-    }
-  }
-  return records;
+  return jsonl
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .flatMap((line) => { try { return [JSON.parse(line) as NaturalRouteExecutionRecord]; } catch { return []; } });
 }
 
 export async function readNaturalRouteExecutionLedger(filePath = naturalRouteLedgerPath()): Promise<NaturalRouteExecutionRecord[]> {

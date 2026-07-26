@@ -33,7 +33,7 @@ void (async () => {
       const result = await withStateDir(stateDir, () => probeTelegramRunnerWritability());
 
       assert.equal(result.runnerWritable, 'yes');
-      assert.match(result.runnerLabel, /preflight write\/delete ok/);
+      assert.match(result.runnerLabel, /state and temp preflight write\/read\/delete ok/);
       assert.equal(typeof result.checkedAt, 'string');
       assert.equal(typeof result.latencyMs, 'number');
       assert.equal(readdirSync(stateDir).filter((name) => name.startsWith('.spark-runner-preflight-')).length, 0);

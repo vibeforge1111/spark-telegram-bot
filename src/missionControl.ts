@@ -1,6 +1,5 @@
 import { randomBytes } from 'node:crypto';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
-import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 
 export interface MissionControlEvent {
   type: string;
@@ -24,7 +23,6 @@ export interface ChipCreateMissionContext {
 export type MissionControlPost = (url: string, payload: MissionControlEvent) => Promise<void>;
 
 const SOURCE = 'spark-telegram-bot';
-const DEFAULT_MISSION_CONTROL_POST_TIMEOUT_MS = 1200;
 
 function truncate(value: string, maxLength: number): string {
   const clean = value.replace(/\s+/g, ' ').trim();
@@ -32,7 +30,7 @@ function truncate(value: string, maxLength: number): string {
 }
 
 export function randomId(): string {
-  return randomBytes(4).toString('hex');
+  return randomBytes(8).toString('hex');
 }
 
 function missionControlDisabled(): boolean {
@@ -42,10 +40,8 @@ function missionControlDisabled(): boolean {
 
 export function getMissionControlEventsUrl(): string | null {
   if (missionControlDisabled()) return null;
-  const base = (
-    process.env.MISSION_CONTROL_URL ||
-    resolveSpawnerUiUrl()
-  ).trim();
+  const explicit = process.env.MISSION_CONTROL_URL?.trim();
+  const base = explicit || resolveSpawnerUiUrl().trim();
   if (!base) return null;
   return `${base.replace(/\/+$/, '')}/api/events`;
 }
@@ -75,10 +71,7 @@ export function buildChipCreateMissionContext(brief: string): ChipCreateMissionC
 
 async function defaultPostJson(url: string, payload: MissionControlEvent): Promise<void> {
   const controller = new AbortController();
-  const timeoutMs = parsePositiveIntegerEnvValue(
-    process.env.MISSION_CONTROL_POST_TIMEOUT_MS,
-    DEFAULT_MISSION_CONTROL_POST_TIMEOUT_MS
-  );
+  const timeoutMs = Number.parseInt(process.env.MISSION_CONTROL_POST_TIMEOUT_MS || '1200', 10) || 1200;
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, {
@@ -91,10 +84,6 @@ async function defaultPostJson(url: string, payload: MissionControlEvent): Promi
       const body = await response.text().catch(() => '');
       throw new Error(`Mission Control HTTP ${response.status}: ${body.slice(0, 200)}`);
     }
-    // Drain the success body so the underlying connection can return to the
-    // keep-alive pool. Mission Control posts fire on every task lifecycle
-    // step; an undrained body kept the socket pending until garbage
-    // collection, which slowly exhausted the undici dispatcher pool.
     await response.body?.cancel().catch(() => undefined);
   } finally {
     clearTimeout(timeout);

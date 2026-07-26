@@ -43,15 +43,64 @@ export interface LiveNlCopyPasteOptions {
   title?: string;
 }
 
+export type LiveNlHarnessCoreAuthorityExpectation =
+  | 'chat_only'
+  | 'read_only_allowed'
+  | 'confirmation_required_or_allowed'
+  | 'blocked_without_authority';
+
+export type LiveNlHarnessCoreMutationClass =
+  | 'none'
+  | 'read_only'
+  | 'writes_memory'
+  | 'writes_files'
+  | 'launches_mission'
+  | 'external_network'
+  | 'updates_access_setting'
+  | 'media_read';
+
+export type LiveNlHarnessCoreUse =
+  | 'keep_legacy_breadth'
+  | 'promote_after_refurbish'
+  | 'run_only_with_intentional_action_confirmation';
+
+export type LiveNlClaimScope = 'legacy_breadth';
+
+export interface LiveNlHarnessCoreMapping {
+  id: string;
+  suite: string;
+  risk: LiveNlRisk;
+  expectedRoute: string;
+  expectedAuthority: LiveNlHarnessCoreAuthorityExpectation;
+  expectedMutationClass: LiveNlHarnessCoreMutationClass;
+  recommendedUse: LiveNlHarnessCoreUse;
+  promotionGapRequired: string;
+  proofRequiredIfPromoted: boolean;
+  captureRequired: string[];
+  notes: string[];
+}
+
+export interface LiveNlHarnessCoreMapOptions {
+  catalog?: string;
+  title?: string;
+  totalCases?: number;
+  includeRisky?: boolean;
+}
+
 type LiveNlPacketCase = TelegramLiveQaEvidencePacketV1['cases'][number];
 type LiveNlObservedTurn = LiveNlPacketCase['observed_turns'][number];
 type LiveNlSideEffects = LiveNlPacketCase['side_effects'];
 type LiveNlEvidenceRefs = LiveNlPacketCase['evidence_refs'];
 
+export const LIVE_NL_AUTHORITY_CLAIM_BOUNDARY =
+  'claim_scope=legacy_breadth; release_gate=none; promotion_target=control_proof_canary. This is a legacy natural-language live QA observation container, not Harness Core release proof. Even when every selected case passes, it remains legacy breadth evidence unless the case is promoted into a Harness-shaped control-proof canary packet, and it must not authorize high-agency actions.';
+
 export interface LiveNlObservationFile {
   generatedAt?: string;
   runId?: string;
   title?: string;
+  claimScope?: LiveNlClaimScope;
+  authorityClaimBoundary?: string;
   session?: Partial<TelegramLiveQaEvidencePacketV1['required_session_evidence']>;
   cases: LiveNlCaseObservation[];
 }
@@ -109,8 +158,15 @@ function parseLiveNlCommandCase(value: unknown, index: number): LiveNlCommandCas
     expectedOutcome: stringField(record, 'expectedOutcome')
   };
 
-  if (!parsed.id || !parsed.suite || !parsed.prompt || !parsed.expectedRoute || !parsed.expectedOutcome) {
-    throw new Error(`Live NL case ${index + 1} needs id, suite, prompt or turns, expectedRoute, and expectedOutcome.`);
+  const missing: string[] = [];
+  if (!parsed.id) missing.push('id');
+  if (!parsed.suite) missing.push('suite');
+  if (!parsed.prompt) missing.push('prompt or turns');
+  if (!parsed.expectedRoute) missing.push('expectedRoute');
+  if (!parsed.expectedOutcome) missing.push('expectedOutcome');
+  if (missing.length > 0) {
+    const label = parsed.id ? `Live NL case ${parsed.id}` : `Live NL case ${index + 1}`;
+    throw new Error(`${label} is missing required field(s): ${missing.join(', ')}.`);
   }
   const allowedRisks = ['safe', 'mission', 'writes_files', 'external'] as const;
   if (!allowedRisks.includes(parsed.risk as (typeof allowedRisks)[number])) {
@@ -127,7 +183,15 @@ export function parseLiveNlCommandCases(value: unknown): LiveNlCommandCase[] {
   if (!Array.isArray(value)) {
     throw new Error('Live NL command cases must be a JSON array.');
   }
-  return value.map(parseLiveNlCommandCase);
+  const cases = value.map(parseLiveNlCommandCase);
+  const seen = new Set<string>();
+  for (const testCase of cases) {
+    if (seen.has(testCase.id)) {
+      throw new Error(`Live NL case id ${testCase.id} is duplicated.`);
+    }
+    seen.add(testCase.id);
+  }
+  return cases;
 }
 
 export function liveNlCaseTurns(entry: LiveNlCommandCase): string[] {
@@ -149,11 +213,267 @@ export function selectLiveNlCommandCases(
   let selected = cases;
   if (selectedCaseIds.size > 0) {
     const byId = new Map(cases.map((entry) => [entry.id, entry]));
-    selected = orderedCaseIds.map((id) => byId.get(id)).filter((entry): entry is LiveNlCommandCase => Boolean(entry));
+    const missing = orderedCaseIds.filter((id) => !byId.has(id));
+    if (missing.length > 0) {
+      throw new Error(`Unknown live NL case id(s): ${missing.join(', ')}`);
+    }
+    selected = orderedCaseIds.map((id) => byId.get(id)!);
   }
   if (suiteNames) selected = selected.filter((entry) => suiteNames.has(entry.suite));
   if (!selection.includeRisky && selectedCaseIds.size === 0) selected = selected.filter((entry) => entry.risk === 'safe');
   return selected;
+}
+
+function liveNlHarnessHaystack(entry: LiveNlCommandCase): string {
+  return [
+    entry.suite,
+    entry.risk,
+    entry.expectedRoute,
+    entry.expectedOutcome,
+    entry.prompt,
+    ...(entry.turns || [])
+  ].join(' ').toLowerCase();
+}
+
+function liveNlPromptRouteHaystack(entry: LiveNlCommandCase): string {
+  return [
+    entry.suite,
+    entry.risk,
+    entry.expectedRoute,
+    entry.prompt,
+    ...(entry.turns || [])
+  ].join(' ').toLowerCase();
+}
+
+function deriveLiveNlMutationClass(entry: LiveNlCommandCase): LiveNlHarnessCoreMutationClass {
+  const route = entry.expectedRoute.toLowerCase();
+  const text = liveNlPromptRouteHaystack(entry);
+
+  if (entry.risk === 'mission' || /(?:slash_run|natural_run|launch_mission|diagnostic_followup_or_mission)/.test(route)) {
+    return 'launches_mission';
+  }
+  if (
+    entry.risk === 'writes_files' ||
+    /(?:build_intent|operator_safe_action|domain_chip_create_preview|create_chip|writes?_files|create .*file|write .*file)/.test(text)
+  ) {
+    return 'writes_files';
+  }
+  if (entry.risk === 'external' || /(?:external_research|external_link|inspect https?:|fetch current|github repos and docs)/.test(text)) {
+    return 'external_network';
+  }
+  if (
+    /access/.test(route) &&
+    /(?:\/access\s*[1-5]\b|change (?:my )?access|change it to\s*[1-5]\b|set .*access|level\s*[1-5]\b)/.test(text)
+  ) {
+    return 'updates_access_setting';
+  }
+  if (
+    /(?:memory_directive|execute_action_write_memory|remember this|memory update:|please save|save this as|preferred mission updates|\/updates|mission updates verbose|mission link preference|kanban and canvas links)/.test(text)
+  ) {
+    return 'writes_memory';
+  }
+  if (/(?:voice|photo|image|media|audio)/.test(`${entry.suite} ${route}`)) {
+    return 'media_read';
+  }
+  if (
+    /(?:status|diagnose|board|read_current_state|recall|inventory|doctor|provider_status|context_recall|wiki|self_awareness|local_service|mission status|list|check|what |which |show |tell |explain)/.test(text)
+  ) {
+    return 'read_only';
+  }
+  return 'none';
+}
+
+function deriveLiveNlAuthorityExpectation(
+  entry: LiveNlCommandCase,
+  mutationClass: LiveNlHarnessCoreMutationClass
+): LiveNlHarnessCoreAuthorityExpectation {
+  const text = liveNlHarnessHaystack(entry);
+  const blockedBoundary = /(?:blocked|guard|do not|don't|without authority|missing approval|no action|clarify_or_block)/.test(text);
+  if (blockedBoundary && (mutationClass === 'none' || mutationClass === 'read_only' || mutationClass === 'media_read')) {
+    return 'blocked_without_authority';
+  }
+  if (
+    mutationClass === 'writes_memory' ||
+    mutationClass === 'writes_files' ||
+    mutationClass === 'launches_mission' ||
+    mutationClass === 'external_network' ||
+    mutationClass === 'updates_access_setting'
+  ) {
+    return 'confirmation_required_or_allowed';
+  }
+  if (mutationClass === 'read_only' || mutationClass === 'media_read') return 'read_only_allowed';
+  return 'chat_only';
+}
+
+function liveNlRequiresIntentionalAction(mutationClass: LiveNlHarnessCoreMutationClass): boolean {
+  return (
+    mutationClass === 'writes_memory' ||
+    mutationClass === 'writes_files' ||
+    mutationClass === 'launches_mission' ||
+    mutationClass === 'external_network' ||
+    mutationClass === 'updates_access_setting'
+  );
+}
+
+function deriveLiveNlRecommendedUse(
+  entry: LiveNlCommandCase,
+  mutationClass: LiveNlHarnessCoreMutationClass
+): LiveNlHarnessCoreUse {
+  const text = liveNlHarnessHaystack(entry);
+  if (liveNlRequiresIntentionalAction(mutationClass)) {
+    return 'run_only_with_intentional_action_confirmation';
+  }
+  if (/(?:do not|don't|blocked|guard|hijack|stale|fresh|authority|only if|proof|clarify)/.test(text)) {
+    return 'promote_after_refurbish';
+  }
+  return 'keep_legacy_breadth';
+}
+
+export function deriveLiveNlHarnessCoreMapping(entry: LiveNlCommandCase): LiveNlHarnessCoreMapping {
+  const mutationClass = deriveLiveNlMutationClass(entry);
+  const authority = deriveLiveNlAuthorityExpectation(entry, mutationClass);
+  const recommendedUse = deriveLiveNlRecommendedUse(entry, mutationClass);
+  const captureRequired = ['observed_reply'];
+  const notes = [
+    'As-is NL case proves broad behavior only; promotion needs Harness Core fields and live evidence capture.'
+  ];
+
+  if (mutationClass !== 'none' && mutationClass !== 'read_only') captureRequired.push('side_effects');
+  if (recommendedUse !== 'keep_legacy_breadth') {
+    captureRequired.push('trace_join', 'proof_join', 'reply_shape', 'proof_panel');
+  }
+  if (recommendedUse !== 'keep_legacy_breadth' || mutationClass === 'media_read') {
+    captureRequired.push('screenshot_or_user_confirmation');
+  }
+  if (entry.risk === 'safe' && liveNlRequiresIntentionalAction(mutationClass)) {
+    notes.push(`Old risk "safe" hides Harness mutation class "${mutationClass}".`);
+  }
+  if (recommendedUse === 'run_only_with_intentional_action_confirmation') {
+    notes.push('Keep out of default live runs unless the operator intentionally tests this action boundary.');
+  }
+  if (recommendedUse === 'promote_after_refurbish') {
+    notes.push('Good source material for a smaller control-proof canary after adding authority, trace join, proof join, side-effect, and reply-shape expectations.');
+  }
+
+  return {
+    id: entry.id,
+    suite: entry.suite,
+    risk: entry.risk,
+    expectedRoute: entry.expectedRoute,
+    expectedAuthority: authority,
+    expectedMutationClass: mutationClass,
+    recommendedUse,
+    promotionGapRequired: recommendedUse === 'keep_legacy_breadth'
+      ? 'none'
+      : 'name measured control-proof or trace-join gap before promotion',
+    proofRequiredIfPromoted: recommendedUse !== 'keep_legacy_breadth',
+    captureRequired: Array.from(new Set(captureRequired)),
+    notes
+  };
+}
+
+function countBy<T extends string>(values: T[], orderedKeys: T[]): Record<T, number> {
+  const counts = orderedKeys.reduce((record, key) => {
+    record[key] = 0;
+    return record;
+  }, {} as Record<T, number>);
+  for (const value of values) counts[value] = (counts[value] || 0) + 1;
+  return counts;
+}
+
+function tableCell(value: string): string {
+  return value.replace(/\|/g, '\\|');
+}
+
+export function formatLiveNlHarnessCoreMap(
+  cases: LiveNlCommandCase[],
+  options: LiveNlHarnessCoreMapOptions = {}
+): string {
+  const mapped = cases.map(deriveLiveNlHarnessCoreMapping);
+  const useCounts = countBy(mapped.map((entry) => entry.recommendedUse), [
+    'keep_legacy_breadth',
+    'promote_after_refurbish',
+    'run_only_with_intentional_action_confirmation'
+  ]);
+  const mutationCounts = countBy(mapped.map((entry) => entry.expectedMutationClass), [
+    'none',
+    'read_only',
+    'writes_memory',
+    'writes_files',
+    'launches_mission',
+    'external_network',
+    'updates_access_setting',
+    'media_read'
+  ]);
+  const authorityCounts = countBy(mapped.map((entry) => entry.expectedAuthority), [
+    'chat_only',
+    'read_only_allowed',
+    'confirmation_required_or_allowed',
+    'blocked_without_authority'
+  ]);
+  const title = options.title || 'Natural Language Harness Core Map';
+  const catalog = options.catalog || 'selected catalog';
+  const totalCases = options.totalCases && options.totalCases >= mapped.length ? options.totalCases : null;
+  const selectionLine = totalCases
+    ? `Selected cases: ${mapped.length} of ${totalCases}${options.includeRisky ? ' (risky cases included)' : ' (risky cases excluded unless explicitly selected)'}`
+    : `Selected cases: ${mapped.length}`;
+  const lines = [
+    `# ${title}`,
+    '',
+    `Catalog: ${catalog}`,
+    selectionLine,
+    '',
+    'Decision: keep the old natural-language suite as fast legacy breadth. Do not treat this map or a passing `nl:live` run as Harness Core release proof.',
+    `Authority boundary: ${LIVE_NL_AUTHORITY_CLAIM_BOUNDARY}`,
+    '',
+    'Refurbishment rule: promote selected prompts only when they close a measured control-proof or trace-join gap. Copy promoted prompts into the control-proof canary schema with authority, mutation, proof join, side-effect, reply-shape, and live Telegram evidence fields.',
+    'Feature boundary: do not use legacy NL cases to expand UI, media support, rich composition, or new features unless the mapped case directly names the proof gap it closes.',
+    '',
+    '## Recommended Use',
+    '',
+    `- keep_legacy_breadth: ${useCounts.keep_legacy_breadth}`,
+    `- promote_after_refurbish: ${useCounts.promote_after_refurbish}`,
+    `- run_only_with_intentional_action_confirmation: ${useCounts.run_only_with_intentional_action_confirmation}`,
+    '',
+    '## Mutation Classes',
+    '',
+    `- none: ${mutationCounts.none}`,
+    `- read_only: ${mutationCounts.read_only}`,
+    `- writes_memory: ${mutationCounts.writes_memory}`,
+    `- writes_files: ${mutationCounts.writes_files}`,
+    `- launches_mission: ${mutationCounts.launches_mission}`,
+    `- external_network: ${mutationCounts.external_network}`,
+    `- updates_access_setting: ${mutationCounts.updates_access_setting}`,
+    `- media_read: ${mutationCounts.media_read}`,
+    '',
+    '## Authority Expectations',
+    '',
+    `- chat_only: ${authorityCounts.chat_only}`,
+    `- read_only_allowed: ${authorityCounts.read_only_allowed}`,
+    `- confirmation_required_or_allowed: ${authorityCounts.confirmation_required_or_allowed}`,
+    `- blocked_without_authority: ${authorityCounts.blocked_without_authority}`,
+    '',
+    '## Cases',
+    '',
+    '| Case | Suite | Old risk | Mutation | Authority | Use | Promotion gap | Proof if promoted | Capture required |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- |'
+  ];
+
+  for (const entry of mapped) {
+    lines.push([
+      tableCell(entry.id),
+      tableCell(entry.suite),
+      entry.risk,
+      entry.expectedMutationClass,
+      entry.expectedAuthority,
+      entry.recommendedUse,
+      tableCell(entry.promotionGapRequired),
+      entry.proofRequiredIfPromoted ? 'yes' : 'no',
+      tableCell(entry.captureRequired.join(', '))
+    ].join(' | ').replace(/^/, '| ').replace(/$/, ' |'));
+  }
+
+  return lines.join('\n').trimEnd() + '\n';
 }
 
 function riskCounts(cases: LiveNlCommandCase[]): string {
@@ -182,7 +502,7 @@ export function buildLiveNlEvidencePacket(
   const suite = options.suite?.trim() || null;
   const includeRisky = Boolean(options.includeRisky);
 
-  return createTelegramLiveQaEvidencePacket({
+  const packet = createTelegramLiveQaEvidencePacket({
     generated_at: generatedAt,
     run_id: options.runId,
     title: options.title || 'Spark Telegram Live QA Evidence Packet',
@@ -192,6 +512,8 @@ export function buildLiveNlEvidencePacket(
     required_session_evidence: options.requiredSessionEvidence,
     cases: buildLiveNlPacketCases(cases)
   });
+  packet.authority_claim_boundary = LIVE_NL_AUTHORITY_CLAIM_BOUNDARY;
+  return packet;
 }
 
 export function buildLiveNlObservationTemplate(
@@ -204,6 +526,8 @@ export function buildLiveNlObservationTemplate(
     generatedAt,
     runId: options.runId,
     title: options.title || 'Spark Telegram Live QA Observation Template',
+    claimScope: 'legacy_breadth',
+    authorityClaimBoundary: LIVE_NL_AUTHORITY_CLAIM_BOUNDARY,
     session: options.requiredSessionEvidence,
     cases: cases.map((entry) => ({
       id: entry.id,
@@ -412,10 +736,26 @@ export function parseLiveNlObservationFile(value: unknown): LiveNlObservationFil
   const rawCases = record.cases;
   if (!Array.isArray(rawCases)) throw new Error('Live NL observation file needs a cases array.');
   const session = objectField(record, 'session', 'required_session_evidence') || undefined;
+  const claimScope = stringField(record, 'claimScope') || stringField(record, 'claim_scope') || 'legacy_breadth';
+  const authorityClaimBoundary = stringField(record, 'authorityClaimBoundary') ||
+    stringField(record, 'authority_claim_boundary') ||
+    LIVE_NL_AUTHORITY_CLAIM_BOUNDARY;
+  if (claimScope !== 'legacy_breadth') {
+    throw new Error(`Live NL observation file claim scope must be legacy_breadth, not ${claimScope}.`);
+  }
+  if (
+    !/claim_scope=legacy_breadth\b/.test(authorityClaimBoundary) ||
+    !/release_gate=none\b/.test(authorityClaimBoundary) ||
+    !/not Harness Core release proof/i.test(authorityClaimBoundary)
+  ) {
+    throw new Error('Live NL observation file authority boundary must preserve claim_scope=legacy_breadth, release_gate=none, and not Harness Core release proof.');
+  }
   return {
     generatedAt: stringField(record, 'generatedAt') || stringField(record, 'generated_at') || undefined,
     runId: stringField(record, 'runId') || stringField(record, 'run_id') || undefined,
     title: stringField(record, 'title') || undefined,
+    claimScope,
+    authorityClaimBoundary,
     session: session as LiveNlObservationFile['session'],
     cases: rawCases.map(parseCaseObservation)
   };
@@ -481,7 +821,7 @@ export function buildObservedLiveNlEvidencePacket(
     sessionEvidence.overall_verdict = deriveOverallVerdict(packetCases);
   }
 
-  return createTelegramLiveQaEvidencePacket({
+  const packet = createTelegramLiveQaEvidencePacket({
     generated_at: observations.generatedAt || options.generatedAt?.toISOString(),
     run_id: observations.runId || options.runId,
     title: observations.title || options.title || 'Spark Telegram Live QA Evidence Packet',
@@ -491,6 +831,8 @@ export function buildObservedLiveNlEvidencePacket(
     required_session_evidence: sessionEvidence,
     cases: packetCases
   });
+  packet.authority_claim_boundary = LIVE_NL_AUTHORITY_CLAIM_BOUNDARY;
+  return packet;
 }
 
 export function formatLiveNlVerdictReport(

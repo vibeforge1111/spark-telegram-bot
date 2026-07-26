@@ -18,6 +18,11 @@ export interface TelegramVoiceBridgeDeliveryInput {
   telegramResult?: unknown;
   audioBytes: number;
   sentAtIso?: string;
+  traceContext?: {
+    requestId?: string | null;
+    traceRef?: string | null;
+    proofRef?: string | null;
+  };
 }
 
 function objectValue(value: unknown): Record<string, unknown> {
@@ -39,6 +44,18 @@ function telegramMessageIdPresent(value: unknown): boolean {
   const payload = objectValue(value);
   const result = objectValue(payload.result);
   return result.message_id !== undefined || payload.message_id !== undefined;
+}
+
+function cleanTraceValue(value: unknown): string {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text) return '';
+  if (/\/Users\/|\/var\/folders\/|[A-Za-z]:\\|file:\/\/|\b[A-Za-z0-9_-]{48,}\b/.test(text)) return '';
+  return text;
+}
+
+function cleanProofRef(value: unknown): string {
+  const text = cleanTraceValue(value);
+  return /^turn:sha256:[a-f0-9]{16}$/i.test(text) ? text : '';
 }
 
 function mergeSources(existing: Record<string, unknown>): string[] {
@@ -70,10 +87,22 @@ export function buildTelegramVoiceBridgeRuntimeState(input: TelegramVoiceBridgeD
   if (input.voiceMedia.synthesisMs !== undefined) {
     latency.synthesize_ms = Math.max(0, Math.round(input.voiceMedia.synthesisMs));
   }
+  const requestId = cleanTraceValue(input.traceContext?.requestId);
+  const traceRef = cleanTraceValue(input.traceContext?.traceRef);
+  const proofRef = cleanProofRef(input.traceContext?.proofRef);
   return {
     schema_version: 'spark.voice_runtime_state.v1',
     generated_at: sentAt,
     surface: 'telegram_bot_bridge',
+    ...(requestId ? { request_id: requestId } : {}),
+    ...(traceRef ? { trace_ref: traceRef } : {}),
+    ...(proofRef ? { harness_proof_ref: proofRef } : {}),
+    trace_continuity: {
+      request_joined: Boolean(requestId),
+      trace_joined: Boolean(traceRef),
+      proof_joined: Boolean(proofRef),
+      proof_storage: proofRef ? 'redacted_ref_only' : 'missing',
+    },
     dm_voice_replies: existing.dm_voice_replies || 'unknown',
     canonical_chip_key: 'spark-voice-comms',
     legacy_alias_visible: Boolean(existing.legacy_alias_visible),

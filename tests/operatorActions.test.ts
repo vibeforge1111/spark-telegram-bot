@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { parseSafeOperatorAction, runSafeOperatorAction } from '../src/operatorActions';
+import {
+  isSparkOsCompileExplanationQuestion,
+  parseSafeOperatorAction,
+  renderSparkOsCompileExplanation,
+  runSafeOperatorAction
+} from '../src/operatorActions';
 
 async function test(name: string, fn: () => void | Promise<void>): Promise<void> {
   try {
@@ -17,7 +22,8 @@ async function test(name: string, fn: () => void | Promise<void>): Promise<void>
 (async () => {
   await test('parses the bounded Level 5 temp-file smoke test', () => {
     const action = parseSafeOperatorAction(
-      'Run a safe Level 5 smoke test: create a tiny file at C:\\Users\\USER\\AppData\\Local\\Temp\\spark-telegram-level5-smoke.txt, write "level5 ok", read it back, then delete it. Do not touch anything else. Tell me each step.'
+      'Run a safe Level 5 smoke test: create a tiny file at C:\\Users\\USER\\AppData\\Local\\Temp\\spark-telegram-level5-smoke.txt, write "level5 ok", read it back, then delete it. Do not touch anything else. Tell me each step.',
+      { USERPROFILE: 'C:\\Users\\USER' } as NodeJS.ProcessEnv
     );
     assert.deepEqual(action, {
       kind: 'level5_smoke',
@@ -31,7 +37,8 @@ async function test(name: string, fn: () => void | Promise<void>): Promise<void>
 
   await test('parses the bounded Desktop folder-list check', () => {
     const action = parseSafeOperatorAction(
-      'Check whether C:\\Users\\USER\\Desktop exists. If it exists, list only the first 5 top-level folder names. Do not open files or read file contents.'
+      'Check whether C:\\Users\\USER\\Desktop exists. If it exists, list only the first 5 top-level folder names. Do not open files or read file contents.',
+      { USERPROFILE: 'C:\\Users\\USER' } as NodeJS.ProcessEnv
     );
     assert.deepEqual(action, {
       kind: 'folder_list',
@@ -100,5 +107,14 @@ async function test(name: string, fn: () => void | Promise<void>): Promise<void>
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  await test('explains spark os compile questions without executing them', () => {
+    assert.equal(isSparkOsCompileExplanationQuestion('what does spark os compile do?'), true);
+    assert.equal(isSparkOsCompileExplanationQuestion('run spark os compile now'), false);
+    const reply = renderSparkOsCompileExplanation();
+    assert.match(reply, /read-only/i);
+    assert.match(reply, /does not publish/i);
+    assert.doesNotMatch(reply, /Spawner URL|http:\/\/localhost/i);
   });
 })();

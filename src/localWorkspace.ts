@@ -56,6 +56,15 @@ export function isLocalWorkspaceInspectionOnlyRequest(text: string): boolean {
   return /^\/(?:workspaces?|local-workspaces?|folders?)\b/.test(normalized) && !parseBuildIntent(text);
 }
 
+export function defaultOptionalLocalWorkspaceRoots(
+  home = os.homedir(),
+  exists: (candidate: string) => boolean = existsSync
+): string[] {
+  return ['Desktop', 'Documents', 'projects', 'Projects']
+    .map((name) => path.join(home, name))
+    .filter((candidate) => exists(candidate));
+}
+
 export function defaultLocalWorkspaceRoots(env: NodeJS.ProcessEnv = process.env): string[] {
   const configured = env.SPARK_LOCAL_WORKSPACE_ROOTS?.trim();
   if (configured) {
@@ -66,11 +75,9 @@ export function defaultLocalWorkspaceRoots(env: NodeJS.ProcessEnv = process.env)
   }
 
   const home = os.homedir();
-  return [
-    path.join(home, 'Desktop'),
-    path.join(home, 'Documents'),
-    path.join(home, '.spark', 'workspaces')
-  ];
+  const sparkHome = env.SPARK_HOME?.trim() || path.join(home, '.spark');
+  const optionalRoots = defaultOptionalLocalWorkspaceRoots(home);
+  return [...optionalRoots, path.join(sparkHome, 'workspaces')];
 }
 
 function hasFile(projectPath: string, fileName: string): boolean {
@@ -103,17 +110,27 @@ async function summarizeRoot(root: string, limit: number): Promise<{
       .filter((entry) => !SKIP_NAMES.has(entry.name.toLowerCase()));
 
     const projects: LocalWorkspaceProject[] = [];
-    for (const entry of directories) {
-      const projectPath = path.join(resolvedRoot, entry.name);
-      const info = await stat(projectPath);
-      const signals = projectSignals(projectPath);
-      projects.push({
-        name: entry.name,
-        path: projectPath,
-        isGitRepo: signals.includes('git'),
-        modifiedAt: info.mtime.toISOString(),
-        signals
-      });
+    const batchSize = 32;
+    for (let offset = 0; offset < directories.length; offset += batchSize) {
+      const batch = await Promise.all(
+        directories.slice(offset, offset + batchSize).map(async (entry): Promise<LocalWorkspaceProject | null> => {
+          const projectPath = path.join(resolvedRoot, entry.name);
+          try {
+            const info = await stat(projectPath);
+            const signals = projectSignals(projectPath);
+            return {
+              name: entry.name,
+              path: projectPath,
+              isGitRepo: signals.includes('git'),
+              modifiedAt: info.mtime.toISOString(),
+              signals
+            };
+          } catch {
+            return null;
+          }
+        })
+      );
+      projects.push(...batch.filter((project): project is LocalWorkspaceProject => project !== null));
     }
 
     projects.sort((a, b) => Date.parse(b.modifiedAt) - Date.parse(a.modifiedAt));

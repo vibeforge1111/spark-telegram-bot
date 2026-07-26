@@ -85,4 +85,3 @@
     "trace": { "$ref": "https://spark.local/schemas/common-v1.schema.json#/$defs/traceRef" }
   }
 }
-

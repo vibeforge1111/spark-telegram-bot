@@ -32,6 +32,7 @@ import {
   isPublicationApprovalBoundaryQuestion,
   isQuotedDraftedExampleBoundary,
   isProjectImprovementRequest,
+  isRawLogSafetyQuestion,
   isSparkChipStatusOverclaimQuestion,
   isSparkSelfMemoryDiagnosticQuestion,
   isSparkWikiInventoryQuestion,
@@ -49,11 +50,18 @@ import {
   parseSpawnerBoardNaturalIntent,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
+import { isLoopEngineeringStatusRequest, resolveLoopEngineeringChipId } from './loopEngineeringStatus';
+import {
+  isFreshScopedBuildReplacement,
+  isLocalBuildWithPublicationBoundary
+} from './scopedBuildCommand';
 import type {
   NaturalRecursiveCommandTarget
 } from './conversationIntent';
-import type { DeterministicRouteId } from './routeTypes';
-import { parseSafeOperatorAction } from './operatorActions';
+import { evaluateDeterministicRoute, type DeterministicRouteId } from './routeFirewall';
+import { externalResearchNoMissionClarification } from './externalResearchBoundary';
+import { classifySafeOperatorAction } from './operatorActions';
+import { isTelegramTextImageBoundaryRequest } from './telegramMediaEnvelope';
 import type { ShippedProjectContext } from './shippedProjectContext';
 import { isPendingClarificationFollowup as isPendingBuildClarificationFollowup } from './telegramPendingBuildEvidence';
 
@@ -169,7 +177,7 @@ function recursiveContextSource(
   rawCommand: string
 ): NaturalRouteContextSource {
   if (/^(?:sessions|paths)\b/i.test(rawCommand)) return 'latest_message';
-  if (/\b(?:it|this|that|same|again|another|more|current|latest|readout|receipts|land|proof|approve|pass|round)\b/i.test(text)) {
+  if (/\b(?:it|this|that|same|again|another|more|current|latest|readout|receipts|land|proof|approve|pass|round|private\s+check|starter\s+check|local\s+check)\b/i.test(text)) {
     return hasRecentContext(context) ? 'hot_recent_turns' : 'workspace_sessions';
   }
   return context.recursiveTargets?.length ? 'workspace_sessions' : 'latest_message';
@@ -291,6 +299,34 @@ function parseNaturalProviderRun(text: string): { providers: string[]; goal: str
   return null;
 }
 
+function parseNaturalMissionProviderSwitch(text: string): Record<string, unknown> | null {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+  const asksToSwitch = /\b(?:switch|change|set|make|use|configure|update)\b/.test(normalized);
+  const missionProvider =
+    /\bmission\s+provider\b/.test(normalized) ||
+    /\bprovider\s+for\s+(?:missions?|spawner|builds?)\b/.test(normalized) ||
+    /\b(?:missions?|spawner|builds?)\b.{0,40}\bprovider\b/.test(normalized);
+  if (!asksToSwitch || !missionProvider) return null;
+
+  const providerMatch = normalized.match(/\b(?:to|as|onto|use)\s+(codex|claude|anthropic|zai|glm|minimax|openrouter|openai|huggingface|hf|lmstudio|lm\s+studio|ollama)\b/) ||
+    normalized.match(/\b(codex|claude|anthropic|zai|glm|minimax|openrouter|openai|huggingface|hf|lmstudio|lm\s+studio|ollama)\b/);
+  if (!providerMatch?.[1]) return null;
+
+  const providerAliases: Record<string, string> = {
+    claude: 'anthropic',
+    glm: 'zai',
+    hf: 'huggingface',
+    'lm studio': 'lmstudio'
+  };
+  const rawProvider = providerMatch[1].replace(/\s+/g, ' ');
+  return {
+    role: 'mission',
+    provider: providerAliases[rawProvider] || rawProvider,
+    preserveChatProvider: /\b(?:do not|don't|dont|please don't|please dont|keep|leave)\b.{0,50}\b(?:chat|agent)\s+provider\b/.test(normalized)
+  };
+}
+
 function extractBrowserNavigateUrl(text: string): string | null {
   const match = text.match(/\bhttps?:\/\/[^\s<>()\[\]{}"']+/i);
   if (!match) return null;
@@ -340,6 +376,15 @@ function isConcreteBuildBrief(text: string, buildIntent: BuildIntent | null): bo
   return /\b(?:build|create|scaffold|ship)\b.{0,120}\b(?:app|dashboard|tool|project|prototype|game|site|website|system|interface|board)\b/.test(normalized);
 }
 
+function routeAllowed(route: DeterministicRouteId, text: string): boolean {
+  return evaluateDeterministicRoute(route, text).allow;
+}
+
+function routeBlockedByFirewall(text: string, route: DeterministicRouteId): NaturalRouteDecision {
+  const verdict = evaluateDeterministicRoute(route, text);
+  return noRoute(text, [`route_firewall:${verdict.reason}`]);
+}
+
 export function decideNaturalRoute(
   text: string,
   context: NaturalRouteDecisionContext = {}
@@ -360,6 +405,20 @@ export function decideNaturalRoute(
       payload: { text: normalized },
       context_source: 'slash_command',
       matched_signals: ['leading_slash'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isTelegramTextImageBoundaryRequest(normalized)) {
+    return decision({
+      route: 'media.image_boundary',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'media.image_boundary',
+      payload: { medium: 'image', policy: 'evidence_only' },
+      context_source: 'latest_message',
+      matched_signals: ['media_image_boundary', 'evidence_only_boundary'],
       blocked_by: [],
       requires_confirmation: false
     });
@@ -393,7 +452,7 @@ export function decideNaturalRoute(
     });
   }
 
-  if (isPublicationApprovalBoundaryQuestion(normalized)) {
+  if (isPublicationApprovalBoundaryQuestion(normalized) && !parseBuildIntent(normalized)) {
     return decision({
       route: 'conversation.publication_approval_boundary',
       owner_system: 'spark-telegram-bot',
@@ -561,7 +620,11 @@ export function decideNaturalRoute(
 
   if (
     buildIntent &&
-    !isNoExecutionBoundary(normalized) &&
+    (
+      !isNoExecutionBoundary(normalized) ||
+      isLocalBuildWithPublicationBoundary(normalized) ||
+      isFreshScopedBuildReplacement(normalized)
+    ) &&
     (!harnessArchitectureQuestion || concreteBuildBrief) &&
     ((!earlyCreatorMission && !conversationalIdeation) || concreteStandaloneBuildBrief)
   ) {
@@ -679,6 +742,25 @@ export function decideNaturalRoute(
     });
   }
 
+  const missionProviderSwitch = parseNaturalMissionProviderSwitch(normalized);
+  if (missionProviderSwitch) {
+    if (!routeAllowed('model.switch', normalized)) return routeBlockedByFirewall(normalized, 'model.switch');
+    return decision({
+      route: 'model.switch',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'model.switch.mission_provider',
+      payload: missionProviderSwitch,
+      context_source: 'latest_message',
+      matched_signals: [
+        'mission_provider_switch',
+        missionProviderSwitch.preserveChatProvider ? 'preserve_chat_provider' : ''
+      ].filter(Boolean) as string[],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
   const contextualAccessLevel = parseContextualAccessChangeIntent(normalized, recentMessages);
   if (contextualAccessLevel) {
     return decision({
@@ -736,7 +818,21 @@ export function decideNaturalRoute(
     });
   }
 
-  const safeOperatorAction = parseSafeOperatorAction(normalized);
+  if (isRawLogSafetyQuestion(normalized)) {
+    return decision({
+      route: 'proof.log_safety',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'plain_chat.safety_guidance',
+      payload: {},
+      context_source: 'latest_message',
+      matched_signals: ['raw_log_safety_question'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  const safeOperatorAction = classifySafeOperatorAction(normalized);
   if (safeOperatorAction) {
     return decision({
       route: 'operator.safe_action',
@@ -925,6 +1021,23 @@ export function decideNaturalRoute(
     });
   }
 
+  if (isLoopEngineeringStatusRequest(normalized)) {
+    return decision({
+      route: 'loop_engineering.status',
+      owner_system: 'spark-telegram-bot',
+      confidence: resolveLoopEngineeringChipId(normalized) ? 'explicit' : 'contextual',
+      action: 'loop_engineering.read_only_status',
+      payload: {
+        chipId: resolveLoopEngineeringChipId(normalized) || null,
+        readOnly: true
+      },
+      context_source: 'latest_message',
+      matched_signals: ['loop_engineering_status_request'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
   const recursive = parseNaturalRecursiveCommandIntent(normalized, {
     recentMessages,
     targets: context.recursiveTargets
@@ -1013,6 +1126,20 @@ export function decideNaturalRoute(
       matched_signals: ['local_spark_service_request'],
       blocked_by: [],
       requires_confirmation: false
+    });
+  }
+
+  if (externalResearchNoMissionClarification(normalized)) {
+    return decision({
+      route: 'external_research.direct_or_clarify',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'external_research.clarify',
+      payload: { reason: 'mission_blocked' },
+      context_source: 'latest_message',
+      matched_signals: ['external_research_request', 'no_mission_boundary'],
+      blocked_by: [],
+      requires_confirmation: true
     });
   }
 

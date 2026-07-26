@@ -2,11 +2,6 @@
 // Designed to run from Telegram and fit in a single message.
 
 import axios from 'axios';
-import {
-  createHarnessCoreActionEnvelopeVNext,
-  createHarnessCoreAuthorizedGovernorDecision,
-  type GovernorDecisionV1
-} from '@spark/harness-core';
 import { getSparkAccessProfile, sparkAccessLabel } from './accessPolicy';
 import { getBuilderBridgeStatus, type BuilderBridgeStatus } from './builderBridge';
 import { pingChatProvider, resolveChatProviderConfig, type ChatProviderPing } from './llm';
@@ -19,18 +14,9 @@ import {
 } from './providerRouting';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { relayHealthUrl } from './healthRuntime';
-import {
-  readNaturalRouteExecutionLedger,
-  summarizeNaturalRouteExecutionRecords,
-  type NaturalRouteExecutionRecord
-} from './naturalRouteLedger';
+import { redactText } from './redaction';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
-import { signGovernorDecisionIfConfigured } from './governorSignature';
-import {
-  escapeTelegramHtml,
-  escapeTelegramHtmlAttribute
-} from './telegramHtml';
 
 const SPAWNER_UI_URL = resolveSpawnerUiUrl();
 const CODEX_SHIM_URL = process.env.CODEX_SHIM_URL;
@@ -79,9 +65,6 @@ interface HttpStatusResult {
   payload?: unknown;
 }
 
-const DIAGNOSE_SECTION_HEADERS = new Set(['Health', 'Issue', 'Routes', 'Workspace']);
-const DIAGNOSE_LABELS = new Set(['Chat', 'Builds', 'Providers', 'Ping', 'Board', 'Spawner UI']);
-
 export interface DiagnoseSubject {
   userId: number;
   chatId: string | number;
@@ -89,33 +72,16 @@ export interface DiagnoseSubject {
   isAllowed: boolean;
 }
 
-function isBuildRouteDivergence(record: NaturalRouteExecutionRecord): boolean {
-  return record.shadow_route === 'spawner.build' && (
-    record.executed_route === 'plain_chat' ||
-    record.executed_route === 'chat_plan' ||
-    record.executed_route === 'conversation.ideation' ||
-    record.executed_route.startsWith('spark.read_only_state')
-  );
+export function renderDiagnoseChatHealth(chatProviderOk: boolean, builderBridgeAvailable: boolean): string {
+  if (!chatProviderOk) return '🔴 Chat degraded';
+  if (!builderBridgeAvailable) return '🟡 Chat ready, bridge offline';
+  return '🟢 Chat ready';
 }
 
-export function describeRouteDivergence(records: NaturalRouteExecutionRecord[], limit = 3): string[] {
-  const summary = summarizeNaturalRouteExecutionRecords(records);
-  if (summary.total === 0) {
-    return ['Route divergence: no route ledger records yet'];
-  }
-  if (summary.mismatch === 0) {
-    return [`Route divergence: ok (${summary.total} records, 0 mismatches)`];
-  }
-
-  const buildMisroutes = records.filter(isBuildRouteDivergence).length;
-  const pairs = Object.entries(summary.mismatchesByPair)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, limit)
-    .map(([pair, count]) => `${pair} x${count}`);
-  return [
-    `Route divergence: ${summary.mismatch}/${summary.total} mismatched; build misroutes ${buildMisroutes}`,
-    `Top divergence: ${pairs.join(', ')}`
-  ];
+export function renderDiagnoseBuildHealth(spawnerOk: boolean, missionPingOk: boolean | null): string {
+  if (!spawnerOk) return '🔴 Builds offline';
+  if (missionPingOk === false) return '🟡 Builds degraded';
+  return '🟢 Builds ready';
 }
 
 export function getRelayIdentityFromEnv(env: NodeJS.ProcessEnv = process.env): RelayIdentity {
@@ -129,6 +95,12 @@ function httpPortLabel(url: string): string {
   } catch {
     return url;
   }
+}
+
+function formatDiagnoseErrorDetail(value: unknown, fallback = 'unavailable'): string {
+  const text = typeof value === 'string' ? value : String(value ?? fallback);
+  const firstLine = text.split(/\r?\n/, 1)[0] || '';
+  return redactText(firstLine).replace(/\s+/g, ' ').trim().slice(0, 120) || fallback;
 }
 
 export function readableLocalServiceUrl(url: string): string {
@@ -178,16 +150,16 @@ async function httpStatus(url: string, timeoutMs = 3000): Promise<HttpStatusResu
     const res = await axios.get(url, { timeout: timeoutMs });
     return { ok: true, status: res.status, payload: res.data };
   } catch (err: any) {
-    const status = Number(err.response?.status);
+    const status = Number(err?.response?.status);
     if (Number.isFinite(status)) {
       return {
         ok: false,
         status,
         err: `HTTP ${status}`,
-        payload: err.response?.data
+        payload: err?.response?.data
       };
     }
-    return { ok: false, err: err.code || err.message };
+    return { ok: false, err: formatDiagnoseErrorDetail(err?.code || err?.message, 'unreachable') };
   }
 }
 
@@ -198,7 +170,13 @@ function isLocalOpenAICompatProvider(provider: ProviderStatus): boolean {
 export function describeRelayHealth(status: HttpStatusResult, expected: RelayIdentity): string {
   const label = `:${expected.port}/${expected.profile}`;
   if (!status.ok) {
-    return `• Bot mission relay (${label}): ❌ ${status.err || status.status}`;
+    if (status.status === 404) {
+      return `• Bot mission relay (${label}): ❌ HTTP 404 — relay is reachable, but this route or profile is missing; check the expected port/profile, then restart Spark`;
+    }
+    if (status.status === 401 || status.status === 403) {
+      return `• Bot mission relay (${label}): ❌ HTTP ${status.status} — relay access was rejected; check relay authentication and profile alignment`;
+    }
+    return `• Bot mission relay (${label}): ❌ ${formatDiagnoseErrorDetail(status.err || status.status, 'unreachable')}`;
   }
 
   const payload = status.payload && typeof status.payload === 'object'
@@ -276,59 +254,27 @@ async function fetchProviders(): Promise<{ ok: boolean; status?: number; err?: s
     });
     return { ok: true, status: res.status, payload: res.data || {} };
   } catch (err: any) {
-    const status = Number(err.response?.status);
+    const status = Number(err?.response?.status);
     if (Number.isFinite(status)) {
       return {
         ok: false,
         status,
         err: `HTTP ${status}`,
-        payload: err.response?.data || {}
+        payload: err?.response?.data || {}
       };
     }
-    return { ok: false, err: err.code || err.message };
+    return { ok: false, err: formatDiagnoseErrorDetail(err?.code || err?.message, 'unreachable') };
   }
 }
 
-export function buildDiagnosePingExecutionAuthority(input: {
-  providerId: string;
-  requestId: string;
-  actorIdRef?: string;
-}): GovernorDecisionV1 {
-  const providerId = input.providerId.trim() || 'unknown';
-  const requestId = input.requestId.trim();
-  const envelope = createHarnessCoreActionEnvelopeVNext({
-    surface: 'telegram',
-    ownerSystem: 'spawner-ui',
-    toolName: 'spawner.run',
-    mutationClass: 'launches_mission',
-    source: 'spark-telegram-bot/diagnose-command',
-    reason: [
-      `Admin /diagnose command authorized a provider health ping for ${providerId}.`,
-      'This is a suppress-relay diagnostic mission scoped to checking selected Spawner build routing only.'
-    ].join(' '),
-    requestId,
-    actorKind: 'human',
-    actorIdRef: input.actorIdRef || 'telegram-admin',
-    target: providerId,
-    confidence: 1,
-    riskTier: 'medium'
-  });
-
-  return signGovernorDecisionIfConfigured(createHarnessCoreAuthorizedGovernorDecision({
-    envelope,
-    tool_name: 'spawner.run',
-    restrictions: {
-      network_allowed: true,
-      write_allowed: true,
-      publish_allowed: false
-    },
-    reply_instruction: 'Authorize only this suppress-relay diagnostic Spawner mission; do not publish, ship, or claim user-facing completion.'
-  }));
+export function providerPingPolling(providerId: string): { maxPolls: number; intervalMs: number } {
+  return ['ollama', 'lmstudio'].includes(providerId)
+    ? { maxPolls: 60, intervalMs: 3000 }
+    : { maxPolls: 25, intervalMs: 2000 };
 }
 
-async function pingProvider(providerId: string, actorIdRef = 'telegram-admin'): Promise<PingResult> {
+async function pingProvider(providerId: string): Promise<PingResult> {
   const started = Date.now();
-  const requestId = `diag-${providerId}-${started}`;
   try {
     const run = await axios.post(
       `${SPAWNER_UI_URL}/api/spark/run`,
@@ -336,11 +282,10 @@ async function pingProvider(providerId: string, actorIdRef = 'telegram-admin'): 
         goal: 'Reply with exactly: PING_OK',
         chatId: 'diag',
         userId: 'diag',
-        requestId,
+        requestId: `diag-${providerId}-${started}`,
         providers: [providerId],
         promptMode: 'simple',
-        suppressRelay: true,
-        executionAuthority: buildDiagnosePingExecutionAuthority({ providerId, requestId, actorIdRef })
+        suppressRelay: true
       },
       spawnerAxiosOptions(10000)
     );
@@ -349,8 +294,9 @@ async function pingProvider(providerId: string, actorIdRef = 'telegram-admin'): 
       return { providerId, ok: false, error: 'no missionId' };
     }
 
-    for (let i = 0; i < 25; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    const polling = providerPingPolling(providerId);
+    for (let i = 0; i < polling.maxPolls; i++) {
+      await new Promise((resolve) => setTimeout(resolve, polling.intervalMs));
       try {
         const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/results`, {
           ...spawnerAxiosOptions(3000),
@@ -365,7 +311,7 @@ async function pingProvider(providerId: string, actorIdRef = 'telegram-admin'): 
             providerId,
             ok: false,
             ms: Date.now() - started,
-            error: result.error?.slice(0, 120) || 'failed'
+            error: formatDiagnoseErrorDetail(result.error, 'failed')
           };
         }
       } catch {
@@ -374,7 +320,7 @@ async function pingProvider(providerId: string, actorIdRef = 'telegram-admin'): 
     }
     return { providerId, ok: false, error: 'timeout' };
   } catch (err: any) {
-    return { providerId, ok: false, error: err.response?.data?.error || err.message };
+    return { providerId, ok: false, error: formatDiagnoseErrorDetail(err?.response?.data?.error || err?.message, 'failed') };
   }
 }
 
@@ -409,34 +355,7 @@ export function describeBuilderBridgeHealth(status: BuilderBridgeStatus): string
 }
 
 export function describeChatProviderHealth(result: ChatProviderPing, chatProviderLabel: string): string {
-  return `Chat provider completion: ${result.ok ? '✅' : '❌'} ${chatProviderLabel} (${result.detail})`;
-}
-
-function renderDiagnoseTelegramLine(line: string, index: number): string {
-  if (!line.trim()) return '';
-  if (index === 0) return `<b>${escapeTelegramHtml(line)}</b>`;
-  if (DIAGNOSE_SECTION_HEADERS.has(line.trim())) {
-    return `<b>${escapeTelegramHtml(line.trim())}</b>`;
-  }
-
-  const label = line.match(/^([A-Za-z][A-Za-z ]+):\s*(.*)$/);
-  if (!label || !DIAGNOSE_LABELS.has(label[1])) {
-    return escapeTelegramHtml(line);
-  }
-
-  const name = label[1];
-  const value = label[2] || '';
-  if (name === 'Spawner UI' && /^https?:\/\//i.test(value)) {
-    const href = escapeTelegramHtmlAttribute(value);
-    return `<b>${name}:</b> <a href="${href}">open</a>`;
-  }
-
-  const renderedValue = value ? `<code>${escapeTelegramHtml(value)}</code>` : '';
-  return `<b>${name}:</b>${renderedValue ? ` ${renderedValue}` : ''}`;
-}
-
-export function renderDiagnoseReportHtml(report: string): string {
-  return report.split('\n').map(renderDiagnoseTelegramLine).join('\n');
+  return `Chat provider completion: ${result.ok ? '✅' : '❌'} ${chatProviderLabel} (${formatDiagnoseErrorDetail(result.detail)})`;
 }
 
 export function resolveDiagnoseRouteProviders(
@@ -486,6 +405,9 @@ export function inferDiagnoseLikelyIssue(args: {
     if (args.spawnerOk && args.missionPingOk === true) {
       return 'Likely issue: plain chat provider is unhealthy, but Spawner mission routing is healthy. Plain chat may need a provider timeout/key/base URL check; /run builds can still work.';
     }
+    if (args.spawnerOk && args.missionPingOk === false) {
+      return 'Likely issue: the selected provider is failing for both plain chat and Spawner builds. Check its shared key, base URL, and model, or switch both roles to a healthy provider before restarting Telegram.';
+    }
     return 'Likely issue: plain chat provider is unhealthy. Check the selected chat model key/base URL, then restart the Telegram gateway.';
   }
   if (args.builder.mode === 'required' && !args.builder.available) {
@@ -494,8 +416,8 @@ export function inferDiagnoseLikelyIssue(args: {
   if (!args.spawnerOk) {
     return 'Likely issue: Spawner UI is unreachable, so builds and board checks will fail.';
   }
-  if (args.missionPingOk !== true) {
-    return 'Likely issue: mission provider ping failed or not reached. Plain chat may work, but Spawner builds are degraded.';
+  if (args.missionPingOk === false) {
+    return 'Likely issue: mission provider ping failed. Plain chat may work, but Spawner builds are degraded.';
   }
   return 'Likely issue: no obvious fault detected in relay, access, plain chat, or Spawner ping.';
 }
@@ -510,15 +432,7 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     isAllowed: subject?.isAllowed ?? true
   };
 
-  const [
-    botRelay,
-    spawnerProviders,
-    shimHealth,
-    builderBridge,
-    chatProviderPing,
-    accessProfile,
-    naturalRouteRecords
-  ] = await Promise.all([
+  const [botRelay, spawnerProviders, shimHealth, builderBridge, chatProviderPing, accessProfile] = await Promise.all([
     httpStatus(relayHealthUrl(), 2000),
     fetchProviders(),
     CODEX_SHIM_URL ? httpStatus(`${CODEX_SHIM_URL}/health`, 2000) : Promise.resolve(null),
@@ -530,10 +444,9 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     })),
     pingChatProvider().catch((error) => ({
       ok: false,
-      detail: error instanceof Error ? error.message : String(error)
+      detail: formatDiagnoseErrorDetail(error instanceof Error ? error.message : String(error))
     })),
-    getSparkAccessProfile(diagnoseSubject.chatId).catch(() => 'agent' as const),
-    readNaturalRouteExecutionLedger().catch(() => [])
+    getSparkAccessProfile(diagnoseSubject.chatId).catch(() => 'agent' as const)
   ]);
 
   const providers = spawnerProviders.payload?.providers || [];
@@ -592,8 +505,8 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     '',
     'Health',
     `${botRelay.ok ? '🟢' : '🔴'} Relay ${botRelay.ok ? 'ready' : botRelay.err || botRelay.status || 'unreachable'}`,
-    `${chatProviderPing.ok && builderBridge.available ? '🟢' : '🔴'} Chat ${chatProviderPing.ok ? 'ready' : 'degraded'}`,
-    `${spawnerProviders.ok && missionPingOk === true ? '🟢' : '🟡'} Builds ${spawnerProviders.ok ? (missionPingOk === true ? 'ready' : 'degraded') : 'offline'}`,
+    renderDiagnoseChatHealth(chatProviderPing.ok, builderBridge.available),
+    renderDiagnoseBuildHealth(spawnerProviders.ok, missionPingOk),
     `${diagnoseSubject.isAllowed ? '🟢' : '🔴'} Access ${sparkAccessLabel(accessProfile)}${diagnoseSubject.isAdmin ? ' / admin' : ''}`,
     '',
     'Issue',
@@ -604,7 +517,6 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     `Builds: ${providerLabel(telegramRunProvider, providers)}`,
     `Providers: ${providers.length > 0 ? `${readyProviderCount}/${providers.length} ready` : 'metadata unavailable'}`,
     `Ping: ${pingSummary}`,
-    ...describeRouteDivergence(naturalRouteRecords),
     '',
     'Workspace',
     `Board: ${boardSummary}`,

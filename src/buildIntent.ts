@@ -1,6 +1,13 @@
 // Build-project intent parser. Catches natural-language phrasing that should
 // kick off a Spawner PRD-based project flow (multi-task canvas + execution).
 
+import path from 'node:path';
+import {
+  isLocalBuildWithPublicationBoundary,
+  resolveBuildCommandBoundary,
+  stripLocalBuildReleaseBoundaries
+} from './scopedBuildCommand';
+
 export interface BuildIntent {
   projectPath: string | null;
   requestedProjectPath: string | null;
@@ -19,6 +26,7 @@ export type BuildLane = 'fast_direct' | 'direct' | 'advanced_prd';
 
 function defaultWorkspaceRoot(): string {
   if (process.env.SPARK_PROJECT_ROOT?.trim()) return process.env.SPARK_PROJECT_ROOT.trim();
+  if (process.env.SPARK_WORKSPACE_ROOT?.trim()) return process.env.SPARK_WORKSPACE_ROOT.trim();
   if (process.platform === 'win32') {
     const home = process.env.USERPROFILE || 'C:\\Users\\USER';
     return `${home.replace(/[\\/]$/, '')}\\Desktop`;
@@ -37,15 +45,26 @@ function normalizePathForPlatform(value: string): string {
 
 function workspaceRootsFor(candidate: string): string[] {
   if (process.env.SPARK_PROJECT_ROOT?.trim()) return [process.env.SPARK_PROJECT_ROOT.trim()];
-  if (/^[A-Z]:[\\/]/i.test(candidate)) return ['C:\\Users\\USER\\Desktop'];
+  if (process.env.SPARK_WORKSPACE_ROOT?.trim()) return [process.env.SPARK_WORKSPACE_ROOT.trim()];
+  if (/^[A-Z]:[\\/]/i.test(candidate)) {
+    const home = process.env.USERPROFILE || 'C:\\Users\\USER';
+    return [`${home.replace(/[\\/]$/, '')}\\Desktop`];
+  }
   return [defaultWorkspaceRoot()];
 }
 
-function isInsideWorkspace(candidate: string): boolean {
-  const normalizedCandidate = normalizePathForPlatform(candidate).toLowerCase();
+export function isInsideWorkspace(candidate: string): boolean {
+  if (!candidate.trim()) return false;
   return workspaceRootsFor(candidate).some((root) => {
-    const normalizedRoot = normalizePathForPlatform(root).toLowerCase();
-    return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}${normalizedRoot.includes('\\') ? '\\' : '/'}`);
+    const windowsPath = /^[A-Z]:[\\/]/i.test(candidate) || /^[A-Z]:[\\/]/i.test(root);
+    const pathApi = windowsPath ? path.win32 : path.posix;
+    const resolvedCandidate = pathApi.resolve(normalizePathForPlatform(candidate));
+    const resolvedRoot = pathApi.resolve(normalizePathForPlatform(root));
+    const comparableCandidate = windowsPath ? resolvedCandidate.toLowerCase() : resolvedCandidate;
+    const comparableRoot = windowsPath ? resolvedRoot.toLowerCase() : resolvedRoot;
+    const relative = pathApi.relative(comparableRoot, comparableCandidate);
+    return relative === ''
+      || (relative !== '..' && !relative.startsWith(`..${pathApi.sep}`) && !pathApi.isAbsolute(relative));
   });
 }
 
@@ -145,19 +164,26 @@ export function polishBuildProjectName(value: string): string {
   return polishInferredProjectName(clean);
 }
 
-const PRODUCT_TYPE_PATTERN = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page|board|pad)';
+function cleanProjectNameOfLeakedPath(name: string, sourceText: string): string {
+  if (!/[\\/~]|\b[A-Za-z]:[\\/]|\.(?:html?|jsx?|tsx?|css|scss|py|json|md|txt|php|rb|go|rs|java|cpp?|sh|ya?ml)\b/i.test(name)) {
+    return name;
+  }
+  const noun = sourceText
+    .toLowerCase()
+    .match(/\b(landing\s+page|web\s+app|dashboard|website|application|app|tool|site|page|game|tracker|planner|portal|panel|viewer|board|blog|wiki|cms|api)\b/);
+  return noun ? titleCaseProjectName(noun[1]) : 'Spark App';
+}
 
+const PRODUCT_TYPE_PATTERN = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|backend|api|service|bot|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page|board|pad)';
 const PRODUCT_PHRASE_PATTERNS = [
   new RegExp(`^(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${PRODUCT_TYPE_PATTERN})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
   new RegExp(`\\b(?:build|create|make|scaffold|ship|implement|design)\\s+(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${PRODUCT_TYPE_PATTERN})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
   new RegExp(`\\bi\\s+(?:want|need|could\\s+use|would\\s+like)\\s+(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${PRODUCT_TYPE_PATTERN})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i')
 ];
-
-const PRODUCT_TYPE_TAIL = new RegExp(`\\b${PRODUCT_TYPE_PATTERN}\\b$`, 'i');
+const PRODUCT_TYPE_TAIL_PATTERN = new RegExp(`\\b${PRODUCT_TYPE_PATTERN}\\b$`, 'i');
 
 function inferProductPhraseProjectName(prd: string): string | null {
   const normalized = prd.replace(/\s+/g, ' ').trim();
-  const patterns = PRODUCT_PHRASE_PATTERNS;
   const genericLeadingWords = new Set([
     'a',
     'an',
@@ -186,7 +212,7 @@ function inferProductPhraseProjectName(prd: string): string | null {
     'based'
   ]);
 
-  for (const pattern of patterns) {
+  for (const pattern of PRODUCT_PHRASE_PATTERNS) {
     const match = normalized.match(pattern);
     if (!match?.[1]) continue;
     let phrase = match[1].replace(/\bvanilla[-\s]*js\b/gi, '').replace(/\bbrowser[-\s]*based\b/gi, '').trim();
@@ -195,7 +221,7 @@ function inferProductPhraseProjectName(prd: string): string | null {
       words = words.slice(1);
     }
     phrase = words.join(' ').replace(/\s+/g, ' ').trim().replace(/[.!?]+$/, '');
-    const productMatch = phrase.match(PRODUCT_TYPE_TAIL);
+    const productMatch = phrase.match(PRODUCT_TYPE_TAIL_PATTERN);
     if (!productMatch) continue;
     const qualifier = phrase.slice(0, productMatch.index).trim();
     const meaningfulQualifier = qualifier
@@ -250,6 +276,14 @@ function inferGamePrototypeName(prd: string): string | null {
   const qualifier = title.replace(/\bgame\b/i, '').replace(/\b(?:tiny|small|quick|minimal|simple)\b/gi, '').trim();
   if (!qualifier) return null;
   return titleCaseProjectName(title);
+}
+
+function inferBackendProductName(prd: string): string | null {
+  const normalized = prd.replace(/\s+/g, ' ').trim();
+  const match = normalized.match(
+    /\bbackend\s+for\s+(?:(?:a|an|the)\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,80}?\b(?:bot|app|application|platform|system|service|api))\b/i
+  );
+  return match?.[1] ? titleCaseProjectName(match[1]) : null;
 }
 
 function inferQuotedHeadingProjectName(prd: string): string | null {
@@ -316,6 +350,8 @@ function inferProjectName(prd: string, projectPath: string | null): string {
   if (dashboardPurposeName) return dashboardPurposeName;
   const gamePrototypeName = inferGamePrototypeName(prd);
   if (gamePrototypeName) return gamePrototypeName;
+  const backendProductName = inferBackendProductName(prd);
+  if (backendProductName) return backendProductName;
   const productPhraseName = inferProductPhraseProjectName(prd);
   if (productPhraseName) return productPhraseName;
   const firstWords = prd.split(/\s+/).slice(0, 6).join(' ');
@@ -331,7 +367,7 @@ function projectNameFromPathSegment(pathName: string): string {
 
 function cleanExtractedPath(value: string): string {
   const sentenceBoundary = value.search(
-    /\.(?:\s+)(?=(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
+    /\.(?:\s+)(?=(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
   );
   const bounded = sentenceBoundary >= 0 ? value.slice(0, sentenceBoundary) : value;
   return normalizePathForPlatform(
@@ -343,8 +379,11 @@ function cleanExtractedPath(value: string): string {
 }
 
 function extractPathCandidate(text: string): string | null {
-  const atMatch = text.match(
-    /(?:at|in|into)\s+((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+Files?\b)/i
+  const labeledMatch = text.match(
+    /\b(?:target\s+folder|project\s+path|local\s+project|full\s+local\s+project|create\s+(?:a\s+)?(?:full\s+)?local\s+project\s+(?:at|in|into))\s*:?\s*(?:\r?\n\s*)?((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
+  );
+  const atMatch = labeledMatch ?? text.match(
+    /(?:at|in|into)\s*:?\s*(?:\r?\n\s*)?((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
   );
   return atMatch ? cleanExtractedPath(atMatch[1]) : null;
 }
@@ -418,7 +457,7 @@ function inferBuildMode(text: string, prd: string, projectPath: string | null): 
     };
   }
 
-  if (/\b(?:prd|tas|task acceptance|acceptance criteria|domain\s*chip|mission control|new project|real project|complete project|from scratch|full app|platform|system)\b/.test(lower)) {
+  if (/\b(?:prd|tas|task acceptance|acceptance criteria|domain\s*chip|mission control|new project|real project|complete project|from scratch|full app|full local project|platform|system|backend|api routes?|persistence|runnable local setup)\b/.test(lower)) {
     return {
       mode: 'advanced_prd',
       reason: 'Request looks like a new project or systematic feature that benefits from PRD-to-task planning.'
@@ -518,6 +557,23 @@ function isBuildIdeationRequest(text: string): boolean {
   );
 }
 
+// Questions ABOUT building/making something (informational), not commands to build a
+// project: "how do I build muscle", "what does it take to build a credit score", "can
+// you explain how compilers build an AST", "why do birds build nests". These reuse a
+// build verb but must not spin up a Spawner project. "you" is excluded as the actor so
+// genuine requests like "can you build me a dashboard" / "how can you build X" still build.
+function isInformationalBuildQuestion(text: string): boolean {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const verb = '(?:build|building|make|making|create|creating|develop|developing|generate|generating)';
+  return (
+    new RegExp(`\\bhow\\s+(?:do|does|did|can|could|would|should|will)\\s+(?!you\\b|u\\b)\\w+\\b[^?.!]{0,50}\\b${verb}\\b`).test(n) ||
+    /\bhow\s+(?:is|are|was|were)\b[^?.!]{0,50}\b(?:built|made|created|developed|generated)\b/.test(n) ||
+    new RegExp(`\\bwhat(?:'s| is| does| do| would| will)?\\b[^?.!]{0,40}\\b(?:take|takes|need|needs|require|requires|involved|goes?\\s+into)\\b[^?.!]{0,25}\\bto\\s+${verb}\\b`).test(n) ||
+    new RegExp(`\\b(?:explain|describe|walk\\s+me\\s+through|tell\\s+me)\\b[^?.!]{0,60}\\bhow\\b[^?.!]{0,60}\\b${verb}s?\\b`).test(n) ||
+    new RegExp(`\\bwhy\\s+(?:do|does|did|would|are|is)\\b[^?.!]{0,60}\\b${verb}\\b`).test(n)
+  );
+}
+
 function isBuildContextRecallProbe(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   return (
@@ -573,7 +629,7 @@ function isBuildRouteMetaDiscussion(text: string): boolean {
   }
   if (
     /\b(?:what|which|how|why|is|are|do|does|can|could|should|would)\b.*\b(?:build|building)\b.*\b(?:updates?|upgrades?|self[-\s]*updates?|ledger|systems?|spark|capabilit(?:y|ies)|improvements?)\b/.test(normalized) &&
-    !/\b(?:build|create|make|ship|scaffold|generate|develop)\s+(?:a|an|the|new|this)\s+[^?.!]{0,80}\b(?:app|dashboard|tool|site|website|page|game|system|tracker|planner|timer|clock)\b/.test(normalized)
+    !/\b(?:build|create|make|ship|scaffold|generate|develop)\s+(?:a|an|the|new|this)\s+[^?.!]{0,80}\b(?:backend|api|service|bot|app|dashboard|tool|site|website|page|game|system|tracker|planner|timer|clock)\b/.test(normalized)
   ) {
     return true;
   }
@@ -699,6 +755,18 @@ function isNoExecutionBoundary(text: string): boolean {
   ].some((pattern) => pattern.test(normalized));
 }
 
+function isMakeSenseConversation(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) return false;
+  return [
+    /^(?:does|did|would|could|can)\s+(?:that|this|it)\s+make\s+sense[?.!]*$/,
+    /^(?:does|did|would|could|can)\s+that\s+make\s+sense\s+to\s+you[?.!]*$/,
+    /^(?:that|this|it)\s+makes\s+sense[?.!]*$/,
+    /^(?:i\s+guess\s+)?that\s+(?:does|did|would|could|can)\s+make\s+sense[?.!]*$/,
+    /^(?:i\s+guess\s+)?that\s+makes\s+sense[?.!]*$/
+  ].some((pattern) => pattern.test(normalized));
+}
+
 function isConversationFramingMakeRequest(description: string): boolean {
   return /^(?:today|tonight|now|chat|conversation|session|thread|this\s+(?:chat|conversation|session|thread)|our\s+(?:chat|conversation|session|thread))\s+(?:also\s+)?(?:about|focused\s+on|for)\b/i.test(
     description.trim()
@@ -751,6 +819,10 @@ function isNegatedBuildCommandPrefix(prefix: string): boolean {
   return /(?:^|\b)(?:do\s+not|don't|dont|never|without)\s+$/i.test(prefix);
 }
 
+function isPackageScriptBuildCommandPrefix(prefix: string): boolean {
+  return /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?$|\b(?:npx|pnpm\s+dlx|yarn\s+dlx|bunx)\s+$/i.test(prefix);
+}
+
 function isAmbiguousContextualBuildRequest(text: string, projectPath: string | null, prd: string): boolean {
   if (projectPath) return false;
   const normalized = text.replace(/\s+/g, ' ').trim();
@@ -759,7 +831,7 @@ function isAmbiguousContextualBuildRequest(text: string, projectPath: string | n
   }
   const concreteStandaloneBrief =
     prd.length >= 80 &&
-    /^(?:a\s+|an\s+|the\s+)?(?:narrow\s+|private\s+|local-first\s+|tiny\s+|simple\s+|internal\s+|real\s+|polished\s+|full\s+)*(?:tool|app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(prd.trim());
+    /^(?:a\s+|an\s+|the\s+)?(?:narrow\s+|private\s+|local-first\s+|tiny\s+|simple\s+|internal\s+|real\s+|polished\s+|full\s+)*(?:backend|api|service|bot|tool|app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(prd.trim());
   const namedProductPhrase = inferProductPhraseProjectName(prd) !== null;
   if (concreteStandaloneBrief || namedProductPhrase) {
     return false;
@@ -881,6 +953,7 @@ function extractBuildDescription(text: string): string | null {
   );
   if (inlineCommand?.index !== undefined) {
     const prefix = text.slice(0, inlineCommand.index).toLowerCase();
+    const clausePrefix = prefix.split(/[.!?;:,]/).pop() ?? prefix;
     if (
       /\b(?:whether|should\s+we|think\s+through|help\s+me\s+think|before\s+we)\b/.test(prefix) ||
       /\bhow\s+(?:should|would|could|can)\b/.test(prefix) ||
@@ -889,9 +962,10 @@ function extractBuildDescription(text: string): string | null {
       /\b(?:does\s+not|doesn't|doesnt|is\s+not|isn't|isnt)\s+mean\b/.test(prefix) ||
       /\b(?:best|right|safe|secure)\s+way\s+to\b/.test(prefix) ||
       isNegatedBuildCommandPrefix(prefix) ||
+      isPackageScriptBuildCommandPrefix(prefix) ||
       // Philosophical/hypothetical questions: "Can God create...", "Could gravity break..."
       // Modal verb + subject other than "you/we" before the build verb = not a build request.
-      /\b(?:can|could|would|will|shall|should|may|might|must)\s+(?!you\b|we\b)[a-z]+\s/i.test(prefix)
+      /\b(?:can|could|would|will|shall|should|may|might|must)\s+(?!you\b|we\b)[a-z]+\s/i.test(clausePrefix)
     ) {
       return null;
     }
@@ -915,17 +989,52 @@ function extractBuildDescription(text: string): string | null {
   return null;
 }
 
+function isPrdWritingOnlyRequest(text: string): boolean {
+  if (!/\bPRD\b|\bproduct\s+requirements?\s+doc(?:ument)?\b/i.test(text)) return false;
+  if (/\badvanced\s+prd\s+mode\b/i.test(text) && /\b(?:build|spawner|mission)\b/i.test(text)) return false;
+  if (/\bdomain[-\s]?chip\b/i.test(text) && /\b(?:build|create|scaffold)\b/i.test(text)) return false;
+  const directPrdDocumentAsk =
+    /\b(?:write|draft|improve|review|outline|turn|convert|distill)\b.{0,80}\b(?:PRD|product\s+requirements?\s+doc(?:ument)?)\b/i.test(text) ||
+    /\b(?:create|make)\s+(?:a\s+|an\s+|the\s+)?(?:better\s+|safer\s+|first[-\s]?pass\s+)?(?:PRD|product\s+requirements?\s+doc(?:ument)?)\b/i.test(text) ||
+    /\b(?:PRD|product\s+requirements?\s+doc(?:ument)?)\s+(?:for|about|on)\b/i.test(text);
+  if (!directPrdDocumentAsk) return false;
+  return !/\b(?:then|and\s+then|after(?:wards)?|next)\b.{0,80}\b(?:build|ship|implement|launch|run\s+(?:it|this|spawner|mission))\b/i.test(text);
+}
+
+function isStandaloneImageGenerationRequest(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) return false;
+  const asksForImage =
+    /\b(?:generate|create|make|draw|render)\s+(?:me\s+|us\s+)?(?:an?\s+|the\s+)?(?:image|picture|photo|artwork|illustration)\b/.test(normalized) ||
+    /\b(?:image|picture|photo|artwork|illustration)\s+of\b/.test(normalized);
+  const asksForProduct =
+    /\b(?:app|application|website|site|page|dashboard|tool|interface|gallery|editor|generator)\b/.test(normalized) &&
+    /\b(?:build|create|make|scaffold|develop)\b/.test(normalized);
+  return asksForImage && !asksForProduct;
+}
+
 export function parseBuildIntent(text: string): BuildIntent | null {
   const original = text.trim().replace(/[‘’]/g, "'");
+  const commandBoundary = resolveBuildCommandBoundary(original);
+  if (commandBoundary.kind === 'blocked') return null;
+  const commandText = commandBoundary.commandText;
+  const buildText = isLocalBuildWithPublicationBoundary(commandText)
+    ? stripLocalBuildReleaseBoundaries(commandText)
+    : commandText;
   if (isExactReplyNoFileProbe(original)) return null;
   if (isFilesystemOperationProbe(original)) return null;
-  if (isNoExecutionBoundary(original)) return null;
-  if (isBuildRouteMetaDiscussion(original)) return null;
-  const trimmed = normalizeBuildCommandText(original);
+  if (isStandaloneImageGenerationRequest(buildText)) return null;
+  if (isMakeSenseConversation(original)) return null;
+  if (isNoExecutionBoundary(buildText)) return null;
+  if (isBuildRouteMetaDiscussion(buildText)) return null;
+  const trimmed = normalizeBuildCommandText(buildText);
   if (!trimmed) return null;
+  if (isPrdWritingOnlyRequest(trimmed)) return null;
   if (isBuildIdeationRequest(trimmed)) return null;
+  if (isInformationalBuildQuestion(trimmed)) return null;
   if (isBuildContextRecallProbe(trimmed)) return null;
   if (isPreBuildShapingRequest(trimmed)) return null;
+  if (isMakeSenseConversation(trimmed)) return null;
   if (isBuildRouteMetaDiscussion(trimmed)) return null;
   if (isAllocationStrategyQuestion(trimmed)) return null;
   if (isRecursiveInsightPacketRequest(trimmed)) return null;
@@ -946,9 +1055,12 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (isAllocationStrategyQuestion(`${trimmed} ${prd}`)) return null;
   if (isRecursiveInsightPacketRequest(`${trimmed} ${prd}`)) return null;
   if (isAmbiguousContextualBuildRequest(trimmed, projectPath, prd)) return null;
-  const projectName = polishBuildProjectName(inferProjectName(prd, projectPath));
-  const buildMode = inferBuildMode(original, prd, projectPath);
-  const buildLane = inferBuildLane(original, prd, projectPath, buildMode.mode);
+  const projectName = cleanProjectNameOfLeakedPath(
+    polishBuildProjectName(inferProjectName(prd, projectPath)),
+    original
+  );
+  const buildMode = inferBuildMode(buildText, prd, projectPath);
+  const buildLane = inferBuildLane(buildText, prd, projectPath, buildMode.mode);
 
   return {
     projectPath,

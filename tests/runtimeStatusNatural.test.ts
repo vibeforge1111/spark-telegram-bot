@@ -210,8 +210,8 @@ async function main(): Promise<void> {
 
     assert.equal(replies.length, 1);
     assert.match(replies[0], /Spark is healthy right now\./);
-    assert.match(replies[0], /Spawner: reachable\./);
-    assert.match(replies[0], /Telegram: polling\./);
+    assert.match(replies[0], /Spawner is reachable/);
+    assert.match(replies[0], /Telegram is polling/);
   });
 
   await test('provider runtime config question answers from fresh provider status', async () => {
@@ -441,7 +441,7 @@ async function main(): Promise<void> {
     }
 
     assert.equal(replies.length, 1);
-    assert.match(replies[0], /(?:evidence for understanding|Route words can be discussed)/i);
+    assert.match(replies[0], /(?:Plain chat should win|action words are context)/i);
     assert.doesNotMatch(replies[0], /Provider runtime truth|Current evidence reports/i);
     assert.notEqual(extras[0]?.__sparkTraceContext?.route, 'spark.read_only_state.registry_drift');
     assert.equal(extras[0]?.__sparkTraceContext?.missionId, undefined);
@@ -481,7 +481,7 @@ async function main(): Promise<void> {
     assert.equal(replies.length, 1);
     assert.match(replies[0], /Spark is healthy right now\./);
     assert.match(replies[0], /fresh runtime state here, not memory/);
-    assert.match(replies[0], /No repair action needed right now\./);
+    assert.match(replies[0], /no repair action is needed/i);
     assert.doesNotMatch(replies[0], /setup conversation|\/access_setup|Owner setup/i);
   });
 
@@ -533,13 +533,11 @@ async function main(): Promise<void> {
       proven_scope: ['browser-use doctor', 'public page open', 'page state read', 'screenshot capture'],
       unproven_scope: ['logged-in pages', 'cookies/profile reuse', 'Spawner browser automation']
     });
-    indexModule.__setEvidenceAnswerComposerForTest(async () => '');
     const replies: string[] = [];
     const extras: any[] = [];
     try {
       await indexModule.handleTextMessage(fakeCtx('Tell me whether browser-use is currently available, but do not open a browser.', replies, extras));
     } finally {
-      indexModule.__setEvidenceAnswerComposerForTest(null);
       writeSparkCliStub(tempRoot);
     }
 
@@ -549,6 +547,13 @@ async function main(): Promise<void> {
     assert.match(replies[0], /spark browser-use probe/);
     assert.doesNotMatch(replies[0], /just proved|opened a browser from this Telegram turn as proof/i);
     assert.equal(extras[0]?.parse_mode, 'HTML');
+    assert.deepEqual(extras[0]?.__sparkTraceContext, {
+      turnId: 'telegram-update:1',
+      telegramUpdateId: 1,
+      route: 'spark.read_only_state.browser_use_availability',
+      command: 'read_only_state',
+      replyKind: 'read_only_state'
+    });
   });
 
   await test('browser-use availability can say scoped ready only from fresh owner proof', async () => {
@@ -561,13 +566,11 @@ async function main(): Promise<void> {
       proven_scope: ['browser-use doctor', 'public page open', 'page state read', 'screenshot capture'],
       unproven_scope: ['logged-in pages', 'cookies/profile reuse', 'sensitive click workflows', 'Spawner browser automation']
     });
-    indexModule.__setEvidenceAnswerComposerForTest(async () => '');
     const replies: string[] = [];
     const extras: any[] = [];
     try {
       await indexModule.handleTextMessage(fakeCtx('Can you prove browser-use is available right now without opening a browser?', replies, extras));
     } finally {
-      indexModule.__setEvidenceAnswerComposerForTest(null);
       writeSparkCliStub(tempRoot);
     }
 
@@ -577,6 +580,13 @@ async function main(): Promise<void> {
     assert.match(replies[0], /Still unproven: .*logged-in pages/);
     assert.match(replies[0], /I did not open a browser from this Telegram turn\./);
     assert.equal(extras[0]?.parse_mode, 'HTML');
+    assert.deepEqual(extras[0]?.__sparkTraceContext, {
+      turnId: 'telegram-update:1',
+      telegramUpdateId: 1,
+      route: 'spark.read_only_state.browser_use_availability',
+      command: 'read_only_state',
+      replyKind: 'read_only_state'
+    });
   });
 }
 

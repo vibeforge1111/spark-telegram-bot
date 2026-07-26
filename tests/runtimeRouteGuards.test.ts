@@ -26,6 +26,7 @@ test('routes fresh Spark health questions to live diagnostics', () => {
   assert.equal(isLiveSparkHealthQuestion('Check whether Spark is healthy, but do not repair anything.'), true);
   assert.equal(isLiveSparkHealthQuestion('Do not repair anything. Is a repair needed from the current status?'), true);
   assert.equal(isLiveSparkHealthQuestion('Earlier you said Spawner was down. What does fresh live state say right now?'), true);
+  assert.equal(isLiveSparkHealthQuestion('Connection check only: can you reply with the current live state? Do not start, create, run, benchmark, or repair anything.'), true);
   assert.equal(isLiveSparkHealthQuestion('Show raw live details for Spark right now.'), false);
   assert.equal(isLiveSparkHealthQuestion('How should we design health architecture for Spark?'), false);
   assert.equal(

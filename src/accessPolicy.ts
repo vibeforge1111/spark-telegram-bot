@@ -1,4 +1,5 @@
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
+import { level5RuntimeGuardrailsActive } from './level5RuntimeEnv';
 
 export type SparkAccessProfile = 'chat' | 'builder' | 'agent' | 'developer' | 'operator';
 export type SparkAccessRequirement = 'spawner_build' | 'external_research' | 'operating_system';
@@ -154,11 +155,51 @@ export function sparkHighAgencyWorkersAllowed(env: NodeJS.ProcessEnv = process.e
 }
 
 export function sparkLevel5RuntimeGuardrailsActive(env: NodeJS.ProcessEnv = process.env): boolean {
-  return (
-    envFlagEnabled(env.SPARK_ALLOW_HIGH_AGENCY_WORKERS) &&
-    envFlagEnabled(env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS) &&
-    String(env.SPARK_CODEX_SANDBOX || '').trim() === 'danger-full-access'
+  return level5RuntimeGuardrailsActive(env);
+}
+
+function objectRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {};
+}
+
+export function sparkLevel5PayloadProvesFullAccess(payload: Record<string, unknown>): boolean {
+  const level5 = objectRecord(payload.level5);
+  const proof = objectRecord(level5.full_permission_proof);
+  const stateMachine = objectRecord(payload.state_machine);
+  const effectiveAccess = payload.effective_access_level ?? stateMachine.effective_access_level;
+  const serviceEnabled = level5.service_enabled === true || stateMachine.service_can_operate_whole_computer === true;
+  const canOperateWholeComputer = (
+    stateMachine.can_operate_whole_computer === true ||
+    stateMachine.service_can_operate_whole_computer === true ||
+    effectiveAccess === 5
   );
+  const currentPayloadMatchesFullAccess = (
+    effectiveAccess === 5 &&
+    serviceEnabled &&
+    canOperateWholeComputer &&
+    String(level5.effective_codex_sandbox || '') === 'danger-full-access'
+  );
+  if (Object.keys(proof).length > 0) return proof.ok === true && currentPayloadMatchesFullAccess;
+  return currentPayloadMatchesFullAccess;
+}
+
+export function sparkLevel5TelegramTransitionProvesFullPermission(
+  payload: Record<string, unknown>,
+  runner?: SparkAccessRunnerCapability
+): boolean {
+  return sparkLevel5PayloadProvesFullAccess(payload) && runner?.runnerWritable === 'yes';
+}
+
+export function sparkLevel5TelegramPermissionProofError(
+  payload: Record<string, unknown>,
+  runner?: SparkAccessRunnerCapability
+): string | null {
+  if (sparkLevel5TelegramTransitionProvesFullPermission(payload, runner)) return null;
+  if (runner?.runnerWritable !== 'yes') {
+    const detail = runner?.failureReason ? ` (${runner.failureReason})` : '';
+    return `Telegram runner is read-only${detail}.`;
+  }
+  return 'Level 5 status did not prove effective full-access sandbox.';
 }
 
 export function validateSparkAccessProfileForRuntime(
@@ -306,7 +347,7 @@ function renderSparkAccessCurrentSummary(profile: SparkAccessProfile): string {
       rows.push('Setup helper: `/access_setup`.');
       break;
     case 'operator':
-      rows.push('Whole-computer operator work is on for this trusted local install.');
+      rows.push('Whole-computer operator work is authorized only after live guardrail and effective-sandbox proof.');
       rows.push('Use this only when Spark truly needs files outside Spark workspaces.');
       break;
   }
@@ -359,7 +400,7 @@ export function renderSparkAccessBriefStatus(profile: SparkAccessProfile, runner
   if (profile === 'operator') {
     const lines = [
       `You are already on ${sparkAccessLabel(profile)}.`,
-      '\u2022 Whole-computer operator mode is active for this trusted install.',
+      '\u2022 Whole-computer operator mode still needs live guardrail and effective-sandbox proof before Spark claims full access.',
       runnerSummary,
       '\u2022 Safety checks still stay on for secrets, deletes, publishing, and deploys.',
       'Use `/access 4` to return to the safer workspace sandbox.'
@@ -395,7 +436,7 @@ export function renderSparkAccessChangeSummary(profile: SparkAccessProfile, runn
   if (profile === 'operator') {
     const runnerLine = runner?.runnerWritable === 'no'
       ? 'One note: this runner still looks read-only, so Spark may route some local work through Mission Control.'
-      : 'Spark can use this trusted local machine for operator work.';
+      : 'Spark will verify live guardrails and the effective Codex sandbox before claiming whole-computer work here.';
     return [
       confirmation,
       '',

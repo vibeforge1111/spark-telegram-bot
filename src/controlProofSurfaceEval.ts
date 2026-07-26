@@ -1,0 +1,323 @@
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { LEGACY_PROMPT_SURFACE_BLOCKED_REFS } from './controlProofLegacyPromptSurface';
+import type { ControlProofCanaryObservationTemplate } from './controlProofLiveCanaryPack';
+
+export type SurfaceEvalIssueCode =
+  | 'missing_reply'
+  | 'raw_reason_code'
+  | 'raw_platform_id'
+  | 'raw_proof_ref'
+  | 'raw_trace_ref'
+  | 'local_path'
+  | 'stack_trace'
+  | 'generic_chatbot_voice'
+  | 'report_card_voice'
+  | 'markdown_bold'
+  | 'dash_family'
+  | 'emoji_spam'
+  | 'paragraph_too_long'
+  | 'proof_panel_on_natural_surface'
+  | 'legacy_source_reference'
+  | 'domain_chip_onboarding_cramped'
+  | 'domain_chip_onboarding_internal_jargon'
+  | 'domain_chip_onboarding_missing_definition'
+  | 'domain_chip_onboarding_missing_next_action'
+  | 'domain_chip_onboarding_missing_privacy_boundary'
+  | 'domain_chip_onboarding_score_below_9'
+  | 'unexpected_unchecked_reply_shape';
+
+export interface SurfaceEvalIssue {
+  caseId: string;
+  code: SurfaceEvalIssueCode;
+  detail: string;
+}
+
+export interface SurfaceEvalCaseResult {
+  caseId: string;
+  replyShape: string;
+  checked: boolean;
+  issueCodes: SurfaceEvalIssueCode[];
+  domainChipOnboardingScore?: number;
+}
+
+export interface SurfaceEvalResult {
+  ok: boolean;
+  observationPath: string;
+  checkedCases: number;
+  skippedCases: number;
+  issues: SurfaceEvalIssue[];
+  cases: SurfaceEvalCaseResult[];
+}
+
+const CHECKED_REPLY_SHAPES = new Set(['natural', 'compact_card', 'media_reply', 'clarification']);
+const INSPECT_REPLY_SHAPES = new Set(['proof_panel']);
+const MAX_PARAGRAPH_WORDS = 70;
+const STATUS_ICON_PATTERN = /✅|⚠️|🟢|🟡|🔴|⚪|🛠️|✨/gu;
+const NATURAL_SURFACE_REPLY_SHAPES = new Set(['natural', 'media_reply', 'clarification']);
+const REPORT_CARD_LINE_PATTERN = /^(?:Mission|Provider|Move|Status|Result|Tasks|Relay):(?:\s+\S.*)?$/gim;
+const DOMAIN_CHIP_ONBOARDING_PATTERN = /\bdomain[-\s]+chip\b/i;
+const DOMAIN_CHIP_ONBOARDING_SIGNAL_PATTERN = /\b(?:I can (?:build|turn|make|create|explain)|A Domain Chip is|Reply\s+"go"|Before Spark can call|proof Spark needs|benchmark cases|Recommended path|Advanced PRD|DCL scaffold)\b/i;
+const DOMAIN_CHIP_INTERNAL_JARGON_PATTERN = /\b(?:Advanced PRD|router boundaries|activation notes|DCL scaffold|external API calls?|artifact manifest|adapter map|network_absorbable|canonical|promotion gate)\b/i;
+const DOMAIN_CHIP_DEFINITION_PATTERN = /\bDomain Chip is (?:a|an)\b/i;
+const DOMAIN_CHIP_NEXT_ACTION_PATTERN = /(?:\bReply\s+"go"|\b(?:tell me|choose|say|ask for)\b)/i;
+const DOMAIN_CHIP_PRIVACY_PATTERN = /\b(?:private|local|not publish|no publishing|no network|stays with you)\b/i;
+const DOMAIN_CHIP_DOMAIN_FIT_PATTERN = /\b(?:for this one|domain chip\b.{0,60}\bfor\b|for (?:pull requests?|prs?|security|release|review|research|operations?|startup|coaching|media|creative|coding|tooling)|target workflow|user'?s workflow|review checklist|good and risky examples|benchmark cases|first use case)\b/i;
+
+const ISSUE_RULES: Array<{ code: SurfaceEvalIssueCode; pattern: RegExp; detail: string }> = [
+  {
+    code: 'raw_reason_code',
+    pattern: /\b(?:tool_not_allowed_by_policy|owner_mismatch|route_not_selected_by_turn_envelope|governor_outcome_deny|harness_core(?::[A-Za-z0-9_-]+)?)\b/i,
+    detail: 'Raw Harness or policy reason code is visible.'
+  },
+  {
+    code: 'raw_proof_ref',
+    pattern: /\b(?:turn:sha256:[a-f0-9]{12,}|proof_capsule|proofCapsule|harnessProofRef)\b/i,
+    detail: 'Raw proof reference is visible outside an inspect surface.'
+  },
+  {
+    code: 'raw_trace_ref',
+    pattern: /\b(?:trace:(?:sha256:)?[a-z0-9][a-z0-9_.:-]{7,}|trace_id|request_id|traceRef|trace_ref)\b/i,
+    detail: 'Raw trace or request reference is visible outside an inspect surface.'
+  },
+  {
+    code: 'raw_platform_id',
+    pattern: /\b(?:chat_id|user_id|message_id|file_id|media_group_id|callback_query_id|inline_message_id)\b(?:\s*[:=]\s*)?(?:["']?[A-Za-z0-9_:-]{3,}["']?)?/i,
+    detail: 'Raw Telegram platform id is visible outside an inspect surface.'
+  },
+  {
+    code: 'local_path',
+    pattern: /\b(?:\/Users\/|\/var\/folders\/|\/private\/tmp\/|[A-Za-z]:\\)/,
+    detail: 'Local filesystem path is visible.'
+  },
+  {
+    code: 'stack_trace',
+    pattern: /\b(?:Traceback \(most recent call last\)|at\s+\S.*:\d+:\d+|Command failed:)/i,
+    detail: 'Stack trace or command failure text is visible.'
+  },
+  {
+    code: 'generic_chatbot_voice',
+    pattern: /\b(?:as an ai(?: language model)?|how (?:may|can) i assist you|certainly[!.]?\s+(?:here(?:'s| is)|i can help)|is there anything else i can help)\b/i,
+    detail: 'Reply sounds like a generic support chatbot instead of Spark.'
+  },
+  {
+    code: 'report_card_voice',
+    pattern: /^(?:Mission|Provider|Move|Status|Result|Tasks|Relay):?\s*$/im,
+    detail: 'Natural surface uses standalone report-card headings.'
+  },
+  {
+    code: 'markdown_bold',
+    pattern: /\*\*[^*]+\*\*/,
+    detail: 'Reply relies on bold Markdown instead of plain Telegram composition.'
+  },
+  {
+    code: 'dash_family',
+    pattern: /[\u2012\u2013\u2014\u2015\u2212]/,
+    detail: 'Reply uses dash-family punctuation that should be normalized before Telegram.'
+  },
+  {
+    code: 'proof_panel_on_natural_surface',
+    pattern: /\b(?:Harness Proof|Evidence proof (?:refs|capsules|gaps)|Audit (?:actionable|blocking|fresh-strict|posture)|Blocking gap planes|Legacy proof gaps visible|Gap counts:|Gate scope:|Release gate:|Publish gate:)\b/i,
+    detail: 'Proof-panel text leaked into a natural surface.'
+  }
+];
+
+function readObservations(observationPath: string): ControlProofCanaryObservationTemplate {
+  return JSON.parse(readFileSync(observationPath, 'utf8')) as ControlProofCanaryObservationTemplate;
+}
+
+function defaultObservationPath(repoRoot: string): string {
+  return path.join(repoRoot, 'outputs', 'live-canary-full', 'live-canary-observations.json');
+}
+
+function isDomainChipOnboardingReply(text: string, replyShape: string): boolean {
+  return NATURAL_SURFACE_REPLY_SHAPES.has(replyShape) &&
+    DOMAIN_CHIP_ONBOARDING_PATTERN.test(text) &&
+    DOMAIN_CHIP_ONBOARDING_SIGNAL_PATTERN.test(text);
+}
+
+function domainChipOnboardingScore(text: string, replyShape: string): number | null {
+  if (!isDomainChipOnboardingReply(text, replyShape)) return null;
+
+  let score = 0;
+  if (DOMAIN_CHIP_DEFINITION_PATTERN.test(text)) score += 2;
+  if (DOMAIN_CHIP_DOMAIN_FIT_PATTERN.test(text)) score += 2;
+  if (DOMAIN_CHIP_PRIVACY_PATTERN.test(text)) score += 2;
+  if (DOMAIN_CHIP_NEXT_ACTION_PATTERN.test(text)) score += 2;
+
+  const paragraphs = text.split(/\n\n+/).map((entry) => entry.trim()).filter(Boolean);
+  if (paragraphs.length >= 2 && !/[^\n]\n[^\n]/.test(text)) score += 1;
+  if (!DOMAIN_CHIP_INTERNAL_JARGON_PATTERN.test(text)) score += 1;
+
+  return score;
+}
+
+function issueCodesForReply(text: string, replyShape: string): Array<Omit<SurfaceEvalIssue, 'caseId'>> {
+  const issues: Array<Omit<SurfaceEvalIssue, 'caseId'>> = [];
+  for (const rule of ISSUE_RULES) {
+    if (rule.pattern.test(text)) {
+      issues.push({ code: rule.code, detail: rule.detail });
+    }
+  }
+
+  if (
+    NATURAL_SURFACE_REPLY_SHAPES.has(replyShape) &&
+    ((text.match(REPORT_CARD_LINE_PATTERN) || []).length >= 2)
+  ) {
+    issues.push({
+      code: 'report_card_voice',
+      detail: 'Natural surface uses multiple report-card label lines instead of conversational wording.'
+    });
+  }
+
+  const lowerText = text.toLocaleLowerCase();
+  for (const ref of LEGACY_PROMPT_SURFACE_BLOCKED_REFS) {
+    const pattern = ref.patterns.find((entry) => lowerText.includes(entry.toLocaleLowerCase()));
+    if (pattern) {
+      issues.push({
+        code: 'legacy_source_reference',
+        detail: `Legacy source reference leaked into reply surface: ${ref.label}.`
+      });
+      break;
+    }
+  }
+
+  const emojiCount = (text.match(STATUS_ICON_PATTERN) || []).length;
+  if (emojiCount > 2) {
+    issues.push({ code: 'emoji_spam', detail: 'Reply uses too many status emoji for a normal surface.' });
+  }
+
+  for (const paragraph of text.split(/\n\n+/).map((entry) => entry.trim()).filter(Boolean)) {
+    const wordCount = paragraph.split(/\s+/).filter(Boolean).length;
+    if (wordCount > MAX_PARAGRAPH_WORDS) {
+      issues.push({ code: 'paragraph_too_long', detail: `Paragraph has ${wordCount} words; max is ${MAX_PARAGRAPH_WORDS}.` });
+      break;
+    }
+  }
+
+  if (isDomainChipOnboardingReply(text, replyShape)) {
+    const paragraphs = text.split(/\n\n+/).map((entry) => entry.trim()).filter(Boolean);
+    if (/[^\n]\n[^\n]/.test(text) || paragraphs.length < 2) {
+      issues.push({ code: 'domain_chip_onboarding_cramped', detail: 'Domain Chip onboarding should use short separated paragraphs, not a dense route-style block.' });
+    }
+    if (DOMAIN_CHIP_INTERNAL_JARGON_PATTERN.test(text)) {
+      issues.push({ code: 'domain_chip_onboarding_internal_jargon', detail: 'Domain Chip onboarding exposes internal planning or release-gate jargon.' });
+    }
+    if (!DOMAIN_CHIP_DEFINITION_PATTERN.test(text)) {
+      issues.push({ code: 'domain_chip_onboarding_missing_definition', detail: 'Domain Chip onboarding should explain what a Domain Chip is for first-time users.' });
+    }
+    if (!DOMAIN_CHIP_NEXT_ACTION_PATTERN.test(text)) {
+      issues.push({ code: 'domain_chip_onboarding_missing_next_action', detail: 'Domain Chip onboarding needs one clear next action.' });
+    }
+    if (!DOMAIN_CHIP_PRIVACY_PATTERN.test(text)) {
+      issues.push({ code: 'domain_chip_onboarding_missing_privacy_boundary', detail: 'Domain Chip onboarding must state the private/local boundary before work starts.' });
+    }
+    const score = domainChipOnboardingScore(text, replyShape) || 0;
+    if (score < 9) {
+      issues.push({
+        code: 'domain_chip_onboarding_score_below_9',
+        detail: `Domain Chip onboarding scored ${score}/10; minimum clean score is 9/10.`
+      });
+    }
+  }
+
+  return issues;
+}
+
+export function checkSurfaceEval(input: {
+  repoRoot?: string;
+  observationPath?: string;
+  observations?: ControlProofCanaryObservationTemplate;
+} = {}): SurfaceEvalResult {
+  const repoRoot = input.repoRoot || process.cwd();
+  const observationPath = input.observationPath || defaultObservationPath(repoRoot);
+  if (!input.observations && !existsSync(observationPath)) {
+    return {
+      ok: false,
+      observationPath,
+      checkedCases: 0,
+      skippedCases: 0,
+      issues: [{ caseId: 'surface_eval', code: 'missing_reply', detail: `Observation packet is missing: ${observationPath}.` }],
+      cases: []
+    };
+  }
+
+  const observations = input.observations || readObservations(observationPath);
+  const issues: SurfaceEvalIssue[] = [];
+  const cases: SurfaceEvalCaseResult[] = [];
+  let checkedCases = 0;
+  let skippedCases = 0;
+
+  for (const entry of observations.cases) {
+    const replyShape = entry.expected.replyShape;
+    if (!CHECKED_REPLY_SHAPES.has(replyShape)) {
+      skippedCases += 1;
+      if (!INSPECT_REPLY_SHAPES.has(replyShape)) {
+        issues.push({
+          caseId: entry.id,
+          code: 'unexpected_unchecked_reply_shape',
+          detail: `Reply shape "${replyShape}" is not checked by surface eval and is not an inspect-only shape.`
+        });
+      }
+      cases.push({ caseId: entry.id, replyShape, checked: false, issueCodes: [] });
+      continue;
+    }
+
+    checkedCases += 1;
+    const reply = String(entry.observed.reply || '').trim();
+    const caseIssues: SurfaceEvalIssue[] = [];
+    if (!reply) {
+      caseIssues.push({ caseId: entry.id, code: 'missing_reply', detail: 'Observed reply is missing.' });
+    } else {
+      for (const issue of issueCodesForReply(reply, replyShape)) {
+        caseIssues.push({ caseId: entry.id, ...issue });
+      }
+    }
+    const onboardingScore = reply ? domainChipOnboardingScore(reply, replyShape) : null;
+    issues.push(...caseIssues);
+    cases.push({
+      caseId: entry.id,
+      replyShape,
+      checked: true,
+      issueCodes: caseIssues.map((issue) => issue.code),
+      ...(onboardingScore === null ? {} : { domainChipOnboardingScore: onboardingScore })
+    });
+  }
+
+  return {
+    ok: issues.length === 0,
+    observationPath,
+    checkedCases,
+    skippedCases,
+    issues,
+    cases
+  };
+}
+
+export function formatSurfaceEvalReport(result: SurfaceEvalResult): string {
+  const onboardingScoreCases = result.cases.filter((entry) => typeof entry.domainChipOnboardingScore === 'number');
+  const lines = [
+    'Control-proof surface eval',
+    `Status: ${result.ok ? 'clean' : 'gaps found'}`,
+    `Observation packet: ${result.observationPath}`,
+    `Checked cases: ${result.checkedCases}`,
+    `Skipped inspect cases: ${result.skippedCases}`,
+    `Issues: ${result.issues.length}`
+  ];
+
+  if (onboardingScoreCases.length) {
+    lines.push('', 'Domain Chip onboarding scores:');
+    for (const entry of onboardingScoreCases) {
+      lines.push(`- ${entry.caseId}: ${entry.domainChipOnboardingScore}/10`);
+    }
+  }
+
+  if (result.issues.length) {
+    lines.push('', 'Issue samples:');
+    for (const issue of result.issues.slice(0, 12)) {
+      lines.push(`- ${issue.caseId}: ${issue.code} | ${issue.detail}`);
+    }
+  }
+
+  return lines.join('\n');
+}

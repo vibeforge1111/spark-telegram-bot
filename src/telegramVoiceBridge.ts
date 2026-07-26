@@ -1,4 +1,5 @@
 import { redactText } from './redaction';
+import { attachTelegramMediaTurnEnvelope } from './telegramMediaEnvelope';
 import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 
 const DEFAULT_VOICE_DOWNLOAD_MAX_BYTES = 20 * 1024 * 1024;
@@ -23,8 +24,55 @@ function mediaExtension(mimeType: string): string {
   return '.audio';
 }
 
-async function responseBuffer(response: Response): Promise<Buffer> {
-  return Buffer.from(await response.arrayBuffer());
+function humanSize(bytes: number): string {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / (1024 * 1024)).toFixed(1)} MiB`
+    : `${(bytes / 1024).toFixed(1)} KiB`;
+}
+
+export function voiceBridgeDownloadLog(downloadMs: number, bytes: number, mimeType: string): string {
+  return JSON.stringify({
+    event: 'voice_bridge_download',
+    downloadMs: Math.max(0, Math.trunc(downloadMs)),
+    bytes: Math.max(0, Math.trunc(bytes)),
+    mime: redactText(mimeType).replace(/\s+/g, ' ').trim().slice(0, 80)
+  });
+}
+
+function redactTelegramVoiceAudioMessage(message: Record<string, unknown>): Record<string, unknown> {
+  const clean = { ...message };
+  for (const key of ['voice', 'audio']) {
+    const media = objectValue(clean[key]);
+    if (!media) continue;
+    const mediaClean = { ...media };
+    delete mediaClean.file_id;
+    delete mediaClean.file_unique_id;
+    clean[key] = mediaClean;
+  }
+  return clean;
+}
+
+async function responseBuffer(response: Response, maxBytes: number): Promise<Buffer> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    return Buffer.from(await response.arrayBuffer());
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw new Error(
+        `Telegram voice file is too large (${humanSize(total)}; limit ${humanSize(maxBytes)}). ` +
+        'An administrator can raise SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES.'
+      );
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
 }
 
 export async function buildVoiceBridgeUpdate(
@@ -43,17 +91,24 @@ export async function buildVoiceBridgeUpdate(
   if (!media) {
     return update;
   }
+  const envelopedUpdate = attachTelegramMediaTurnEnvelope(update);
+  const envelopedMessage = redactTelegramVoiceAudioMessage(objectValue(envelopedUpdate.message) || message);
+  const redactedEnvelopedUpdate = {
+    ...envelopedUpdate,
+    message: envelopedMessage,
+  };
 
   const fileId = String(media.file_id || '').trim();
   if (!fileId || !ctx?.telegram?.getFileLink) {
-    return update;
+    return redactedEnvelopedUpdate;
   }
 
   try {
     const startedAt = Date.now();
     const maxBytes = voiceDownloadMaxBytes();
     const fileLink = await ctx.telegram.getFileLink(fileId);
-    if (!fileLink.toString().startsWith('https://api.telegram.org/')) {
+    const parsedFileLink = new URL(fileLink.toString());
+    if (parsedFileLink.protocol !== 'https:' || parsedFileLink.hostname !== 'api.telegram.org') {
       throw new Error('Invalid file link: expected api.telegram.org host.');
     }
     const response = await fetchImpl(fileLink);
@@ -62,22 +117,28 @@ export async function buildVoiceBridgeUpdate(
     }
     const contentLength = Number.parseInt(response.headers.get('content-length') || '', 10);
     if (Number.isFinite(contentLength) && contentLength > maxBytes) {
-      throw new Error(`Telegram voice file is too large (${contentLength} bytes).`);
+      throw new Error(
+        `Telegram voice file is too large (${humanSize(contentLength)}; limit ${humanSize(maxBytes)}). ` +
+        'An administrator can raise SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES.'
+      );
     }
 
-    const audioBuffer = await responseBuffer(response);
+    const audioBuffer = await responseBuffer(response, maxBytes);
     if (audioBuffer.length > maxBytes) {
-      throw new Error(`Telegram voice file is too large (${audioBuffer.length} bytes).`);
+      throw new Error(
+        `Telegram voice file is too large (${humanSize(audioBuffer.length)}; limit ${humanSize(maxBytes)}). ` +
+        'An administrator can raise SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES.'
+      );
     }
 
     const mimeType = String(media.mime_type || response.headers.get('content-type') || (voice ? 'audio/ogg' : 'application/octet-stream'));
     const filename = `${voice ? 'telegram-voice' : 'telegram-audio'}${mediaExtension(mimeType)}`;
     const downloadMs = Date.now() - startedAt;
-    console.log(`[VoiceBridgeTiming] runner_download_ms=${downloadMs} bytes=${audioBuffer.length} mime=${mimeType}`);
+    console.log(voiceBridgeDownloadLog(downloadMs, audioBuffer.length, mimeType));
     return {
-      ...update,
+      ...redactedEnvelopedUpdate,
       message: {
-        ...message,
+        ...envelopedMessage,
         spark_media: {
           audio_base64: audioBuffer.toString('base64'),
           filename,
@@ -91,6 +152,6 @@ export async function buildVoiceBridgeUpdate(
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     console.warn(`[VoiceBridge] runner media download unavailable: ${redactText(detail)}`);
-    return update;
+    return redactedEnvelopedUpdate;
   }
 }

@@ -1,18 +1,23 @@
 {
   "hard_cap": 3000,
   "warn_cap": 1500,
-  "root": "line-count-gate",
+  "root": "telegram",
+  "owner": "spark-telegram-bot reliability maintainers",
+  "integration_note": "R30 forward convergence and the sealed adoption closeout preserve useful candidate, current-main, authority, privacy, owner-truth, and trace behavior in one canonical lane. The 2026-07-26 counts are an explicit maintainer checkpoint; future batches must ratchet them down.",
   "offenders": {
-    "src/builderBridge.ts": 3894,
-    "src/conversationIntent.ts": 3780,
-    "src/index.ts": 14320,
-    "src/missionRelay.ts": 2946,
-    "src/recursive.ts": 3313,
-    "src/spawner.ts": 2120,
-    "tests/buildE2E.test.ts": 7291,
-    "tests/conversationIntent.test.ts": 2619,
-    "tests/missionRelayFormatting.test.ts": 2498,
-    "tests/recursive.test.ts": 2419,
-    "tests/spawner.test.ts": 2109
+    "src/builderBridge.ts": 2832,
+    "src/controlProofLiveCanaryPack.ts": 3828,
+    "src/conversationIntent.ts": 4017,
+    "src/index.ts": 13052,
+    "src/missionRelay.ts": 2666,
+    "src/recursive.ts": 3374,
+    "src/spawner.ts": 2522,
+    "tests/buildE2E.test.ts": 4690,
+    "tests/controlProofLiveCanaryPack.test.ts": 4064,
+    "tests/conversationIntent.test.ts": 2259,
+    "tests/domainChipLabsCreator.test.ts": 2385,
+    "tests/missionRelayFormatting.test.ts": 1732,
+    "tests/recursive.test.ts": 2475,
+    "tests/spawner.test.ts": 2176
   }
 }

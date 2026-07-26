@@ -2,11 +2,27 @@ import { runTelegramPollingHealth } from './healthPolling';
 import { loadSparkTelegramProfileEnv } from './profileEnv';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 
+export const DEFAULT_RELAY_HEALTH_TIMEOUT_MS = 8000;
+
+export function relayHealthTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  const configured = Number.parseInt(env.SPARK_TELEGRAM_RELAY_HEALTH_TIMEOUT_MS || '', 10);
+  if (!Number.isFinite(configured) || configured <= 0) {
+    return DEFAULT_RELAY_HEALTH_TIMEOUT_MS;
+  }
+  return Math.max(500, Math.min(30_000, configured));
+}
+
 export function relayHealthUrl(env: NodeJS.ProcessEnv = process.env): string {
   const { port, url } = telegramRelayIdentityFromEnv(env);
   if (url) {
     const healthUrl = new URL(url);
-    healthUrl.pathname = '/health';
+    const segments = healthUrl.pathname.split('/').filter(Boolean);
+    if (segments.at(-1) === 'spawner-events') {
+      segments[segments.length - 1] = 'health';
+      healthUrl.pathname = `/${segments.join('/')}`;
+    } else {
+      healthUrl.pathname = '/health';
+    }
     healthUrl.search = '';
     healthUrl.hash = '';
     return healthUrl.toString();
@@ -20,9 +36,15 @@ export async function validateRelayRuntime(
 ): Promise<string> {
   const url = relayHealthUrl(env);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 2500);
+  const timeout = setTimeout(() => controller.abort(), relayHealthTimeoutMs(env));
   try {
-    const response = await fetchImpl(url, { signal: controller.signal });
+    const relaySecret = env.TELEGRAM_RELAY_SECRET?.trim();
+    const response = await fetchImpl(url, {
+      signal: controller.signal,
+      headers: relaySecret
+        ? { 'x-spark-telegram-relay-secret': relaySecret }
+        : undefined
+    });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -32,27 +54,19 @@ export async function validateRelayRuntime(
       runtime?: {
         telegramPolling?: string;
         pollingActive?: boolean;
-        pollingLastGetUpdatesAttemptAt?: string | null;
+        pollingLastErrorAt?: string | null;
         pollingLastError?: string | null;
+        pollingStoppedAt?: string | null;
       };
     };
     const pollingState = payload.runtime?.telegramPolling;
     if (!pollingState) {
       throw new Error('Telegram polling status is missing');
     }
-    if (pollingState !== 'active' && pollingState !== 'disabled_smoke') {
-      throw new Error(`Telegram polling is ${pollingState}`);
-    }
-    if (pollingState === 'active') {
-      const lastAttempt = payload.runtime?.pollingLastGetUpdatesAttemptAt;
-      if (!lastAttempt) {
-        throw new Error('Telegram polling is active locally but no Bot API getUpdates attempt is recorded');
-      }
-      const ageMs = Date.now() - Date.parse(lastAttempt);
-      if (!Number.isFinite(ageMs) || ageMs > 120_000) {
-        const error = payload.runtime?.pollingLastError ? ` last_error=${payload.runtime.pollingLastError}` : '';
-        throw new Error(`Telegram polling getUpdates attempt is stale${error}`);
-      }
+    if (pollingState !== 'active' && pollingState !== 'disabled' && pollingState !== 'disabled_smoke') {
+      const lastError = payload.runtime?.pollingLastError ? `: ${payload.runtime.pollingLastError}` : '';
+      const stoppedAt = payload.runtime?.pollingStoppedAt ? ` at ${payload.runtime.pollingStoppedAt}` : '';
+      throw new Error(`Telegram polling is ${pollingState}${stoppedAt}${lastError}`);
     }
     const profile = payload.relay?.profile || telegramRelayIdentityFromEnv(env).profile;
     const port = payload.relay?.port || new URL(url).port;
@@ -60,23 +74,27 @@ export async function validateRelayRuntime(
     return `${profile}@${port}${payload.pid ? ` pid=${payload.pid}` : ''}${polling}`;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Telegram relay runtime is not reachable at ${url}: ${message}`);
+    throw new Error(`Telegram relay runtime is not reachable at ${url}: ${message}`, { cause: error });
   } finally {
     clearTimeout(timeout);
   }
 }
 
 async function main(): Promise<void> {
-  loadSparkTelegramProfileEnv(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  const json = args.includes('--json');
+  loadSparkTelegramProfileEnv(args, process.env, { preserveExisting: true });
   const missingProfileToken = process.env.SPARK_PROFILE_TOKEN_MISSING?.trim();
   if (missingProfileToken && !process.env.BOT_TOKEN?.trim()) {
     throw new Error(
       `Could not load ${missingProfileToken}. Run this from an approved Spark secret session, or set TEST_BOT_TOKEN for token health checks.`
     );
   }
-  await runTelegramPollingHealth();
+  const polling = await runTelegramPollingHealth({ output: json ? 'silent' : 'text' });
   const detail = await validateRelayRuntime();
-  console.log(`Relay runtime: OK (${detail})`);
+  console.log(json
+    ? JSON.stringify({ status: 'ok', detail, telegram: polling })
+    : `Relay runtime: OK (${detail})`);
 }
 
 if (require.main === module) {

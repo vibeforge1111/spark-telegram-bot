@@ -1,0 +1,374 @@
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import {
+  summarizeControlProofCanaryObservations,
+  type ControlProofCanaryCategory,
+  type ControlProofCanaryObservationTemplate,
+  type ControlProofCanaryObservationSummary
+} from './controlProofLiveCanaryPack';
+
+export interface CapabilityEvidencePolicy {
+  capabilityKey: string;
+  label: string;
+  categories: ControlProofCanaryCategory[];
+  successCaseIds: string[];
+  failureOrBoundaryCaseIds: string[];
+  requiresPublishHandoff?: boolean;
+}
+
+export interface CapabilityEvidenceRecord {
+  capabilityKey: string;
+  label: string;
+  lastSuccessAt: string | null;
+  lastSuccessCaseIds: string[];
+  lastFailureOrBoundaryAt: string | null;
+  lastFailureOrBoundaryCaseIds: string[];
+  publishHandoffEvidence: boolean;
+}
+
+export interface CapabilityEvidenceGap {
+  capabilityKey: string;
+  caseId?: string;
+  reason:
+    | 'missing_success_policy'
+    | 'missing_failure_policy'
+    | 'missing_case'
+    | 'case_not_passed'
+    | 'missing_capture'
+    | 'category_mismatch'
+    | 'overlapping_policy_case'
+    | 'duplicate_capability_key'
+    | 'duplicate_policy_case'
+    | 'missing_publish_handoff';
+  detail: string;
+}
+
+export interface CapabilityEvidenceResult {
+  ok: boolean;
+  observationPath: string;
+  capabilityCount: number;
+  evidenceCollectedAt: string | null;
+  records: CapabilityEvidenceRecord[];
+  gaps: CapabilityEvidenceGap[];
+}
+
+export const CAPABILITY_EVIDENCE_POLICIES: CapabilityEvidencePolicy[] = [
+  {
+    capabilityKey: 'telegram_no_action_boundary',
+    label: 'Telegram no-action and route-hijack boundary',
+    categories: ['no_action'],
+    successCaseIds: ['cp-noaction-001', 'cp-noaction-004'],
+    failureOrBoundaryCaseIds: ['cp-noaction-002', 'cp-noaction-003']
+  },
+  {
+    capabilityKey: 'fresh_authority_status',
+    label: 'Fresh runtime and authority status',
+    categories: ['authority', 'no_action'],
+    successCaseIds: ['cp-authority-001', 'cp-authority-002'],
+    failureOrBoundaryCaseIds: ['cp-noaction-004']
+  },
+  {
+    capabilityKey: 'proof_panel',
+    label: 'Harness proof panel',
+    categories: ['proof'],
+    successCaseIds: ['cp-proof-001'],
+    failureOrBoundaryCaseIds: ['cp-proof-002']
+  },
+  {
+    capabilityKey: 'builder_gateway',
+    label: 'Builder gateway and memory diagnostic boundary',
+    categories: ['builder'],
+    successCaseIds: ['cp-builder-001'],
+    failureOrBoundaryCaseIds: ['cp-builder-002']
+  },
+  {
+    capabilityKey: 'streaming_rich_messages',
+    label: 'Telegram streaming and Rich Messages',
+    categories: ['streaming', 'rich_messages'],
+    successCaseIds: ['cp-streaming-002'],
+    failureOrBoundaryCaseIds: ['cp-streaming-001']
+  },
+  {
+    capabilityKey: 'memory',
+    label: 'Memory recall and Memory Doctor',
+    categories: ['memory'],
+    successCaseIds: ['cp-memory-001'],
+    failureOrBoundaryCaseIds: ['cp-memory-002']
+  },
+  {
+    capabilityKey: 'access',
+    label: 'Access state and runner capability',
+    categories: ['access'],
+    successCaseIds: ['cp-access-001'],
+    failureOrBoundaryCaseIds: ['cp-access-002']
+  },
+  {
+    capabilityKey: 'model_switch',
+    label: 'Model and mission-provider switching',
+    categories: ['model_switch'],
+    successCaseIds: ['cp-model-002'],
+    failureOrBoundaryCaseIds: ['cp-model-001']
+  },
+  {
+    capabilityKey: 'web_research',
+    label: 'External research boundary',
+    categories: ['web_research'],
+    successCaseIds: ['cp-web-002'],
+    failureOrBoundaryCaseIds: ['cp-web-001']
+  },
+  {
+    capabilityKey: 'spawner_build',
+    label: 'Spawner build route',
+    categories: ['spawner_build'],
+    successCaseIds: ['cp-spawner-002'],
+    failureOrBoundaryCaseIds: ['cp-spawner-001']
+  },
+  {
+    capabilityKey: 'mission_launch',
+    label: 'Mission launch and no-edit probe route',
+    categories: ['mission', 'no_action'],
+    successCaseIds: ['cp-mission-001'],
+    failureOrBoundaryCaseIds: ['cp-noaction-001', 'cp-noaction-002']
+  },
+  {
+    capabilityKey: 'media_voice_audio',
+    label: 'Image, voice, and audio media boundary',
+    categories: ['media', 'voice', 'audio'],
+    successCaseIds: ['cp-media-002', 'cp-voice-001', 'cp-audio-001'],
+    failureOrBoundaryCaseIds: ['cp-media-001']
+  },
+  {
+    capabilityKey: 'publish_registry',
+    label: 'Publish and registry drift boundary',
+    categories: ['publish'],
+    successCaseIds: ['cp-publish-001'],
+    failureOrBoundaryCaseIds: [],
+    requiresPublishHandoff: true
+  }
+];
+
+function readObservations(observationPath: string): ControlProofCanaryObservationTemplate {
+  return JSON.parse(readFileSync(observationPath, 'utf8')) as ControlProofCanaryObservationTemplate;
+}
+
+function repoObservationPath(repoRoot: string): string {
+  return path.join(repoRoot, 'outputs', 'live-canary-full', 'live-canary-observations.json');
+}
+
+function caseSummaryById(summary: ControlProofCanaryObservationSummary): Map<string, ControlProofCanaryObservationSummary['cases'][number]> {
+  return new Map(summary.cases.map((entry) => [entry.id, entry]));
+}
+
+function checkCaseIds(
+  policy: CapabilityEvidencePolicy,
+  caseIds: string[],
+  byId: Map<string, ControlProofCanaryObservationSummary['cases'][number]>,
+  kind: 'success' | 'failure'
+): CapabilityEvidenceGap[] {
+  const gaps: CapabilityEvidenceGap[] = [];
+  if (caseIds.length === 0) {
+    gaps.push({
+      capabilityKey: policy.capabilityKey,
+      reason: kind === 'success' ? 'missing_success_policy' : 'missing_failure_policy',
+      detail: `Capability has no ${kind === 'success' ? 'last-success' : 'last-failure/boundary'} evidence policy.`
+    });
+    return gaps;
+  }
+
+  for (const caseId of caseIds) {
+    const entry = byId.get(caseId);
+    if (!entry) {
+      gaps.push({ capabilityKey: policy.capabilityKey, caseId, reason: 'missing_case', detail: 'Required canary evidence case is missing.' });
+      continue;
+    }
+    if (!policy.categories.includes(entry.category)) {
+      gaps.push({
+        capabilityKey: policy.capabilityKey,
+        caseId,
+        reason: 'category_mismatch',
+        detail: `Required canary evidence case category is ${entry.category}; expected one of ${policy.categories.join(', ')}.`
+      });
+    }
+    if (entry.verdict !== 'pass') {
+      gaps.push({ capabilityKey: policy.capabilityKey, caseId, reason: 'case_not_passed', detail: `Required canary evidence case verdict is ${entry.verdict}.` });
+    }
+    if (entry.missingCaptures.length) {
+      gaps.push({ capabilityKey: policy.capabilityKey, caseId, reason: 'missing_capture', detail: `Required canary evidence case is missing captures: ${entry.missingCaptures.join(', ')}.` });
+    }
+  }
+  return gaps;
+}
+
+function casesHaveCompletePassingEvidence(
+  caseIds: string[],
+  byId: Map<string, ControlProofCanaryObservationSummary['cases'][number]>
+): boolean {
+  return caseIds.length > 0 && caseIds.every((caseId) => {
+    const entry = byId.get(caseId);
+    return entry?.verdict === 'pass' && entry.missingCaptures.length === 0;
+  });
+}
+
+function duplicateCaseGaps(
+  policy: CapabilityEvidencePolicy,
+  caseIds: string[],
+  kind: 'success' | 'failure'
+): CapabilityEvidenceGap[] {
+  const counts = new Map<string, number>();
+  for (const caseId of caseIds) {
+    counts.set(caseId, (counts.get(caseId) ?? 0) + 1);
+  }
+
+  return [...counts.entries()].flatMap(([caseId, count]) => {
+    if (count <= 1) return [];
+    return [{
+      capabilityKey: policy.capabilityKey,
+      caseId,
+      reason: 'duplicate_policy_case' as const,
+      detail: `Capability policy lists ${caseId} ${count} times in ${kind} evidence; repeated cases do not add capability proof.`
+    }];
+  });
+}
+
+export function checkCapabilityEvidence(input: {
+  repoRoot?: string;
+  observationPath?: string;
+  observations?: ControlProofCanaryObservationTemplate;
+  policies?: CapabilityEvidencePolicy[];
+} = {}): CapabilityEvidenceResult {
+  const repoRoot = input.repoRoot || process.cwd();
+  const observationPath = input.observationPath || repoObservationPath(repoRoot);
+  if (!input.observations && !existsSync(observationPath)) {
+    return {
+      ok: false,
+      observationPath,
+      capabilityCount: 0,
+      evidenceCollectedAt: null,
+      records: [],
+      gaps: [{
+        capabilityKey: 'capability_evidence',
+        reason: 'missing_case',
+        detail: `Observation packet is missing: ${observationPath}.`
+      }]
+    };
+  }
+
+  const observations = input.observations || readObservations(observationPath);
+  const summary = summarizeControlProofCanaryObservations(observations, {
+    now: observations.evidence?.collectedAt || observations.generatedAt
+  });
+  const byId = caseSummaryById(summary);
+  const policies = input.policies || CAPABILITY_EVIDENCE_POLICIES;
+  const gaps: CapabilityEvidenceGap[] = [];
+  const records: CapabilityEvidenceRecord[] = [];
+  const policyKeyCounts = new Map<string, number>();
+
+  for (const policy of policies) {
+    policyKeyCounts.set(policy.capabilityKey, (policyKeyCounts.get(policy.capabilityKey) ?? 0) + 1);
+  }
+
+  for (const policy of policies) {
+    gaps.push(...duplicateCaseGaps(policy, policy.successCaseIds, 'success'));
+    gaps.push(...duplicateCaseGaps(policy, policy.failureOrBoundaryCaseIds, 'failure'));
+
+    const overlappingCaseIds = policy.successCaseIds.filter((caseId) => policy.failureOrBoundaryCaseIds.includes(caseId));
+    for (const caseId of overlappingCaseIds) {
+      gaps.push({
+        capabilityKey: policy.capabilityKey,
+        caseId,
+        reason: 'overlapping_policy_case',
+        detail: 'Capability policy cannot use the same canary case as both last-success and last-failure/boundary evidence.'
+      });
+    }
+
+    gaps.push(...checkCaseIds(policy, policy.successCaseIds, byId, 'success'));
+    if (policy.failureOrBoundaryCaseIds.length > 0) {
+      gaps.push(...checkCaseIds(policy, policy.failureOrBoundaryCaseIds, byId, 'failure'));
+    } else if (!policy.requiresPublishHandoff) {
+      gaps.push({
+        capabilityKey: policy.capabilityKey,
+        reason: 'missing_failure_policy',
+        detail: 'Capability has no last-failure/boundary evidence policy.'
+      });
+    }
+
+    const hasPublishHandoffEvidence = Boolean(
+      policy.requiresPublishHandoff &&
+      summary.publishHandoffs &&
+      Object.keys(summary.publishHandoffs).length > 0 &&
+      !summary.readyForPublish
+    );
+    if (policy.requiresPublishHandoff && !hasPublishHandoffEvidence) {
+      gaps.push({
+        capabilityKey: policy.capabilityKey,
+        reason: 'missing_publish_handoff',
+        detail: 'Capability requires publish-not-ready handoff evidence, but none is present.'
+      });
+    }
+
+    records.push({
+      capabilityKey: policy.capabilityKey,
+      label: policy.label,
+      lastSuccessAt: casesHaveCompletePassingEvidence(policy.successCaseIds, byId)
+        ? summary.runtimeEvidenceCollectedAt
+        : null,
+      lastSuccessCaseIds: [...policy.successCaseIds],
+      lastFailureOrBoundaryAt: (
+        casesHaveCompletePassingEvidence(policy.failureOrBoundaryCaseIds, byId) ||
+        hasPublishHandoffEvidence
+      )
+        ? summary.runtimeEvidenceCollectedAt
+        : null,
+      lastFailureOrBoundaryCaseIds: [...policy.failureOrBoundaryCaseIds],
+      publishHandoffEvidence: hasPublishHandoffEvidence
+    });
+  }
+
+  for (const [capabilityKey, count] of policyKeyCounts) {
+    if (count <= 1) continue;
+    gaps.push({
+      capabilityKey,
+      reason: 'duplicate_capability_key',
+      detail: `Capability policy key appears ${count} times; capability keys must be unique.`
+    });
+  }
+
+  return {
+    ok: gaps.length === 0,
+    observationPath,
+    capabilityCount: policies.length,
+    evidenceCollectedAt: summary.runtimeEvidenceCollectedAt,
+    records,
+    gaps
+  };
+}
+
+export function formatCapabilityEvidenceReport(result: CapabilityEvidenceResult): string {
+  const lines = [
+    'Control-proof capability evidence',
+    `Status: ${result.ok ? 'clean' : 'gaps found'}`,
+    `Observation packet: ${result.observationPath}`,
+    `Evidence collected: ${result.evidenceCollectedAt || 'missing'}`,
+    `Capabilities checked: ${result.capabilityCount}`,
+    `Gaps: ${result.gaps.length}`
+  ];
+
+  if (result.records.length) {
+    lines.push('', 'Evidence records:');
+    for (const record of result.records.slice(0, 16)) {
+      const failureSource = record.publishHandoffEvidence
+        ? 'publish handoff'
+        : record.lastFailureOrBoundaryCaseIds.join(', ');
+      lines.push(`- ${record.capabilityKey}: success ${record.lastSuccessAt || 'missing'} via ${record.lastSuccessCaseIds.join(', ')} | failure/boundary ${record.lastFailureOrBoundaryAt || 'missing'} via ${failureSource || 'missing'}`);
+    }
+  }
+
+  if (result.gaps.length) {
+    lines.push('', 'Gap samples:');
+    for (const gap of result.gaps.slice(0, 12)) {
+      lines.push(`- ${gap.capabilityKey}${gap.caseId ? `/${gap.caseId}` : ''}: ${gap.reason} | ${gap.detail}`);
+    }
+  }
+
+  return lines.join('\n');
+}

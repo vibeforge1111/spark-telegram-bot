@@ -1,0 +1,53 @@
+# Spark Proof Capsule Coverage
+
+Date: 2026-06-26
+Status: active implementation note
+
+## Purpose
+
+This checker covers the proof-capsule slice of the reliability ladder. It starts from the Harness Core legacy authority inventory and verifies that every action-capable Telegram plane has exactly one declared proof path.
+
+The checker is intentionally source-backed. It does not claim live behavior from sampled logs; it proves the inventory and source still agree on where proof is produced or joined.
+
+## Command
+
+```bash
+npm run control:proof:capsules -- --strict
+```
+
+Useful variants:
+
+```bash
+npm run control:proof:capsules
+npm run control:proof:capsules -- --json
+```
+
+## Proof Path Types
+
+- `direct_capsule`: the plane attaches or emits the Telegram Harness proof capsule directly.
+- `joined_capsule`: the plane preserves a single downstream proof chain instead of minting a duplicate capsule.
+- `explicit_no_action`: the plane records blocked, skipped, or not-started Harness evidence when no action happens.
+
+Each action-capable inventory plane must have one policy, not zero and not many. Duplicate proof paths are treated as drift because they make later trace joins ambiguous.
+
+Each policy must also name at least one source marker. A policy without source markers is not source-backed proof; it is only a declaration and must fail the gate.
+
+Source marker lists must be unique. Repeating the same marker does not add another proof source, and the gate treats it as coverage drift rather than broader proof.
+
+Source markers must be specific enough to prove the path being claimed. Broad words like `metadata`, `pending`, `schedule`, `recursive`, `proof`, or `trace` are not enough by themselves; use concrete function names, route names, ledger/authority calls, envelope builders, proof refs, or proof capsule markers.
+
+Policy kind must also match the inventory risk. Execution-capable routes must use `direct_capsule` or `joined_capsule`; `explicit_no_action` is reserved for pending/no-action planes that cannot claim execution proof by themselves.
+
+Policy summaries are checked too. A `direct_capsule` summary must say the route records, emits, or attaches capsule/reply-proof evidence; a `joined_capsule` summary must say the route joins, inherits, preserves, or uses a downstream proof chain; and an `explicit_no_action` summary must say it is no-action/evidence-only and gated by fresh authority. Vague summaries are treated as proof gaps because they let future readers mistake a declaration for a real proof path.
+
+Retired or non-action planes must not keep proof policies. An extra policy is also drift because it can make old routes look like active proof authority.
+
+## Boundary
+
+This checker does not replace the trace continuity audit or trace-join checker:
+
+- `control:proof:audit` proves evidence planes are internally healthy.
+- `control:proof:trace-join` proves route rows join to replies and proof evidence.
+- `control:proof:capsules` proves action-capable authority planes have a declared proof-capsule policy and source markers.
+
+If a future route becomes action-capable, update `src/legacyAuthorityInventory.ts` and add exactly one policy in `src/controlProofCapsuleCoverage.ts` in the same change.

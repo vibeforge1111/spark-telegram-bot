@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { explainSparkError, renderSparkErrorReply } from '../src/errorExplain';
+import {
+  explainHypotheticalSparkScenario,
+  explainSparkError,
+  isHypotheticalSparkTroubleshootingQuestion,
+  renderSparkErrorReply
+} from '../src/errorExplain';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -66,6 +71,15 @@ test('explains slow Spawner handoffs separately from offline Spawner', () => {
   assert.match(reply, /Spark spawner failure: spawner_slow/);
 });
 
+test('explains malformed Spawner success without mission id as missing closure proof', () => {
+  const reply = renderSparkErrorReply(new Error('Spark run bridge returned success but missing mission id.'), 'spawner', true);
+
+  assert.match(reply, /did not return a mission id/i);
+  assert.match(reply, /closure proof/i);
+  assert.match(reply, /Spark spawner failure: spawner_missing_closure_proof/);
+  assert.doesNotMatch(reply, /internal error/i);
+});
+
 test('explains read-only execution as runner capability, not access permission', () => {
   const reply = renderSparkErrorReply(new Error('Operation not permitted: workspace is read-only and apply_patch rejected writes'), 'mission', true);
 
@@ -101,12 +115,53 @@ test('does not mislabel Builder command failures as Telegram config', () => {
   assert.doesNotMatch(reply, /runpy|spark_intelligence\.cli|simulate-telegram-update|Command failed/);
 });
 
+test('does not expose internal command paths in user-facing error details', () => {
+  const reply = renderSparkErrorReply(
+    new Error('Command failed: /Users/operator/private-tools/run-secret-task --workspace /Users/operator/customer-alpha'),
+    'chat',
+    true
+  );
+
+  assert.match(reply, /internal command did not finish cleanly/i);
+  assert.doesNotMatch(reply, /private-tools|run-secret-task|customer-alpha|\/Users\/operator/);
+});
+
+test('classifies command failures from raw redacted evidence before compacting their detail', () => {
+  const explanation = explainSparkError(
+    new Error('Command failed: /opt/spark/provider-check --status 429 quota exceeded'),
+    'chat'
+  );
+
+  assert.equal(explanation.category, 'provider_rate_limit');
+  assert.match(explanation.detail, /internal command did not finish cleanly/i);
+  assert.doesNotMatch(explanation.detail, /provider-check|\/opt\/spark/);
+});
+
 test('explains command timeouts in chat as runtime timeouts', () => {
   const explanation = explainSparkError(new Error('command timed out after 120000ms'), 'chat');
 
   assert.equal(explanation.category, 'chat_runtime_timeout');
   assert.match(explanation.userLine, /chat runtime timeout/);
   assert.match(explanation.repair, /route this kind of long analysis through a Spawner mission/);
+});
+
+test('gives Claude ENOENT a provider-specific safe repair path', () => {
+  const reply = renderSparkErrorReply(new Error('spawn claude ENOENT'), 'chat', true);
+
+  assert.match(reply, /cannot see the Claude executable/i);
+  assert.match(reply, /spark providers status/i);
+  assert.match(reply, /service PATH/i);
+  assert.match(reply, /restart telegram-starter/i);
+  assert.doesNotMatch(reply, /echo ['"]export PATH|\.nvm\/versions|@gmail\.com/i);
+});
+
+test('answers hypothetical component failures without claiming a live check', () => {
+  assert.equal(isHypotheticalSparkTroubleshootingQuestion('What happens if Spawner is offline?'), true);
+  assert.equal(isHypotheticalSparkTroubleshootingQuestion('Is Spawner offline right now?'), false);
+  const reply = explainHypotheticalSparkScenario('What happens if Spawner is offline?');
+  assert.match(reply, /^If Mission Control is offline/);
+  assert.match(reply, /\/diagnose/);
+  assert.doesNotMatch(reply, /I checked|currently|is offline right now/i);
 });
 
 test('explains builder memory failures', () => {
@@ -138,6 +193,16 @@ test('directs provider rate limits to quota or provider switching', () => {
   assert.equal(explanation.category, 'provider_rate_limit');
   assert.match(explanation.userLine, /rate-limiting/);
   assert.match(explanation.repair, /switch providers/);
+});
+
+test('classifies HTTP 404 as a provider endpoint mismatch', () => {
+  const error = Object.assign(new Error('Request failed with status code 404'), {
+    response: { status: 404, statusText: 'Not Found', data: { error: 'Not Found' } }
+  });
+  const explanation = explainSparkError(error, 'chat');
+  assert.equal(explanation.category, 'provider_endpoint');
+  assert.match(explanation.check, /base URL.*model/i);
+  assert.match(explanation.repair, /spark providers status/);
 });
 
 test('directs duplicate Telegram polling to one live process', () => {

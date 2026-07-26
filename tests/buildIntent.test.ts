@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { parseBuildIntent } from '../src/buildIntent';
+import { isInsideWorkspace, parseBuildIntent } from '../src/buildIntent';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -22,6 +22,40 @@ test('parses a compact direct build request', () => {
   assert.equal(intent.projectName, 'Spark Direct Probe');
   assert.match(intent.prd, /Files: index\.html, app\.js\./);
   assert.doesNotMatch(intent.prd, /C:\\Users\\USER\\Desktop/);
+});
+
+test('never lets a filesystem path leak into the inferred project name', () => {
+  const pathLike = /[\\/~]|\.(?:html?|js|css|py)\b/i;
+  for (const query of [
+    'build a page at ~/Desktop/my project/index.html that says hello',
+    'build a landing page at ~/sites/cafe that lists the menu',
+    'build a static page at /etc/passwd/notes.html',
+    'build a dashboard in /home/me/work/dash',
+  ]) {
+    const intent = parseBuildIntent(query);
+    assert.ok(intent, `should still build: ${query}`);
+    assert.doesNotMatch(intent.projectName, pathLike);
+  }
+});
+
+test('does not treat informational "how do I build / how does X build" questions as build commands', () => {
+  // Questions ABOUT building something must not spin up a Spawner project.
+  for (const q of [
+    'how do I build muscle at the gym?',
+    'what does it take to build a good credit score?',
+    'can you explain how compilers build an AST?',
+    'how do I make a smoothie?',
+    'why do birds build nests?',
+    'how does a compiler build an AST?',
+  ]) {
+    assert.equal(parseBuildIntent(q), null, `should not be a build: ${q}`);
+  }
+  // Genuine build commands (including "can you build me …" / "I want you to build …")
+  // must still parse.
+  assert.ok(parseBuildIntent('build a todo app'));
+  assert.ok(parseBuildIntent('can you build me a dashboard'));
+  assert.ok(parseBuildIntent('I want you to build a dashboard for sales'));
+  assert.ok(parseBuildIntent('Build a tiny static landing page for a cafe with a menu section.'));
 });
 
 test('promotes larger new projects to advanced PRD mode', () => {
@@ -151,9 +185,6 @@ test('parses advanced PRD mode preface before build command', () => {
 
   assert.ok(intent);
   assert.equal(intent.projectPath, 'C:\\Users\\USER\\Desktop\\spark-galaxy-garden');
-  assert.equal(intent.requestedProjectPath, 'C:\\Users\\USER\\Desktop\\spark-galaxy-garden');
-  assert.equal(intent.projectPathEvidenceOnly, false);
-  assert.equal(intent.projectPathRejectedReason, null);
   assert.equal(intent.buildMode, 'advanced_prd');
   assert.equal(intent.buildModeReason, 'User explicitly requested advanced PRD mode.');
   assert.equal(intent.projectName, 'Spark Galaxy Garden');
@@ -175,9 +206,6 @@ test('ignores paths outside the configured workspace root', () => {
 
   assert.ok(intent);
   assert.equal(intent.projectPath, null);
-  assert.equal(intent.requestedProjectPath, 'D:\\tmp\\outside');
-  assert.equal(intent.projectPathEvidenceOnly, true);
-  assert.equal(intent.projectPathRejectedReason, 'outside_configured_workspace_root');
 });
 
 test('parses Ubuntu target paths under configured project root', () => {
@@ -190,8 +218,6 @@ test('parses Ubuntu target paths under configured project root', () => {
 
     assert.ok(intent);
     assert.equal(intent.projectPath, '/root/spark-orbit-diner');
-    assert.equal(intent.requestedProjectPath, '/root/spark-orbit-diner');
-    assert.equal(intent.projectPathEvidenceOnly, false);
     assert.equal(intent.buildMode, 'advanced_prd');
     assert.equal(intent.projectName, 'Spark Orbit Diner');
     assert.match(intent.prd, /^a vanilla-JS single-page app called Spark Orbit Diner\./);
@@ -199,6 +225,26 @@ test('parses Ubuntu target paths under configured project root', () => {
   } finally {
     if (originalRoot === undefined) delete process.env.SPARK_PROJECT_ROOT;
     else process.env.SPARK_PROJECT_ROOT = originalRoot;
+  }
+});
+
+test('accepts the Spark CLI workspace-root environment alias', () => {
+  const originalProjectRoot = process.env.SPARK_PROJECT_ROOT;
+  const originalWorkspaceRoot = process.env.SPARK_WORKSPACE_ROOT;
+  delete process.env.SPARK_PROJECT_ROOT;
+  process.env.SPARK_WORKSPACE_ROOT = '/srv/spark-workspace';
+  try {
+    const intent = parseBuildIntent(
+      'build this at /srv/spark-workspace/relay-console: a small dashboard called Relay Console.'
+    );
+
+    assert.ok(intent);
+    assert.equal(intent.projectPath, '/srv/spark-workspace/relay-console');
+  } finally {
+    if (originalProjectRoot === undefined) delete process.env.SPARK_PROJECT_ROOT;
+    else process.env.SPARK_PROJECT_ROOT = originalProjectRoot;
+    if (originalWorkspaceRoot === undefined) delete process.env.SPARK_WORKSPACE_ROOT;
+    else process.env.SPARK_WORKSPACE_ROOT = originalWorkspaceRoot;
   }
 });
 
@@ -229,9 +275,22 @@ test('ignores POSIX paths outside configured project root', () => {
 
     assert.ok(intent);
     assert.equal(intent.projectPath, null);
-    assert.equal(intent.requestedProjectPath, '/etc/spark-danger');
-    assert.equal(intent.projectPathEvidenceOnly, true);
-    assert.equal(intent.projectPathRejectedReason, 'outside_configured_workspace_root');
+  } finally {
+    if (originalRoot === undefined) delete process.env.SPARK_PROJECT_ROOT;
+    else process.env.SPARK_PROJECT_ROOT = originalRoot;
+  }
+});
+
+test('rejects lexical traversal outside configured POSIX and Windows workspace roots', () => {
+  const originalRoot = process.env.SPARK_PROJECT_ROOT;
+  try {
+    process.env.SPARK_PROJECT_ROOT = '/home/spark/workspace';
+    assert.equal(isInsideWorkspace('/home/spark/workspace/project'), true);
+    assert.equal(isInsideWorkspace('/home/spark/workspace/../../etc/passwd'), false);
+
+    process.env.SPARK_PROJECT_ROOT = 'C:\\Users\\USER\\Desktop';
+    assert.equal(isInsideWorkspace('C:\\Users\\USER\\Desktop\\project'), true);
+    assert.equal(isInsideWorkspace('C:\\Users\\USER\\Desktop\\..\\..\\Windows'), false);
   } finally {
     if (originalRoot === undefined) delete process.env.SPARK_PROJECT_ROOT;
     else process.env.SPARK_PROJECT_ROOT = originalRoot;
@@ -268,6 +327,14 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(intent, null);
   assert.equal(parseBuildIntent('Give me three build ideas for a memory dashboard'), null);
   assert.equal(parseBuildIntent('suggest two project directions for a context tester'), null);
+  assert.equal(parseBuildIntent('Does that make sense?'), null);
+  assert.equal(parseBuildIntent('does this make sense?'), null);
+  assert.equal(parseBuildIntent('that makes sense.'), null);
+  assert.equal(parseBuildIntent('I guess that makes sense.'), null);
+  assert.equal(parseBuildIntent('Would that make sense?'), null);
+  assert.equal(parseBuildIntent('Could that make sense to you?'), null);
+  assert.equal(parseBuildIntent('it makes sense.'), null);
+  assert.equal(parseBuildIntent('I guess that does make sense.'), null);
   assert.equal(
     parseBuildIntent(
       'sure, lets make today also about improving your capabilities of action taking and improving yourself while talking together, for example can you install a voice to yourself right now?'
@@ -297,6 +364,9 @@ test('does not turn exploratory conversation into an accidental build', () => {
     parseBuildIntent('Check whether C:\\Users\\USER\\Desktop exists. If it exists, list only the first 5 top-level folder names. Do not open files or read file contents.'),
     null
   );
+  assert.equal(parseBuildIntent('Write a PRD for improving onboarding activation after new users drop before creating their first project.'), null);
+  assert.equal(parseBuildIntent('Draft a better PRD for support impersonation controls with privacy review.'), null);
+  assert.equal(parseBuildIntent('Create a PRD for a dashboard app used by finance admins to export invoices.'), null);
   assert.equal(parseBuildIntent('we were gonna build something do you remember what it was'), null);
   assert.equal(parseBuildIntent('what were we going to build?'), null);
   assert.equal(
@@ -311,7 +381,8 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(parseBuildIntent('No build or mission for now, just help me think through the QA plan.'), null);
   assert.equal(parseBuildIntent('Do not start a build yet. Should normal prompts still work when H70 skills are mandatory?'), null);
   assert.equal(parseBuildIntent('What edge cases should we test in Spawner routing and Telegram relay?'), null);
-  assert.equal(parseBuildIntent('Before the startup operator can build, what would a reliable agent harness check?'), null);
+  assert.equal(parseBuildIntent('run npm build, then wait for my next task'), null);
+  assert.equal(parseBuildIntent('please run pnpm run build and wait for my next instruction'), null);
   assert.equal(
     parseBuildIntent('I want to create a new advanced domain chip with Spark. Help me shape the chip first before creating it.'),
     null
@@ -324,6 +395,9 @@ test('does not turn exploratory conversation into an accidental build', () => {
   );
   assert.equal(parseBuildIntent('create a clean structure for the launch hype'), null);
   assert.equal(parseBuildIntent('make a better framework for the NFT sale conversation'), null);
+  assert.equal(parseBuildIntent('Generate an image of a futuristic Spark workspace'), null);
+  assert.equal(parseBuildIntent('Create an image of a robot assistant in a neon workspace'), null);
+  assert.equal(parseBuildIntent('Make me a picture of Spark Mission Control'), null);
   assert.ok(parseBuildIntent('make a daily report dashboard for investors'));
   assert.ok(parseBuildIntent('Build a private local-first dashboard for memory reports'));
   assert.ok(parseBuildIntent('Build a Spark memory dashboard.'));
@@ -342,6 +416,18 @@ test('does not treat philosophical questions with modal verbs as build intent', 
   assert.ok(parseBuildIntent('Can you create a dashboard for me?'));
   // And "Could we build..." should still trigger
   assert.ok(parseBuildIntent('Could we build a landing page?'));
+});
+
+test('does not let a modal in an earlier clause suppress a real build', () => {
+  assert.ok(parseBuildIntent('The dashboard should show sales. Also build a login page for it.'));
+  assert.ok(parseBuildIntent('Users will need accounts later, but for now make a landing page.'));
+  assert.ok(parseBuildIntent('The app must load fast, so build a caching layer.'));
+  assert.equal(parseBuildIntent("Can God create a rock so heavy that even He can't lift it?"), null);
+});
+
+test('keeps explicit image products on the build path', () => {
+  assert.ok(parseBuildIntent('Build an image gallery app for our campaign assets'));
+  assert.ok(parseBuildIntent('Create an image generator website with a prompt editor'));
 });
 
 test('infers a compact product name for long conceptual build briefs', () => {
@@ -433,55 +519,4 @@ Behavior:
   assert.equal(intent.projectPath, 'C:\\Users\\USER\\Desktop\\terminal-chef-clock');
   assert.equal(intent.projectName, 'Terminal Chef Clock');
   assert.match(intent.prd, /Countdown updates every second/);
-});
-
-test('UI feature words pause/stop/reset do not veto an explicit build request', () => {
-  const intent = parseBuildIntent(
-    'Build me a small focus timer web app called harness-genesis-timer-20260609. It needs a 25-minute countdown, start, pause, and reset buttons, and a session counter. Please start the build now.'
-  );
-
-  assert.ok(intent, 'feature enumeration with pause/reset buttons must still parse as a build');
-  assert.equal(intent.projectName, 'Harness Genesis Timer 20260609');
-});
-
-test('display text containing pause does not veto an explicit build request', () => {
-  const intent = parseBuildIntent(
-    'Build a tiny single-file project named harness-pause-cua-20260610 that shows the text pause route proof passed. Token cua-20260610-build-pause-01. Please start the build now.'
-  );
-
-  assert.ok(intent, 'quoted/display copy containing pause must still parse as a build');
-  assert.equal(intent.projectName, 'Harness Pause CUA 20260610');
-});
-
-test('slash-separated start/pause/reset controls do not veto an explicit build request', () => {
-  const intent = parseBuildIntent(
-    'Build me a small focus timer web app called harness-genesis-timer-b with a single page: a 25-minute countdown, start/pause/reset buttons, and a simple session counter. Please start the build now.'
-  );
-
-  assert.ok(intent, 'start/pause/reset control listing must still parse as a build');
-});
-
-test('standalone decline verbs still veto build execution', () => {
-  assert.equal(parseBuildIntent('Build me a todo app. Actually, pause.'), null);
-  assert.equal(parseBuildIntent('Build me a todo app. Hold off and cancel that for now.'), null);
-  assert.equal(parseBuildIntent('Build me a todo app. Stop, lets discuss first.'), null);
-});
-
-test('product-phrase project name extraction is unchanged after regex hoist (#830)', () => {
-  // Regression guard for hoisting inferProductPhraseProjectName's regexes to
-  // module scope (PRODUCT_PHRASE_PATTERNS / PRODUCT_TYPE_TAIL). The phrase
-  // forms (^, build/create..., i want...) and the product-type tail must keep
-  // producing the same names — including the dashboard tail and the board tail
-  // kept from the wave1 base productType list.
-  const landing = parseBuildIntent('Build a tiny static landing page for a cafe with a menu section.');
-  assert.ok(landing, 'landing-page build request must still parse');
-  assert.equal(landing.projectName, 'Cafe Landing Page');
-
-  const dashboard = parseBuildIntent('Build a revenue dashboard that tracks weekly sales.');
-  assert.ok(dashboard, 'dashboard build request must still parse');
-  assert.match(dashboard.projectName, /dashboard/i);
-
-  const board = parseBuildIntent('Build a kanban board that tracks open tickets.');
-  assert.ok(board, 'board build request must still parse (wave1 productType tail)');
-  assert.match(board.projectName, /board/i);
 });

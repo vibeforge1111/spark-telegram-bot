@@ -29,7 +29,10 @@ import {
   sparkAccessAllowsWorkspaceBuilds,
   sparkHostedFullAccessAllowed,
   sparkHighAgencyWorkersAllowed,
+  sparkLevel5PayloadProvesFullAccess,
+  sparkLevel5TelegramPermissionProofError,
   sparkLevel5RuntimeGuardrailsActive,
+  sparkLevel5TelegramTransitionProvesFullPermission,
   sparkIsHostedRuntime,
   validateSparkAccessProfileForRuntime
 } from '../src/accessPolicy';
@@ -165,6 +168,8 @@ async function main(): Promise<void> {
     assert.match(renderSparkAccessLevelGuide(), /Safety stays on/);
     assert.ok(renderSparkAccessStatus('operator').length < 760);
     assert.ok(renderSparkAccessStatus('operator').split('\n').length <= 16);
+    assert.doesNotMatch(renderSparkAccessStatus('operator'), /Whole-computer operator work is on/);
+    assert.match(renderSparkAccessStatus('operator'), /authorized only after live guardrail and effective-sandbox proof/);
     assert.match(renderSparkAccessOnboarding(), /Default right now: Access level 1/);
     assert.match(renderSparkAccessOnboarding('agent'), /Choose how much access this Telegram chat has/);
     assert.match(renderSparkAccessOnboarding('agent'), /Levels:/);
@@ -201,13 +206,13 @@ async function main(): Promise<void> {
 
     const operatorStatus = renderSparkAccessBriefStatus('operator', { runnerWritable: 'yes' });
     assert.match(operatorStatus, /You are already on Access level 5/);
-    assert.match(operatorStatus, /Whole-computer operator mode is active/i);
+    assert.match(operatorStatus, /needs live guardrail and effective-sandbox proof/i);
     assert.match(operatorStatus, /Runner: writable here/);
     assert.match(operatorStatus, /Use `\/access 4`/);
 
     const operatorChange = renderSparkAccessChangeSummary('operator', { runnerWritable: 'yes' });
     assert.match(operatorChange, /Done - I changed this chat setting to Access level 5/);
-    assert.match(operatorChange, /trusted local machine/);
+    assert.match(operatorChange, /verify live guardrails and the effective Codex sandbox/);
     assert.match(operatorChange, /still ask before deleting important files/);
     assert.doesNotMatch(operatorChange, /Important distinction/);
 
@@ -245,8 +250,54 @@ async function main(): Promise<void> {
     assert.doesNotMatch(level5Prompt, /Restart Spark/);
   });
 
+  await test('Level 5 Telegram transition requires full sandbox proof and writable runner', () => {
+    const fullPayload = {
+      effective_access_level: 5,
+      level5: {
+        service_enabled: true,
+        effective_codex_sandbox: 'danger-full-access'
+      },
+      state_machine: {
+        service_can_operate_whole_computer: true,
+        can_operate_whole_computer: true
+      }
+    };
+
+    assert.equal(
+      sparkLevel5TelegramTransitionProvesFullPermission(fullPayload, { runnerWritable: 'yes' }),
+      true
+    );
+    for (const runnerWritable of ['no', 'unknown'] as const) {
+      assert.equal(
+        sparkLevel5TelegramTransitionProvesFullPermission(fullPayload, {
+          runnerWritable,
+          failureReason: runnerWritable === 'no' ? 'EROFS' : undefined
+        }),
+        false,
+        `runner ${runnerWritable} must not become Telegram Level 5 full permission`
+      );
+    }
+    assert.equal(
+      sparkLevel5TelegramTransitionProvesFullPermission({
+        ...fullPayload,
+        level5: {
+          service_enabled: true,
+          effective_codex_sandbox: 'read-only'
+        }
+      }, { runnerWritable: 'yes' }),
+      false
+    );
+    assert.equal(sparkLevel5TelegramPermissionProofError(fullPayload, { runnerWritable: 'yes' }), null);
+    assert.match(
+      sparkLevel5TelegramPermissionProofError(fullPayload, { runnerWritable: 'no', failureReason: 'EROFS' }) || '',
+      /read-only \(EROFS\)/
+    );
+  });
+
   await test('slash access setter uses authoritative status and compact confirmation', async () => {
     const indexSource = await readFile(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
+    const accessPolicySource = await readFile(path.join(__dirname, '..', 'src', 'accessPolicy.ts'), 'utf8');
+    const onboardingSurfaceSource = await readFile(path.join(__dirname, '..', 'src', 'onboardingSurface.ts'), 'utf8');
     const accessCommand = indexSource.match(/bot\.command\('access', async \(ctx\) => \{[\s\S]*?\n\}\);/);
     assert.ok(accessCommand, 'expected /access command handler to exist');
     assert.match(accessCommand[0], /renderAuthoritativeSparkAccessStatus\(ctx\.chat\.id\)/);
@@ -258,7 +309,24 @@ async function main(): Promise<void> {
     assert.match(indexSource, /renderSparkAccessChangeSummary\(profile, await probeTelegramRunnerWritability\(\)\)/);
     assert.match(indexSource, /renderSparkAccessLevel5ConfirmationPrompt\(\), buildSparkAccessLevel5ConfirmKeyboard\(\)/);
     assert.match(indexSource, /bot\.action\(\/\^spark_access_level:operator:confirm/);
-    assert.match(indexSource, /I prepared the local guardrails\./);
+    assert.match(indexSource, /Access Level 5 guardrails were prepared\./);
+    assert.match(indexSource, /sparkLevel5PayloadProvesFullAccess/);
+    assert.match(indexSource, /sparkLevel5TelegramPermissionProofError/);
+    assert.match(indexSource, /level5FullAccessProofAvailable/);
+    assert.match(accessPolicySource, /function sparkLevel5PayloadProvesFullAccess/);
+    assert.match(accessPolicySource, /function sparkLevel5TelegramPermissionProofError/);
+    assert.match(indexSource, /await readLevel5FullAccessProof\(\)/);
+    assert.match(indexSource, /const level5ProofReady = next === 'operator' \? await level5FullAccessProofAvailable\(\) : false/);
+    assert.match(indexSource, /level5ProofReady \? \{ ok: true as const \} : validateSparkAccessProfileForRuntime\(next\)/);
+    assert.match(indexSource, /I did not switch this chat to Access Level 5 yet/);
+    assert.match(accessPolicySource, /effectiveAccess === 5/);
+    assert.match(accessPolicySource, /serviceEnabled/);
+    assert.match(accessPolicySource, /canOperateWholeComputer/);
+    assert.match(accessPolicySource, /effective_codex_sandbox \|\| ''\) === 'danger-full-access'/);
+    assert.match(indexSource, /Access Level 5 setup did not prove danger-full-access effective sandbox/);
+    assert.match(indexSource, /const fullAccessSandbox = effectiveCodexSandbox === 'danger-full-access'/);
+    assert.match(indexSource, /serviceEnabled && chatProfile === 'operator' && stateMachineWholeComputer && fullAccessSandbox/);
+    assert.match(indexSource, /I will not claim full operator access until the effective Codex sandbox is danger-full-access/);
     assert.match(indexSource, /isLevel5ServiceEnabled/);
     assert.match(indexSource, /runSparkAccessActionDetailed\(actionId\)/);
     assert.match(indexSource, /level5_disable/);
@@ -269,7 +337,7 @@ async function main(): Promise<void> {
     assert.match(indexSource, /bot\.command\('docker_smoke'/);
     assert.match(indexSource, /bot\.command\('level5_setup'/);
     assert.match(indexSource, /bot\.command\('level5_disable'/);
-    assert.match(indexSource, /\/access 5 - Approve Level 5 setup from Telegram/);
+    assert.match(onboardingSurfaceSource, /\/access 5 — approve Level 5 setup from Telegram/i);
     assert.doesNotMatch(indexSource, /\/level5_setup confirm - Prepare/);
     assert.match(indexSource, /bot\.action\(\/\^spark_access:/);
   });
@@ -283,11 +351,14 @@ async function main(): Promise<void> {
 
   await test('natural state-sensitive chat is grounded by fresh runtime truth', async () => {
     const indexSource = await readFile(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
+    const liveSurfaceSource = await readFile(path.join(__dirname, '..', 'src', 'sparkLiveStatusSurface.ts'), 'utf8');
     assert.match(indexSource, /function runtimeTruthSignals/);
     assert.match(indexSource, /shouldAnswerAuthoritativeRuntimeStatus/);
     assert.match(indexSource, /renderAuthoritativeSparkLiveStateAnswer/);
     assert.match(indexSource, /shouldAnswerAuthoritativeAccessCapability/);
     assert.match(indexSource, /renderAuthoritativeSparkEditCapabilityAnswer/);
+    assert.match(indexSource, /const fullAccessSandbox = accessState\.effectiveCodexSandbox === 'danger-full-access'/);
+    assert.match(indexSource, /effective full-access sandbox/);
     assert.match(indexSource, /shouldAnswerRuntimeTruthPriority/);
     assert.match(indexSource, /renderRuntimeTruthPriorityAnswer/);
     assert.match(indexSource, /shouldAnswerSparkRiskProfile/);
@@ -322,23 +393,21 @@ async function main(): Promise<void> {
     assert.match(indexSource, /Authoritative current-state context for this answer/);
     assert.match(indexSource, /highest-priority source for current state/);
     assert.match(indexSource, /const reply = await renderAuthoritativeSparkLiveStateAnswer\(\{ rawDetails: shouldShowRawSparkLiveDetails\(text\) \}\);[\s\S]*?await ctx\.reply\(reply\);/);
-    assert.match(indexSource, /Live loop/);
-    assert.match(indexSource, /Spawner: \$\{summary\.spawnerOk \? 'reachable' : 'needs attention'\}/);
-    assert.match(indexSource, /Telegram: \$\{summary\.telegramOk \? 'polling' : 'needs attention'\}/);
-    assert.match(indexSource, /Mission Control: \$\{summary\.liveReady \? 'ready' : 'not fully ready'\}/);
-    assert.match(indexSource, /Raw proof/);
+    assert.match(liveSurfaceSource, /Live loop/);
+    assert.match(liveSurfaceSource, /Spawner: \$\{summary\.spawnerOk \? 'reachable' : 'needs attention'\}/);
+    assert.match(liveSurfaceSource, /Telegram: \$\{summary\.telegramOk \? 'polling' : 'needs attention'\}/);
+    assert.match(liveSurfaceSource, /Mission Control: \$\{summary\.liveReady \? 'ready' : 'not fully ready'\}/);
+    assert.match(liveSurfaceSource, /Raw proof/);
     assert.match(indexSource, /shouldShowRawSparkLiveDetails/);
-    assert.match(indexSource, /replace\(\/\\n\{3,\}\/g, '\\n\\n'\)\.trim\(\)/);
+    assert.match(liveSurfaceSource, /replace\(\/\\n\{3,\}\/g, '\\n\\n'\)\.trim\(\)/);
     assert.doesNotMatch(indexSource, /System Status\\n\\n/);
-    const liveSummaryFn = indexSource.match(/function renderSparkLiveSummary[\s\S]*?\r?\n}\r?\n\r?\nfunction shouldShowRawSparkLiveDetails/);
+    const liveSummaryFn = liveSurfaceSource.match(/function renderSparkLiveSummary[\s\S]*?\r?\n}\r?\n\r?\nexport function shouldShowRawSparkLiveDetails/);
     assert.ok(liveSummaryFn, 'expected live summary formatter to exist');
     assert.doesNotMatch(liveSummaryFn[0], /Fresh check:/);
-    assert.match(indexSource, /replyWithGovernedReadOnlyState\(ctx, user, text, turnIntentEnvelope, \{[\s\S]*?kind: 'access_capability'[\s\S]*?render: \(\) => renderAuthoritativeSparkEditCapabilityAnswer\(ctx\.chat\.id\)/);
-    assert.match(indexSource, /action = `spark\.read_only_state\.\$\{input\.kind\}`/);
-    assert.match(indexSource, /telegramActionAuthorityDecision\([\s\S]*?telegramActionEnvelope\(turnIntentEnvelope/);
+    assert.match(indexSource, /const reply = await renderAuthoritativeSparkEditCapabilityAnswer\(ctx\.chat\.id\);[\s\S]*?await ctx\.reply\(reply\);/);
     assert.match(indexSource, /fresh `spark live status` says Spawner is up/);
     assert.match(indexSource, /Current Spark risk profile:/);
-    assert.match(indexSource, /No restart needed\. Restarting now would mostly add churn\./);
+    assert.match(liveSurfaceSource, /No restart needed\. Restarting now would mostly add churn\./);
     assert.match(indexSource, /Memory can change recall\/history/);
     assert.match(indexSource, /A plain chat answer would not have a Spawner mission id/);
     assert.match(indexSource, /failed to record \$\{item\.source\} for \$\{selectedRoute\}/);
@@ -404,10 +473,14 @@ async function main(): Promise<void> {
     assert.ok(missionCommand, 'expected /mission command handler to exist');
     assert.match(missionCommand[0], /sparkAccessAllows\(accessProfile, 'spawner_build'\)/);
 
-    const naturalBoardRoute = indexSource.match(/const spawnerBoardIntent = parseContextualSpawnerBoardNaturalIntent\(text, contextualTurns\);[\s\S]*?if \(spawnerBoardIntent && spawnerBoardAuthorization\) \{/);
+    const naturalBoardRoute = indexSource.match(/async function handleNaturalSpawnerBoardRead[\s\S]*?\nfunction telegramRenderSurfaceForTraceContext/);
     assert.ok(naturalBoardRoute, 'expected natural Spawner board route to exist');
     assert.match(naturalBoardRoute[0], /sparkAccessAllows\(accessProfile, 'spawner_build'\)/);
     assert.match(naturalBoardRoute[0], /renderSparkAccessDenial\(accessProfile, 'spawner_build'\)/);
+
+    const safeOperatorRoute = indexSource.match(/const operatorActionCandidate[\s\S]*?\n  if \(operatorActionCandidate && !safeOperatorAction\)/);
+    assert.ok(safeOperatorRoute, 'expected safe operator route to exist');
+    assert.match(safeOperatorRoute[0], /safeOperatorAction\.kind === 'folder_list' && !conversation\.isAdmin\(ctx\.from\)/);
   });
 
   await test('validates mixed access change and build intents before mutating access', async () => {
@@ -415,6 +488,9 @@ async function main(): Promise<void> {
     const buildIntentRoute = indexSource.match(/if \(buildIntent\) \{\s*console\.log\(`\[BuildIntent\][\s\S]*?await handleBuildIntent\(/);
     assert.ok(buildIntentRoute, 'expected main build intent route to exist');
     assert.match(buildIntentRoute[0], /validateSparkAccessProfileForRuntime\(normalizedAccessPreference\)/);
+    assert.match(buildIntentRoute[0], /normalizedAccessPreference === 'operator' && await level5FullAccessProofAvailable\(\)/);
+    assert.match(buildIntentRoute[0], /sparkLevel5TelegramPermissionProofError\(await readLevel5FullAccessProof\(\), await probeTelegramRunnerWritability\(\)\)/);
+    assert.match(buildIntentRoute[0], /Fresh Telegram permission proof failed/);
     assert.match(buildIntentRoute[0], /await ctx\.reply\(runtimeGate\.message\)/);
     assert.match(buildIntentRoute[0], /await setSparkAccessProfile\(ctx\.chat\.id, normalizedAccessPreference\)/);
   });
@@ -439,20 +515,20 @@ async function main(): Promise<void> {
     assert.match(indexSource, /bot\.command\('capabilities', handleCapabilityGardenCommand\)/);
     assert.match(indexSource, /bot\.command\('authority', handleAuthorityStatusCommand\)/);
     assert.match(indexSource, /bot\.command\('trace_repair', handleTraceRepairCommand\)/);
+    assert.match(indexSource, /bot\.command\('proof', handleHarnessProofCommand\)/);
+    assert.match(indexSource, /bot\.command\('harness_proof', handleHarnessProofCommand\)/);
     assert.match(indexSource, /bot\.command\('memory_movement', handleMemoryMovementCommand\)/);
-    assert.match(indexSource, /export async function handleVoiceCommand\(ctx: any\): Promise<void> \{/);
-    assert.match(indexSource, /bot\.command\('voice', handleVoiceCommand\)/);
+    assert.match(indexSource, /bot\.command\('voice', async \(ctx\) => \{/);
     assert.match(indexSource, /telegramCommandActionAuthorityDecision\(ctx, \{[\s\S]{0,500}route: 'voice\.command'/);
-    assert.match(indexSource, /replyViaBuilder\([\s\S]{0,220}authorization\.legacyEnvelope,[\s\S]{0,120}bridgeTurnAuthorityFromAuthorization\(authorization\)/);
+    assert.match(indexSource, /replyViaBuilder\(ctx, voiceText, authorization\.legacyEnvelope\)/);
     assert.doesNotMatch(indexSource, /spark\.getVoice\(\)/);
     const sparkSource = await readFile(path.join(__dirname, '..', 'src', 'spark.ts'), 'utf8');
     const distSparkSource = await readFile(path.join(__dirname, '..', 'dist', 'spark.js'), 'utf8');
     assert.doesNotMatch(sparkSource, /getVoice/);
     assert.doesNotMatch(distSparkSource, /getVoice/);
-    assert.match(distIndexSource, /async function handleVoiceCommand\(ctx\) \{/);
-    assert.match(distIndexSource, /bot\.command\('voice', handleVoiceCommand\)/);
+    assert.match(distIndexSource, /bot\.command\('voice', async \(ctx\) => \{/);
     assert.match(distIndexSource, /telegramCommandActionAuthorityDecision\(ctx, \{[\s\S]{0,500}route: 'voice\.command'/);
-    assert.match(distIndexSource, /replyViaBuilder\([\s\S]{0,220}authorization\.legacyEnvelope,[\s\S]{0,120}bridgeTurnAuthorityFromAuthorization\(authorization\)/);
+    assert.match(distIndexSource, /replyViaBuilder\(ctx, voiceText, authorization\.legacyEnvelope\)/);
     assert.doesNotMatch(distIndexSource, /spark_1\.spark\.getVoice\(\)/);
     assert.match(indexSource, /AOC_CORE_ROUTE_KEYS/);
     assert.match(indexSource, /firstArg === 'core'/);
@@ -556,6 +632,62 @@ async function main(): Promise<void> {
       assert.match(denied.message, /\/access 3/);
       assert.match(denied.message, /SPARK_ALLOW_HOSTED_FULL_ACCESS=1/);
     }
+  });
+
+  await test('requires CLI Level 5 full-permission proof to agree with current payload', () => {
+    assert.equal(
+      sparkLevel5PayloadProvesFullAccess({
+        effective_access_level: 4,
+        level5: {
+          service_enabled: false,
+          effective_codex_sandbox: 'read-only',
+          full_permission_proof: { ok: true }
+        },
+        state_machine: { can_operate_whole_computer: false }
+      }),
+      false
+    );
+
+    assert.equal(
+      sparkLevel5PayloadProvesFullAccess({
+        effective_access_level: 5,
+        level5: {
+          service_enabled: true,
+          effective_codex_sandbox: 'danger-full-access',
+          full_permission_proof: { ok: true, missing: [] }
+        },
+        state_machine: {
+          can_operate_whole_computer: true,
+          service_can_operate_whole_computer: true
+        }
+      }),
+      true
+    );
+
+    assert.equal(
+      sparkLevel5PayloadProvesFullAccess({
+        effective_access_level: 5,
+        level5: {
+          service_enabled: true,
+          effective_codex_sandbox: 'danger-full-access',
+          full_permission_proof: { ok: false, missing: ['restart_not_required'] }
+        },
+        state_machine: { can_operate_whole_computer: true }
+      }),
+      false
+    );
+
+    assert.equal(
+      sparkLevel5PayloadProvesFullAccess({
+        effective_access_level: 5,
+        level5: {
+          service_enabled: true,
+          effective_codex_sandbox: 'danger-full-access'
+        },
+        state_machine: { can_operate_whole_computer: true }
+      }),
+      true
+    );
   });
 }
 

@@ -14,12 +14,31 @@ The guiding rule: Telegram drafts are presentation only. Spark truth lives in Bu
 
 ## Current State
 
-Telegram now supports `sendMessageDraft`, which streams a partial message to a target private chat while a bot is generating. The Bot API requires a non-zero `draft_id`; changes using the same `draft_id` animate. Telegram currently documents this as private-chat scoped.
+Telegram Bot API 10.1 adds Rich Messages for bots, including `sendRichMessageDraft`, which can stream a partial rich message to a target private chat while a bot is generating. The Bot API requires a non-zero `draft_id`; changes using the same `draft_id` animate as an ephemeral preview, and the final answer should still be delivered through the normal final-message path.
+
+Spark now uses Rich Messages by default for final text delivery and `sendRichMessageDraft` by default for draft previews. Legacy `sendMessage` and `sendMessageDraft` remain automatic fallbacks for older Telegram surfaces or transient API incompatibility.
 
 Sources:
 
-- https://core.telegram.org/bots/api#sendmessagedraft
+- https://core.telegram.org/bots/api#sendrichmessagedraft
+- https://core.telegram.org/bots/api#inputrichmessage
 - https://telegram.org/blog/ai-bot-revolution-11-new-features
+
+## Telegram Features Worth Using
+
+Bot API 10.1 Rich Messages are the main upgrade path for Spark:
+
+- `sendRichMessageDraft` for visible in-progress replies.
+- `sendRichMessage` for persistent rich final replies while preserving final-message audit and memory boundaries.
+- `InputRichMessage.markdown` or `InputRichMessage.html` for cleaner headings, lists, block quotes, tables, and compact evidence sections.
+- `<tg-thinking>` / `RichBlockThinking` for a first-class "thinking" surface when Telegram clients support it. Spark should use this only for short user-visible status, not hidden reasoning.
+
+Other recent Telegram surfaces to consider after streaming is proven:
+
+- guest mode and `answerGuestQuery` for public or invite-less Spark entry points.
+- reaction improvements for lightweight feedback on answers, review queues, and mission relays.
+- managed bots and bot-to-bot communication for future Spark agent profiles, only after identity and access boundaries are explicit.
+- richer poll/media support for review queues, pickers, and lightweight approvals.
 
 Spark currently has two answer paths:
 
@@ -147,18 +166,18 @@ sequenceDiagram
     U->>Bot: "hi Spark"
     Bot->>Builder: "stream telegram turn"
     Builder-->>Bot: "route_started"
-    Bot->>TG: "sendMessageDraft: Checking context..."
+    Bot->>TG: "sendRichMessageDraft: Checking context..."
     Builder->>Memory: "retrieve context"
     Memory-->>Builder: "memory_context_ready"
     Builder-->>Bot: "memory_context_ready"
-    Bot->>TG: "sendMessageDraft: Checking memory..."
+    Bot->>TG: "sendRichMessageDraft: Checking memory..."
     Builder->>Model: "stream chat completion"
     Model-->>Builder: "delta: Hey Cem."
     Builder-->>Bot: "model_delta"
-    Bot->>TG: "sendMessageDraft: Hey Cem."
+    Bot->>TG: "sendRichMessageDraft: Hey Cem."
     Model-->>Builder: "delta: Still tracking..."
     Builder-->>Bot: "model_delta"
-    Bot->>TG: "sendMessageDraft: Hey Cem... Still tracking..."
+    Bot->>TG: "sendRichMessageDraft: Hey Cem... Still tracking..."
     Builder-->>Bot: "final_text"
     Bot->>TG: "sendMessage final"
     Bot->>Bot: "audit and remember final only"
@@ -313,7 +332,7 @@ Rules:
 
 ### Client Compatibility
 
-`sendMessageDraft` is private-chat scoped in the Bot API. The consumer should treat private chat as the supported target.
+`sendRichMessageDraft` is private-chat scoped in the Bot API. The consumer should treat private chat as the supported target.
 
 Policy:
 
@@ -414,6 +433,12 @@ Operator command:
 
 ```text
 /streaming
+/streaming on
+/streaming off
+/streaming rich on
+/streaming rich_messages off
+/streaming preview off
+/streaming interval 500
 ```
 
 Should show:
@@ -421,9 +446,11 @@ Should show:
 ```text
 Telegram live chat
 Status: on
+Rich messages: on
+Draft transport: rich
 Real streaming: Builder stream off/on
 Fallback streaming: on
-Full-reply preview: off
+Full-reply preview: on
 Draft interval: 500ms
 Last turn: first draft 240ms, first token 1.8s, final 3.4s
 Failures: 0 draft, 0 stream parse
@@ -450,15 +477,17 @@ This gives us repeatable UX checks before live Telegram testing.
 
 ## Rollout Plan
 
-### Phase 0: Stabilize Current Prototype
+### Phase 0: Stabilize Current Defaults
 
-Decision: disable full-reply preview by default unless explicitly requested.
+Decision: enable Rich Messages, Rich Message drafts, and full-reply previews by default, with quiet fallback to legacy Telegram methods when the client/API rejects the rich path. Full-reply preview is a bridge until Builder emits real JSONL stream events; it should be short, throttled, and private-chat scoped.
 
 Config:
 
 ```env
 SPARK_TELEGRAM_CHAT_STREAMING=1
-SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES=0
+SPARK_TELEGRAM_RICH_MESSAGES=1
+SPARK_TELEGRAM_DRAFT_METHOD=rich
+SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES=1
 SPARK_TELEGRAM_DRAFT_INTERVAL_MS=500
 ```
 
@@ -470,14 +499,39 @@ Keep:
 
 Remove from default:
 
-- artificial draft preview for completed Builder replies
+- route-unsafe draft preview for mission/build/access/control flows
 
 Exit criteria:
 
-- `/streaming` reports full-reply preview off
+- `/streaming` reports the active Telegram profile, streaming, rich messages, rich draft transport, and full-reply preview on
+- `/streaming` also reports process telemetry for observed final and draft transports, so "configured on" is not mistaken for "rich path succeeded"
+- When no rich/draft transport has happened since process start, `/streaming` must say transport proof is only configured. Once a final or draft delivery is observed, it may say transport proof was observed in this bot process.
 - fallback LLM streaming still works
 - Builder chat final latency is not worse than the old path
-- direct `sendMessageDraft` smoke passes for the active profile
+- direct `sendRichMessage` and `sendRichMessageDraft` smoke pass for the active profile, or clearly fall back to `sendMessage` / `sendMessageDraft`
+
+Current SparkRecursive_bot proof:
+
+- Contract id `streaming-status-defaults`: `cp-streaming-001` confirms `/streaming` reports streaming on, rich messages on, rich draft transport, full-reply preview on, process telemetry, no duplicate draft/preview in the live Telegram surface, and one final status message after the preview collapses. Its proof join must prove the live `/streaming` runtime status and visible transport-proof line came through the active Telegram profile path; generic Telegram trace context is not enough.
+- Contract id `rich-message-delivery-proof`: `cp-streaming-002` confirms rich formatting renders in the top-level Telegram path without leaving a duplicate draft/final artifact, and its proof join must say the rich-message reply was delivered through the live Telegram profile path. A generic "reply joined" note is not enough proof that rich messages are active in runtime. The screenshot/user confirmation should also state that the rich reply collapsed to one final Telegram message.
+- `cp-streaming-002` reply text should stay natural while carrying a short code-token line; the screenshot and user confirmation prove the visual rich rendering rather than forcing the chat reply into a diagnostic status card. `Status: clean` is rejected here because it turns a rich-message check into a status packet. The measured accepted shape is `Check: clean` plus `Token: ok`, delivered through the restarted live profile with one final Telegram message.
+- These canaries prove the present Telegram surface and defaults. They do not claim Builder-native JSONL event streaming; that remains Phase 1.
+
+Durability update, 2026-06-25:
+
+- The main Telegram runtime now loads the active Spark Telegram profile env before `.env.override`, with explicit process env values preserved. This closes the gap where `/streaming` could save profile defaults but a restarted bot process could still run from repo `.env` alone.
+- Profile env files are the durable source for the default-on settings above; `.env.override` remains the operator escape hatch.
+- Regression coverage now proves the main runtime loads profile env before override env, loads streaming/rich defaults from profile config, and does not overwrite an explicitly supplied runtime `BOT_TOKEN` or admin env.
+- The refreshed SparkRecursive_bot release packet at `outputs/live-canary-full/live-canary-observations.json` keeps release readiness separate from publish readiness; use `outputs/live-canary-full/live-canary-summary.md` for the current runtime-evidence timestamp.
+- The packet now rejects stale source snapshots and prints registry-pin drift as an explicit release caveat and handoff, so a docs/source edit must be committed and followed by a fresh runtime-evidence recapture before the packet can support a current release claim.
+
+Durability update, 2026-06-26:
+
+- `src/telegramDraft.ts` now centralizes default-on streaming, rich-message, rich-draft, full-reply preview, and 500ms draft interval policy in `TELEGRAM_STREAMING_DEFAULTS`. Treat that constant as the source-owned default policy; profile env files persist runtime choices, and `.env.override` remains the operator escape hatch.
+- The checked full and safe-first canary summaries now preserve `expectedReplyShape` in `summary.cases[]`, so streaming/rich-message proof keeps the intended conversational shape visible without exposing raw prompts or observed replies.
+- Current SparkRecursive_bot evidence records `cp-streaming-001` as `compact_card` for `/streaming` status and `cp-streaming-002` as `natural` for rich-message delivery. Do not turn the rich-message proof into a diagnostic card just to make the summary easier to inspect.
+- Full-reply draft previews are now route-policy gated. Rich final delivery remains default-on, but presentation-only draft previews are skipped for mission/build, access, memory mutation, proof/diagnostic, media, publish, schedule, recursive, and other control routes. This closes the proof gap where a route-unsafe action reply could briefly appear as a draft preview before final delivery.
+- Builder-native JSONL streaming remains gated by the proof-first rule. Do not begin Phase 1 just to expand the visible streaming surface; start it only when the missing Builder event stream is named as the measured control-proof or trace-join gap being closed.
 
 ### Phase 1: Builder Status Events
 
@@ -572,7 +626,7 @@ These should adjust route policy and cadence, not override safety boundaries.
 - Add draft aggregator and route policy.
 - Wire only normal chat first.
 - Keep `runBuilderTelegramBridge` as fallback.
-- Expand `/streaming` status with last-turn telemetry.
+- Expand `/streaming` status with last-turn telemetry. Minimum process-level transport telemetry now shows whether final rich messages and rich draft updates have succeeded, fallen back, failed, or not yet been exercised since the bot process started.
 - Add tests for:
   - first draft on status event
   - accumulated model deltas

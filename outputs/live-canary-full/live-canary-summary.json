@@ -1,0 +1,2148 @@
+{
+  "summary": {
+    "target": "SparkRecursive_bot",
+    "generatedAt": "2026-06-27T08:14:25.718Z",
+    "runtimeEvidenceCollectedAt": "2026-06-27T08:14:25.718Z",
+    "runtimeEvidenceMaxAgeHours": 1,
+    "runtimeEvidenceExpiresAt": "2026-06-27T09:14:25.718Z",
+    "totalCases": 29,
+    "verdictCounts": {
+      "pass": 29,
+      "fail": 0,
+      "blocked": 0,
+      "needs-retest": 0,
+      "untested": 0
+    },
+    "readyForRelease": true,
+    "readyForPublish": false,
+    "releaseBlockers": [],
+    "publishBlockers": [
+      "release_caveats",
+      "release_handoffs"
+    ],
+    "gateDecisionDetails": {
+      "release": {
+        "ready": true,
+        "blockers": [],
+        "blockerDetails": {},
+        "caveats": [
+          "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
+          "repo_release_blocks | blocked_release_count=4 | critical_repo_count=3",
+          "local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0"
+        ],
+        "caveatDetails": {
+          "builder_trace_health": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "flags": [
+              "historical_open_high_severity_events"
+            ],
+            "status": "current_clean",
+            "window": "1h",
+            "missing_trace_ref_count": 0,
+            "one_hour_missing_trace_ref_count": 0,
+            "historical_missing_trace_ref_count": 0,
+            "high_severity_open_count": 46,
+            "unresolved_high_severity_open_count": 1,
+            "current_unresolved_high_severity_open_count": 0,
+            "unresolved_high_severity_source_group_count": 1,
+            "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z",
+            "latest_missing_source_group_count": 0,
+            "latest_clean_historical_window_group_count": 0
+          },
+          "repo_release_blocks": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "blocked_release_count": 4,
+            "critical_repo_count": 3,
+            "blocked_release_repos": [
+              {
+                "repo": "domain-chip-memory",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "risk_class": "high",
+                "reason": "behind upstream",
+                "next_safe_action": "pull or merge upstream before release",
+                "behind": 6
+              },
+              {
+                "repo": "spark-intelligence-builder",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "risk_class": "critical",
+                "reason": "behind upstream",
+                "next_safe_action": "pull or merge upstream before release",
+                "behind": 12
+              },
+              {
+                "repo": "spark-researcher",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "risk_class": "high",
+                "reason": "behind upstream",
+                "next_safe_action": "pull or merge upstream before release",
+                "behind": 61
+              },
+              {
+                "repo": "spawner-ui",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "risk_class": "critical",
+                "reason": "behind upstream",
+                "next_safe_action": "pull or merge upstream before release",
+                "behind": 29
+              }
+            ]
+          },
+          "duplicate_truths": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "label": "local_runtime_test_artifacts",
+            "classification_counts": {
+              "local_runtime_test_artifact": 2
+            },
+            "duplicate_truth_count": 2,
+            "critical_duplicate_truth_count": 0,
+            "owner_sets": {
+              "local_runtime_test_artifact": [
+                "spark-telegram-bot",
+                "spawner-ui"
+              ]
+            }
+          }
+        },
+        "caveatFamilies": [
+          "builder_trace_health",
+          "local_runtime_test_artifacts",
+          "repo_release_blocks"
+        ],
+        "handoffDetails": {
+          "schema_version": "spark.publish_handoffs.summary.v0",
+          "family_count": 3,
+          "families": [
+            "repo_release_blocks",
+            "local_runtime_test_artifacts",
+            "builder_trace_health"
+          ],
+          "blocked_release_repos": [
+            {
+              "repo": "domain-chip-memory",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "high",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 6
+            },
+            {
+              "repo": "spark-intelligence-builder",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "critical",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 12
+            },
+            {
+              "repo": "spark-researcher",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "high",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 61
+            },
+            {
+              "repo": "spawner-ui",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "critical",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 29
+            }
+          ],
+          "local_runtime_test_artifacts": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "count": 2,
+            "owners": [
+              "spark-telegram-bot",
+              "spawner-ui"
+            ]
+          },
+          "builder_trace_health": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "flags": [
+              "historical_open_high_severity_events"
+            ],
+            "high_severity_open_count": 46,
+            "unresolved_high_severity_open_count": 1,
+            "current_unresolved_high_severity_open_count": 0,
+            "unresolved_high_severity_source_group_count": 1,
+            "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
+          },
+          "duplicate_truths": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "classification_counts": {
+              "local_runtime_test_artifact": 2
+            },
+            "duplicate_truth_count": 2,
+            "owner_sets": {
+              "local_runtime_test_artifact": [
+                "spark-telegram-bot",
+                "spawner-ui"
+              ]
+            }
+          }
+        },
+        "handoffActionDetails": [
+          {
+            "owner": "domain-chip-memory",
+            "status": "publish_blocked",
+            "family": "repo_release_blocks",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "reason": "behind upstream",
+            "behind": 6,
+            "nextSafeAction": "pull or merge upstream before release",
+            "familyDetails": {
+              "repo": "domain-chip-memory",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "high",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 6
+            },
+            "line": "domain-chip-memory: publish_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spark-intelligence-builder",
+            "status": "publish_blocked",
+            "family": "repo_release_blocks",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "reason": "behind upstream",
+            "behind": 12,
+            "nextSafeAction": "pull or merge upstream before release",
+            "familyDetails": {
+              "repo": "spark-intelligence-builder",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "critical",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 12
+            },
+            "line": "spark-intelligence-builder: publish_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spark-researcher",
+            "status": "publish_blocked",
+            "family": "repo_release_blocks",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "reason": "behind upstream",
+            "behind": 61,
+            "nextSafeAction": "pull or merge upstream before release",
+            "familyDetails": {
+              "repo": "spark-researcher",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "high",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 61
+            },
+            "line": "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spawner-ui",
+            "status": "publish_blocked",
+            "family": "repo_release_blocks",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "reason": "behind upstream",
+            "behind": 29,
+            "nextSafeAction": "pull or merge upstream before release",
+            "familyDetails": {
+              "repo": "spawner-ui",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "critical",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 29
+            },
+            "line": "spawner-ui: publish_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spark-installer-registry",
+            "status": "warning",
+            "family": "local_runtime_test_artifacts",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "reason": null,
+            "behind": null,
+            "nextSafeAction": "Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
+            "familyDetails": {
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "count": 2,
+              "owners": [
+                "spark-telegram-bot",
+                "spawner-ui"
+              ]
+            },
+            "line": "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims."
+          },
+          {
+            "owner": "spark-intelligence-builder",
+            "status": "warning",
+            "family": "builder_trace_health",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "reason": null,
+            "behind": null,
+            "nextSafeAction": "Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.",
+            "familyDetails": {
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "flags": [
+                "historical_open_high_severity_events"
+              ],
+              "high_severity_open_count": 46,
+              "unresolved_high_severity_open_count": 1,
+              "current_unresolved_high_severity_open_count": 0,
+              "unresolved_high_severity_source_group_count": 1,
+              "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
+            },
+            "line": "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
+          }
+        ],
+        "handoffFamilies": [
+          "builder_trace_health",
+          "local_runtime_test_artifacts",
+          "repo_release_blocks"
+        ],
+        "handoffCount": 6,
+        "packetEvidence": {
+          "missing": [],
+          "invalid": [],
+          "stale": []
+        },
+        "failingCases": []
+      },
+      "publish": {
+        "ready": false,
+        "blockers": [
+          "release_caveats",
+          "release_handoffs"
+        ],
+        "blockerDetails": {
+          "release_caveats": {
+            "caveatCount": 3,
+            "caveatFamilies": [
+              "builder_trace_health",
+              "local_runtime_test_artifacts",
+              "repo_release_blocks"
+            ],
+            "caveatDetails": {
+              "builder_trace_health": {
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "flags": [
+                  "historical_open_high_severity_events"
+                ],
+                "status": "current_clean",
+                "window": "1h",
+                "missing_trace_ref_count": 0,
+                "one_hour_missing_trace_ref_count": 0,
+                "historical_missing_trace_ref_count": 0,
+                "high_severity_open_count": 46,
+                "unresolved_high_severity_open_count": 1,
+                "current_unresolved_high_severity_open_count": 0,
+                "unresolved_high_severity_source_group_count": 1,
+                "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z",
+                "latest_missing_source_group_count": 0,
+                "latest_clean_historical_window_group_count": 0
+              },
+              "repo_release_blocks": {
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "blocked_release_count": 4,
+                "critical_repo_count": 3,
+                "blocked_release_repos": [
+                  {
+                    "repo": "domain-chip-memory",
+                    "releaseBlocking": false,
+                    "publishBlocking": true,
+                    "risk_class": "high",
+                    "reason": "behind upstream",
+                    "next_safe_action": "pull or merge upstream before release",
+                    "behind": 6
+                  },
+                  {
+                    "repo": "spark-intelligence-builder",
+                    "releaseBlocking": false,
+                    "publishBlocking": true,
+                    "risk_class": "critical",
+                    "reason": "behind upstream",
+                    "next_safe_action": "pull or merge upstream before release",
+                    "behind": 12
+                  },
+                  {
+                    "repo": "spark-researcher",
+                    "releaseBlocking": false,
+                    "publishBlocking": true,
+                    "risk_class": "high",
+                    "reason": "behind upstream",
+                    "next_safe_action": "pull or merge upstream before release",
+                    "behind": 61
+                  },
+                  {
+                    "repo": "spawner-ui",
+                    "releaseBlocking": false,
+                    "publishBlocking": true,
+                    "risk_class": "critical",
+                    "reason": "behind upstream",
+                    "next_safe_action": "pull or merge upstream before release",
+                    "behind": 29
+                  }
+                ]
+              },
+              "duplicate_truths": {
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "label": "local_runtime_test_artifacts",
+                "classification_counts": {
+                  "local_runtime_test_artifact": 2
+                },
+                "duplicate_truth_count": 2,
+                "critical_duplicate_truth_count": 0,
+                "owner_sets": {
+                  "local_runtime_test_artifact": [
+                    "spark-telegram-bot",
+                    "spawner-ui"
+                  ]
+                }
+              }
+            }
+          },
+          "release_handoffs": {
+            "handoffCount": 6,
+            "handoffFamilies": [
+              "builder_trace_health",
+              "local_runtime_test_artifacts",
+              "repo_release_blocks"
+            ],
+            "handoffDetails": {
+              "schema_version": "spark.publish_handoffs.summary.v0",
+              "family_count": 3,
+              "families": [
+                "repo_release_blocks",
+                "local_runtime_test_artifacts",
+                "builder_trace_health"
+              ],
+              "blocked_release_repos": [
+                {
+                  "repo": "domain-chip-memory",
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
+                  "risk_class": "high",
+                  "reason": "behind upstream",
+                  "next_safe_action": "pull or merge upstream before release",
+                  "behind": 6
+                },
+                {
+                  "repo": "spark-intelligence-builder",
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
+                  "risk_class": "critical",
+                  "reason": "behind upstream",
+                  "next_safe_action": "pull or merge upstream before release",
+                  "behind": 12
+                },
+                {
+                  "repo": "spark-researcher",
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
+                  "risk_class": "high",
+                  "reason": "behind upstream",
+                  "next_safe_action": "pull or merge upstream before release",
+                  "behind": 61
+                },
+                {
+                  "repo": "spawner-ui",
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
+                  "risk_class": "critical",
+                  "reason": "behind upstream",
+                  "next_safe_action": "pull or merge upstream before release",
+                  "behind": 29
+                }
+              ],
+              "local_runtime_test_artifacts": {
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "count": 2,
+                "owners": [
+                  "spark-telegram-bot",
+                  "spawner-ui"
+                ]
+              },
+              "builder_trace_health": {
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "flags": [
+                  "historical_open_high_severity_events"
+                ],
+                "high_severity_open_count": 46,
+                "unresolved_high_severity_open_count": 1,
+                "current_unresolved_high_severity_open_count": 0,
+                "unresolved_high_severity_source_group_count": 1,
+                "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
+              },
+              "duplicate_truths": {
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "classification_counts": {
+                  "local_runtime_test_artifact": 2
+                },
+                "duplicate_truth_count": 2,
+                "owner_sets": {
+                  "local_runtime_test_artifact": [
+                    "spark-telegram-bot",
+                    "spawner-ui"
+                  ]
+                }
+              }
+            },
+            "handoffActionDetails": [
+              {
+                "owner": "domain-chip-memory",
+                "status": "publish_blocked",
+                "family": "repo_release_blocks",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "reason": "behind upstream",
+                "behind": 6,
+                "nextSafeAction": "pull or merge upstream before release",
+                "familyDetails": {
+                  "repo": "domain-chip-memory",
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
+                  "risk_class": "high",
+                  "reason": "behind upstream",
+                  "next_safe_action": "pull or merge upstream before release",
+                  "behind": 6
+                },
+                "line": "domain-chip-memory: publish_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release"
+              },
+              {
+                "owner": "spark-intelligence-builder",
+                "status": "publish_blocked",
+                "family": "repo_release_blocks",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "reason": "behind upstream",
+                "behind": 12,
+                "nextSafeAction": "pull or merge upstream before release",
+                "familyDetails": {
+                  "repo": "spark-intelligence-builder",
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
+                  "risk_class": "critical",
+                  "reason": "behind upstream",
+                  "next_safe_action": "pull or merge upstream before release",
+                  "behind": 12
+                },
+                "line": "spark-intelligence-builder: publish_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release"
+              },
+              {
+                "owner": "spark-researcher",
+                "status": "publish_blocked",
+                "family": "repo_release_blocks",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "reason": "behind upstream",
+                "behind": 61,
+                "nextSafeAction": "pull or merge upstream before release",
+                "familyDetails": {
+                  "repo": "spark-researcher",
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
+                  "risk_class": "high",
+                  "reason": "behind upstream",
+                  "next_safe_action": "pull or merge upstream before release",
+                  "behind": 61
+                },
+                "line": "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
+              },
+              {
+                "owner": "spawner-ui",
+                "status": "publish_blocked",
+                "family": "repo_release_blocks",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "reason": "behind upstream",
+                "behind": 29,
+                "nextSafeAction": "pull or merge upstream before release",
+                "familyDetails": {
+                  "repo": "spawner-ui",
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
+                  "risk_class": "critical",
+                  "reason": "behind upstream",
+                  "next_safe_action": "pull or merge upstream before release",
+                  "behind": 29
+                },
+                "line": "spawner-ui: publish_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release"
+              },
+              {
+                "owner": "spark-installer-registry",
+                "status": "warning",
+                "family": "local_runtime_test_artifacts",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "reason": null,
+                "behind": null,
+                "nextSafeAction": "Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
+                "familyDetails": {
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
+                  "count": 2,
+                  "owners": [
+                    "spark-telegram-bot",
+                    "spawner-ui"
+                  ]
+                },
+                "line": "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims."
+              },
+              {
+                "owner": "spark-intelligence-builder",
+                "status": "warning",
+                "family": "builder_trace_health",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "reason": null,
+                "behind": null,
+                "nextSafeAction": "Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.",
+                "familyDetails": {
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
+                  "flags": [
+                    "historical_open_high_severity_events"
+                  ],
+                  "high_severity_open_count": 46,
+                  "unresolved_high_severity_open_count": 1,
+                  "current_unresolved_high_severity_open_count": 0,
+                  "unresolved_high_severity_source_group_count": 1,
+                  "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
+                },
+                "line": "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
+              }
+            ],
+            "handoffs": [
+              "domain-chip-memory: publish_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release",
+              "spark-intelligence-builder: publish_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release",
+              "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release",
+              "spawner-ui: publish_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release",
+              "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
+              "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
+            ]
+          }
+        },
+        "caveats": [
+          "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
+          "repo_release_blocks | blocked_release_count=4 | critical_repo_count=3",
+          "local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0"
+        ],
+        "caveatDetails": {
+          "builder_trace_health": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "flags": [
+              "historical_open_high_severity_events"
+            ],
+            "status": "current_clean",
+            "window": "1h",
+            "missing_trace_ref_count": 0,
+            "one_hour_missing_trace_ref_count": 0,
+            "historical_missing_trace_ref_count": 0,
+            "high_severity_open_count": 46,
+            "unresolved_high_severity_open_count": 1,
+            "current_unresolved_high_severity_open_count": 0,
+            "unresolved_high_severity_source_group_count": 1,
+            "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z",
+            "latest_missing_source_group_count": 0,
+            "latest_clean_historical_window_group_count": 0
+          },
+          "repo_release_blocks": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "blocked_release_count": 4,
+            "critical_repo_count": 3,
+            "blocked_release_repos": [
+              {
+                "repo": "domain-chip-memory",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "risk_class": "high",
+                "reason": "behind upstream",
+                "next_safe_action": "pull or merge upstream before release",
+                "behind": 6
+              },
+              {
+                "repo": "spark-intelligence-builder",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "risk_class": "critical",
+                "reason": "behind upstream",
+                "next_safe_action": "pull or merge upstream before release",
+                "behind": 12
+              },
+              {
+                "repo": "spark-researcher",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "risk_class": "high",
+                "reason": "behind upstream",
+                "next_safe_action": "pull or merge upstream before release",
+                "behind": 61
+              },
+              {
+                "repo": "spawner-ui",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "risk_class": "critical",
+                "reason": "behind upstream",
+                "next_safe_action": "pull or merge upstream before release",
+                "behind": 29
+              }
+            ]
+          },
+          "duplicate_truths": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "label": "local_runtime_test_artifacts",
+            "classification_counts": {
+              "local_runtime_test_artifact": 2
+            },
+            "duplicate_truth_count": 2,
+            "critical_duplicate_truth_count": 0,
+            "owner_sets": {
+              "local_runtime_test_artifact": [
+                "spark-telegram-bot",
+                "spawner-ui"
+              ]
+            }
+          }
+        },
+        "caveatFamilies": [
+          "builder_trace_health",
+          "local_runtime_test_artifacts",
+          "repo_release_blocks"
+        ],
+        "handoffDetails": {
+          "schema_version": "spark.publish_handoffs.summary.v0",
+          "family_count": 3,
+          "families": [
+            "repo_release_blocks",
+            "local_runtime_test_artifacts",
+            "builder_trace_health"
+          ],
+          "blocked_release_repos": [
+            {
+              "repo": "domain-chip-memory",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "high",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 6
+            },
+            {
+              "repo": "spark-intelligence-builder",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "critical",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 12
+            },
+            {
+              "repo": "spark-researcher",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "high",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 61
+            },
+            {
+              "repo": "spawner-ui",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "critical",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 29
+            }
+          ],
+          "local_runtime_test_artifacts": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "count": 2,
+            "owners": [
+              "spark-telegram-bot",
+              "spawner-ui"
+            ]
+          },
+          "builder_trace_health": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "flags": [
+              "historical_open_high_severity_events"
+            ],
+            "high_severity_open_count": 46,
+            "unresolved_high_severity_open_count": 1,
+            "current_unresolved_high_severity_open_count": 0,
+            "unresolved_high_severity_source_group_count": 1,
+            "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
+          },
+          "duplicate_truths": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "classification_counts": {
+              "local_runtime_test_artifact": 2
+            },
+            "duplicate_truth_count": 2,
+            "owner_sets": {
+              "local_runtime_test_artifact": [
+                "spark-telegram-bot",
+                "spawner-ui"
+              ]
+            }
+          }
+        },
+        "handoffActionDetails": [
+          {
+            "owner": "domain-chip-memory",
+            "status": "publish_blocked",
+            "family": "repo_release_blocks",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "reason": "behind upstream",
+            "behind": 6,
+            "nextSafeAction": "pull or merge upstream before release",
+            "familyDetails": {
+              "repo": "domain-chip-memory",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "high",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 6
+            },
+            "line": "domain-chip-memory: publish_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spark-intelligence-builder",
+            "status": "publish_blocked",
+            "family": "repo_release_blocks",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "reason": "behind upstream",
+            "behind": 12,
+            "nextSafeAction": "pull or merge upstream before release",
+            "familyDetails": {
+              "repo": "spark-intelligence-builder",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "critical",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 12
+            },
+            "line": "spark-intelligence-builder: publish_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spark-researcher",
+            "status": "publish_blocked",
+            "family": "repo_release_blocks",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "reason": "behind upstream",
+            "behind": 61,
+            "nextSafeAction": "pull or merge upstream before release",
+            "familyDetails": {
+              "repo": "spark-researcher",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "high",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 61
+            },
+            "line": "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spawner-ui",
+            "status": "publish_blocked",
+            "family": "repo_release_blocks",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "reason": "behind upstream",
+            "behind": 29,
+            "nextSafeAction": "pull or merge upstream before release",
+            "familyDetails": {
+              "repo": "spawner-ui",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "critical",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 29
+            },
+            "line": "spawner-ui: publish_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spark-installer-registry",
+            "status": "warning",
+            "family": "local_runtime_test_artifacts",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "reason": null,
+            "behind": null,
+            "nextSafeAction": "Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
+            "familyDetails": {
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "count": 2,
+              "owners": [
+                "spark-telegram-bot",
+                "spawner-ui"
+              ]
+            },
+            "line": "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims."
+          },
+          {
+            "owner": "spark-intelligence-builder",
+            "status": "warning",
+            "family": "builder_trace_health",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "reason": null,
+            "behind": null,
+            "nextSafeAction": "Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.",
+            "familyDetails": {
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "flags": [
+                "historical_open_high_severity_events"
+              ],
+              "high_severity_open_count": 46,
+              "unresolved_high_severity_open_count": 1,
+              "current_unresolved_high_severity_open_count": 0,
+              "unresolved_high_severity_source_group_count": 1,
+              "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
+            },
+            "line": "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
+          }
+        ],
+        "handoffFamilies": [
+          "builder_trace_health",
+          "local_runtime_test_artifacts",
+          "repo_release_blocks"
+        ],
+        "handoffCount": 6,
+        "packetEvidence": {
+          "missing": [],
+          "invalid": [],
+          "stale": []
+        },
+        "failingCases": []
+      }
+    },
+    "releaseCaveats": [
+      "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
+      "repo_release_blocks | blocked_release_count=4 | critical_repo_count=3",
+      "local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0"
+    ],
+    "releaseCaveatDetails": {
+      "builder_trace_health": {
+        "releaseBlocking": false,
+        "publishBlocking": true,
+        "flags": [
+          "historical_open_high_severity_events"
+        ],
+        "status": "current_clean",
+        "window": "1h",
+        "missing_trace_ref_count": 0,
+        "one_hour_missing_trace_ref_count": 0,
+        "historical_missing_trace_ref_count": 0,
+        "high_severity_open_count": 46,
+        "unresolved_high_severity_open_count": 1,
+        "current_unresolved_high_severity_open_count": 0,
+        "unresolved_high_severity_source_group_count": 1,
+        "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z",
+        "latest_missing_source_group_count": 0,
+        "latest_clean_historical_window_group_count": 0
+      },
+      "repo_release_blocks": {
+        "releaseBlocking": false,
+        "publishBlocking": true,
+        "blocked_release_count": 4,
+        "critical_repo_count": 3,
+        "blocked_release_repos": [
+          {
+            "repo": "domain-chip-memory",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "risk_class": "high",
+            "reason": "behind upstream",
+            "next_safe_action": "pull or merge upstream before release",
+            "behind": 6
+          },
+          {
+            "repo": "spark-intelligence-builder",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "risk_class": "critical",
+            "reason": "behind upstream",
+            "next_safe_action": "pull or merge upstream before release",
+            "behind": 12
+          },
+          {
+            "repo": "spark-researcher",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "risk_class": "high",
+            "reason": "behind upstream",
+            "next_safe_action": "pull or merge upstream before release",
+            "behind": 61
+          },
+          {
+            "repo": "spawner-ui",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "risk_class": "critical",
+            "reason": "behind upstream",
+            "next_safe_action": "pull or merge upstream before release",
+            "behind": 29
+          }
+        ]
+      },
+      "duplicate_truths": {
+        "releaseBlocking": false,
+        "publishBlocking": true,
+        "label": "local_runtime_test_artifacts",
+        "classification_counts": {
+          "local_runtime_test_artifact": 2
+        },
+        "duplicate_truth_count": 2,
+        "critical_duplicate_truth_count": 0,
+        "owner_sets": {
+          "local_runtime_test_artifact": [
+            "spark-telegram-bot",
+            "spawner-ui"
+          ]
+        }
+      }
+    },
+    "controlProofAuditDetails": {
+      "generatedAt": "2026-06-27T08:14:16.670Z",
+      "status": "gaps found",
+      "actionableStatus": "clean",
+      "blockingStatus": "clean",
+      "freshStrictOk": true,
+      "gapPosture": "backed legacy gaps only; no blocking or latest proof gaps",
+      "gapCounts": {
+        "missing_evidence": 0,
+        "missing_trace_joins": 0,
+        "missing_proof_capsules": 0,
+        "source_proof_gaps": 0,
+        "legacy_proof_gaps": 3,
+        "incomplete_legacy_gap_backing": 0,
+        "latest_proof_gaps": 0,
+        "raw_ref_leaks": 0,
+        "robotic_failure_reasons": 0,
+        "stack_like_leaks": 0
+      },
+      "gapPlanes": {
+        "legacy_proof_gaps": [
+          "telegram_route_confidence",
+          "builder_gateway",
+          "spawner_prd_trace"
+        ]
+      },
+      "gapDetails": {
+        "legacy_proof_gaps": {
+          "count": 3,
+          "releaseBlocking": false,
+          "publishBlocking": false,
+          "backingStatus": "complete",
+          "planeLabels": [
+            "telegram_route_confidence",
+            "builder_gateway",
+            "spawner_prd_trace"
+          ],
+          "planes": [
+            {
+              "label": "telegram_route_confidence",
+              "sampledRows": 100,
+              "totalRows": 145,
+              "requestPresent": 100,
+              "tracePresent": 100,
+              "proofPresent": 100,
+              "proofRefPresent": 100,
+              "proofCapsulePresent": 100,
+              "proofNotApplicable": 0,
+              "proofGap": 97,
+              "gapCapsule": 97,
+              "gapCapsuleValid": 97,
+              "gapRef": 97,
+              "gapBacking": "complete",
+              "latestGap": false,
+              "rawRefs": 0,
+              "rawIdKeys": 0,
+              "reasonCodes": 0,
+              "parseErrors": 0
+            },
+            {
+              "label": "builder_gateway",
+              "sampledRows": 100,
+              "totalRows": 535,
+              "requestPresent": 100,
+              "tracePresent": 100,
+              "proofPresent": 100,
+              "proofRefPresent": 100,
+              "proofCapsulePresent": 72,
+              "proofNotApplicable": 0,
+              "proofGap": 42,
+              "gapCapsule": 42,
+              "gapCapsuleValid": 42,
+              "gapRef": 42,
+              "gapBacking": "complete",
+              "latestGap": false,
+              "rawRefs": 0,
+              "rawIdKeys": 0,
+              "reasonCodes": 0,
+              "parseErrors": 0
+            },
+            {
+              "label": "spawner_prd_trace",
+              "sampledRows": 100,
+              "totalRows": 495,
+              "requestPresent": 100,
+              "tracePresent": 100,
+              "proofPresent": 100,
+              "proofRefPresent": 100,
+              "proofCapsulePresent": 96,
+              "proofNotApplicable": 0,
+              "proofGap": 94,
+              "gapCapsule": 94,
+              "gapCapsuleValid": 94,
+              "gapRef": 94,
+              "gapBacking": "complete",
+              "latestGap": false,
+              "rawRefs": 0,
+              "rawIdKeys": 0,
+              "reasonCodes": 0,
+              "parseErrors": 0
+            }
+          ],
+          "latestGapPlaneCount": 0,
+          "incompleteBackingPlaneCount": 0,
+          "completeBackingPlaneCount": 3
+        }
+      },
+      "legacyGapBackingDetails": [
+        {
+          "plane": "telegram_route_confidence",
+          "backing": "complete",
+          "repairSource": "route_confidence_legacy_repair",
+          "latestGap": false,
+          "releaseBlocking": false,
+          "proofGapMarked": 97,
+          "incompleteBacking": 0,
+          "latestRecordAt": "2026-06-24T23:04:43.263Z",
+          "repairCommand": "npm run control:proof:repair:route-confidence -- --dry-run --json"
+        },
+        {
+          "plane": "builder_gateway",
+          "backing": "complete",
+          "repairSource": "builder_gateway_trace_legacy_repair",
+          "latestGap": false,
+          "releaseBlocking": false,
+          "proofGapMarked": 42,
+          "incompleteBacking": 0,
+          "latestRecordAt": "2026-06-27T07:50:56+00:00",
+          "repairCommand": "npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json"
+        },
+        {
+          "plane": "spawner_prd_trace",
+          "backing": "complete",
+          "repairSource": "spawner_prd_trace_legacy_repair",
+          "latestGap": false,
+          "releaseBlocking": false,
+          "proofGapMarked": 94,
+          "incompleteBacking": 0,
+          "latestRecordAt": "2026-06-24T23:04:43.878Z",
+          "repairCommand": "npm run control:proof:repair:legacy -- --plane spawner_prd_trace --dry-run --json"
+        }
+      ],
+      "planes": [
+        {
+          "label": "telegram_final_answer",
+          "sampledRows": 100,
+          "totalRows": 7890,
+          "requestPresent": 100,
+          "tracePresent": 100,
+          "proofPresent": 100,
+          "proofRefPresent": 100,
+          "proofCapsulePresent": 100,
+          "proofNotApplicable": 0,
+          "proofGap": 0,
+          "gapCapsule": 0,
+          "gapCapsuleValid": 0,
+          "gapRef": 0,
+          "gapBacking": null,
+          "latestGap": false,
+          "rawRefs": 0,
+          "rawIdKeys": 0,
+          "reasonCodes": 0,
+          "parseErrors": 0
+        },
+        {
+          "label": "telegram_outbound",
+          "sampledRows": 100,
+          "totalRows": 1659,
+          "requestPresent": 100,
+          "tracePresent": 100,
+          "proofPresent": 100,
+          "proofRefPresent": 100,
+          "proofCapsulePresent": 100,
+          "proofNotApplicable": 0,
+          "proofGap": 0,
+          "gapCapsule": 0,
+          "gapCapsuleValid": 0,
+          "gapRef": 0,
+          "gapBacking": null,
+          "latestGap": false,
+          "rawRefs": 0,
+          "rawIdKeys": 0,
+          "reasonCodes": 0,
+          "parseErrors": 0
+        },
+        {
+          "label": "telegram_route_confidence",
+          "sampledRows": 100,
+          "totalRows": 145,
+          "requestPresent": 100,
+          "tracePresent": 100,
+          "proofPresent": 100,
+          "proofRefPresent": 100,
+          "proofCapsulePresent": 100,
+          "proofNotApplicable": 0,
+          "proofGap": 97,
+          "gapCapsule": 97,
+          "gapCapsuleValid": 97,
+          "gapRef": 97,
+          "gapBacking": "complete",
+          "latestGap": false,
+          "rawRefs": 0,
+          "rawIdKeys": 0,
+          "reasonCodes": 0,
+          "parseErrors": 0
+        },
+        {
+          "label": "builder_gateway",
+          "sampledRows": 100,
+          "totalRows": 535,
+          "requestPresent": 100,
+          "tracePresent": 100,
+          "proofPresent": 100,
+          "proofRefPresent": 100,
+          "proofCapsulePresent": 72,
+          "proofNotApplicable": 0,
+          "proofGap": 42,
+          "gapCapsule": 42,
+          "gapCapsuleValid": 42,
+          "gapRef": 42,
+          "gapBacking": "complete",
+          "latestGap": false,
+          "rawRefs": 0,
+          "rawIdKeys": 0,
+          "reasonCodes": 0,
+          "parseErrors": 0
+        },
+        {
+          "label": "spawner_prd_trace",
+          "sampledRows": 100,
+          "totalRows": 495,
+          "requestPresent": 100,
+          "tracePresent": 100,
+          "proofPresent": 100,
+          "proofRefPresent": 100,
+          "proofCapsulePresent": 96,
+          "proofNotApplicable": 0,
+          "proofGap": 94,
+          "gapCapsule": 94,
+          "gapCapsuleValid": 94,
+          "gapRef": 94,
+          "gapBacking": "complete",
+          "latestGap": false,
+          "rawRefs": 0,
+          "rawIdKeys": 0,
+          "reasonCodes": 0,
+          "parseErrors": 0
+        },
+        {
+          "label": "system_trace_index",
+          "sampledRows": 1,
+          "totalRows": 1,
+          "requestPresent": 1,
+          "tracePresent": 1,
+          "proofPresent": 1,
+          "proofRefPresent": 1,
+          "proofCapsulePresent": 1,
+          "proofNotApplicable": 0,
+          "proofGap": 0,
+          "gapCapsule": 0,
+          "gapCapsuleValid": 0,
+          "gapRef": 0,
+          "gapBacking": null,
+          "latestGap": false,
+          "rawRefs": 0,
+          "rawIdKeys": 0,
+          "reasonCodes": 0,
+          "parseErrors": 0
+        },
+        {
+          "label": "memory_movement_index",
+          "sampledRows": 1,
+          "totalRows": 1,
+          "requestPresent": 1,
+          "tracePresent": 1,
+          "proofPresent": 0,
+          "proofRefPresent": 0,
+          "proofCapsulePresent": 0,
+          "proofNotApplicable": 1,
+          "proofGap": 0,
+          "gapCapsule": 0,
+          "gapCapsuleValid": 0,
+          "gapRef": 0,
+          "gapBacking": null,
+          "latestGap": false,
+          "rawRefs": 0,
+          "rawIdKeys": 0,
+          "reasonCodes": 0,
+          "parseErrors": 0
+        },
+        {
+          "label": "voice_surface_view",
+          "sampledRows": 1,
+          "totalRows": 1,
+          "requestPresent": 1,
+          "tracePresent": 1,
+          "proofPresent": 0,
+          "proofRefPresent": 0,
+          "proofCapsulePresent": 0,
+          "proofNotApplicable": 1,
+          "proofGap": 0,
+          "gapCapsule": 0,
+          "gapCapsuleValid": 0,
+          "gapRef": 0,
+          "gapBacking": null,
+          "latestGap": false,
+          "rawRefs": 0,
+          "rawIdKeys": 0,
+          "reasonCodes": 0,
+          "parseErrors": 0
+        },
+        {
+          "label": "voice_runtime_state",
+          "sampledRows": 1,
+          "totalRows": 1,
+          "requestPresent": 1,
+          "tracePresent": 1,
+          "proofPresent": 0,
+          "proofRefPresent": 0,
+          "proofCapsulePresent": 0,
+          "proofNotApplicable": 1,
+          "proofGap": 0,
+          "gapCapsule": 0,
+          "gapCapsuleValid": 0,
+          "gapRef": 0,
+          "gapBacking": null,
+          "latestGap": false,
+          "rawRefs": 0,
+          "rawIdKeys": 0,
+          "reasonCodes": 0,
+          "parseErrors": 0
+        }
+      ]
+    },
+    "legacyRepairDryRunDetails": [
+      {
+        "plane": "builder_gateway",
+        "changedRows": 0,
+        "rowsRead": 535,
+        "capsulesAdded": 0,
+        "parseErrors": 0
+      },
+      {
+        "plane": "spawner_prd_trace",
+        "changedRows": 0,
+        "rowsRead": 495,
+        "capsulesAdded": 0,
+        "parseErrors": 0
+      },
+      {
+        "plane": "telegram_route_confidence",
+        "changedRows": 0,
+        "rowsRead": 145,
+        "capsulesAdded": 0,
+        "parseErrors": 0
+      }
+    ],
+    "releaseHandoffs": [
+      "domain-chip-memory: publish_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release",
+      "spark-intelligence-builder: publish_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release",
+      "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release",
+      "spawner-ui: publish_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release",
+      "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
+      "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
+    ],
+    "releaseHandoffDetails": [
+      {
+        "owner": "domain-chip-memory",
+        "status": "publish_blocked",
+        "family": "repo_release_blocks",
+        "releaseBlocking": false,
+        "publishBlocking": true,
+        "reason": "behind upstream",
+        "behind": 6,
+        "nextSafeAction": "pull or merge upstream before release",
+        "familyDetails": {
+          "repo": "domain-chip-memory",
+          "releaseBlocking": false,
+          "publishBlocking": true,
+          "risk_class": "high",
+          "reason": "behind upstream",
+          "next_safe_action": "pull or merge upstream before release",
+          "behind": 6
+        },
+        "line": "domain-chip-memory: publish_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release"
+      },
+      {
+        "owner": "spark-intelligence-builder",
+        "status": "publish_blocked",
+        "family": "repo_release_blocks",
+        "releaseBlocking": false,
+        "publishBlocking": true,
+        "reason": "behind upstream",
+        "behind": 12,
+        "nextSafeAction": "pull or merge upstream before release",
+        "familyDetails": {
+          "repo": "spark-intelligence-builder",
+          "releaseBlocking": false,
+          "publishBlocking": true,
+          "risk_class": "critical",
+          "reason": "behind upstream",
+          "next_safe_action": "pull or merge upstream before release",
+          "behind": 12
+        },
+        "line": "spark-intelligence-builder: publish_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release"
+      },
+      {
+        "owner": "spark-researcher",
+        "status": "publish_blocked",
+        "family": "repo_release_blocks",
+        "releaseBlocking": false,
+        "publishBlocking": true,
+        "reason": "behind upstream",
+        "behind": 61,
+        "nextSafeAction": "pull or merge upstream before release",
+        "familyDetails": {
+          "repo": "spark-researcher",
+          "releaseBlocking": false,
+          "publishBlocking": true,
+          "risk_class": "high",
+          "reason": "behind upstream",
+          "next_safe_action": "pull or merge upstream before release",
+          "behind": 61
+        },
+        "line": "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
+      },
+      {
+        "owner": "spawner-ui",
+        "status": "publish_blocked",
+        "family": "repo_release_blocks",
+        "releaseBlocking": false,
+        "publishBlocking": true,
+        "reason": "behind upstream",
+        "behind": 29,
+        "nextSafeAction": "pull or merge upstream before release",
+        "familyDetails": {
+          "repo": "spawner-ui",
+          "releaseBlocking": false,
+          "publishBlocking": true,
+          "risk_class": "critical",
+          "reason": "behind upstream",
+          "next_safe_action": "pull or merge upstream before release",
+          "behind": 29
+        },
+        "line": "spawner-ui: publish_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release"
+      },
+      {
+        "owner": "spark-installer-registry",
+        "status": "warning",
+        "family": "local_runtime_test_artifacts",
+        "releaseBlocking": false,
+        "publishBlocking": true,
+        "reason": null,
+        "behind": null,
+        "nextSafeAction": "Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
+        "familyDetails": {
+          "releaseBlocking": false,
+          "publishBlocking": true,
+          "count": 2,
+          "owners": [
+            "spark-telegram-bot",
+            "spawner-ui"
+          ]
+        },
+        "line": "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims."
+      },
+      {
+        "owner": "spark-intelligence-builder",
+        "status": "warning",
+        "family": "builder_trace_health",
+        "releaseBlocking": false,
+        "publishBlocking": true,
+        "reason": null,
+        "behind": null,
+        "nextSafeAction": "Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.",
+        "familyDetails": {
+          "releaseBlocking": false,
+          "publishBlocking": true,
+          "flags": [
+            "historical_open_high_severity_events"
+          ],
+          "high_severity_open_count": 46,
+          "unresolved_high_severity_open_count": 1,
+          "current_unresolved_high_severity_open_count": 0,
+          "unresolved_high_severity_source_group_count": 1,
+          "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
+        },
+        "line": "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
+      }
+    ],
+    "publishHandoffs": {
+      "schema_version": "spark.publish_handoffs.summary.v0",
+      "family_count": 3,
+      "families": [
+        "repo_release_blocks",
+        "local_runtime_test_artifacts",
+        "builder_trace_health"
+      ],
+      "blocked_release_repos": [
+        {
+          "repo": "domain-chip-memory",
+          "releaseBlocking": false,
+          "publishBlocking": true,
+          "risk_class": "high",
+          "reason": "behind upstream",
+          "next_safe_action": "pull or merge upstream before release",
+          "behind": 6
+        },
+        {
+          "repo": "spark-intelligence-builder",
+          "releaseBlocking": false,
+          "publishBlocking": true,
+          "risk_class": "critical",
+          "reason": "behind upstream",
+          "next_safe_action": "pull or merge upstream before release",
+          "behind": 12
+        },
+        {
+          "repo": "spark-researcher",
+          "releaseBlocking": false,
+          "publishBlocking": true,
+          "risk_class": "high",
+          "reason": "behind upstream",
+          "next_safe_action": "pull or merge upstream before release",
+          "behind": 61
+        },
+        {
+          "repo": "spawner-ui",
+          "releaseBlocking": false,
+          "publishBlocking": true,
+          "risk_class": "critical",
+          "reason": "behind upstream",
+          "next_safe_action": "pull or merge upstream before release",
+          "behind": 29
+        }
+      ],
+      "local_runtime_test_artifacts": {
+        "releaseBlocking": false,
+        "publishBlocking": true,
+        "count": 2,
+        "owners": [
+          "spark-telegram-bot",
+          "spawner-ui"
+        ]
+      },
+      "builder_trace_health": {
+        "releaseBlocking": false,
+        "publishBlocking": true,
+        "flags": [
+          "historical_open_high_severity_events"
+        ],
+        "high_severity_open_count": 46,
+        "unresolved_high_severity_open_count": 1,
+        "current_unresolved_high_severity_open_count": 0,
+        "unresolved_high_severity_source_group_count": 1,
+        "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
+      },
+      "duplicate_truths": {
+        "releaseBlocking": false,
+        "publishBlocking": true,
+        "classification_counts": {
+          "local_runtime_test_artifact": 2
+        },
+        "duplicate_truth_count": 2,
+        "owner_sets": {
+          "local_runtime_test_artifact": [
+            "spark-telegram-bot",
+            "spawner-ui"
+          ]
+        }
+      }
+    },
+    "missingPacketEvidence": [],
+    "invalidPacketEvidence": [],
+    "stalePacketEvidence": [],
+    "packetEvidenceDetails": {
+      "generatedAt": "2026-06-27T08:14:25.718Z",
+      "runtimeEvidenceCollectedAt": "2026-06-27T08:14:25.718Z",
+      "runtimeEvidenceMaxAgeHours": 1,
+      "runtimeEvidenceExpiresAt": "2026-06-27T09:14:25.718Z",
+      "missing": [],
+      "invalid": [],
+      "stale": []
+    },
+    "cases": [
+      {
+        "id": "cp-noaction-001",
+        "category": "no_action",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "genesis-live-telegram-100.json",
+            "caseId": "genesis-021",
+            "relationship": "derived_from"
+          },
+          {
+            "catalog": "spark-qa-release-gate",
+            "caseId": "route-hijack-negative-001",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "plain_chat.risk_profile",
+        "expectedAuthority": "chat_only",
+        "expectedMutationClass": "none",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-noaction-002",
+        "category": "no_action",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "spark-qa-release-gate",
+            "caseId": "route-hijack-negative-002",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "plain_chat.routing_failure_class",
+        "expectedAuthority": "chat_only",
+        "expectedMutationClass": "none",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-noaction-003",
+        "category": "no_action",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "spark-qa-release-gate",
+            "caseId": "pending-boundary-negative-001",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "plain_chat.no_execution_boundary",
+        "expectedAuthority": "chat_only",
+        "expectedMutationClass": "none",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-noaction-004",
+        "category": "no_action",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "genesis-live-telegram-100.json",
+            "caseId": "genesis-026",
+            "relationship": "promoted_from"
+          },
+          {
+            "catalog": "spark-qa-release-gate",
+            "caseId": "fresh-state-negative-001",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "fresh_state.read_only_repair_status",
+        "expectedAuthority": "chat_only",
+        "expectedMutationClass": "none",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-authority-001",
+        "category": "authority",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "spark-qa-release-gate",
+            "caseId": "fresh-state-drift-001",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "fresh_state.authority_answer",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-authority-002",
+        "category": "authority",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "spark-qa-release-gate",
+            "caseId": "fresh-state-drift-002",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "fresh_state.live_status",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-proof-001",
+        "category": "proof",
+        "verdict": "pass",
+        "expectedRoute": "proof.inspect",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "proof_panel",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-proof-002",
+        "category": "proof",
+        "verdict": "pass",
+        "expectedRoute": "proof.inspect",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "proof_panel",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-builder-001",
+        "category": "builder",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "natural-language-live-commands.json",
+            "caseId": "memory-004",
+            "relationship": "derived_from"
+          }
+        ],
+        "expectedRoute": "plain_conversation",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-domain-chip-onboarding-001",
+        "category": "builder",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "spark-qa-release-gate",
+            "caseId": "domain-chip-onboarding-9-of-10",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "conversation.qa_planning",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-builder-002",
+        "category": "builder",
+        "verdict": "pass",
+        "expectedRoute": "builder_gateway.memory_diagnostic_boundary",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-streaming-001",
+        "category": "streaming",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "docs/LIVE_CHAT_STREAMING_DESIGN.md",
+            "caseId": "streaming-status-defaults",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "streaming.status",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "compact_card",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-streaming-002",
+        "category": "rich_messages",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "docs/LIVE_CHAT_STREAMING_DESIGN.md",
+            "caseId": "rich-message-delivery-proof",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "plain_chat.rich_message_render",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-memory-001",
+        "category": "memory",
+        "verdict": "pass",
+        "expectedRoute": "memory_recall",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-memory-002",
+        "category": "memory",
+        "verdict": "pass",
+        "expectedRoute": "memory.doctor",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-access-001",
+        "category": "access",
+        "verdict": "pass",
+        "expectedRoute": "access.capability_status",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-access-002",
+        "category": "access",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "natural-language-live-commands.json",
+            "caseId": "context-window-001",
+            "relationship": "derived_from"
+          },
+          {
+            "catalog": "natural-language-live-commands.json",
+            "caseId": "access-002",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "access.level_change",
+        "expectedAuthority": "confirmation_required_or_allowed",
+        "expectedMutationClass": "updates_access_setting",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-model-001",
+        "category": "model_switch",
+        "verdict": "pass",
+        "expectedRoute": "model_switch.boundary_explanation",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-model-002",
+        "category": "model_switch",
+        "verdict": "pass",
+        "expectedRoute": "model_switch.mission_provider",
+        "expectedAuthority": "confirmation_required_or_allowed",
+        "expectedMutationClass": "switches_provider",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-web-001",
+        "category": "web_research",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "natural-language-live-commands.json",
+            "caseId": "research-001",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "external_research.boundary",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-web-002",
+        "category": "web_research",
+        "verdict": "pass",
+        "expectedRoute": "external_research.direct_or_clarify",
+        "expectedAuthority": "confirmation_required_or_allowed",
+        "expectedMutationClass": "external_network",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-spawner-001",
+        "category": "spawner_build",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "natural-language-live-commands.json",
+            "caseId": "build-004",
+            "relationship": "derived_from"
+          },
+          {
+            "catalog": "natural-language-live-commands.json",
+            "caseId": "context-window-009",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "spawner_build.ideation_boundary",
+        "expectedAuthority": "chat_only",
+        "expectedMutationClass": "none",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-spawner-002",
+        "category": "spawner_build",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "natural-language-live-commands.json",
+            "caseId": "build-003",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "spawner.build",
+        "expectedAuthority": "confirmation_required_or_allowed",
+        "expectedMutationClass": "writes_files",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-mission-001",
+        "category": "mission",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "genesis-live-telegram-100.json",
+            "caseId": "genesis-061",
+            "relationship": "derived_from"
+          },
+          {
+            "catalog": "genesis-live-telegram-100.json",
+            "caseId": "genesis-100",
+            "relationship": "coverage_for"
+          },
+          {
+            "catalog": "spark-qa-release-gate",
+            "caseId": "no-edit-spawner-proof-001",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "spawner.run",
+        "expectedAuthority": "confirmation_required_or_allowed",
+        "expectedMutationClass": "launches_mission",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-media-001",
+        "category": "media",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "genesis-live-telegram-100.json",
+            "caseId": "genesis-081",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "media.image_boundary",
+        "expectedAuthority": "media_evidence_only",
+        "expectedMutationClass": "media_read",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-media-002",
+        "category": "media",
+        "verdict": "pass",
+        "expectedRoute": "media.image_analyze_or_boundary",
+        "expectedAuthority": "media_evidence_only",
+        "expectedMutationClass": "media_read",
+        "expectedReplyShape": "media_reply",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-voice-001",
+        "category": "voice",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "genesis-live-telegram-100.json",
+            "caseId": "genesis-081",
+            "relationship": "derived_from"
+          }
+        ],
+        "expectedRoute": "media.voice_transcribe_or_boundary",
+        "expectedAuthority": "media_evidence_only",
+        "expectedMutationClass": "media_read",
+        "expectedReplyShape": "media_reply",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-audio-001",
+        "category": "audio",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "genesis-live-telegram-100.json",
+            "caseId": "genesis-081",
+            "relationship": "coverage_for"
+          }
+        ],
+        "expectedRoute": "media.audio_transcribe_or_boundary",
+        "expectedAuthority": "media_evidence_only",
+        "expectedMutationClass": "media_read",
+        "expectedReplyShape": "media_reply",
+        "missingCaptures": []
+      },
+      {
+        "id": "cp-publish-001",
+        "category": "publish",
+        "verdict": "pass",
+        "sourceRefs": [
+          {
+            "catalog": "genesis-live-telegram-100.json",
+            "caseId": "genesis-047",
+            "relationship": "promoted_from"
+          }
+        ],
+        "expectedRoute": "registry_drift.read_only",
+        "expectedAuthority": "read_only_allowed",
+        "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
+        "missingCaptures": []
+      }
+    ],
+    "gateScope": "full_release_pack"
+  },
+  "coverage": {
+    "totalCases": 29,
+    "intentionalActionCases": 4,
+    "manualMediaCases": 4,
+    "categoryCounts": {
+      "no_action": 4,
+      "authority": 2,
+      "proof": 2,
+      "builder": 3,
+      "streaming": 1,
+      "rich_messages": 1,
+      "memory": 2,
+      "access": 2,
+      "model_switch": 2,
+      "web_research": 2,
+      "spawner_build": 2,
+      "mission": 1,
+      "media": 2,
+      "voice": 1,
+      "audio": 1,
+      "publish": 1
+    },
+    "riskCounts": {
+      "safe": 10,
+      "inspect_only": 11,
+      "intentional_action": 4,
+      "manual_media": 4
+    },
+    "mutationCounts": {
+      "none": 5,
+      "read_only": 15,
+      "updates_access_setting": 1,
+      "switches_provider": 1,
+      "external_network": 1,
+      "writes_files": 1,
+      "launches_mission": 1,
+      "media_read": 4
+    },
+    "authorityCounts": {
+      "chat_only": 5,
+      "read_only_allowed": 15,
+      "confirmation_required_or_allowed": 5,
+      "media_evidence_only": 4
+    },
+    "missingRequiredCategories": [],
+    "missingReleaseCaseIds": [],
+    "coverageComplete": true,
+    "releasePackComplete": true,
+    "gateScope": "full_release_pack"
+  }
+}

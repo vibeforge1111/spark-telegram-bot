@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { resolveDefaultPythonCommand, resolvePythonCommand } from '../src/pythonCommand';
+import { resolvePythonCommand } from '../src/pythonCommand';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -32,12 +32,12 @@ test('resolves SPARK_BUILDER_PYTHON to an absolute executable path', () => {
   });
 });
 
-test('resolves the default Python command for the current platform', () => {
+test('falls back to python3 when only python3 is on PATH', () => {
   withTempDir((dir) => {
-    const executable = path.join(dir, process.platform === 'win32' ? 'python.exe' : 'python3');
-    writeFileSync(executable, '');
+    const python3 = path.join(dir, process.platform === 'win32' ? 'python3.exe' : 'python3');
+    writeFileSync(python3, '');
 
-    assert.equal(resolveDefaultPythonCommand(dir), executable);
+    assert.equal(resolvePythonCommand(undefined, dir), python3);
   });
 });
 
@@ -45,6 +45,18 @@ test('rejects configured Python commands that are not on PATH', () => {
   assert.throws(
     () => resolvePythonCommand('python-does-not-exist-for-spark', ''),
     /SPARK_BUILDER_PYTHON was not found on PATH/
+  );
+});
+
+test('explains a missing configured Python path without exposing the path', () => {
+  const missing = path.join(os.tmpdir(), 'private-workspace', 'missing-python');
+  assert.throws(
+    () => resolvePythonCommand(missing, ''),
+    (error: unknown) => {
+      assert.match(String(error), /points to a path that does not exist/);
+      assert.doesNotMatch(String(error), /private-workspace/);
+      return true;
+    }
   );
 });
 

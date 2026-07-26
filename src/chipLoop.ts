@@ -5,11 +5,9 @@ import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
 import { withHiddenWindows } from './hiddenProcess';
 import { resolveBuilderRepoPath } from './builderRepoPath';
-import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 import { redactText } from './redaction';
 
 const execFileAsync = promisify(execFile);
-const DEFAULT_CHIP_LOOP_TIMEOUT_MS = 900000;
 
 export interface LoopResult {
   ok: boolean;
@@ -33,6 +31,42 @@ interface LoopConfig {
   timeoutMs: number;
 }
 
+export function formatChipLoopProcessError(error: unknown): string {
+  const err = error as { message?: unknown; stdout?: unknown; stderr?: unknown };
+  const stdout = Buffer.isBuffer(err?.stdout)
+    ? err.stdout.toString('utf8')
+    : typeof err?.stdout === 'string'
+      ? err.stdout
+      : '';
+  if (stdout) {
+    try {
+      const parsed = JSON.parse(stdout) as { error?: unknown };
+      const structured = typeof parsed.error === 'string' ? redactText(parsed.error).trim() : '';
+      if (structured) return structured.slice(0, 400);
+    } catch {
+      // Fall back to the bounded process error below.
+    }
+  }
+  const message = typeof err?.message === 'string' ? err.message : '';
+  const stderr = typeof err?.stderr === 'string' ? err.stderr : '';
+  const raw = `${message}\n${stderr}`.trim();
+  if (!raw) return 'Builder loop runner failed before it could return a result.';
+  if (
+    /\bCommand failed:/i.test(raw)
+    || /\bTraceback \(most recent call last\):/i.test(raw)
+    || /\bspark_intelligence\.cli\b/i.test(raw)
+    || /\s--(?:home|chip|rounds|suggest-limit)\b/i.test(raw)
+    || /\/Users\/|\/usr\/local|\\Users\\/i.test(raw)
+  ) {
+    return [
+      'Builder loop runner failed before it could complete.',
+      'The chip stayed private; nothing was promoted, published, activated, or absorbed.',
+      'Inspect the local loop status or trace for raw details.'
+    ].join(' ');
+  }
+  return raw.slice(-400);
+}
+
 function resolveConfig(): LoopConfig {
   const builderRepo = resolveBuilderRepoPath({ configuredRepo: process.env.SPARK_BUILDER_REPO });
   return {
@@ -41,12 +75,17 @@ function resolveConfig(): LoopConfig {
     builderHome: path.resolve(
       process.env.SPARK_BUILDER_HOME || path.join(os.homedir(), '.spark', 'state', 'spark-intelligence')
     ),
-    timeoutMs: parsePositiveIntegerEnvValue(process.env.CHIP_LOOP_TIMEOUT_MS, DEFAULT_CHIP_LOOP_TIMEOUT_MS),
+    timeoutMs: Number.parseInt(process.env.CHIP_LOOP_TIMEOUT_MS || '900000', 10) || 900000,
   };
 }
 
 export async function runChipLoop(chipKey: string, rounds: number, suggestLimit = 3): Promise<LoopResult> {
-  if (!chipKey) return { ok: false, error: 'empty chip key' };
+  if (!chipKey) {
+    return {
+      ok: false,
+      error: 'No chip key provided. Try /loop <chip_key> [rounds], for example /loop domain-chip-memory 3.'
+    };
+  }
   const config = resolveConfig();
   const args = [
     '-m', 'spark_intelligence.cli', 'loops', 'run',
@@ -56,11 +95,15 @@ export async function runChipLoop(chipKey: string, rounds: number, suggestLimit 
     '--suggest-limit', String(suggestLimit),
     '--json',
   ];
+  const builderSrc = path.join(config.builderRepo, 'src');
+  const pythonPath = process.env.PYTHONPATH
+    ? `${builderSrc}${path.delimiter}${process.env.PYTHONPATH}`
+    : builderSrc;
   try {
     const { stdout } = await execFileAsync(config.pythonCommand, args, withHiddenWindows({
       cwd: config.builderRepo,
       timeout: config.timeoutMs,
-      env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONPATH: pythonPath },
       maxBuffer: 10 * 1024 * 1024,
     }));
     const parsed = JSON.parse(stdout);
@@ -74,7 +117,6 @@ export async function runChipLoop(chipKey: string, rounds: number, suggestLimit 
       error: parsed.error ?? undefined,
     };
   } catch (err: any) {
-    const stderr = typeof err?.stderr === 'string' ? redactText(err.stderr.slice(-400)) : '';
-    return { ok: false, error: err?.message ? `${err.message}${stderr ? ': ' + stderr : ''}` : 'loop exec failed' };
+    return { ok: false, error: formatChipLoopProcessError(err) };
   }
 }

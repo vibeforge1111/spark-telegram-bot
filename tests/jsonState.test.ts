@@ -87,8 +87,8 @@ async function main(): Promise<void> {
       await writeJsonAtomic(stateFile, { graceful: 'shutdown' });
 
       // First close tears down the handle; second close must be a no-op.
-      closeJsonState();
-      assert.doesNotThrow(() => closeJsonState());
+      await closeJsonState();
+      await assert.doesNotReject(() => closeJsonState());
 
       // A read after close must still succeed by reopening the DB lazily.
       assert.deepEqual(await readJsonFile(stateFile), { graceful: 'shutdown' });

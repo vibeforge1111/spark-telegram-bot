@@ -4,9 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   checkRuntimeFreshness,
-  defaultRuntimeRoot,
   formatRuntimeFreshnessReport,
-  HARNESS_CORE_RUNTIME_PATHS,
   ROUTE_CRITICAL_RUNTIME_PATHS
 } from '../src/runtimeFreshness';
 
@@ -101,25 +99,28 @@ test('runtime freshness reports missing source as environment failure', () => {
   });
 });
 
-test('default runtime root can be explicitly operator-bound', () => {
-  const previous = process.env.SPARK_TELEGRAM_RUNTIME_ROOT;
-  try {
-    process.env.SPARK_TELEGRAM_RUNTIME_ROOT = path.join(os.tmpdir(), 'spark-runtime-override');
-    assert.equal(defaultRuntimeRoot(), path.resolve(process.env.SPARK_TELEGRAM_RUNTIME_ROOT));
-  } finally {
-    if (previous === undefined) {
-      delete process.env.SPARK_TELEGRAM_RUNTIME_ROOT;
-    } else {
-      process.env.SPARK_TELEGRAM_RUNTIME_ROOT = previous;
-    }
-  }
+test('runtime freshness treats unreadable path types as missing evidence', () => {
+  withTempRoots((sourceRoot, runtimeRoot) => {
+    fs.mkdirSync(path.join(sourceRoot, 'src', 'index.ts'), { recursive: true });
+    writeFile(runtimeRoot, 'src/index.ts', 'compiled runtime\n');
+
+    const result = checkRuntimeFreshness({
+      sourceRoot,
+      runtimeRoot,
+      paths: ['src/index.ts']
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.paths[0].status, 'missing_source');
+  });
 });
 
 test('default runtime freshness paths cover conversational routing and sync guard files', () => {
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('spark.toml'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/builderBridge.ts'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/builderRepoPath.ts'));
-  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/routeTypes.ts'));
+  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/routeFirewall.ts'));
+  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/routeArbiter.ts'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/conversationSmoke.ts'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/operatorActions.ts'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/memoryDoctorBridge.ts'));
@@ -131,7 +132,8 @@ test('default runtime freshness paths cover conversational routing and sync guar
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('ops/runtimeFreshnessCheck.ts'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('ops/realtimeConversationSmoke.ts'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('ops/realtime-conversation-smoke.json'));
-  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/routeTypes.js'));
+  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/routeFirewall.js'));
+  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/routeArbiter.js'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/conversationSmoke.js'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/operatorActions.js'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/memoryDoctorBridge.js'));
@@ -140,27 +142,4 @@ test('default runtime freshness paths cover conversational routing and sync guar
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/telegramVoiceBridge.js'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/voiceCaption.js'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/spawnerUrl.js'));
-});
-
-test('default runtime freshness paths cover Harness Core authority binding', () => {
-  const requiredHarnessPaths = [
-    'src/harnessContract.ts',
-    'src/harnessCoreVNext.ts',
-    'src/harnessCoreLedger.ts',
-    'src/telegramActionAuthority.ts',
-    'src/telegramCommandAuthority.ts',
-    'src/telegramMediaAuthority.ts',
-    'src/spawner.ts',
-    'src/schedule.ts',
-    'dist/harnessCoreVNext.js',
-    'dist/harnessCoreLedger.js',
-    'dist/telegramActionAuthority.js',
-    'node_modules/@spark/harness-core/package.json',
-    'node_modules/@spark/harness-core/ts-dist/index.js'
-  ];
-
-  for (const relPath of requiredHarnessPaths) {
-    assert.ok(HARNESS_CORE_RUNTIME_PATHS.includes(relPath), relPath);
-    assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes(relPath), relPath);
-  }
 });

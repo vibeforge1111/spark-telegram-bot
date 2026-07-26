@@ -1,0 +1,20 @@
+{
+  "schema_version": "spark.r30.live_telegram_canary.v1",
+  "status": "pending",
+  "target": "SparkRecursive_bot",
+  "proof_scope": "r30_domain_chip_fastpath_live_telegram",
+  "generated_at": "2026-07-01T16:42:20.725Z",
+  "observed_at": "",
+  "sent_by_operator": true,
+  "agent_sent_external_message": false,
+  "observation_packet_ref": "/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/r30-live-telegram-proof-pack/r30-live-canary-observations.template.json",
+  "summary_json_ref": "/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/r30-live-telegram-proof-pack/r30-live-canary-summary.template.json",
+  "screenshot_digest_manifest_ref": "/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/r30-live-telegram-proof-pack/screenshot-manifest.template.json",
+  "required_case_ids": [
+    "r30-prd-fast-001",
+    "r30-daily-fast-001",
+    "r30-daily-loop-advisory-001",
+    "r30-boundary-meta-timezone-001"
+  ],
+  "spawner_detail_url": "http://127.0.0.1:3334/loop-engineering/domain-chip-daily-schedule-reliability-r30-persisted-context-qa"
+}

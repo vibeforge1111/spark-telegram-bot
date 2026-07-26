@@ -35,12 +35,18 @@ export function isLiveSparkHealthQuestion(text: string): boolean {
     /\b(?:current|fresh|live)\s+(?:status|state|health)\b/.test(normalized);
   if (asksRepairNeededFromStatus) return true;
 
-  const sparkScoped = /\b(?:you|your|spark|bot|spawner|telegram|mission control|runtime|live stack|systems?|stack)\b/.test(normalized);
+  const connectionCheckScoped =
+    /\bconnection\s+check\b/.test(normalized) &&
+    /\b(?:current\s+)?(?:live\s+)?(?:state|status|health)\b/.test(normalized);
+  const sparkScoped =
+    connectionCheckScoped ||
+    /\b(?:you|your|spark|bot|spawner|telegram|mission control|runtime|live stack|systems?|stack)\b/.test(normalized);
   if (!sparkScoped) return false;
   return (
     /\bspark live status\b/.test(normalized) ||
     /\blive spark health\b/.test(normalized) ||
     /\bsame source as spark live status\b/.test(normalized) ||
+    connectionCheckScoped ||
     /\b(?:are|is)\s+(?:you|spark|the\s+bot|this\s+bot|telegram|spawner|mission\s+control|the\s+system|systems?|everything)\b.*\b(?:healthy|working|running|online|up|live|ready|ok|okay)\b/.test(normalized) ||
     /\bwhat(?:'s| is)\s+(?:your|the)\s+current\s+(?:live\s+)?(?:state|status|health)\b/.test(normalized) ||
     /\bhow\s+(?:are|is)\s+(?:you|spark|the\s+bot|this\s+bot|telegram|spawner|the\s+system|systems?|everything)\s+(?:doing|running)\b/.test(normalized) ||

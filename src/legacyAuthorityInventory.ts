@@ -108,6 +108,18 @@ export function buildTelegramLegacyAuthorityPlanes(): LegacyAuthorityPlaneV1[] {
       summary: 'Natural route decision helpers are demoted to route evidence and blocked candidates for the TurnIntent envelope.'
     }),
     evidenceOnlyPlane({
+      id: 'telegram-route-firewall',
+      plane_type: 'regex_router',
+      source_path: 'src/routeFirewall.ts',
+      summary: 'The deterministic route firewall supplies fail-closed route evidence; the Harness envelope, Governor decision, and tool ledger retain execution authority.'
+    }),
+    evidenceOnlyPlane({
+      id: 'telegram-route-arbiter',
+      plane_type: 'regex_router',
+      source_path: 'src/routeArbiter.ts',
+      summary: 'The route arbiter records bounded shadow evidence for ambiguous routes and never grants tool, mutation, or mission authority.'
+    }),
+    evidenceOnlyPlane({
       id: 'telegram-build-intent-parser',
       plane_type: 'keyword_detector',
       source_path: 'src/buildIntent.ts',
@@ -189,7 +201,7 @@ export function buildTelegramLegacyAuthorityPlanes(): LegacyAuthorityPlaneV1[] {
       id: 'telegram-spawner-creator-bridge',
       plane_type: 'mission_helper',
       source_path: 'src/spawner.ts',
-      summary: 'Spawner, creator mission, validation, and execution API calls accept/preserve Governor executionAuthority and ledger evidence.',
+      summary: 'Spawner Loop Engineering, the legacy creator mission API, validation, and execution API calls accept/preserve Governor executionAuthority and ledger evidence.',
       authority_risk: {
         can_execute: true,
         can_mutate_state: true,

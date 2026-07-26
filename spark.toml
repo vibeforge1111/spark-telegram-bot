@@ -9,7 +9,7 @@ license = "MIT"
 
 [runtime]
 kind = "node"
-version = ">=22"
+version = ">=22.5.0"
 package_manager = "npm"
 lockfile = "package-lock.json"
 
@@ -91,7 +91,7 @@ storage = "keychain"
 env_var = "ANTHROPIC_API_KEY"
 
 [run.default]
-command = "npm run start"
+command = "node dist/index.js"
 cwd = "."
 ready_check = "npm run health:runtime"
 post_ready_watch_seconds = 30

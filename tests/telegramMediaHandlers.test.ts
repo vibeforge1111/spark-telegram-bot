@@ -20,6 +20,7 @@ function fakeMediaCtx(input: {
   messageId: number;
   message: Record<string, unknown>;
   replies: string[];
+  mediaReplies?: { voice: unknown[]; audio: unknown[] };
 }) {
   const message = { message_id: input.messageId, ...input.message };
   return {
@@ -31,11 +32,13 @@ function fakeMediaCtx(input: {
     reply: async (reply: string) => {
       input.replies.push(reply);
     },
-    replyWithVoice: async () => {
-      throw new Error('voice delivery was not expected');
+    replyWithVoice: async (inputFile: unknown, options?: unknown) => {
+      if (!input.mediaReplies) throw new Error('voice delivery was not expected');
+      input.mediaReplies.voice.push({ inputFile, options });
     },
-    replyWithAudio: async () => {
-      throw new Error('audio delivery was not expected');
+    replyWithAudio: async (inputFile: unknown, options?: unknown) => {
+      if (!input.mediaReplies) throw new Error('audio delivery was not expected');
+      input.mediaReplies.audio.push({ inputFile, options });
     }
   };
 }
@@ -108,5 +111,53 @@ void (async () => {
       jsonStateModule.resetJsonStateForTests();
       rmSync(tempRoot, { recursive: true, force: true });
     }
+  });
+
+  await test('Builder voice media requires matching delivery authorization', async () => {
+    const indexModule: any = await import('../src/index');
+    const voiceMedia = {
+      audioBase64: Buffer.from('synthetic-audio').toString('base64'),
+      mimeType: 'audio/ogg',
+      filename: 'reply.ogg',
+      voiceCompatible: true,
+      spokenText: 'Here is the text answer.'
+    };
+    const builderReply = {
+      used: true,
+      responseText: 'Here is the text answer.',
+      decision: 'plain_chat',
+      bridgeMode: 'test',
+      routingDecision: 'plain_chat',
+      voiceMedia
+    };
+    const unauthorizedReplies: string[] = [];
+    const unauthorizedMedia = { voice: [] as unknown[], audio: [] as unknown[] };
+    const unauthorizedCtx = fakeMediaCtx({
+      userId: 8319079055,
+      messageId: 9203,
+      replies: unauthorizedReplies,
+      mediaReplies: unauthorizedMedia,
+      message: { text: 'Give me one short thought.' }
+    });
+
+    await indexModule.deliverBuilderReply(unauthorizedCtx, builderReply);
+
+    assert.deepEqual(unauthorizedMedia, { voice: [], audio: [] });
+    assert.deepEqual(unauthorizedReplies, ['Here is the text answer.']);
+
+    const authorizedReplies: string[] = [];
+    const authorizedMedia = { voice: [] as unknown[], audio: [] as unknown[] };
+    const authorizedCtx = fakeMediaCtx({
+      userId: 8319079055,
+      messageId: 9204,
+      replies: authorizedReplies,
+      mediaReplies: authorizedMedia,
+      message: { voice: { file_id: 'voice-2', mime_type: 'audio/ogg' } }
+    });
+
+    await indexModule.deliverBuilderReply(authorizedCtx, builderReply, { allowVoiceMedia: true });
+
+    assert.equal(authorizedMedia.voice.length, 1);
+    assert.deepEqual(authorizedMedia.audio, []);
   });
 })();

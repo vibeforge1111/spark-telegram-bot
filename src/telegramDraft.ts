@@ -6,18 +6,127 @@ export interface TelegramDraftApi {
 }
 
 export interface TelegramDraftStreamer {
-  push(text: string): Promise<void>;
+  push(text: string): Promise<boolean>;
+}
+
+export interface TelegramDraftPreviewPolicyInput {
+  route?: string | null;
+  env?: NodeJS.ProcessEnv;
+}
+
+export type TelegramDraftTransport = 'rich' | 'legacy';
+export type TelegramFinalTransport = 'rich' | 'legacy_fallback' | 'disabled' | 'none';
+export type TelegramObservedDraftTransport = 'rich' | 'legacy' | 'legacy_fallback' | 'failed' | 'none';
+
+export type TelegramStreamingConfigKey =
+  | 'SPARK_TELEGRAM_CHAT_STREAMING'
+  | 'SPARK_TELEGRAM_DRAFT_INTERVAL_MS'
+  | 'SPARK_TELEGRAM_DRAFT_METHOD'
+  | 'SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES'
+  | 'SPARK_TELEGRAM_RICH_MESSAGES';
+
+export interface TelegramStreamingConfigSet {
+  key: TelegramStreamingConfigKey;
+  value: string;
 }
 
 export type TelegramStreamingConfigAction =
   | { kind: 'status' }
-  | { kind: 'set'; key: 'SPARK_TELEGRAM_CHAT_STREAMING' | 'SPARK_TELEGRAM_DRAFT_INTERVAL_MS'; value: string };
+  | ({ kind: 'set' } & TelegramStreamingConfigSet)
+  | { kind: 'set_many'; values: TelegramStreamingConfigSet[] };
+
+export interface TelegramLiveChatTelemetrySnapshot {
+  richMessageDeliveries: number;
+  richMessageFallbacks: number;
+  richDraftDeliveries: number;
+  legacyDraftDeliveries: number;
+  legacyDraftFallbacks: number;
+  draftFailures: number;
+  lastFinalTransport: TelegramFinalTransport;
+  lastDraftTransport: TelegramObservedDraftTransport;
+  lastUpdatedAt: string | null;
+}
+
+export const TELEGRAM_STREAMING_DEFAULTS = {
+  chatStreaming: true,
+  draftMethod: 'rich' as TelegramDraftTransport,
+  richMessages: true,
+  fullReplyPreview: true,
+  draftIntervalMs: 500
+};
 
 const TELEGRAM_DRAFT_TEXT_LIMIT = 3500;
 const FULL_REPLY_DRAFT_PREVIEW_MIN_CHARS = 40;
+const DRAFT_PREVIEW_BLOCKED_ROUTE_PREFIXES = [
+  'spawner',
+  'creator',
+  'domain.chip',
+  'schedule',
+  'recursive',
+  'sparkqa',
+  'access',
+  'model.switch',
+  'memory.write',
+  'memory.delete',
+  'operator.safe.action',
+  'proof',
+  'diagnostic',
+  'diagnostics',
+  'route.probe',
+  'spark.process',
+  'spark.reflect',
+  'media.image',
+  'media.voice',
+  'media.audio',
+  'external.research',
+  'registry.drift',
+  'release.publish',
+];
+const liveChatTelemetry: TelegramLiveChatTelemetrySnapshot = {
+  richMessageDeliveries: 0,
+  richMessageFallbacks: 0,
+  richDraftDeliveries: 0,
+  legacyDraftDeliveries: 0,
+  legacyDraftFallbacks: 0,
+  draftFailures: 0,
+  lastFinalTransport: 'none',
+  lastDraftTransport: 'none',
+  lastUpdatedAt: null
+};
 
 export function telegramDraftStreamingEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.SPARK_TELEGRAM_CHAT_STREAMING === '1';
+  if (env.SPARK_TELEGRAM_CHAT_STREAMING === undefined) return TELEGRAM_STREAMING_DEFAULTS.chatStreaming;
+  return env.SPARK_TELEGRAM_CHAT_STREAMING !== '0';
+}
+
+export function telegramDraftTransport(env: NodeJS.ProcessEnv = process.env): TelegramDraftTransport {
+  if (env.SPARK_TELEGRAM_DRAFT_METHOD === undefined) return TELEGRAM_STREAMING_DEFAULTS.draftMethod;
+  return env.SPARK_TELEGRAM_DRAFT_METHOD === 'legacy' ? 'legacy' : 'rich';
+}
+
+export function telegramRichDraftsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return telegramDraftTransport(env) === 'rich';
+}
+
+export function telegramRichMessagesEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.SPARK_TELEGRAM_RICH_MESSAGES === undefined) return TELEGRAM_STREAMING_DEFAULTS.richMessages;
+  return env.SPARK_TELEGRAM_RICH_MESSAGES !== '0';
+}
+
+export function telegramLiveChatTelemetrySnapshot(): TelegramLiveChatTelemetrySnapshot {
+  return { ...liveChatTelemetry };
+}
+
+export function resetTelegramLiveChatTelemetryForTests(): void {
+  liveChatTelemetry.richMessageDeliveries = 0;
+  liveChatTelemetry.richMessageFallbacks = 0;
+  liveChatTelemetry.richDraftDeliveries = 0;
+  liveChatTelemetry.legacyDraftDeliveries = 0;
+  liveChatTelemetry.legacyDraftFallbacks = 0;
+  liveChatTelemetry.draftFailures = 0;
+  liveChatTelemetry.lastFinalTransport = 'none';
+  liveChatTelemetry.lastDraftTransport = 'none';
+  liveChatTelemetry.lastUpdatedAt = null;
 }
 
 export function telegramDraftsSupportedForContext(ctx: any, env: NodeJS.ProcessEnv = process.env): boolean {
@@ -31,8 +140,8 @@ export function createTelegramDraftId(): number {
 }
 
 export function telegramDraftIntervalMs(env: NodeJS.ProcessEnv = process.env): number {
-  const parsed = Number(env.SPARK_TELEGRAM_DRAFT_INTERVAL_MS || 700);
-  if (!Number.isFinite(parsed)) return 700;
+  const parsed = Number(env.SPARK_TELEGRAM_DRAFT_INTERVAL_MS || TELEGRAM_STREAMING_DEFAULTS.draftIntervalMs);
+  if (!Number.isFinite(parsed)) return TELEGRAM_STREAMING_DEFAULTS.draftIntervalMs;
   return Math.max(0, parsed);
 }
 
@@ -67,14 +176,125 @@ export function buildTelegramDraftPreviewTexts(text: string): string[] {
   return [...new Set(previews)];
 }
 
+export function telegramFullReplyDraftPreviewAllowed(input: TelegramDraftPreviewPolicyInput = {}): boolean {
+  const env = input.env || process.env;
+  const previewEnabled = env.SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES === undefined
+    ? TELEGRAM_STREAMING_DEFAULTS.fullReplyPreview
+    : env.SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES !== '0';
+  if (!previewEnabled) return false;
+  const route = String(input.route || '').trim().toLowerCase().replace(/_/g, '.');
+  if (!route) return true;
+  return !DRAFT_PREVIEW_BLOCKED_ROUTE_PREFIXES.some((prefix) => route === prefix || route.startsWith(`${prefix}.`));
+}
+
+function buildTelegramRichTextPayload(text: string): Record<string, unknown> {
+  return {
+    markdown: text,
+    skip_entity_detection: false,
+  };
+}
+
+export async function sendTelegramDraftUpdate(
+  api: TelegramDraftApi,
+  chatId: number | string,
+  draftId: number,
+  text: string,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<TelegramDraftTransport> {
+  if (telegramDraftTransport(env) === 'legacy') {
+    await api.callApi('sendMessageDraft', {
+      chat_id: chatId,
+      draft_id: draftId,
+      text,
+    });
+    recordDraftTransport('legacy');
+    return 'legacy';
+  }
+
+  try {
+    await api.callApi('sendRichMessageDraft', {
+      chat_id: chatId,
+      draft_id: draftId,
+      rich_message: buildTelegramRichTextPayload(text),
+    });
+    recordDraftTransport('rich');
+    return 'rich';
+  } catch (error) {
+    if (env.SPARK_TELEGRAM_DRAFT_LEGACY_FALLBACK === '0') {
+      recordDraftTransport('failed');
+      throw error;
+    }
+    await api.callApi('sendMessageDraft', {
+      chat_id: chatId,
+      draft_id: draftId,
+      text,
+    });
+    recordDraftTransport('legacy_fallback');
+    return 'legacy';
+  }
+}
+
+function buildTelegramRichMessagePayload(
+  chatId: number | string,
+  text: string,
+  extra?: Record<string, unknown> | null
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    chat_id: chatId,
+    rich_message: buildTelegramRichTextPayload(text),
+  };
+  const safeExtraKeys = [
+    'business_connection_id',
+    'message_thread_id',
+    'direct_messages_topic_id',
+    'disable_notification',
+    'protect_content',
+    'allow_paid_broadcast',
+    'message_effect_id',
+    'suggested_post_parameters',
+    'reply_parameters',
+    'reply_markup',
+  ];
+  for (const key of safeExtraKeys) {
+    if (extra && extra[key] !== undefined) {
+      payload[key] = extra[key];
+    }
+  }
+  return payload;
+}
+
+export async function sendTelegramRichMessage(
+  api: TelegramDraftApi | undefined,
+  chatId: number | string | undefined,
+  text: string,
+  extra?: Record<string, unknown> | null,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<unknown | null> {
+  if (!api?.callApi || chatId === undefined || chatId === null || !telegramRichMessagesEnabled(env)) {
+    if (api?.callApi && chatId !== undefined && chatId !== null && !telegramRichMessagesEnabled(env)) {
+      recordFinalTransport('disabled');
+    }
+    return null;
+  }
+  try {
+    const delivery = await api.callApi('sendRichMessage', buildTelegramRichMessagePayload(chatId, text, extra));
+    recordFinalTransport('rich');
+    return delivery;
+  } catch {
+    recordFinalTransport('legacy_fallback');
+    return null;
+  }
+}
+
 export async function replayTelegramDraftPreview(
   ctx: any,
   api: TelegramDraftApi | undefined,
   text: string,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  policy: Omit<TelegramDraftPreviewPolicyInput, 'env'> = {}
 ): Promise<void> {
   if (!api?.callApi || !telegramDraftsSupportedForContext(ctx, env)) return;
-  if (env.SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES === '0') return;
+  if (!telegramFullReplyDraftPreviewAllowed({ ...policy, env })) return;
 
   const previews = buildTelegramDraftPreviewTexts(text);
   if (!previews.length) return;
@@ -84,11 +304,7 @@ export async function replayTelegramDraftPreview(
   const intervalMs = Math.min(telegramDraftIntervalMs(env), 1200);
   try {
     for (let index = 0; index < previews.length; index += 1) {
-      await api.callApi('sendMessageDraft', {
-        chat_id: chatId,
-        draft_id: draftId,
-        text: previews[index],
-      });
+      await sendTelegramDraftUpdate(api, chatId, draftId, previews[index], env);
       if (index < previews.length - 1 && intervalMs > 0) {
         await delay(intervalMs);
       }
@@ -101,12 +317,13 @@ export async function replayTelegramDraftPreview(
 
 export function parseTelegramStreamingConfigText(text: string): TelegramStreamingConfigAction | null {
   const trimmed = text.trim();
-  if (/^\/?streaming(?:\s+status)?$/i.test(trimmed) || /^\/?drafts(?:\s+status)?$/i.test(trimmed)) {
+  const command = '(?:streaming|drafts)(?:@[A-Za-z0-9_]+)?';
+  if (new RegExp(`^/?${command}(?:\\s+status)?$`, 'i').test(trimmed)) {
     return { kind: 'status' };
   }
 
   const toggleMatch =
-    trimmed.match(/^\/?(?:streaming|drafts)\s+(on|off|true|false|1|0)$/i) ||
+    trimmed.match(new RegExp(`^/?${command}\\s+(on|off|true|false|1|0)$`, 'i')) ||
     trimmed.match(/^SPARK_TELEGRAM_CHAT_STREAMING\s*=\s*(on|off|true|false|1|0)$/i);
   if (toggleMatch) {
     const raw = toggleMatch[1].toLowerCase();
@@ -114,8 +331,41 @@ export function parseTelegramStreamingConfigText(text: string): TelegramStreamin
     return { kind: 'set', key: 'SPARK_TELEGRAM_CHAT_STREAMING', value };
   }
 
+  const richDraftMatch =
+    trimmed.match(new RegExp(`^/?${command}\\s+(?:rich|rich_drafts|draft_method)\\s+(on|off|rich|legacy)$`, 'i')) ||
+    trimmed.match(/^SPARK_TELEGRAM_DRAFT_METHOD\s*=\s*(rich|legacy)$/i);
+  if (richDraftMatch) {
+    const raw = richDraftMatch[1].toLowerCase();
+    const enabled = raw !== 'off' && raw !== 'legacy';
+    return {
+      kind: 'set_many',
+      values: [
+        { key: 'SPARK_TELEGRAM_DRAFT_METHOD', value: enabled ? 'rich' : 'legacy' },
+        { key: 'SPARK_TELEGRAM_RICH_MESSAGES', value: enabled ? '1' : '0' },
+      ],
+    };
+  }
+
+  const finalRichMatch =
+    trimmed.match(new RegExp(`^/?${command}\\s+(?:final_rich|rich_messages|final_rich_messages)\\s+(on|off|true|false|1|0)$`, 'i')) ||
+    trimmed.match(/^SPARK_TELEGRAM_RICH_MESSAGES\s*=\s*(on|off|true|false|1|0)$/i);
+  if (finalRichMatch) {
+    const raw = finalRichMatch[1].toLowerCase();
+    const value = raw === 'on' || raw === 'true' || raw === '1' ? '1' : '0';
+    return { kind: 'set', key: 'SPARK_TELEGRAM_RICH_MESSAGES', value };
+  }
+
+  const previewMatch =
+    trimmed.match(new RegExp(`^/?${command}\\s+(?:preview|full_preview|full_reply_preview)\\s+(on|off|true|false|1|0)$`, 'i')) ||
+    trimmed.match(/^SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES\s*=\s*(on|off|true|false|1|0)$/i);
+  if (previewMatch) {
+    const raw = previewMatch[1].toLowerCase();
+    const value = raw === 'on' || raw === 'true' || raw === '1' ? '1' : '0';
+    return { kind: 'set', key: 'SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES', value };
+  }
+
   const intervalMatch =
-    trimmed.match(/^\/?(?:streaming|drafts)\s+(?:interval|interval_ms|draft_interval)\s+(\d+)$/i) ||
+    trimmed.match(new RegExp(`^/?${command}\\s+(?:interval|interval_ms|draft_interval)\\s+(\\d+)$`, 'i')) ||
     trimmed.match(/^SPARK_TELEGRAM_DRAFT_INTERVAL_MS\s*=\s*(\d+)$/i);
   if (intervalMatch) {
     const value = String(Math.min(10_000, Math.max(0, Number(intervalMatch[1]))));
@@ -128,13 +378,27 @@ export function parseTelegramStreamingConfigText(text: string): TelegramStreamin
 export function renderTelegramStreamingConfigStatus(env: NodeJS.ProcessEnv = process.env): string {
   const enabled = telegramDraftStreamingEnabled(env);
   const interval = telegramDraftIntervalMs(env);
+  const transport = telegramDraftTransport(env);
+  const previewFullReplies = telegramFullReplyDraftPreviewAllowed({ env });
   return [
-    'Telegram draft streaming',
+    'Telegram live chat',
+    `Profile: ${telegramStreamingProfileLabel(env)}`,
     `Status: ${enabled ? 'on' : 'off'}`,
+    `Rich messages: ${telegramRichMessagesEnabled(env) ? 'on' : 'off'}`,
+    `Draft transport: ${transport}`,
+    `Full-reply preview: ${previewFullReplies ? 'on' : 'off'}`,
     `Draft interval: ${interval}ms`,
     '',
-    'Private chats only. Builder-routed replies may still return as full messages.'
+    ...renderTelegramLiveChatTelemetryLines(),
+    '',
+    'Private chats only. Builder-routed replies are final-only until Builder stream events are wired.'
   ].join('\n');
+}
+
+function telegramStreamingProfileLabel(env: NodeJS.ProcessEnv): string {
+  const raw = env.SPARK_TELEGRAM_PROFILE || env.TELEGRAM_PROFILE || 'primary';
+  const normalized = raw.trim().replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+  return normalized || 'primary';
 }
 
 export function createTelegramDraftStreamer(
@@ -152,27 +416,73 @@ export function createTelegramDraftStreamer(
   let disabled = false;
 
   return {
-    async push(text: string): Promise<void> {
-      if (disabled) return;
+    async push(text: string): Promise<boolean> {
+      if (disabled) return false;
       const draftText = prepareTelegramDraftText(text);
-      if (!draftText || draftText === lastText) return;
+      if (!draftText || draftText === lastText) return false;
 
       const now = Date.now();
-      if (lastSentAt && now - lastSentAt < intervalMs) return;
+      if (lastSentAt && now - lastSentAt < intervalMs) return false;
 
       try {
-        await api.callApi('sendMessageDraft', {
-          chat_id: chatId,
-          draft_id: draftId,
-          text: draftText,
-        });
+        await sendTelegramDraftUpdate(api, chatId, draftId, draftText, env);
         lastSentAt = now;
         lastText = draftText;
+        return true;
       } catch (error) {
         disabled = true;
         const detail = error instanceof Error ? error.message : String(error);
-        console.warn(`[TelegramDraft] disabled after sendMessageDraft failure: ${detail}`);
+        console.warn(`[TelegramDraft] disabled after draft update failure: ${detail}`);
+        return false;
       }
     },
   };
+}
+
+function recordFinalTransport(transport: TelegramFinalTransport): void {
+  liveChatTelemetry.lastFinalTransport = transport;
+  liveChatTelemetry.lastUpdatedAt = new Date().toISOString();
+  if (transport === 'rich') liveChatTelemetry.richMessageDeliveries += 1;
+  if (transport === 'legacy_fallback') liveChatTelemetry.richMessageFallbacks += 1;
+}
+
+function recordDraftTransport(transport: TelegramObservedDraftTransport): void {
+  liveChatTelemetry.lastDraftTransport = transport;
+  liveChatTelemetry.lastUpdatedAt = new Date().toISOString();
+  if (transport === 'rich') liveChatTelemetry.richDraftDeliveries += 1;
+  if (transport === 'legacy') liveChatTelemetry.legacyDraftDeliveries += 1;
+  if (transport === 'legacy_fallback') liveChatTelemetry.legacyDraftFallbacks += 1;
+  if (transport === 'failed') liveChatTelemetry.draftFailures += 1;
+}
+
+function renderTelegramLiveChatTelemetryLines(): string[] {
+  const snapshot = telegramLiveChatTelemetrySnapshot();
+  const observed = snapshot.lastFinalTransport !== 'none' || snapshot.lastDraftTransport !== 'none';
+  if (!observed) {
+    return [
+      'Process telemetry: no rich/draft delivery attempt observed since start.',
+      'Transport proof: configured only until a final or draft delivery is observed.'
+    ];
+  }
+  return [
+    'Process telemetry:',
+    `Final transport observed: ${formatFinalTransport(snapshot.lastFinalTransport)} (${snapshot.richMessageDeliveries} rich, ${snapshot.richMessageFallbacks} fallback)`,
+    `Draft transport observed: ${formatDraftTransport(snapshot.lastDraftTransport)} (${snapshot.richDraftDeliveries} rich, ${snapshot.legacyDraftDeliveries} legacy, ${snapshot.legacyDraftFallbacks} rich fallback, ${snapshot.draftFailures} failed)`,
+    'Transport proof: observed in this bot process.'
+  ];
+}
+
+function formatFinalTransport(transport: TelegramFinalTransport): string {
+  if (transport === 'rich') return 'rich';
+  if (transport === 'legacy_fallback') return 'legacy fallback';
+  if (transport === 'disabled') return 'disabled';
+  return 'none';
+}
+
+function formatDraftTransport(transport: TelegramObservedDraftTransport): string {
+  if (transport === 'rich') return 'rich';
+  if (transport === 'legacy') return 'legacy';
+  if (transport === 'legacy_fallback') return 'legacy fallback';
+  if (transport === 'failed') return 'failed';
+  return 'none';
 }

@@ -7,6 +7,7 @@ import {
   isActionWordMetaDiscussion,
   isAccessHelpQuestion,
   isAccessStatusQuestion,
+  parseNaturalAccessChangeIntent,
   isBrowserComputerUseAuthorizationBoundaryQuestion,
   isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
@@ -24,6 +25,10 @@ import {
 import { parseBuildIntent } from './buildIntent';
 import { decideNaturalRoute, type NaturalRouteDecision, type NaturalRouteDecisionContext } from './naturalRouteDecision';
 import { isLiveSparkHealthQuestion } from './runtimeRouteGuards';
+import {
+  isFreshScopedBuildReplacement,
+  isLocalBuildWithPublicationBoundary
+} from './scopedBuildCommand';
 import type {
   TelegramIntentCandidateV2,
   TelegramIntentConstraintsV2,
@@ -46,6 +51,70 @@ function emptyConstraints(): TelegramIntentConstraintsV2 {
     noNetworkAbsorptionClaim: false,
     localOnly: false
   };
+}
+
+function isDomainChipPreviewOnlyRequest(normalized: string): boolean {
+  return (
+    /\b(?:preview\s+only|starter\s+preview|show\s+(?:me\s+)?(?:the\s+)?(?:private\s+)?(?:starter\s+)?preview)\b/.test(normalized) ||
+    /\bask\s+(?:me\s+)?(?:for\s+)?go\b.{0,80}\bbefore\s+(?:creating|create|writing|making)\s+(?:files?|artifacts?)\b/.test(normalized)
+  );
+}
+
+function isAccessSetupOnlyBoundary(normalized: string): boolean {
+  const stopsAccessChange =
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:change|set|switch|raise|lower|enable|disable)\b.{0,40}\baccess\b/.test(normalized) ||
+    /\b(?:no|not)\s+access\s+change(?:\s+(?:yet|for\s+now|right\s+now))?\b/.test(normalized);
+  return Boolean(parseNaturalAccessChangeIntent(normalized)) && !stopsAccessChange &&
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:run|start|launch|execute|prepare|configure|setup|set\s+up|repair)\b.{0,80}\b(?:repair|setup|set\s+up|workspace|local)\b/.test(normalized);
+}
+
+function isMissionProviderSwitchPreservingChatProvider(normalized: string): boolean {
+  const switchesMissionProvider =
+    /\b(?:switch|change|set|make|use|configure|update)\b.{0,80}\b(?:mission\s+provider|provider\s+for\s+(?:missions?|spawner|builds?)|(?:missions?|spawner|builds?)\b.{0,40}\bprovider)\b/.test(normalized) &&
+    /\b(?:codex|claude|anthropic|zai|glm|minimax|openrouter|openai|huggingface|hf|lmstudio|lm\s+studio|ollama)\b/.test(normalized);
+  const preservesChatProvider =
+    /\b(?:do not|don't|dont|please don't|please dont)\s+(?:change|set|switch|make|use|configure|update|touch)\b.{0,60}\b(?:chat|agent)\s+provider\b/.test(normalized) ||
+    /\b(?:keep|leave)\b.{0,40}\b(?:chat|agent)\s+provider\b.{0,40}\b(?:same|unchanged|alone|as\s+is)\b/.test(normalized);
+  const stopsMissionProvider =
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:change|set|switch|make|use|configure|update)\b.{0,60}\b(?:mission\s+provider|provider\s+for\s+(?:missions?|spawner|builds?))\b/.test(normalized) ||
+    /\b(?:no|not)\s+(?:mission\s+)?provider\s+(?:switch|change)(?:\s+(?:yet|for\s+now|right\s+now))?\b/.test(normalized);
+  return switchesMissionProvider && preservesChatProvider && !stopsMissionProvider;
+}
+
+function isLoopEngineeringScheduleLifecycleRequest(normalized: string): boolean {
+  if (/\b(?:do not|don't|dont|please don't|please dont|no need to|without|not)\b.{0,80}\b(?:pause|resume|activate|deactivate|cancel|delete|remove|mutate|change)\b/.test(normalized)) return false;
+  if (/\b(?:read[-\s]?only|no[-\s]?mutation|do not mutate|don't mutate|dont mutate)\b/.test(normalized)) return false;
+  const hasLoopEngineeringContext =
+    /\b(?:loop[-\s]+engineering|prd\s+writing|product\s+requirements?|domain[-\s]?chip|domain\s+chip|spawner)\b/.test(normalized);
+  const hasScheduleContext = /\b(?:schedule|scheduled|timer|recurring|loop|loopsched-[a-z0-9_-]+)\b/.test(normalized);
+  const hasLifecycleAction = (
+    /\b(?:pause|hold|resume|reactivate|activate|deactivate|disable|turn\s+off|turn\s+on|cancel|delete|remove|kill)\b.{0,80}\b(?:schedule|scheduled|timer|recurring|loop|loopsched-[a-z0-9_-]+)\b/.test(normalized) ||
+    /\b(?:schedule|scheduled|timer|recurring|loop|loopsched-[a-z0-9_-]+)\b.{0,80}\b(?:pause|hold|resume|reactivate|activate|deactivate|disable|turn\s+off|turn\s+on|cancel|delete|remove|kill)\b/.test(normalized)
+  );
+  return hasLoopEngineeringContext && hasScheduleContext && hasLifecycleAction;
+}
+
+function isPrivateDomainChipCreateWithSideEffectBoundary(normalized: string): boolean {
+  const asksForDomainChipCreate =
+    /\b(?:build|create|make|scaffold|generate)\b.{0,120}\bdomain[-\s]*chip\b/.test(normalized) ||
+    /\bdomain[-\s]*chip\b.{0,120}\b(?:for|that|which|named|called|to)\b/.test(normalized);
+  if (!asksForDomainChipCreate) return false;
+
+  const forbidsLocalCreation =
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate)\b/.test(normalized) ||
+    /\b(?:no|without)\s+(?:build|create|creating|creation|chip|domain[-\s]*chip)\b/.test(normalized);
+  if (forbidsLocalCreation) return false;
+
+  const forbidsRunOrExecution =
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|dispatch|kick\s+off)\b/.test(normalized) ||
+    /\b(?:no|without)\s+(?:execution|running|launching|mission|build)\b/.test(normalized);
+  if (forbidsRunOrExecution) return false;
+
+  return (
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|share|deploy|ship|push|activate)\b/.test(normalized) ||
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+send\b.{0,80}\b(?:real|actual|live|external|customer|reminder|message|email|sms)\b/.test(normalized) ||
+    /\bno\s+real\s+(?:sends?|reminders?|messages?|emails?|sms)\b/.test(normalized)
+  );
 }
 
 // Scope-aware non-imperative detection (added 2026-06-16 to close the word-hijack hole).
@@ -138,7 +207,7 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   if (!normalized) return constraints;
 
   if (isPublicationApprovalBoundaryQuestion(normalized)) {
-    constraints.noExecution = true;
+    constraints.noExecution = !isLocalBuildWithPublicationBoundary(normalized);
     constraints.noPublish = true;
     constraints.noMerge = true;
     constraints.noPublicClaim = true;
@@ -187,6 +256,7 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
 
   constraints.noExecution = sourceAttributedActionBoundary || routeWordMetaBoundary || [
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas|browse|research|fetch)\b(?:\s+(?:it|this|that|anything|something|yet|for\s+now|now))?/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:change|set|switch|make|use|configure|update|touch)\b.{0,80}\b(?:provider|model|access)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|dispatch|kick\s+off)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|save|remember)\s+(?:it|this|that|anything|something|a\s+mission|a\s+build|a\s+project|a\s+domain[-\s]*chip|a\s+chip|the\s+mission|the\s+build|the\s+project|the\s+domain[-\s]*chip|the\s+chip|yet|for\s+now)?\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:do|act\s+on|execute)\s+(?:it|this|that|the\s+example)\b/,
@@ -206,10 +276,27 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   if (constraints.noExecution && isExplicitSpawnerNoEditMissionRequest(normalized)) {
     constraints.noExecution = false;
   }
+  if (constraints.noExecution && isFreshScopedBuildReplacement(normalized)) {
+    constraints.noExecution = false;
+  }
+  if (constraints.noExecution && isAccessSetupOnlyBoundary(normalized)) {
+    constraints.noExecution = false;
+  }
+  if (constraints.noExecution && isMissionProviderSwitchPreservingChatProvider(normalized)) {
+    constraints.noExecution = false;
+  }
+  if (constraints.noExecution && isPrivateDomainChipCreateWithSideEffectBoundary(normalized)) {
+    constraints.noExecution = false;
+  }
+  if (constraints.noExecution && isLoopEngineeringScheduleLifecycleRequest(normalized)) {
+    constraints.noExecution = false;
+  }
 
   constraints.noPublish = [
-    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|share|deploy|ship)\b/,
-    /\bno\s+(?:publish|publication|sharing|deployment|shipping)\b/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|publishing|share|sharing|deploy|deploying|ship|shipping|push|pushing|activate|activation)\b/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+send\b.{0,80}\b(?:real|actual|live|external|customer|reminder|message|email|sms)\b/,
+    /\bno\s+(?:publish|publishing|publication|share|sharing|deploy|deployment|ship|shipping|push|pushing|activate|activation)\b/,
+    /\bno\s+real\s+(?:sends?|reminders?|messages?|emails?|sms)\b/,
     /\bpublish\s+nothing\b/,
     /\bprivate(?:ly)?\s+first\b/
   ].some((pattern) => pattern.test(normalized));
@@ -237,6 +324,9 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   constraints.localOnly = constraints.noPublish ||
     /\blocal[-\s]*only\b/.test(normalized) ||
     /\bprivate(?:ly)?\s+(?:first|only)\b/.test(normalized);
+  if (constraints.noExecution && constraints.noPublish && isExplicitSpawnerBuildRequest(normalized)) {
+    constraints.noExecution = false;
+  }
 
   return constraints;
 }
@@ -315,9 +405,10 @@ function isExplicitSpawnerBuildRequest(text: string): boolean {
   const explicitNoEditMission = isExplicitSpawnerNoEditMissionRequest(normalized);
   const domainChipCreateRequest = isDomainChipCreateRequest(normalized);
   const buildIntent = parseBuildIntent(text);
+  const freshScopedReplacement = isFreshScopedBuildReplacement(normalized);
   if (
     !normalized ||
-    (isNoExecutionBoundary(normalized) && !explicitNoEditMission) ||
+    (isNoExecutionBoundary(normalized) && !explicitNoEditMission && !freshScopedReplacement) ||
     isScheduleDeleteRequest(normalized) ||
     isCreatorBenchmarkPackRequest(normalized)
   ) return false;
@@ -328,7 +419,7 @@ function isExplicitSpawnerBuildRequest(text: string): boolean {
   ) return false;
   if (explicitNoEditMission) return true;
   const buildVerb = /\b(?:build|create|make|scaffold|generate)\b/.test(normalized);
-  const productNoun = /\b(?:project|app|website|dashboard|tool|game|canvas|kanban|workflow|product|prototype|platform|board)\b/.test(normalized);
+  const productNoun = /\b(?:project|app|website|site|page|dashboard|tool|game|canvas|kanban|workflow|product|prototype|platform|board)\b/.test(normalized);
   return (
     (buildVerb && productNoun) ||
     /\b(?:let'?s|lets|please)\s+build\b/.test(normalized) ||
@@ -413,6 +504,7 @@ function kindForNaturalRoute(route: string): TelegramIntentKindV2 {
   if (/^spark_wiki\./.test(route)) return 'wiki_or_knowledge';
   if (/^(?:diagnostics\.|memory\.doctor|spark\.self_|spark\.chip_status_probe)/.test(route)) return 'diagnostic_or_self_awareness';
   if (/^(?:creator\.|domain_chip\.)/.test(route)) return 'creator_or_domain_chip';
+  if (route === 'access.change') return 'access.level_change';
   if (/^(?:access\.|operator\.)/.test(route)) return 'runtime_truth_or_operator';
   if (/^memory\.recall$/.test(route)) return 'memory_recall';
   if (/^memory\.write$/.test(route)) return 'memory_write';
@@ -426,11 +518,14 @@ function observedNaturalRouteDecision(
   constraints: TelegramIntentConstraintsV2,
   naturalRoute: NaturalRouteDecision
 ): TelegramIntentDecisionV2 {
+  const kind = naturalRoute.action === 'model.switch.mission_provider'
+    ? 'model_switch.mission_provider'
+    : kindForNaturalRoute(naturalRoute.route);
   const routeConstraints = naturalRoute.route === 'browser.navigate' && naturalRoute.confidence === 'explicit'
     ? { ...constraints, noExecution: false, localOnly: false, noNetworkAbsorptionClaim: false }
     : constraints;
   return makeDecision({
-    kind: kindForNaturalRoute(naturalRoute.route),
+    kind,
     route: naturalRoute.route,
     owner_system: naturalRoute.owner_system,
     action: naturalRoute.action,
@@ -625,6 +720,23 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
     });
   }
 
+  if (isDomainChipCreateRequest(normalized) && isDomainChipPreviewOnlyRequest(normalized)) {
+    return makeDecision({
+      kind: 'creator_or_domain_chip',
+      route: 'domain_chip.preview',
+      owner_system: 'spark-telegram-bot',
+      action: 'domain_chip.preview',
+      confidence: 'explicit',
+      constraints: { ...constraints, noExecution: false },
+      payload: basePayload(naturalRoute),
+      matched_signals: ['explicit_domain_chip_preview'],
+      blocked_candidates: [],
+      supporting_routes: supportingRoutes(naturalRoute),
+      enforcement: 'observe',
+      natural_route: naturalRoute
+    });
+  }
+
   if (naturalRoute && isFreshCreatorMissionNaturalSelection(normalized, naturalRoute)) {
     return observedNaturalRouteDecision(constraints, naturalRoute);
   }
@@ -679,7 +791,7 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
     return makeDecision({
       kind: 'creator_or_domain_chip',
       route: 'creator.mission',
-      owner_system: 'spawner-ui',
+      owner_system: 'domain-chip',
       action: 'creator.mission',
       confidence: constraints.noExecution ? 'blocked' : 'explicit',
       constraints,
@@ -712,15 +824,16 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
   }
 
   if (isDomainChipCreateRequest(normalized)) {
+    const previewOnly = isDomainChipPreviewOnlyRequest(normalized);
     return makeDecision({
       kind: 'creator_or_domain_chip',
-      route: 'domain_chip.create',
-      owner_system: 'domain-chip',
-      action: 'domain_chip.create',
-      confidence: constraints.noExecution ? 'blocked' : 'explicit',
-      constraints,
+      route: previewOnly ? 'domain_chip.preview' : 'domain_chip.create',
+      owner_system: previewOnly ? 'spark-telegram-bot' : 'domain-chip',
+      action: previewOnly ? 'domain_chip.preview' : 'domain_chip.create',
+      confidence: previewOnly || !constraints.noExecution ? 'explicit' : 'blocked',
+      constraints: previewOnly ? { ...constraints, noExecution: false } : constraints,
       payload: basePayload(naturalRoute),
-      matched_signals: ['explicit_domain_chip_create'],
+      matched_signals: [previewOnly ? 'explicit_domain_chip_preview' : 'explicit_domain_chip_create'],
       blocked_candidates: [],
       supporting_routes: supportingRoutes(naturalRoute),
       enforcement: 'observe',

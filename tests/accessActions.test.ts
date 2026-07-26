@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   accessActionNeedsConfirmation,
   buildSparkAccessActionKeyboard,
@@ -8,6 +11,7 @@ import {
   accessActionNeedsSparkRestart,
   formatSparkAccessAutomaticRestartNotice,
   formatSparkAccessActionConfirmationPrompt,
+  formatSparkAccessActionFailureReply,
   formatSparkAccessActionReply,
   runSparkAccessAction,
   runSparkAccessActionDetailed,
@@ -24,6 +28,130 @@ async function test(name: string, fn: () => void | Promise<void>): Promise<void>
 }
 
 void (async () => {
+  await test('default action runner promotes stale read-only env from persisted Level 5 guardrails', async () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-level5-action-env-'));
+    const binDir = path.join(tempRoot, 'bin');
+    const sparkHome = path.join(tempRoot, 'spark-home');
+    const modulesDir = path.join(sparkHome, 'config', 'modules');
+    const envCapturePath = path.join(tempRoot, 'child-env.json');
+    const oldPath = process.env.PATH;
+    const oldSparkHome = process.env.SPARK_HOME;
+    const oldSandbox = process.env.SPARK_CODEX_SANDBOX;
+    const oldHighAgency = process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS;
+    const oldExternalPaths = process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+    try {
+      await import('node:fs/promises').then(({ mkdir }) => mkdir(modulesDir, { recursive: true }));
+      await import('node:fs/promises').then(({ mkdir }) => mkdir(binDir, { recursive: true }));
+      writeFileSync(
+        path.join(modulesDir, 'spark-telegram-bot.env'),
+        [
+          'SPARK_ALLOW_HIGH_AGENCY_WORKERS=1',
+          'SPARK_ALLOW_EXTERNAL_PROJECT_PATHS=1',
+          'SPARK_CODEX_SANDBOX=danger-full-access',
+          '',
+        ].join('\n'),
+        'utf8'
+      );
+      writeFileSync(
+        path.join(binDir, 'spark'),
+        [
+          '#!/bin/sh',
+          `printf '{"sandbox":"%s","highAgency":"%s","externalPaths":"%s"}\\n' "$SPARK_CODEX_SANDBOX" "$SPARK_ALLOW_HIGH_AGENCY_WORKERS" "$SPARK_ALLOW_EXTERNAL_PROJECT_PATHS" > "${envCapturePath.replace(/"/g, '\\"')}"`,
+          'printf \'{"ok":true,"effective_access_level":5,"level5":{"service_enabled":true,"activation_state":"active_for_services","effective_codex_sandbox":"danger-full-access"},"state_machine":{"service_can_operate_whole_computer":true}}\\n\'',
+          ''
+        ].join('\n'),
+        'utf8'
+      );
+      chmodSync(path.join(binDir, 'spark'), 0o755);
+      process.env.PATH = `${binDir}${path.delimiter}${oldPath || ''}`;
+      process.env.SPARK_HOME = sparkHome;
+      process.env.SPARK_CODEX_SANDBOX = 'read-only';
+      delete process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS;
+      delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+
+      const result = await runSparkAccessActionDetailed('level5_enable');
+      const childEnv = JSON.parse(readFileSync(envCapturePath, 'utf8')) as Record<string, string>;
+
+      assert.equal(result.payload?.ok, true);
+      assert.equal(childEnv.sandbox, 'danger-full-access');
+      assert.equal(childEnv.highAgency, '1');
+      assert.equal(childEnv.externalPaths, '1');
+      assert.match(result.reply, /whole-computer operator mode is active/i);
+    } finally {
+      if (oldPath === undefined) delete process.env.PATH; else process.env.PATH = oldPath;
+      if (oldSparkHome === undefined) delete process.env.SPARK_HOME; else process.env.SPARK_HOME = oldSparkHome;
+      if (oldSandbox === undefined) delete process.env.SPARK_CODEX_SANDBOX; else process.env.SPARK_CODEX_SANDBOX = oldSandbox;
+      if (oldHighAgency === undefined) delete process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS; else process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS = oldHighAgency;
+      if (oldExternalPaths === undefined) delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS; else process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS = oldExternalPaths;
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('default action runner promotes stale read-only env from the active Telegram profile guardrails', async () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-level5-action-profile-env-'));
+    const binDir = path.join(tempRoot, 'bin');
+    const sparkHome = path.join(tempRoot, 'spark-home');
+    const modulesDir = path.join(sparkHome, 'config', 'modules');
+    const envCapturePath = path.join(tempRoot, 'child-env.json');
+    const oldPath = process.env.PATH;
+    const oldSparkHome = process.env.SPARK_HOME;
+    const oldProfile = process.env.SPARK_TELEGRAM_PROFILE;
+    const oldSandbox = process.env.SPARK_CODEX_SANDBOX;
+    const oldHighAgency = process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS;
+    const oldExternalPaths = process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+    try {
+      await import('node:fs/promises').then(({ mkdir }) => mkdir(modulesDir, { recursive: true }));
+      await import('node:fs/promises').then(({ mkdir }) => mkdir(binDir, { recursive: true }));
+      writeFileSync(
+        path.join(modulesDir, 'spark-telegram-bot.recursive.env'),
+        [
+          'BOT_NAME=recursive',
+          'BOT_TOKEN=fake-recursive-token',
+          'SPARK_ALLOW_HIGH_AGENCY_WORKERS=1',
+          'SPARK_ALLOW_EXTERNAL_PROJECT_PATHS=1',
+          'SPARK_CODEX_SANDBOX=danger-full-access',
+          '',
+        ].join('\n'),
+        'utf8'
+      );
+      writeFileSync(
+        path.join(binDir, 'spark'),
+        [
+          '#!/bin/sh',
+          `printf '{"sandbox":"%s","highAgency":"%s","externalPaths":"%s","profile":"%s"}\\n' "$SPARK_CODEX_SANDBOX" "$SPARK_ALLOW_HIGH_AGENCY_WORKERS" "$SPARK_ALLOW_EXTERNAL_PROJECT_PATHS" "$SPARK_TELEGRAM_PROFILE" > "${envCapturePath.replace(/"/g, '\\"')}"`,
+          'printf \'{"ok":true,"effective_access_level":5,"level5":{"service_enabled":true,"activation_state":"active_for_services","effective_codex_sandbox":"danger-full-access"},"state_machine":{"service_can_operate_whole_computer":true}}\\n\'',
+          ''
+        ].join('\n'),
+        'utf8'
+      );
+      chmodSync(path.join(binDir, 'spark'), 0o755);
+      process.env.PATH = `${binDir}${path.delimiter}${oldPath || ''}`;
+      process.env.SPARK_HOME = sparkHome;
+      process.env.SPARK_TELEGRAM_PROFILE = 'recursive';
+      process.env.SPARK_CODEX_SANDBOX = 'read-only';
+      delete process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS;
+      delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+
+      const result = await runSparkAccessActionDetailed('level5_enable');
+      const childEnv = JSON.parse(readFileSync(envCapturePath, 'utf8')) as Record<string, string>;
+
+      assert.equal(result.payload?.ok, true);
+      assert.equal(childEnv.profile, 'recursive');
+      assert.equal(childEnv.sandbox, 'danger-full-access');
+      assert.equal(childEnv.highAgency, '1');
+      assert.equal(childEnv.externalPaths, '1');
+      assert.match(result.reply, /whole-computer operator mode is active/i);
+    } finally {
+      if (oldPath === undefined) delete process.env.PATH; else process.env.PATH = oldPath;
+      if (oldSparkHome === undefined) delete process.env.SPARK_HOME; else process.env.SPARK_HOME = oldSparkHome;
+      if (oldProfile === undefined) delete process.env.SPARK_TELEGRAM_PROFILE; else process.env.SPARK_TELEGRAM_PROFILE = oldProfile;
+      if (oldSandbox === undefined) delete process.env.SPARK_CODEX_SANDBOX; else process.env.SPARK_CODEX_SANDBOX = oldSandbox;
+      if (oldHighAgency === undefined) delete process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS; else process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS = oldHighAgency;
+      if (oldExternalPaths === undefined) delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS; else process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS = oldExternalPaths;
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   await test('runs workspace setup through the Spark CLI JSON action', async () => {
     const reply = await runSparkAccessAction('workspace_setup', async (args, timeoutMs) => {
       assert.deepEqual(args, ['access', 'setup', '--json']);
@@ -91,6 +219,79 @@ void (async () => {
     assert.match(formatSparkAccessAutomaticRestartNotice('level5_disable'), /\/access/);
   });
 
+  await test('runs Level 5 setup with high-agency guardrails and reports active services', async () => {
+    const result = await runSparkAccessActionDetailed('level5_enable', async (args, timeoutMs) => {
+      assert.deepEqual(args, ['access', 'setup', '--level', '5', '--enable-high-agency', '--json']);
+      assert.equal(timeoutMs, 60_000);
+      return {
+        stdout: JSON.stringify({
+          ok: true,
+          effective_access_level: 5,
+          level5: {
+            service_enabled: true,
+            activation_state: 'active_for_services',
+            service_codex_sandbox: 'danger-full-access',
+            effective_codex_sandbox: 'danger-full-access',
+            configured_codex_sandbox: 'danger-full-access',
+          },
+          state_machine: {
+            service_can_operate_whole_computer: true,
+          },
+        }),
+        stderr: '',
+      };
+    });
+
+    assert.equal(result.needsSparkRestart, false);
+    assert.match(result.reply, /Level 5 guardrails were configured/);
+    assert.match(result.reply, /whole-computer operator mode is active/i);
+    assert.match(result.reply, /Effective Codex sandbox: danger-full-access/);
+    assert.doesNotMatch(result.reply, /needs to reload/i);
+  });
+
+  await test('does not present Level 5 as full access when effective sandbox is read-only', () => {
+    const reply = formatSparkAccessActionReply('level5_enable', {
+      ok: true,
+      effective_access_level: 5,
+      level5: {
+        service_enabled: true,
+        activation_state: 'active_for_services',
+        service_codex_sandbox: 'danger-full-access',
+        effective_codex_sandbox: 'read-only',
+        configured_codex_sandbox: 'danger-full-access',
+      },
+      state_machine: {
+        service_can_operate_whole_computer: true,
+      },
+    });
+
+    assert.match(reply, /full access is blocked/i);
+    assert.match(reply, /Attention: effective Codex sandbox is read-only, so Level 5 is not full-access yet/);
+    assert.doesNotMatch(reply, /Whole-computer operator mode is active/);
+    assert.doesNotMatch(reply, /Effective Codex sandbox: danger-full-access/);
+  });
+
+  await test('requires effective Level 5 sandbox proof instead of falling back to configured service sandbox', () => {
+    const reply = formatSparkAccessActionReply('level5_enable', {
+      ok: true,
+      effective_access_level: 5,
+      level5: {
+        service_enabled: true,
+        activation_state: 'active_for_services',
+        service_codex_sandbox: 'danger-full-access',
+        configured_codex_sandbox: 'danger-full-access',
+      },
+      state_machine: {
+        service_can_operate_whole_computer: true,
+      },
+    });
+
+    assert.match(reply, /full access is blocked/i);
+    assert.match(reply, /Attention: effective Codex sandbox is unknown, so Level 5 is not full-access yet/);
+    assert.doesNotMatch(reply, /Whole-computer operator mode is active/);
+    assert.doesNotMatch(reply, /Effective Codex sandbox: danger-full-access/);
+  });
+
   await test('returns a useful Telegram-safe message when CLI requires interactive access confirmation', async () => {
     const result = await runSparkAccessActionDetailed('level5_disable', async () => {
       const error = new Error('Command failed: spark access disable-level5 --json') as Error & { stderr?: string };
@@ -102,27 +303,36 @@ void (async () => {
     });
 
     assert.equal(result.payload?.ok, false);
-    assert.match(result.reply, /local confirmation/i);
+    assert.match(result.reply, /interactive confirmation/i);
     assert.match(result.reply, /spark access disable-level5/);
     assert.doesNotMatch(result.reply, /configuration problem/i);
   });
 
-  await test('treats local Spark approval prompts as second-channel confirmation blocks', async () => {
-    const result = await runSparkAccessActionDetailed('level5_enable', async () => {
-      const error = new Error('Command failed: spark access setup --level 5 --enable-high-agency --json') as Error & { stdout?: string };
-      error.stdout = [
-        'Spark needs confirmation before continuing.',
-        'Class: identity_access_mutation',
-        'Type exactly: approve level 5 access',
-        'Approval phrase:'
-      ].join('\n');
+  await test('preserves structured Spark JSON from a non-zero CLI exit', async () => {
+    const result = await runSparkAccessActionDetailed('docker_doctor', async () => {
+      const error = new Error('Command failed: spark access docker-doctor --json') as Error & { stdout?: string };
+      error.stdout = JSON.stringify({ ok: false, error: 'Docker is not reachable.', next: 'Start Docker and check again.' });
       throw error;
     });
 
     assert.equal(result.payload?.ok, false);
-    assert.equal(result.payload?.error, 'non_interactive_confirmation_required');
-    assert.match(result.reply, /trusted local confirmation/i);
-    assert.match(result.reply, /spark access setup --level 5 --enable-high-agency/);
+    assert.match(result.reply, /Docker sandbox is not ready yet/i);
+    assert.match(result.reply, /Start Docker and check again/i);
+    assert.doesNotMatch(result.reply, /Command failed/i);
+    assert.equal(result.needsSparkRestart, false);
+  });
+
+  await test('formats workspace setup failures with safe recovery guidance', () => {
+    const reply = formatSparkAccessActionFailureReply(
+      'workspace_setup',
+      new Error('Command failed from /Users/operator/private-workspace with token sk-test-secret')
+    );
+
+    assert.match(reply, /Safe workspace setup could not complete/);
+    assert.match(reply, /Send \/diagnose here/);
+    assert.match(reply, /spark access setup --json/);
+    assert.match(reply, /Do not paste tokens/);
+    assert.doesNotMatch(reply, /\/Users\/operator|sk-test-secret|Spark access action failed:/);
   });
 
   await test('formats Docker smoke as no-secret sandbox evidence', () => {

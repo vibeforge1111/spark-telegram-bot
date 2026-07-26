@@ -47,7 +47,7 @@ function test(name: string, fn: () => void): void {
   }
 }
 
-test('launch prompt keeps conversation style governed by memory owner truth', () => {
+test('launch prompt keeps conversation style bounded away from memory authority', () => {
   const prompt = buildSparkChatSystemPrompt(
     'Recent list: 1. memory timeline 2. recall audit board',
     'Older memory says the user likes architecture summaries.'
@@ -60,9 +60,7 @@ test('launch prompt keeps conversation style governed by memory owner truth', ()
   assert.match(prompt, /corrects your tone, format, or answer/);
   assert.match(prompt, /most recent list/);
   assert.match(prompt, /Memory must not override/);
-  assert.match(prompt, /preferences can guide the current exchange immediately/);
-  assert.match(prompt, /unless the memory owner has confirmed a durable write/);
-  assert.match(prompt, /Do not present recent chat as durable memory/);
+  assert.match(prompt, /Style hints are turn guidance, not durable memory/);
   assert.match(prompt, /Use Spark module names only when the user asks/);
   assert.match(prompt, /Do not offer to scaffold/);
 });
@@ -75,9 +73,31 @@ test('repo carries the Telegram composition standard as mergeable product guidan
   assert.match(standard, /Use dotted bullets/);
   assert.match(standard, /Do not combine icons with bullets/);
   assert.match(standard, /Put raw evidence behind Workspace, Decisions, Canvas, Board, logs, or trace links/);
-  assert.match(standard, /Keep memory\/source lane labels out of normal acknowledgement prose/);
-  assert.match(standard, /Got it, I will use that while we keep talking/);
+  assert.match(standard, /name the proof posture in human words/);
+  assert.match(standard, /keep raw proof refs and trace refs like `turn:sha256:\.\.\.` or `trace:\.\.\.` behind `\/proof`, logs, or an inspect link/);
   assert.match(standard, /Does it sound like Spark helping a person/);
+  assert.match(standard, /Status: clean/);
+  assert.match(standard, /Check: clean/);
+  assert.match(standard, /rich-message rendering/);
+});
+
+test('streaming design preserves the measured rich-message proof shape', () => {
+  const design = readFileSync(path.join(__dirname, '..', 'docs', 'LIVE_CHAT_STREAMING_DESIGN.md'), 'utf8');
+
+  assert.match(design, /rich-message-delivery-proof/);
+  assert.match(design, /cp-streaming-002/);
+  assert.match(design, /Status: clean/);
+  assert.match(design, /rejected here/);
+  assert.match(design, /Check: clean/);
+  assert.match(design, /Token: ok/);
+  assert.match(design, /one final Telegram message/);
+  assert.match(design, /live `\/streaming` runtime status and visible transport-proof line came through the active Telegram profile path/);
+  assert.match(design, /generic Telegram trace context is not enough/);
+  assert.match(design, /TELEGRAM_STREAMING_DEFAULTS/);
+  assert.match(design, /source-owned default policy/);
+  assert.match(design, /profile env files persist runtime choices/);
+  assert.match(design, /Builder-native JSONL streaming remains gated by the proof-first rule/);
+  assert.match(design, /measured control-proof or trace-join gap being closed/);
 });
 
 test('repo carries a readability ergonomics and vibe rubric', () => {
@@ -228,6 +248,15 @@ test('launch conversation style lint catches common drift shapes', () => {
 
   const reportCard = issueCodes('Provider\n• Codex\n\nMission\n• Token Launch Dashboard\n\nMove\n• Open the board');
   assert.equal(reportCard.has('report_card_voice'), true);
+  const colonReportCard = issueCodes('Provider:\n• Codex\n\nMission:\n• Token Launch Dashboard\n\nMove:\n• Open the board');
+  assert.equal(colonReportCard.has('report_card_voice'), true);
+
+  const rawReason = issueCodes('Blocked by route_not_selected_by_turn_envelope from harness_core:owner_mismatch.');
+  assert.equal(rawReason.has('raw_reason_code'), true);
+  const rawProofRef = issueCodes('Proof ref: turn:sha256:abcdef1234567890');
+  assert.equal(rawProofRef.has('raw_proof_ref'), true);
+  const rawTraceRef = issueCodes('Trace ref: trace:telegram-run:abcdef1234567890');
+  assert.equal(rawTraceRef.has('raw_trace_ref'), true);
 });
 
 test('launch natural work replies pass the readability ergonomics vibe bar', () => {
@@ -261,8 +290,8 @@ test('launch natural work replies pass the readability ergonomics vibe bar', () 
 
   assert.match(clarification, /Page\.\n\nRecommended starting point:/);
   assert.match(clarification, /presets\.\n\nSay "go" to start/);
-  assert.match(heartbeat, /^<b>Still shaping Paragraph Spacing Smoke Page\.<\/b>\n\nI will keep this quiet until the canvas is ready or something needs attention\./m);
-  assert.match(stillRunning, /^<b>Still preparing Paragraph Spacing Smoke Page\.<\/b>\n\nIt is taking a little longer than usual\. I will send the canvas when it is ready\./m);
+  assert.match(heartbeat, /^still shaping Paragraph Spacing Smoke Page\.\n\nI will keep this quiet until the canvas is ready or something needs attention\./m);
+  assert.match(stillRunning, /^still preparing Paragraph Spacing Smoke Page\. It is taking a little longer than usual, and I will send the canvas when it is ready\./m);
   assert.doesNotMatch(heartbeat, /🛠️|Canvas prep has been running/);
   assert.doesNotMatch(stillRunning, /🛠️|It has been shaping/);
 });

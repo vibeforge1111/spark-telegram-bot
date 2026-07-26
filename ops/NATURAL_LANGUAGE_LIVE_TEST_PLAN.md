@@ -2,6 +2,28 @@
 
 This is the running matrix for testing the active Spark Telegram profile as a natural-language control surface for Spawner UI, Mission Control, Kanban, and Canvas.
 
+## Harness Core Status
+
+This plan is now a broad behavior-regression matrix, not the main Harness Core release gate.
+
+Use it to answer whether Spark still understands natural-language prompts across many old surfaces. Do not use a passing `nl:live` run by itself to claim control-proof readiness. The new release gate must also prove fresh authority, side effects, redacted proof joins, streaming/rich-message rendering, screenshots or live Telegram confirmation, and intentional-action boundaries.
+
+Current decision record:
+
+- `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`
+
+Refurbishment helper:
+
+```powershell
+npm run nl:harness-map
+```
+
+Use this before promoting an old case into the new live canary pack. The map makes hidden mutations visible, such as old `safe` cases that write memory, change access, start missions, write files, or call external research. It is not release proof by itself.
+
+Generated NL evidence packets and observation templates carry `claim_scope=legacy_breadth`, `release_gate=none`, and `promotion_target=control_proof_canary`. Treat those fields as the proof boundary: they can guide refurbishment, but they cannot authorize release readiness or high-agency execution.
+
+Feature boundary: do not use legacy NL cases to expand UI, media support, rich composition, or new features unless the mapped case names the measured control-proof or trace-join gap it closes.
+
 ## Current Improvement Targets
 
 1. Command vocabulary: decide which phrases should launch, plan, remember, diagnose, or refuse.
@@ -32,6 +54,12 @@ List cases:
 
 ```powershell
 npm run nl:live -- --list
+```
+
+Map selected cases into Harness Core authority/mutation shape:
+
+```powershell
+npm run nl:harness-map -- --cases memory-001,access-002,mission-001
 ```
 
 Show one case:

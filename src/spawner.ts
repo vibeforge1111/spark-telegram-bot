@@ -1,18 +1,23 @@
+import { randomUUID } from 'node:crypto';
 import axios from 'axios';
+import {
+  type HarnessCoreActionMutationClass,
+  type HarnessCoreActionType
+} from '@spark/harness-core';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
 import { DEFAULT_LOCAL_SERVICE_TIMEOUT_MS, localServiceDefaultTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
 import type { SkillTier } from './userTier';
+import { creatorMissionClosureProof } from './creatorMissionClosureProof';
+import { domainChipLabsEvidenceSurfaceLine, formatDomainChipLabsContractProofLine } from './domainChipLabsCreatorContract';
 import {
   harnessExecutionAuthorityFailureReason,
   type HarnessExecutionAuthorityExpectation
 } from './harnessExecutionAuthority';
-
 const SPAWNER_UI_URL = resolveSpawnerUiUrl();
 const PROJECT_PREVIEW_URL = resolveProjectPreviewBaseUrl();
 const SPARK_RUN_PROJECT_PATH = process.env.SPARK_RUN_PROJECT_PATH?.trim();
-
 type MissionAction = 'status' | 'pause' | 'resume' | 'kill';
 type CreatorPrivacyMode = 'local_only' | 'github_pr' | 'swarm_shared';
 type CreatorRiskLevel = 'low' | 'medium' | 'high';
@@ -38,6 +43,159 @@ interface RunGoalResult {
   error?: string;
 }
 
+interface LoopEngineeringRunInput {
+  chipKey: string;
+  objective?: string;
+  roundLimit?: number;
+  benchmarkCaseIds?: string[];
+  executeNow?: boolean;
+  sourceSurface?: 'telegram' | 'spawner';
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
+interface LoopEngineeringRunResult {
+  success: boolean;
+  action?: string;
+  missionId?: string;
+  eventId?: string;
+  inspectUrl?: string;
+  message?: string;
+  event?: Record<string, unknown>;
+  mission?: Record<string, unknown>;
+  commandResult?: Record<string, unknown>;
+  error?: string;
+}
+
+interface LoopEngineeringChipSummary {
+  id: string;
+  name?: string;
+  domain?: string;
+  statusLabel?: string;
+  status?: string;
+  nextAction?: string;
+  benchmark?: {
+    utilityDelta?: number | null;
+  };
+}
+
+interface LoopEngineeringChipListResult {
+  success: boolean;
+  chips?: LoopEngineeringChipSummary[];
+  inspectUrl?: string;
+  error?: string;
+}
+
+interface LoopEngineeringChipDetailResult {
+  success: boolean;
+  chip?: Record<string, unknown>;
+  inspectUrl?: string;
+  error?: string;
+}
+
+interface LoopEngineeringEvaluatorReviewInput {
+  chipKey: string;
+  previousScore: number;
+  candidateScore: number;
+  roundsObserved?: number;
+  evidenceRefs: string[];
+  label?: string;
+  sourceSurface?: 'telegram' | 'spawner';
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
+interface LoopEngineeringDistillationInput {
+  chipKey: string;
+  sourceEvaluatorEventId: string;
+  lessons: string[];
+  runtimeNotes?: string;
+  tokenBudgetHint?: string;
+  evidenceRefs?: string[];
+  sourceSurface?: 'telegram' | 'spawner';
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
+interface LoopEngineeringActivationInput {
+  chipKey: string;
+  useCase: string;
+  surfaces?: Array<'telegram' | 'spawner' | 'builder' | 'codex' | 'scheduler'>;
+  mode?: 'manual' | 'suggested' | 'local_fast_path';
+  triggerPatterns?: string[];
+  nonTriggerPatterns?: string[];
+  riskPolicy?: 'low_only' | 'review_packet' | 'loop_mode_required';
+  approvalRequired?: boolean;
+  rollbackRef?: string;
+  sourceSurface?: 'telegram' | 'spawner';
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
+interface LoopEngineeringBenchmarkCaseInput {
+  chipKey: string;
+  kind: 'visible' | 'held_out' | 'trap' | 'no_op' | 'regression';
+  prompt: string;
+  expectedBehavior: string;
+  scoringRubricRef?: string;
+  evidenceRefs?: string[];
+  sourceSurface?: 'telegram' | 'spawner';
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
+interface LoopEngineeringScheduleInput {
+  chipKey: string;
+  name?: string;
+  mode?: 'once' | 'interval' | 'fixed_time' | 'continuous' | 'round_count';
+  intervalMinutes?: number;
+  fixedLocalTime?: string;
+  timezone?: string;
+  roundLimit: number;
+  stopConditions?: string[];
+  sourceSurface?: 'telegram' | 'spawner';
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
+interface LoopEngineeringScheduleFireInput {
+  chipKey: string;
+  scheduleId: string;
+  sourceSurface?: 'telegram' | 'spawner' | 'scheduler';
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
+type LoopEngineeringScheduleLifecycleAction = 'pause' | 'resume' | 'cancel' | 'deactivate';
+
+interface LoopEngineeringScheduleLifecycleInput {
+  chipKey: string;
+  scheduleId: string;
+  action: LoopEngineeringScheduleLifecycleAction;
+  sourceSurface?: 'telegram' | 'spawner' | 'scheduler';
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
+interface LoopEngineeringCompletionInput {
+  chipKey: string;
+  eventId: string;
+  missionId?: string;
+  status: 'passed' | 'failed' | 'blocked';
+  previousScore?: number;
+  candidateScore?: number;
+  utilityDelta?: number;
+  roundsObserved?: number;
+  evaluatorSeparated?: boolean;
+  evidenceRefs?: string[];
+  sourceRef?: string;
+  evaluatorVerdictRef?: string;
+  scheduleId?: string;
+  nextAction?: string;
+  requestId?: string;
+  executionAuthority?: unknown;
+}
+
 interface CreatorMissionInput {
   brief: string;
   requestId?: string;
@@ -46,6 +204,11 @@ interface CreatorMissionInput {
   riskLevel?: CreatorRiskLevel;
   executionPolicy?: 'manual_run' | 'read_only';
   executionAuthority?: unknown;
+}
+
+function safeDomainChipKey(value: string): string | null {
+  const clean = String(value || '').trim().toLowerCase();
+  return /^domain-chip-[a-z0-9][a-z0-9-]{2,}$/.test(clean) ? clean : null;
 }
 
 interface CreatorIntentPacket {
@@ -82,10 +245,7 @@ interface CreatorMissionTrace {
   intent_packet?: CreatorIntentPacket;
   canonical?: CreatorCanonicalStatus;
   publication?: CreatorPublicationStatus;
-  links?: {
-    canvas?: string;
-    kanban?: string;
-  };
+  links?: { canvas?: string; kanban?: string; review?: string; artifact?: string };
 }
 
 interface CreatorMissionResult {
@@ -94,6 +254,7 @@ interface CreatorMissionResult {
   requestId?: string;
   taskCount?: number;
   canvasUrl?: string;
+  tracePath?: string;
   trace?: CreatorMissionTrace;
   error?: string;
 }
@@ -101,10 +262,6 @@ interface CreatorMissionResult {
 interface CreatorMissionExecutionInput {
   missionId?: string;
   requestId?: string;
-  executionAuthority?: unknown;
-}
-
-interface MissionCommandOptions {
   executionAuthority?: unknown;
 }
 
@@ -116,6 +273,31 @@ function executionAuthorityError(
 ): string | null {
   const reason = harnessExecutionAuthorityFailureReason(value, expected);
   return reason ? `${MISSING_EXECUTION_AUTHORITY_ERROR} (${reason})` : null;
+}
+
+function actionTypeForMutationClass(mutationClass: HarnessCoreActionMutationClass): HarnessCoreActionType {
+  switch (mutationClass) {
+    case 'none':
+    case 'read_only':
+      return 'read';
+    case 'writes_memory':
+      return 'write_memory';
+    case 'writes_files':
+      return 'edit_file';
+    case 'launches_mission':
+      return 'launch_mission';
+    case 'creates_schedule':
+    case 'deletes_schedule':
+      return 'schedule';
+    case 'creates_chip':
+      return 'create_domain_chip';
+    case 'external_network':
+      return 'external_api_call';
+    case 'publishes':
+      return 'publish';
+    default:
+      return 'run_command';
+  }
 }
 
 interface CreatorMissionLookupInput {
@@ -207,12 +389,6 @@ interface BoardEntry {
     summary?: string;
   }>;
   providerSummary?: string;
-  projectLineage?: {
-    projectId?: string | null;
-    projectPath?: string | null;
-    previewUrl?: string | null;
-    parentMissionId?: string | null;
-  } | null;
 }
 
 const STALE_RUNNING_MISSION_MS = 15 * 60 * 1000;
@@ -245,17 +421,42 @@ function isRetryableLocalServiceError(err: any): boolean {
   );
 }
 
+export function localServiceRetryDelayMs(env: NodeJS.ProcessEnv = process.env): number {
+  return Math.min(5_000, positiveIntegerEnv(env, 'SPARK_LOCAL_SERVICE_RETRY_DELAY_MS', 800));
+}
+
+function waitForLocalServiceRetry(delayMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+function spawnerErrorMessage(error: unknown, fallback = 'Spawner request failed'): string {
+  const candidate = error && typeof error === 'object'
+    ? (error as any)?.response?.data?.error || (error as any)?.message
+    : typeof error === 'string'
+      ? error
+      : null;
+  return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : fallback;
+}
+
+export function spawnerBoardUnavailableMessage(view = 'Mission board'): string {
+  return `${view} is unavailable right now. Run /diagnose to check the local Spawner service.`;
+}
+
 export async function postLocalServiceWithRetry<T = any>(
   url: string,
   body: unknown,
   timeoutMs = DEFAULT_LOCAL_SERVICE_TIMEOUT_MS
 ): Promise<{ data: T }> {
+  const requestOptions = spawnerAxiosOptions(timeoutMs, {
+    headers: { 'Idempotency-Key': randomUUID() }
+  });
   try {
-    return await axios.post(url, body, spawnerAxiosOptions(timeoutMs));
+    return await axios.post(url, body, requestOptions);
   } catch (err: any) {
     if (!isRetryableLocalServiceError(err)) throw err;
+    await waitForLocalServiceRetry(localServiceRetryDelayMs());
     try {
-      return await axios.post(url, body, spawnerAxiosOptions(timeoutMs));
+      return await axios.post(url, body, requestOptions);
     } catch (retryErr: any) {
       const original = err?.message || 'local service request failed';
       const retry = retryErr?.message || 'retry failed';
@@ -271,7 +472,12 @@ function normalizeBucket(value: unknown): BoardEntry[] {
 
 function isFreshRunningEntry(entry: BoardEntry): boolean {
   const ageMs = Date.now() - Date.parse(entry.lastUpdated);
-  return Number.isFinite(ageMs) && ageMs < STALE_RUNNING_MISSION_MS;
+  return !Number.isFinite(ageMs) || ageMs < STALE_RUNNING_MISSION_MS;
+}
+
+function lastUpdatedMs(entry: BoardEntry): number {
+  const parsed = Date.parse(entry.lastUpdated || '');
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 async function fetchBoardSnapshot(): Promise<BoardSnapshot> {
@@ -296,7 +502,7 @@ function latestBoardEntry(board: BoardSnapshot): BoardEntry | null {
     ...board.cancelled,
     ...board.created
   ];
-  entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
+  entries.sort((a, b) => lastUpdatedMs(b) - lastUpdatedMs(a));
   return entries[0] || null;
 }
 
@@ -307,69 +513,8 @@ function latestFailureEntry(board: BoardSnapshot): BoardEntry | null {
     ...board.completed,
     ...board.created
   ];
-  entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
+  entries.sort((a, b) => lastUpdatedMs(b) - lastUpdatedMs(a));
   return entries.find((entry) => entry.status === 'failed' || entry.lastEventType === 'mission_failed') || null;
-}
-
-function boardEntryLineageKeys(entry: BoardEntry): Set<string> {
-  const keys = new Set<string>();
-  const add = (prefix: string, value: string | null | undefined) => {
-    const normalized = value?.trim().toLowerCase();
-    if (normalized) keys.add(`${prefix}:${normalized}`);
-  };
-  const text = [
-    entry.missionId,
-    entry.missionName,
-    entry.taskName,
-    entry.providerSummary,
-    entry.lastSummary,
-    entry.projectLineage?.projectId,
-    entry.projectLineage?.projectPath,
-    entry.projectLineage?.previewUrl,
-    entry.projectLineage?.parentMissionId
-  ].filter((part): part is string => Boolean(part?.trim())).join('\n');
-
-  add('mission-ref', entry.missionId);
-  add('mission-ref', entry.projectLineage?.parentMissionId);
-  add('project', entry.projectLineage?.projectId);
-  add('project-path', entry.projectLineage?.projectPath);
-  add('preview', entry.projectLineage?.previewUrl);
-
-  for (const match of text.matchAll(/\bmission-\d{6,}\b/gi)) {
-    add('mission-ref', match[0]);
-  }
-
-  return keys;
-}
-
-function hasSharedLineage(left: BoardEntry, right: BoardEntry): boolean {
-  const leftKeys = boardEntryLineageKeys(left);
-  if (leftKeys.size === 0) return false;
-  for (const key of boardEntryLineageKeys(right)) {
-    if (leftKeys.has(key)) return true;
-  }
-  return false;
-}
-
-function findNewerNonCompletedLineageEntry(candidate: BoardEntry, board: BoardSnapshot): BoardEntry | null {
-  const candidateUpdated = Date.parse(candidate.lastUpdated || '');
-  const entries = [
-    ...board.running,
-    ...board.paused,
-    ...board.failed,
-    ...board.cancelled,
-    ...board.created
-  ]
-    .filter((entry) => entry.missionId !== candidate.missionId)
-    .filter((entry) => {
-      const entryUpdated = Date.parse(entry.lastUpdated || '');
-      if (!Number.isFinite(candidateUpdated)) return Number.isFinite(entryUpdated);
-      return Number.isFinite(entryUpdated) && entryUpdated > candidateUpdated;
-    })
-    .filter((entry) => hasSharedLineage(candidate, entry));
-
-  entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
-  return entries[0] || null;
 }
 
 function isKnownProviderLabel(value: string | null | undefined): value is string {
@@ -455,9 +600,7 @@ function rootRouteLooksLikeProject(text: string): boolean {
 function projectOpenLinkForEntry(entry: BoardEntry): string | null {
   const text = providerResultText(entry);
   const projectPath = extractProjectPathFromText(text);
-  return entry.projectLineage?.previewUrl?.trim()
-    || (entry.projectLineage?.projectPath?.trim() ? projectPreviewLink(entry.projectLineage.projectPath) : null)
-    || extractPreviewUrlFromText(text)
+  return extractPreviewUrlFromText(text)
     || (projectPath ? projectPreviewLink(projectPath) : null)
     || (rootRouteLooksLikeProject(text) ? PROJECT_PREVIEW_URL.replace(/\/+$/, '') : null);
 }
@@ -468,7 +611,6 @@ function isOperationalProbeMission(entry: BoardEntry): boolean {
   return /\btelegram\s+golden\s+path\s+probe\b/i.test(title)
     || /\bno[-\s]*edit\s+spawner\s+probe\b/i.test(title)
     || /\bgolden[-\s]*path\s+health\s+probe\b/i.test(text)
-    || /\bspark\s+run:\s*reply\s+with\s+exactly\b/i.test(title)
     || /\breply\s+with\s+exactly\b[\s\S]{0,140}\bdo\s+not\s+edit\s+files\b/i.test(text);
 }
 
@@ -835,7 +977,7 @@ function absoluteSpawnerUrl(value: string | undefined, baseUrl = spawnerPublicUr
 
 function formatCreatorMode(value: string | undefined): string {
   const normalized = (value || 'unknown').replace(/_/g, ' ');
-  if (value === 'full_path') return 'full creator system';
+  if (value === 'full_path') return 'Loop Engineering system';
   if (value === 'specialization_path') return 'specialization path';
   if (value === 'domain_chip') return 'domain chip';
   return normalized;
@@ -862,85 +1004,6 @@ function providerStatusRows(providers: unknown): string[] {
   return rows.length > 0 ? rows : ['• none'];
 }
 
-function stringField(record: unknown, key: string): string | null {
-  if (!record || typeof record !== 'object') return null;
-  const value = (record as Record<string, unknown>)[key];
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
-}
-
-function missionStatusFromEvent(eventType: string | null): string | null {
-  if (eventType === 'mission_completed') return 'completed';
-  if (eventType === 'mission_failed' || eventType === 'task_failed') return 'failed';
-  if (eventType === 'mission_cancelled' || eventType === 'task_cancelled') return 'cancelled';
-  if (eventType === 'mission_paused') return 'paused';
-  if (eventType) return 'running';
-  return null;
-}
-
-function missionStatusSentence(status: string | null, title: string): string {
-  if (status === 'completed') return `${title} completed.`;
-  if (status === 'failed') return `${title} failed.`;
-  if (status === 'cancelled') return `${title} was cancelled.`;
-  if (status === 'paused') return `${title} is paused.`;
-  if (status === 'running') return `${title} is still running.`;
-  return `${title} has Mission Control evidence.`;
-}
-
-function safeMissionEvidenceLine(value: string): string {
-  if (/[/\\]\.spark[/\\]workspaces[/\\]/i.test(value) || /[A-Z]:\\Users\\/i.test(value)) {
-    return 'Spawner recorded local workspace evidence; private local paths are hidden here.';
-  }
-  return value;
-}
-
-function formatMissionStatusReadReply(missionId: string, data: unknown): string {
-  const snapshot = data && typeof data === 'object' ? (data as Record<string, any>).snapshot : null;
-  const recent = Array.isArray(snapshot?.recent) ? snapshot.recent : [];
-  const latest = recent[0] && typeof recent[0] === 'object' ? recent[0] : null;
-  const completionEvidence = snapshot?.completionEvidence && typeof snapshot.completionEvidence === 'object'
-    ? snapshot.completionEvidence
-    : null;
-  const terminalStatus = stringField(completionEvidence, 'terminalStatus') || missionStatusFromEvent(stringField(latest, 'eventType'));
-  const title = stringField(latest, 'missionName') || missionId;
-  const providerSummary = stringField(snapshot, 'providerSummary');
-  const latestSummary = stringField(latest, 'summary');
-
-  if (!recent.length && !providerSummary && !terminalStatus) {
-    return [
-      `I could not find ${missionId} in Mission Control.`,
-      '',
-      `Board: ${missionScopedBoardUrl(missionId)}`
-    ].join('\n');
-  }
-
-  const lines = [
-    missionStatusSentence(terminalStatus, title),
-    '',
-    'Evidence'
-  ];
-  if (terminalStatus) lines.push(`- Terminal status: ${formatCreatorReadiness(terminalStatus)}`);
-  if (providerSummary) lines.push(`- Provider: ${safeMissionEvidenceLine(providerSummary)}`);
-  else if (latestSummary) lines.push(`- Latest event: ${safeMissionEvidenceLine(latestSummary)}`);
-
-  lines.push('', 'Decision');
-  if (terminalStatus === 'completed') {
-    lines.push('- Treat it as completed: yes.');
-    lines.push('- Rerun: only if you want a new polish pass.');
-  } else if (terminalStatus === 'failed' || terminalStatus === 'cancelled') {
-    lines.push('- Treat it as completed: no.');
-    lines.push('- Rerun: yes, if you still want this mission outcome.');
-  } else if (terminalStatus === 'running' || terminalStatus === 'paused') {
-    lines.push('- Treat it as completed: no.');
-    lines.push('- Rerun: not yet; inspect or resume the current mission first.');
-  } else {
-    lines.push('- Treat it as completed: not proven.');
-    lines.push('- Rerun: decide after checking the board evidence.');
-  }
-
-  lines.push('', `Board: ${missionScopedBoardUrl(missionId)}`);
-  return lines.join('\n');
-}
-
 function formatCreatorReadiness(value: string | undefined): string {
   return (value || 'unknown').replace(/_/g, ' ');
 }
@@ -953,10 +1016,10 @@ function formatCreatorPrivacy(value: string | undefined): string {
 }
 
 function formatCreatorCheckHeadline(status: string): string {
-  if (status === 'passed') return '🟢 Creator checks passed.';
-  if (status === 'failed') return '🔴 Creator checks need attention.';
-  if (status === 'blocked') return '🟡 Creator checks are blocked.';
-  return '🟡 Creator checks finished.';
+  if (status === 'passed') return '🟢 Loop Engineering checks passed.';
+  if (status === 'failed') return '🔴 Loop Engineering checks need attention.';
+  if (status === 'blocked') return '🟡 Loop Engineering checks are blocked.';
+  return '🟡 Loop Engineering checks finished.';
 }
 
 export function formatCreatorDomainLabel(value: string | undefined): string {
@@ -998,7 +1061,7 @@ export function formatCreatorDomainLabel(value: string | undefined): string {
   return labelWords
     .map((word) => {
       const lower = word.toLowerCase();
-      if (['ai', 'api', 'llm', 'ui', 'ux', 'yc'].includes(lower)) return lower.toUpperCase();
+      if (['ai', 'api', 'llm', 'pr', 'ui', 'ux', 'yc'].includes(lower)) return lower.toUpperCase();
       return lower.charAt(0).toUpperCase() + lower.slice(1);
     })
     .join(' ');
@@ -1020,9 +1083,9 @@ function formatCreatorArtifactLabel(value: string): string {
 
 function creatorPlanOpening(seed: string): string {
   const variants = [
-    'Creator plan ready. I staged the private path without starting it.',
+    'Loop Engineering plan ready. I staged the private path without starting it.',
     'Private path staged. Nothing is running yet.',
-    'Creator plan is staged and waiting for your call.'
+    'Loop Engineering plan is staged and waiting for your call.'
   ];
   const score = seed.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return variants[score % variants.length];
@@ -1033,9 +1096,8 @@ function formatCreatorArtifactSummary(artifacts: string[] | undefined): string {
   if (usable.length === 0) return 'artifact plan pending';
   return usable.slice(0, 6).map(formatCreatorArtifactLabel).join(', ');
 }
-
 function creatorEvidenceStandardLine(): string {
-  return 'creator intent, adapter map, artifact manifest, domain chip, benchmark pack, specialization path, autoloop policy, evidence ladder, creator mission status, swarm/contribution_packet.json';
+  return `intent packet, adapter map, artifact manifest, domain chip, ${domainChipLabsEvidenceSurfaceLine()}, specialization path, autoloop policy, Loop Engineering status, swarm/contribution_packet.json`;
 }
 
 function formatEvidenceTier(value: string | undefined): string {
@@ -1086,22 +1148,24 @@ function creatorValidationIcon(status: string | undefined): string {
 
 export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUrl = spawnerPublicUrl()): string {
   if (!result.success) {
-    return `Creator mission failed: ${result.error || 'unknown error'}`;
+    return `Loop Engineering staging failed: ${result.error || 'unknown error'}`;
   }
 
   const trace = result.trace || {};
   const intent = trace.intent_packet || {};
-  const missionId = result.missionId || trace.mission_id || 'unknown';
-  const readOnly = trace.execution_policy === 'read_only';
-  const kanbanUrl = readOnly
-    ? creatorWorkspaceUrl('kanban', baseUrl)
-    : trace.links?.kanban || (missionId !== 'unknown' ? creatorMissionKanbanUrl(missionId, baseUrl) : `${baseUrl}/kanban`);
-  const taskCount = typeof result.taskCount === 'number'
-    ? result.taskCount
-    : Array.isArray(trace.tasks)
-      ? trace.tasks.length
-      : null;
-  const canvasUrl = readOnly ? creatorWorkspaceUrl('canvas', baseUrl) : absoluteSpawnerUrl(result.canvasUrl || trace.links?.canvas, baseUrl);
+  const provenMissionId = result.missionId || trace.mission_id;
+  const missionId = provenMissionId || 'staged-review';
+  const explicitReadOnly = trace.execution_policy === 'read_only';
+  const readOnly = explicitReadOnly || !provenMissionId;
+  const canvasProof = result.canvasUrl || trace.links?.canvas;
+  const reviewUrl = absoluteSpawnerUrl(result.tracePath || trace.links?.review || trace.links?.artifact, baseUrl);
+  const kanbanUrl = provenMissionId
+    ? (explicitReadOnly ? creatorWorkspaceUrl('kanban', baseUrl) : trace.links?.kanban || creatorMissionKanbanUrl(missionId, baseUrl))
+    : undefined;
+  const taskCount = typeof result.taskCount === 'number' ? result.taskCount : Array.isArray(trace.tasks) ? trace.tasks.length : null;
+  const canvasUrl = explicitReadOnly
+    ? creatorWorkspaceUrl('canvas', baseUrl)
+    : absoluteSpawnerUrl(canvasProof, baseUrl);
   const domain = formatCreatorDomainLabel(intent.target_domain);
   const artifacts = formatCreatorArtifactSummary(trace.artifacts);
   const evidenceTier = formatEvidenceTier(trace.canonical?.evidence_tier);
@@ -1118,12 +1182,13 @@ export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUr
     '',
     'Evidence',
     `Staged: ${artifacts}`,
-    `Creator-run contract: ${creatorEvidenceStandardLine()}`,
+    `Loop Engineering contract: ${creatorEvidenceStandardLine()}`,
     'Capability gain needs baseline, candidate, held-out or trap evidence before Rec says the path made the agent better.',
     '',
     'Workspace',
-    `Board: ${kanbanUrl}`,
-    'Canvas will follow after nodes, skill pairings, and workflow handoff are materialized.',
+    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
+    ...(reviewUrl ? [`Review: ${reviewUrl}`] : []),
+    ...(kanbanUrl ? [`Board: ${kanbanUrl}`] : []),
     '',
     'Next',
     ...(readOnly
@@ -1139,7 +1204,7 @@ export function formatCreatorMissionStatusSummary(
   baseUrl = spawnerPublicUrl()
 ): string {
   if (!result.success) {
-    return `Creator mission status failed: ${result.error || 'unknown error'}`;
+    return `Loop Engineering status failed: ${result.error || 'unknown error'}`;
   }
 
   const trace = result.trace || {};
@@ -1157,7 +1222,7 @@ export function formatCreatorMissionStatusSummary(
   const networkAbsorbable = formatNetworkAbsorbable(trace.publication?.network_absorbable);
 
   return [
-    `${statusIcon} ${domain} creator status.`,
+    `${statusIcon} ${domain} Loop Engineering status.`,
     '',
     'State',
     `${formatCreatorReadiness(trace.stage_status)} at ${formatCreatorReadiness(trace.current_stage)}`,
@@ -1173,12 +1238,13 @@ export function formatCreatorMissionStatusSummary(
     ...(blockers.length > 0 ? [`blocker: ${blockers[0]}`] : []),
     '',
     'Evidence',
-    `Creator-run contract: ${creatorEvidenceStandardLine()}`,
+    `Loop Engineering contract: ${creatorEvidenceStandardLine()}`,
+    formatDomainChipLabsContractProofLine(trace),
     '',
     'Workspace',
     `${artifactCount} artifact plan${artifactCount === 1 ? '' : 's'}`,
-    `Board: ${kanbanUrl}`,
-    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : [])
+    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
+    `Board: ${kanbanUrl}`
   ].filter((line): line is string => Boolean(line)).join('\n');
 }
 
@@ -1187,7 +1253,7 @@ export function formatCreatorMissionExecutionSummary(
   baseUrl = spawnerPublicUrl()
 ): string {
   if (!result.success) {
-    return `Creator mission run failed: ${result.error || 'unknown error'}`;
+    return `Loop Engineering run failed: ${result.error || 'unknown error'}`;
   }
 
   const trace = result.trace || {};
@@ -1195,10 +1261,10 @@ export function formatCreatorMissionExecutionSummary(
   const canvasUrl = absoluteSpawnerUrl(result.canvasUrl || trace.links?.canvas, baseUrl);
   const kanbanUrl = trace.links?.kanban || (missionId !== 'unknown' ? creatorMissionKanbanUrl(missionId, baseUrl) : `${baseUrl}/kanban`);
   const headline = result.started
-    ? '🟢 Creator mission started.'
+    ? '🟢 Loop Engineering run started.'
     : result.skipped
-      ? '🟡 Creator mission was already handled.'
-      : '🟢 Creator mission accepted.';
+      ? '🟡 Loop Engineering run was already handled.'
+      : '🟢 Loop Engineering run accepted.';
 
   return [
     headline,
@@ -1209,8 +1275,8 @@ export function formatCreatorMissionExecutionSummary(
     ...(result.reason ? [`Note: ${result.reason}`] : []),
     '',
     'Workspace',
-    `Board: ${kanbanUrl}`,
-    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : [])
+    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
+    `Board: ${kanbanUrl}`
   ].join('\n');
 }
 
@@ -1219,7 +1285,7 @@ export function formatCreatorMissionValidationSummary(
   baseUrl = spawnerPublicUrl()
 ): string {
   if (!result.success) {
-    return `Creator mission validation failed: ${result.error || 'unknown error'}`;
+    return `Loop Engineering validation failed: ${result.error || 'unknown error'}`;
   }
 
   const trace = result.trace || {};
@@ -1235,8 +1301,8 @@ export function formatCreatorMissionValidationSummary(
     /block/.test(String(trace.stage_status || '').toLowerCase()) ||
     /promotion[_-\s]*blocked/.test(String(trace.current_stage || '').toLowerCase());
   const headline = status === 'passed' && promotionBlocked
-    ? '🟡 Creator artifact validation passed; promotion is still blocked.'
-    : `${creatorValidationIcon(status)} Creator validation ${formatCreatorReadiness(status)}.`;
+    ? '🟡 Loop Engineering artifact validation passed; promotion is still blocked.'
+    : `${creatorValidationIcon(status)} Loop Engineering validation ${formatCreatorReadiness(status)}.`;
 
   return [
     headline,
@@ -1255,9 +1321,139 @@ export function formatCreatorMissionValidationSummary(
     ...(promotionBlocked && blockers.length > 0 ? ['', 'Promotion blocker', blockers[0]] : []),
     '',
     'Workspace',
-    `Board: ${kanbanUrl}`,
-    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : [])
+    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
+    `Board: ${kanbanUrl}`
   ].join('\n');
+}
+
+async function runLoopEngineeringSpawnerAction(
+  kind: 'benchmark' | 'loop',
+  input: LoopEngineeringRunInput
+): Promise<LoopEngineeringRunResult> {
+  const chipKey = safeDomainChipKey(input.chipKey);
+  if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+  const endpoint = kind === 'benchmark'
+    ? `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/benchmarks/run`
+    : `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/loops/run`;
+  const toolName = kind === 'benchmark'
+    ? 'spawner.loop_engineering.benchmark.run'
+    : 'spawner.loop_engineering.loop.run';
+  const authorityError = executionAuthorityError(input.executionAuthority, {
+    toolName,
+    ownerSystem: 'spawner-ui',
+    actionType: 'launch_mission'
+  });
+  if (authorityError) return { success: false, error: authorityError };
+  try {
+    const res = await postLocalServiceWithRetry(
+      `${SPAWNER_UI_URL}${endpoint}`,
+      {
+        ...(input.objective?.trim() ? { objective: input.objective.trim() } : {}),
+        ...(kind === 'loop' && typeof input.roundLimit === 'number' ? { roundLimit: input.roundLimit } : {}),
+        ...(input.benchmarkCaseIds?.length ? { benchmarkCaseIds: input.benchmarkCaseIds } : {}),
+        ...(input.executeNow ? { executeNow: true } : {}),
+        sourceSurface: input.sourceSurface || 'telegram',
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        executionAuthority: input.executionAuthority
+      },
+      localServiceTimeoutMs('SPARK_LOOP_ENGINEERING_RUN_TIMEOUT_MS')
+    );
+    const commandResult = res.data?.commandResult && typeof res.data.commandResult === 'object'
+      ? res.data.commandResult
+      : {};
+    const missionId = typeof commandResult.missionId === 'string'
+      ? commandResult.missionId
+      : typeof res.data?.mission?.id === 'string'
+        ? res.data.mission.id
+        : undefined;
+    const eventId = typeof commandResult.eventId === 'string' ? commandResult.eventId : undefined;
+    const action = typeof commandResult.action === 'string' ? commandResult.action : undefined;
+    if (res.data?.ok && input.executeNow) {
+      const expectedAction = kind === 'benchmark' ? 'benchmark_run_executed' : 'loop_run_executed';
+      const runIdKey = kind === 'benchmark' ? 'benchmarkRunId' : 'loopRunId';
+      const runId = typeof commandResult[runIdKey] === 'string' ? commandResult[runIdKey] : undefined;
+      if (action !== expectedAction || !missionId || !eventId || !runId) {
+        return {
+          success: false,
+          action,
+          missionId,
+          eventId,
+          inspectUrl: typeof commandResult.inspectUrl === 'string' ? absoluteSpawnerUrl(commandResult.inspectUrl) : undefined,
+          event: res.data?.event && typeof res.data.event === 'object' ? res.data.event : undefined,
+          mission: res.data?.mission && typeof res.data.mission === 'object' ? res.data.mission : undefined,
+          commandResult,
+          error: `Spawner did not return ${kind} execution proof, so Telegram did not treat it as run.`
+        };
+      }
+    }
+    return {
+      success: Boolean(res.data?.ok),
+      action,
+      missionId,
+      eventId,
+      inspectUrl: typeof commandResult.inspectUrl === 'string' ? absoluteSpawnerUrl(commandResult.inspectUrl) : undefined,
+      message: typeof commandResult.userMessage === 'string' ? commandResult.userMessage : undefined,
+      event: res.data?.event && typeof res.data.event === 'object' ? res.data.event : undefined,
+      mission: res.data?.mission && typeof res.data.mission === 'object' ? res.data.mission : undefined,
+      commandResult,
+      ...(res.data?.ok ? {} : { error: res.data?.error || `Loop-engineering ${kind} run failed` })
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.response?.data?.error || err?.message || `Loop-engineering ${kind} run failed`
+    };
+  }
+}
+
+async function postLoopEngineeringCommandResult(input: {
+  chipKey: string;
+  endpoint: string;
+  toolName: string;
+  mutationClass?: HarnessCoreActionMutationClass;
+  body: Record<string, unknown>;
+  requestId?: string;
+  target?: string;
+}): Promise<LoopEngineeringRunResult> {
+  const chipKey = safeDomainChipKey(input.chipKey);
+  if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+  const mutationClass = input.mutationClass || 'writes_files';
+  const authorityError = executionAuthorityError(input.body.executionAuthority, {
+    toolName: input.toolName,
+    ownerSystem: 'spawner-ui',
+    actionType: actionTypeForMutationClass(mutationClass)
+  });
+  if (authorityError) return { success: false, error: authorityError };
+  try {
+    const res = await postLocalServiceWithRetry(
+      `${SPAWNER_UI_URL}${input.endpoint}`,
+      {
+        ...input.body,
+        executionAuthority: input.body.executionAuthority
+      },
+      localServiceTimeoutMs('SPARK_LOOP_ENGINEERING_RUN_TIMEOUT_MS')
+    );
+    const commandResult = res.data?.commandResult && typeof res.data.commandResult === 'object'
+      ? res.data.commandResult
+      : {};
+    return {
+      success: Boolean(res.data?.ok),
+      action: typeof commandResult.action === 'string' ? commandResult.action : undefined,
+      missionId: typeof commandResult.missionId === 'string' ? commandResult.missionId : undefined,
+      eventId: typeof commandResult.eventId === 'string' ? commandResult.eventId : undefined,
+      inspectUrl: typeof commandResult.inspectUrl === 'string' ? absoluteSpawnerUrl(commandResult.inspectUrl) : undefined,
+      message: typeof commandResult.userMessage === 'string' ? commandResult.userMessage : undefined,
+      event: res.data?.event && typeof res.data.event === 'object' ? res.data.event : undefined,
+      mission: res.data?.mission && typeof res.data.mission === 'object' ? res.data.mission : undefined,
+      commandResult,
+      ...(res.data?.ok ? {} : { error: res.data?.error || 'Loop-engineering command failed' })
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.response?.data?.error || err?.message || 'Loop-engineering command failed'
+    };
+  }
 }
 
 export const spawner = {
@@ -1300,6 +1496,7 @@ export const spawner = {
         localServiceTimeoutMs('SPARK_SPAWNER_RUN_TIMEOUT_MS')
       );
 
+      if (res.data?.success && !(typeof res.data?.missionId === 'string' && res.data.missionId.trim())) return { success: false, error: 'Spark run bridge returned success but missing mission id.' };
       return {
         success: Boolean(res.data?.success),
         missionId: res.data?.missionId,
@@ -1309,9 +1506,251 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: spawnerErrorMessage(err, 'Spark run bridge failed')
       };
     }
+  },
+
+  async runLoopEngineeringBenchmark(input: LoopEngineeringRunInput): Promise<LoopEngineeringRunResult> {
+    return runLoopEngineeringSpawnerAction('benchmark', input);
+  },
+
+  async runLoopEngineeringLoop(input: LoopEngineeringRunInput): Promise<LoopEngineeringRunResult> {
+    return runLoopEngineeringSpawnerAction('loop', input);
+  },
+
+  async listLoopEngineeringChips(): Promise<LoopEngineeringChipListResult> {
+    try {
+      const res = await axios.get(`${SPAWNER_UI_URL}/api/loop-engineering/chips`, spawnerAxiosOptions(10000));
+      const chips = Array.isArray(res.data?.registry?.chips)
+        ? res.data.registry.chips.filter((item: unknown): item is LoopEngineeringChipSummary => Boolean(item && typeof item === 'object' && typeof (item as LoopEngineeringChipSummary).id === 'string'))
+        : [];
+      return {
+        success: Boolean(res.data?.ok),
+        chips,
+        inspectUrl: absoluteSpawnerUrl('/loop-engineering'),
+        ...(res.data?.ok ? {} : { error: res.data?.error || 'Loop Engineering chip list failed' })
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        inspectUrl: absoluteSpawnerUrl('/loop-engineering'),
+        error: err?.response?.data?.error || err?.message || 'Loop Engineering chip list failed'
+      };
+    }
+  },
+
+  async getLoopEngineeringChip(chipKeyInput: string): Promise<LoopEngineeringChipDetailResult> {
+    const chipKey = safeDomainChipKey(chipKeyInput);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    try {
+      const res = await axios.get(`${SPAWNER_UI_URL}/api/loop-engineering/chips/${encodeURIComponent(chipKey)}`, spawnerAxiosOptions(10000));
+      const chip = res.data?.chip && typeof res.data.chip === 'object' ? res.data.chip : null;
+      return {
+        success: Boolean(res.data?.ok && chip),
+        ...(chip ? { chip } : {}),
+        inspectUrl: absoluteSpawnerUrl(`/loop-engineering/${encodeURIComponent(chipKey)}`),
+        ...(chip ? {} : { error: res.data?.error || 'Spawner did not return a chip evidence packet.' })
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        inspectUrl: absoluteSpawnerUrl(`/loop-engineering/${encodeURIComponent(chipKey)}`),
+        error: err?.response?.data?.error || err?.message || 'Loop-engineering chip lookup failed'
+      };
+    }
+  },
+
+  async recordLoopEngineeringEvaluatorReview(input: LoopEngineeringEvaluatorReviewInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/evaluator-review`,
+      toolName: 'spawner.loop_engineering.evaluator_review.record',
+      requestId: input.requestId,
+      target: chipKey,
+      body: {
+        previousScore: input.previousScore,
+        candidateScore: input.candidateScore,
+        ...(typeof input.roundsObserved === 'number' ? { roundsObserved: input.roundsObserved } : {}),
+        evaluatorSeparated: true,
+        evidenceRefs: input.evidenceRefs,
+        sourceSurface: input.sourceSurface || 'telegram',
+        ...(input.label?.trim() ? { label: input.label.trim() } : {}),
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
+  },
+
+  async distillLoopEngineeringLessons(input: LoopEngineeringDistillationInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/distill`,
+      toolName: 'spawner.loop_engineering.distill.stage',
+      requestId: input.requestId,
+      target: chipKey,
+      body: {
+        sourceEvaluatorEventId: input.sourceEvaluatorEventId,
+        lessons: input.lessons,
+        ...(input.runtimeNotes?.trim() ? { runtimeNotes: input.runtimeNotes.trim() } : {}),
+        ...(input.tokenBudgetHint?.trim() ? { tokenBudgetHint: input.tokenBudgetHint.trim() } : {}),
+        ...(input.evidenceRefs?.length ? { evidenceRefs: input.evidenceRefs } : {}),
+        sourceSurface: input.sourceSurface || 'telegram',
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
+  },
+
+  async stageLoopEngineeringActivation(input: LoopEngineeringActivationInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/activation`,
+      toolName: 'spawner.loop_engineering.activation.stage',
+      requestId: input.requestId,
+      target: input.useCase,
+      body: {
+        useCase: input.useCase,
+        ...(input.surfaces?.length ? { surfaces: input.surfaces } : {}),
+        ...(input.mode ? { mode: input.mode } : {}),
+        ...(input.triggerPatterns?.length ? { triggerPatterns: input.triggerPatterns } : {}),
+        ...(input.nonTriggerPatterns?.length ? { nonTriggerPatterns: input.nonTriggerPatterns } : {}),
+        ...(input.riskPolicy ? { riskPolicy: input.riskPolicy } : {}),
+        ...(typeof input.approvalRequired === 'boolean' ? { approvalRequired: input.approvalRequired } : {}),
+        ...(input.rollbackRef?.trim() ? { rollbackRef: input.rollbackRef.trim() } : {}),
+        ...(input.sourceSurface ? { sourceSurface: input.sourceSurface } : {}),
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
+  },
+
+  async stageLoopEngineeringBenchmarkCase(input: LoopEngineeringBenchmarkCaseInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/benchmarks/cases`,
+      toolName: 'spawner.loop_engineering.benchmark_case.stage',
+      requestId: input.requestId,
+      target: chipKey,
+      body: {
+        kind: input.kind,
+        prompt: input.prompt,
+        expectedBehavior: input.expectedBehavior,
+        ...(input.scoringRubricRef?.trim() ? { scoringRubricRef: input.scoringRubricRef.trim() } : {}),
+        ...(input.evidenceRefs?.length ? { evidenceRefs: input.evidenceRefs } : {}),
+        ...(input.sourceSurface ? { sourceSurface: input.sourceSurface } : {}),
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
+  },
+
+  async stageLoopEngineeringSchedule(input: LoopEngineeringScheduleInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/schedules`,
+      toolName: 'spawner.loop_engineering.schedule.stage',
+      mutationClass: 'creates_schedule',
+      requestId: input.requestId,
+      target: chipKey,
+      body: {
+        ...(input.name?.trim() ? { name: input.name.trim() } : {}),
+        mode: input.mode || 'round_count',
+        ...(typeof input.intervalMinutes === 'number' ? { intervalMinutes: input.intervalMinutes } : {}),
+        ...(input.fixedLocalTime?.trim() ? { fixedLocalTime: input.fixedLocalTime.trim() } : {}),
+        ...(input.timezone?.trim() ? { timezone: input.timezone.trim() } : {}),
+        roundLimit: input.roundLimit,
+        ...(input.stopConditions?.length ? { stopConditions: input.stopConditions } : {}),
+        ...(input.sourceSurface ? { sourceSurface: input.sourceSurface } : {}),
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
+  },
+
+  async fireLoopEngineeringSchedule(input: LoopEngineeringScheduleFireInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    const scheduleId = input.scheduleId.trim();
+    if (!scheduleId) return { success: false, error: 'loop-engineering schedule id required' };
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/schedules/${encodeURIComponent(scheduleId)}/fire`,
+      toolName: 'spawner.loop_engineering.schedule.fire',
+      mutationClass: 'launches_mission',
+      requestId: input.requestId,
+      target: chipKey,
+      body: {
+        sourceSurface: input.sourceSurface || 'telegram',
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
+  },
+
+  async updateLoopEngineeringScheduleLifecycle(input: LoopEngineeringScheduleLifecycleInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    const scheduleId = input.scheduleId.trim();
+    if (!scheduleId) return { success: false, error: 'loop-engineering schedule id required' };
+    const action = input.action;
+    const mutationClass: HarnessCoreActionMutationClass = action === 'cancel' ? 'deletes_schedule' : 'writes_files';
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/chips/${encodeURIComponent(chipKey)}/schedules/${encodeURIComponent(scheduleId)}/lifecycle`,
+      toolName: `spawner.loop_engineering.schedule.${action}`,
+      mutationClass,
+      requestId: input.requestId,
+      target: `${chipKey}:${scheduleId}`,
+      body: {
+        action,
+        sourceSurface: input.sourceSurface || 'telegram',
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
+  },
+
+  async completeLoopEngineeringRun(input: LoopEngineeringCompletionInput): Promise<LoopEngineeringRunResult> {
+    const chipKey = safeDomainChipKey(input.chipKey);
+    if (!chipKey) return { success: false, error: 'valid domain-chip key required' };
+    const eventId = input.eventId.trim();
+    if (!eventId) return { success: false, error: 'loop-engineering event id required' };
+    return postLoopEngineeringCommandResult({
+      chipKey,
+      endpoint: `/api/loop-engineering/events/${encodeURIComponent(eventId)}/complete`,
+      toolName: 'spawner.loop_engineering.event.complete',
+      requestId: input.requestId,
+      target: chipKey,
+      body: {
+        chipKey,
+        eventId,
+        status: input.status,
+        ...(input.missionId?.trim() ? { missionId: input.missionId.trim() } : {}),
+        ...(typeof input.previousScore === 'number' ? { previousScore: input.previousScore } : {}),
+        ...(typeof input.candidateScore === 'number' ? { candidateScore: input.candidateScore } : {}),
+        ...(typeof input.utilityDelta === 'number' ? { utilityDelta: input.utilityDelta } : {}),
+        ...(typeof input.roundsObserved === 'number' ? { roundsObserved: input.roundsObserved } : {}),
+        evaluatorSeparated: input.evaluatorSeparated !== false,
+        ...(input.evidenceRefs?.length ? { evidenceRefs: input.evidenceRefs } : {}),
+        ...(input.sourceRef?.trim() ? { sourceRef: input.sourceRef.trim() } : {}),
+        ...(input.evaluatorVerdictRef?.trim() ? { evaluatorVerdictRef: input.evaluatorVerdictRef.trim() } : {}),
+        ...(input.scheduleId?.trim() ? { scheduleId: input.scheduleId.trim() } : {}),
+        ...(input.nextAction?.trim() ? { nextAction: input.nextAction.trim() } : {}),
+        ...(input.requestId?.trim() ? { requestId: input.requestId.trim() } : {}),
+        ...(input.executionAuthority ? { executionAuthority: input.executionAuthority } : {})
+      }
+    });
   },
 
   async creatorMission(input: CreatorMissionInput): Promise<CreatorMissionResult> {
@@ -1327,9 +1766,7 @@ export const spawner = {
         actionType: 'create_domain_chip'
       }
     ]);
-    if (authorityError) {
-      return { success: false, error: authorityError };
-    }
+    if (authorityError) return { success: false, error: authorityError };
     try {
       const res = await postLocalServiceWithRetry(
         `${SPAWNER_UI_URL}/api/creator/mission`,
@@ -1345,25 +1782,23 @@ export const spawner = {
         localServiceTimeoutMs('SPARK_CREATOR_MISSION_TIMEOUT_MS')
       );
 
-      if (res.data?.ok === false) {
-        return {
-          success: false,
-          error: res.data?.error || 'Creator mission was rejected.'
-        };
-      }
+      if (res.data?.ok === false) return { success: false, error: res.data?.error || 'Loop Engineering request was rejected.' };
+      const proof = creatorMissionClosureProof(res.data);
+      if (res.data?.ok && !proof.missionId && !proof.stagedPath) return { success: false, error: 'Loop Engineering bridge returned ok but missing mission id or staged artifact proof.' };
 
       return {
         success: Boolean(res.data?.ok),
-        missionId: res.data?.missionId,
+        missionId: proof.missionId,
         requestId: res.data?.requestId,
         taskCount: typeof res.data?.taskCount === 'number' ? res.data.taskCount : undefined,
         canvasUrl: typeof res.data?.canvasUrl === 'string' ? res.data.canvasUrl : undefined,
+        tracePath: proof.stagedPath,
         trace: res.data?.trace
       };
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: spawnerErrorMessage(err, 'Loop Engineering mission creation failed')
       };
     }
   },
@@ -1381,9 +1816,7 @@ export const spawner = {
         actionType: 'launch_mission'
       }
     ]);
-    if (authorityError) {
-      return { success: false, error: authorityError };
-    }
+    if (authorityError) return { success: false, error: authorityError };
     try {
       const res = await postLocalServiceWithRetry(
         `${SPAWNER_UI_URL}/api/creator/mission/execute`,
@@ -1398,7 +1831,7 @@ export const spawner = {
       if (res.data?.ok === false) {
         return {
           success: false,
-          error: res.data?.error || 'Creator mission execution was rejected.'
+          error: res.data?.error || 'Loop Engineering execution was rejected.'
         };
       }
 
@@ -1418,7 +1851,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: spawnerErrorMessage(err, 'Loop Engineering mission execution failed')
       };
     }
   },
@@ -1429,10 +1862,7 @@ export const spawner = {
       ownerSystem: 'spawner-ui',
       actionType: 'read'
     });
-    if (authorityError) {
-      return { success: false, error: authorityError };
-    }
-
+    if (authorityError) return { success: false, error: authorityError };
     try {
       const params = new URLSearchParams();
       if (input.missionId) params.set('missionId', input.missionId);
@@ -1446,7 +1876,7 @@ export const spawner = {
       if (res.data?.ok === false) {
         return {
           success: false,
-          error: res.data?.error || 'Creator mission status lookup was rejected.'
+          error: res.data?.error || 'Loop Engineering status lookup was rejected.'
         };
       }
 
@@ -1461,7 +1891,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: spawnerErrorMessage(err, 'Loop Engineering status lookup failed')
       };
     }
   },
@@ -1472,9 +1902,7 @@ export const spawner = {
       ownerSystem: 'spawner-ui',
       actionType: 'launch_mission'
     });
-    if (authorityError) {
-      return { success: false, error: authorityError };
-    }
+    if (authorityError) return { success: false, error: authorityError };
     try {
       const res = await postLocalServiceWithRetry(
         `${SPAWNER_UI_URL}/api/creator/mission/validate`,
@@ -1490,7 +1918,7 @@ export const spawner = {
       if (res.data?.ok === false) {
         return {
           success: false,
-          error: res.data?.error || 'Creator mission validation was rejected.'
+          error: res.data?.error || 'Loop Engineering validation was rejected.'
         };
       }
 
@@ -1505,60 +1933,21 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: spawnerErrorMessage(err, 'Loop Engineering validation failed')
       };
     }
   },
 
-  async missionCommand(action: MissionAction, missionId: string, options: MissionCommandOptions = {}): Promise<{ success: boolean; message: string }> {
-    const missionControlAuthorityExpectation = action === 'status'
-      ? [
-          {
-            toolName: 'spawner.mission_control.status',
-            ownerSystem: 'spawner-ui',
-            actionType: 'read' as const
-          },
-          {
-            toolName: 'spawner.mission_control.command',
-            ownerSystem: 'spawner-ui',
-            actionType: 'read' as const
-          }
-        ]
-      : {
-          toolName: 'spawner.mission_control.command',
-          ownerSystem: 'spawner-ui',
-          actionType: 'run_command' as const
-        };
-    const authorityError = executionAuthorityError(options.executionAuthority, missionControlAuthorityExpectation);
-    if (authorityError) {
-      return { success: false, message: authorityError };
-    }
+  async missionCommand(action: MissionAction, missionId: string): Promise<{ success: boolean; message: string }> {
     try {
-      if (action === 'status') {
-        const res = await axios.get(
-          `${SPAWNER_UI_URL}/api/mission-control/status?missionId=${encodeURIComponent(missionId)}`,
-          spawnerAxiosOptions(10000)
-        );
-
-        if (res.data?.ok === false) {
-          return {
-            success: false,
-            message: res.data?.error || `Mission ${missionId} status read was rejected.`
-          };
-        }
-
-        return { success: true, message: formatMissionStatusReadReply(missionId, res.data) };
-      }
-
       const res = await axios.post(
         `${SPAWNER_UI_URL}/api/mission-control/command`,
         {
           action,
           missionId,
-          source: 'telegram',
-          executionAuthority: options.executionAuthority
+          source: 'telegram'
         },
-        spawnerAxiosOptions(10000, {}, { mode: 'events' })
+        spawnerAxiosOptions(10000)
       );
 
       if (res.data?.ok === false) {
@@ -1566,6 +1955,35 @@ export const spawner = {
           success: false,
           message: res.data?.error || `Mission ${missionId} command was rejected.`
         };
+      }
+
+      if (action === 'status') {
+        const status = res.data?.status;
+        const statusLabel = missionStatusLabel(status);
+        const boardStatus = typeof status?.boardStatus === 'string' && status.boardStatus.trim()
+          ? formatCreatorReadiness(status.boardStatus)
+          : null;
+        const lines = [
+          `Mission is ${statusLabel}.`,
+          '',
+          'State',
+          ...(boardStatus ? [`• Board: ${boardStatus}`] : []),
+          `• Paused: ${status?.paused ? 'yes' : 'no'}`,
+          `• Complete: ${status?.allComplete ? 'yes' : 'no'}`,
+          '',
+          'Providers',
+          ...providerStatusRows(status?.providers),
+          '',
+          'Next',
+          status?.allComplete
+            ? '• Inspect the handoff in Spawner.'
+            : status?.paused
+              ? `• /mission resume ${missionId}`
+              : `• /mission pause ${missionId}`,
+          '',
+          ...missionInspectionLines(missionId)
+        ];
+        return { success: true, message: lines.join('\n') };
       }
 
       const actionLabel = action === 'kill' ? 'stop' : action;
@@ -1583,12 +2001,12 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerErrorMessage(err, 'Mission command failed')
       };
     }
   },
 
-  async pauseContextualActiveMission(options: MissionCommandOptions = {}): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+  async pauseContextualActiveMission(): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
     try {
       const board = await fetchBoardSnapshot();
       const running = board.running;
@@ -1596,7 +2014,7 @@ export const spawner = {
       if (running.length === 1) {
         const mission = running[0];
         const title = missionTitle(mission);
-        const result = await spawner.missionCommand('pause', mission.missionId, options);
+        const result = await spawner.missionCommand('pause', mission.missionId);
         if (!result.success) {
           return {
             success: false,
@@ -1643,7 +2061,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before pausing: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before pausing: ${spawnerErrorMessage(err)}`
       };
     }
   },
@@ -1689,7 +2107,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before answering: ${spawnerErrorMessage(err)}`
       };
     }
   },
@@ -1728,12 +2146,12 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before answering: ${spawnerErrorMessage(err)}`
       };
     }
   },
 
-  async resumeContextualPausedMission(options: MissionCommandOptions = {}): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+  async resumeContextualPausedMission(): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
     try {
       const board = await fetchBoardSnapshot();
       const paused = board.paused;
@@ -1741,7 +2159,7 @@ export const spawner = {
       if (paused.length === 1) {
         const mission = paused[0];
         const title = missionTitle(mission);
-        const result = await spawner.missionCommand('resume', mission.missionId, options);
+        const result = await spawner.missionCommand('resume', mission.missionId);
         if (!result.success) {
           return {
             success: false,
@@ -1788,7 +2206,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before resuming: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before resuming: ${spawnerErrorMessage(err)}`
       };
     }
   },
@@ -1830,7 +2248,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before preparing cancellation: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before preparing cancellation: ${spawnerErrorMessage(err)}`
       };
     }
   },
@@ -1864,16 +2282,12 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before answering: ${spawnerErrorMessage(err)}`
       };
     }
   },
 
-  async confirmContextualMissionCancel(
-    missionId: string,
-    title: string,
-    options: MissionCommandOptions = {}
-  ): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+  async confirmContextualMissionCancel(missionId: string, title: string): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
     try {
       const board = await fetchBoardSnapshot();
       const active = [...board.running, ...board.paused];
@@ -1891,7 +2305,7 @@ export const spawner = {
       }
 
       const currentTitle = missionTitle(mission) || title;
-      const result = await spawner.missionCommand('kill', missionId, options);
+      const result = await spawner.missionCommand('kill', missionId);
       if (!result.success) {
         return {
           success: false,
@@ -1908,7 +2322,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before confirming cancellation: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before confirming cancellation: ${spawnerErrorMessage(err)}`
       };
     }
   },
@@ -1923,7 +2337,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage('Mission board')
       };
     }
   },
@@ -1945,7 +2359,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage('Latest Kanban summary')
       };
     }
   },
@@ -1959,7 +2373,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage('Active mission summary')
       };
     }
   },
@@ -1981,7 +2395,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage('Latest provider summary')
       };
     }
   },
@@ -2006,9 +2420,13 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage('Latest failed-provider summary')
       };
     }
+  },
+
+  async latestMissionId(): Promise<string | null> {
+    return latestBoardEntry(await fetchBoardSnapshot())?.missionId || null;
   },
 
   async latestMissionSummary(): Promise<{ success: boolean; message: string }> {
@@ -2028,7 +2446,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage('Latest mission summary')
       };
     }
   },
@@ -2050,7 +2468,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage('Latest failure summary')
       };
     }
   },
@@ -2058,8 +2476,7 @@ export const spawner = {
   async latestProjectPreview(): Promise<{ success: boolean; message: string }> {
     try {
       const board = await fetchBoardSnapshot();
-      const completed = [...board.completed]
-        .sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
+      const completed = [...board.completed].sort((a, b) => lastUpdatedMs(b) - lastUpdatedMs(a));
       const shippedCandidates = completed.filter((entry) => !isOperationalProbeMission(entry));
       const latest = shippedCandidates.find((entry) => projectOpenLinkForEntry(entry)) || shippedCandidates[0];
       if (!latest) {
@@ -2070,21 +2487,6 @@ export const spawner = {
       }
 
       const openLink = projectOpenLinkForEntry(latest);
-      const newerRelated = findNewerNonCompletedLineageEntry(latest, board);
-      if (openLink && newerRelated) {
-        return {
-          success: true,
-          message: [
-            `I found a completed preview for ${missionTitle(latest)}, but I would not treat it as the current finished version yet.`,
-            '',
-            `A newer related Mission Control item is ${statusWord(newerRelated.status)}: ${missionTitle(newerRelated)}.`,
-            '',
-            'Inspect',
-            `â€¢ Preview: ${openLink}`,
-            `â€¢ Board: ${missionScopedBoardUrl(newerRelated.missionId)}`
-          ].join('\n')
-        };
-      }
       if (!openLink) {
         return {
           success: true,
@@ -2113,7 +2515,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage('Latest project preview')
       };
     }
   }

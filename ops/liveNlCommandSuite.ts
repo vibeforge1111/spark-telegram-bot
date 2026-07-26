@@ -3,6 +3,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Telegraf } from 'telegraf';
 import {
+  deriveLiveNlHarnessCoreMapping,
+  formatLiveNlHarnessCoreMap,
   formatLiveNlCopyPastePrompts,
   liveNlCaseTurns,
   parseLiveNlCommandCases,
@@ -105,6 +107,8 @@ async function main(): Promise<void> {
       '',
       'Usage:',
       '  npm run nl:live -- --list',
+      '  npm run nl:live -- --harness-map',
+      '  npm run nl:live -- --harness-map --harness-strict --cases smoke-001',
       '  npm run nl:live -- --catalog genesis100 --list --include-risky',
       '  npx ts-node ops/runtimeFreshnessCheck.ts --warn-only',
       '  npm run nl:live -- --copy-paste --cases guard-006,guard-007,build-004,domain-chip-003',
@@ -119,7 +123,10 @@ async function main(): Promise<void> {
       '',
       'Notes:',
       '  Run runtimeFreshnessCheck before trusting live Telegram pasteback.',
+      '  This legacy NL suite is breadth/drift coverage, not Harness Core release proof.',
       '  --send only sends prompt cards. It does not start polling or read updates.',
+      '  --harness-map classifies selected old cases into Harness Core authority and mutation fields; it is a promotion helper, not a release gate.',
+      '  --harness-strict exits nonzero if any mapped case needs promotion or intentional-action confirmation.',
       '  --copy-paste prints natural user messages only, plus reply-capture blocks for Codex.',
       '  --profile loads the matching Spark Telegram profile env and bot token.',
       '  --catalog genesis100 loads the Spark Genesis 100-prompt live QA catalog.',
@@ -131,6 +138,26 @@ async function main(): Promise<void> {
 
   if (selected.length === 0) {
     throw new Error('No matching command cases.');
+  }
+
+  if (hasFlag('harness-map')) {
+    console.log(formatLiveNlHarnessCoreMap(selected, {
+      catalog: catalogFileName(),
+      totalCases: cases.length,
+      includeRisky: hasFlag('include-risky')
+    }));
+    if (hasFlag('harness-strict')) {
+      const promoted = selected
+        .map(deriveLiveNlHarnessCoreMapping)
+        .filter((entry) => entry.recommendedUse !== 'keep_legacy_breadth');
+      if (promoted.length > 0) {
+        console.error(
+          `Harness strict failed: ${promoted.length} selected legacy case(s) need promotion or intentional-action confirmation: ${promoted.map((entry) => entry.id).join(', ')}`
+        );
+        process.exitCode = 1;
+      }
+    }
+    return;
   }
 
   if (hasFlag('list')) {

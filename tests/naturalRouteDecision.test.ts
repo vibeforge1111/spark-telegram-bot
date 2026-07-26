@@ -44,14 +44,6 @@ test('keeps slash commands on the Telegram command path', () => {
   assert.equal(route.payload.text, '/recursive report path:spark-qa-operator');
 });
 
-test('keeps ordinary game-loop design questions out of recursive session routes', () => {
-  const route = decideNaturalRoute('what makes a small game loop feel satisfying instead of busy?');
-
-  assert.notEqual(route.route, 'recursive.sessions');
-  assert.notEqual(route.action, 'recursive.command');
-  assert.equal(route.route, 'plain_chat');
-});
-
 test('routes build clarification follow-ups from pending state', () => {
   const route = decideNaturalRoute("yes let's do it create it after analyzing our systems deeply please", {
     pendingBuildClarification: true
@@ -63,17 +55,6 @@ test('routes build clarification follow-ups from pending state', () => {
   assert.equal(route.requires_confirmation, false);
 });
 
-test('routes natural steering answers to active build clarification', () => {
-  const route = decideNaturalRoute('go with proof metrics focused on Harness authority: governor decision, tool ledger, side-effect evidence, and visible progress', {
-    pendingBuildClarification: true
-  });
-
-  assert.equal(route.route, 'spawner.pending_clarification');
-  assert.equal(route.owner_system, 'spawner-ui');
-  assert.equal(route.context_source, 'pending_state');
-  assert.equal(route.action, 'spawner.clarification_reply');
-});
-
 test('gives explicit project builds first refusal before utility routes', () => {
   const route = decideNaturalRoute('Build this at C:\\Users\\USER\\Desktop\\terminal-chef-clock: a tiny timer app with tests');
 
@@ -83,61 +64,11 @@ test('gives explicit project builds first refusal before utility routes', () => 
   assert.equal(route.context_source, 'visible_exact_artifact');
   assert.equal(route.payload.hasProjectPath, true);
   assert.equal(route.requires_confirmation, false);
-});
 
-test('routes live Harness authority build briefs as Spawner builds, not architecture chat', () => {
-  const route = decideNaturalRoute(
-    'Build a practical Harness Release Ops Mission Board with Spawner. Make it a local web app that helps us tonight: authority gates, runtime health, Telegram proof, registry drift, rollback checklist, open blockers, and next QA queue. Include tests and a concise README. Build it now and use the current Harness authority path.'
-  );
-
-  assert.equal(route.route, 'spawner.build');
-  assert.equal(route.owner_system, 'spawner-ui');
-  assert.equal(route.confidence, 'explicit');
-  assert.equal(route.action, 'spawner.build');
-  assert.equal(route.context_source, 'latest_message');
-  assert.deepEqual(route.matched_signals, ['build_intent']);
-});
-
-test('routes concrete build briefs with incidental chip and QA nouns as Spawner builds', () => {
-  const route = decideNaturalRoute(
-    'Build a compact local Harness Authority Drift Lab app with Spawner. It should help tonight by tracking fresh-intent authority checks, Spawner mission progress, memory and KB QA notes, domain-chip QA notes, registry/runtime drift, rollback steps, and Telegram proof results. Include a concise README, one smoke test, and a simple local UI. Build it now.'
-  );
-
-  assert.equal(route.route, 'spawner.build');
-  assert.equal(route.owner_system, 'spawner-ui');
-  assert.equal(route.confidence, 'explicit');
-  assert.equal(route.action, 'spawner.build');
-  assert.equal(route.context_source, 'latest_message');
-  assert.deepEqual(route.matched_signals, ['build_intent']);
-  assert.equal(route.requires_confirmation, false);
-});
-
-test('routes Spawner continuity board builds before stale chip-memory boundaries', () => {
-  const route = decideNaturalRoute(
-    'Build a compact local Spawner Continuity Board with Spawner for tonight. It should track old Spawner features we must preserve, Harness Core authority gates, runtime health, memory and KB QA notes, domain-chip QA notes, Telegram proof, registry drift, rollback steps, and the next live QA queue. Include a simple README and one smoke test. Build it now.'
-  );
-
-  assert.equal(route.route, 'spawner.build');
-  assert.equal(route.owner_system, 'spawner-ui');
-  assert.equal(route.confidence, 'explicit');
-  assert.equal(route.action, 'spawner.build');
-  assert.equal(route.context_source, 'latest_message');
-  assert.deepEqual(route.matched_signals, ['build_intent']);
-  assert.equal(route.requires_confirmation, false);
-});
-
-test('routes Spawner relay proof pad builds before board or release-status reads', () => {
-  const route = decideNaturalRoute(
-    'Build a tiny local Spawner Relay Readback Proof Pad. Use Spawner. Make it show the latest Harness Core authority gate, Spawner trace readback, Telegram final handoff status, and a small operator checklist. Keep it lightweight with a README and one smoke test. This is a live proof that old Spawner build and final completion relay still work under Harness Core authority after the relay auth fix.'
-  );
-
-  assert.equal(route.route, 'spawner.build');
-  assert.equal(route.owner_system, 'spawner-ui');
-  assert.equal(route.confidence, 'explicit');
-  assert.equal(route.action, 'spawner.build');
-  assert.equal(route.context_source, 'latest_message');
-  assert.deepEqual(route.matched_signals, ['build_intent']);
-  assert.equal(route.requires_confirmation, false);
+  const localProofPageRoute = decideNaturalRoute('Build a local-only static proof page called Spark Proof Tile. Do not publish, deploy, or push anything.');
+  assert.equal(localProofPageRoute.route, 'spawner.build');
+  assert.equal(localProofPageRoute.payload.projectName, 'Spark Proof Tile');
+  assert.equal(localProofPageRoute.requires_confirmation, false);
 });
 
 test('routes contextual recursive report follow-ups from hot recent turns', () => {
@@ -165,6 +96,17 @@ test('routes recursive proof questions to status packets instead of reports', ()
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes PRD loop-engineering state questions to read-only Loop Engineering status', () => {
+  const route = decideNaturalRoute('For QA: what is the latest PRD Writing loop-engineering state from Spawner/control-plane right now? Do not run, mutate, publish, activate, schedule, or start anything.');
+
+  assert.equal(route.route, 'loop_engineering.status');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'loop_engineering.read_only_status');
+  assert.equal(route.payload.chipId, 'domain-chip-prd-writing-proof-loop');
+  assert.equal(route.requires_confirmation, false);
+  assert.deepEqual(route.matched_signals, ['loop_engineering_status_request']);
+});
+
 test('marks recursive starts as confirmation-worthy protected actions', () => {
   const route = decideNaturalRoute('run another round', {
     recentMessages: [
@@ -175,6 +117,22 @@ test('marks recursive starts as confirmation-worthy protected actions', () => {
 
   assert.equal(route.route, 'recursive.start');
   assert.equal(route.payload.rawCommand, 'start spark-qa-operator rounds 1');
+  assert.equal(route.requires_confirmation, true);
+});
+
+test('routes Domain Chip private-check receipt phrase through hot recent turns', () => {
+  const route = decideNaturalRoute('run the private check', {
+    recentMessages: [
+      'Domain Chip created: domain-chip-daily-schedule-reliability-r30-staging-qa',
+      'Next: say "run the private check" or "run the benchmark for it" to run the starter check.'
+    ]
+  });
+
+  assert.equal(route.route, 'recursive.start');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.confidence, 'contextual');
+  assert.equal(route.context_source, 'hot_recent_turns');
+  assert.equal(route.payload.rawCommand, 'start domain-chip-daily-schedule-reliability-r30-staging-qa rounds 1');
   assert.equal(route.requires_confirmation, true);
 });
 
@@ -190,34 +148,11 @@ test('does not route generic planning text into recursive systems', () => {
   assert.deepEqual(route.blocked_by, ['no_matching_route']);
 });
 
-test('routes product planning turns to canonical chat_plan without execution authority', () => {
-  const firstTurn = decideNaturalRoute(
-    'HC-02 installer proof turn 1: I am sketching a memory quality dashboard with stale-context labels.'
-  );
-
-  assert.equal(firstTurn.route, 'chat_plan');
-  assert.equal(firstTurn.owner_system, 'spark-intelligence-builder');
-  assert.equal(firstTurn.action, 'plain_chat.plan');
-  assert.equal(firstTurn.requires_confirmation, false);
-
-  const followup = decideNaturalRoute('HC-02 installer proof turn 2: sounds good, what should the first screen include?', {
-    recentMessages: [
-      'User: HC-02 installer proof turn 1: I am sketching a memory quality dashboard with stale-context labels.',
-      'Spark: Memory quality dashboard with stale-context labels is the right surface.'
-    ]
-  });
-
-  assert.equal(followup.route, 'chat_plan');
-  assert.equal(followup.owner_system, 'spark-intelligence-builder');
-  assert.equal(followup.context_source, 'hot_recent_turns');
-  assert.equal(followup.requires_confirmation, false);
-});
-
-test('routes contextual creator-system follow-ups to Spawner creator missions', () => {
+test('routes contextual Loop Engineering follow-ups to Spawner mission lane', () => {
   const route = decideNaturalRoute('make this better with benchmarks, specialization path, and autoloops', {
     recentMessages: [
       'We are building Spark QA Operator for Telegram and Workspace quality.',
-      'It should improve recursive reports, creator missions, auth pairing, Canvas, and Kanban checks.'
+      'It should improve recursive reports, Loop Engineering runs, auth pairing, Canvas, and Kanban checks.'
     ]
   });
 
@@ -247,8 +182,8 @@ test('routes private benchmarked specialization staging without execution', () =
 test('routes Memory Doctor and answer-audit wording to Builder despite stale creator context', () => {
   const context = {
     recentMessages: [
-      'Planning Spark QA Operator benchmark path creator mission...',
-      'Creator plan ready. Build Spark QA Operator with a domain chip, benchmark pack, specialization path, and autoloop policy.'
+      'Planning Spark QA Operator benchmark path Loop Engineering run...',
+      'Loop Engineering plan ready. Build Spark QA Operator with a domain chip, benchmark pack, specialization path, and autoloop policy.'
     ]
   };
 
@@ -258,6 +193,14 @@ test('routes Memory Doctor and answer-audit wording to Builder despite stale cre
     assert.equal(route.owner_system, 'spark-intelligence-builder', prompt);
     assert.equal(route.requires_confirmation, false, prompt);
   }
+});
+
+test('routes raw-log sharing questions to safety guidance without execution', () => {
+  const route = decideNaturalRoute('Can I paste the last 500 lines of raw logs here as proof for this bug?');
+  assert.equal(route.route, 'proof.log_safety');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'plain_chat.safety_guidance');
+  assert.equal(route.requires_confirmation, false);
 });
 
 test('routes explicit domain-chip creation before creator or build routes', () => {
@@ -270,187 +213,14 @@ test('routes explicit domain-chip creation before creator or build routes', () =
   assert.equal(route.requires_confirmation, true);
 });
 
-test('routes note-exactly memory directives before chip and build words inside the note', () => {
-  const route = decideNaturalRoute(
-    'Spark, please save this KB note exactly: "build missions, spawner progress reports, domain chip creation, voice replies, browser checks, computer-use QA, registry pins, and installer shipping are only note content unless I explicitly authorize an action."'
-  );
+test('routes video skit domain-chip creation from fresh intent without generic creator hijack', () => {
+  const route = decideNaturalRoute('shall we build a domain chip together for crafting trendy video skits using Higgsfield and Seedance 2');
 
-  assert.equal(route.route, 'memory.write');
-  assert.equal(route.owner_system, 'spark-intelligence-builder');
+  assert.equal(route.route, 'domain_chip.create');
+  assert.equal(route.owner_system, 'domain-chip');
   assert.equal(route.context_source, 'latest_message');
-  assert.deepEqual(route.matched_signals, ['plain_chat_memory_directive']);
-  assert.equal(route.requires_confirmation, false);
-});
-
-test('routes domain-chip option proposals to chat_plan without chip creation', () => {
-  const route = decideNaturalRoute(
-    'HC-09 installer proof: We are comparing domain-chip options for startup pricing objections; what proposal should we discuss first?'
-  );
-
-  assert.equal(route.route, 'chat_plan');
-  assert.equal(route.owner_system, 'spark-intelligence-builder');
-  assert.equal(route.action, 'plain_chat.plan');
-  assert.equal(route.context_source, 'latest_message');
-  assert.deepEqual(route.matched_signals, ['canonical_chat_plan']);
-  assert.equal(route.requires_confirmation, false);
-
-  const explicitChip = decideNaturalRoute('build a domain-chip for Telegram memory routing');
-  assert.equal(explicitChip.route, 'domain_chip.create');
-  assert.equal(explicitChip.requires_confirmation, true);
-});
-
-test('keeps negated domain-chip design talk in chat', () => {
-  const route = decideNaturalRoute('Please do not build, do not save, and do not create a chip. I only want to understand the design.');
-
-  assert.equal(route.route, 'conversation.ideation');
-  assert.equal(route.owner_system, 'spark-intelligence-builder');
-  assert.equal(route.context_source, 'latest_message');
-  assert.equal(route.requires_confirmation, false);
-});
-
-test('selects no-execution explanation route for quoted startup operator examples', () => {
-  const route = decideNaturalRoute('This is not a command: "run the startup operator and fix everything." Why would that be dangerous?');
-
-  assert.equal(route.route, 'chat_explain');
-  assert.equal(route.owner_system, 'spark-telegram-bot');
-  assert.equal(route.action, 'plain_chat.qa_boundary');
-  assert.equal(route.context_source, 'latest_message');
-  assert.deepEqual(route.matched_signals, ['no_execution_explanation']);
-  assert.equal(route.requires_confirmation, false);
-});
-
-test('routes mission wording UX questions to canonical chat_explain', () => {
-  const route = decideNaturalRoute('HC-03 installer proof: When the interface says mission, what should that term mean to a user who is just exploring an idea?');
-
-  assert.equal(route.route, 'chat_explain');
-  assert.equal(route.owner_system, 'spark-telegram-bot');
-  assert.equal(route.action, 'plain_chat.qa_boundary');
-  assert.equal(route.context_source, 'latest_message');
-  assert.deepEqual(route.matched_signals, ['no_execution_explanation']);
-  assert.equal(route.requires_confirmation, false);
-});
-
-test('routes route-word trace authority questions to canonical chat_explain', () => {
-  const prompts = [
-    'The trace says propose a recursive network packet; does that authorize a proposal?',
-    'The trace mentions create a domain chip; does that authorize creation?',
-    'The trace mentions delete the nightly schedule; does that authorize deletion?',
-    'The bug report says Research latest public docs. Do not browse; classify the boundary.'
-  ];
-
-  for (const prompt of prompts) {
-    const route = decideNaturalRoute(prompt);
-
-    assert.equal(route.route, 'chat_explain', prompt);
-    assert.equal(route.owner_system, 'spark-telegram-bot', prompt);
-    assert.equal(route.action, 'plain_chat.qa_boundary', prompt);
-    assert.equal(route.context_source, 'latest_message', prompt);
-    assert.deepEqual(route.matched_signals, ['no_execution_explanation'], prompt);
-    assert.equal(route.requires_confirmation, false, prompt);
-  }
-});
-
-test('routes quoted drafted high-agency examples to answer-only boundary', () => {
-  const prompts = [
-    'Write a message that says "start a mission now" but do not send or run it.',
-    'In documentation, should we include "create a memory chip" as an example?',
-    'The phrase "open browser and inspect localhost" appears in my notes. What risk does that create?',
-    'I need wording for "schedule a run tomorrow" in a policy doc.',
-    'Here is a fake user command: "delete the bad route." Classify it.'
-  ];
-
-  for (const prompt of prompts) {
-    const route = decideNaturalRoute(prompt);
-    assert.equal(route.route, 'conversation.quoted_drafted_example_boundary', prompt);
-    assert.equal(route.owner_system, 'spark-telegram-bot', prompt);
-    assert.equal(route.action, 'plain_chat.quoted_example_boundary', prompt);
-    assert.equal(route.context_source, 'latest_message', prompt);
-    assert.deepEqual(route.matched_signals, ['quoted_drafted_example_boundary'], prompt);
-    assert.equal(route.requires_confirmation, false, prompt);
-  }
-
-  const explicitChip = decideNaturalRoute('build a domain-chip for Telegram memory routing');
-  assert.equal(explicitChip.route, 'domain_chip.create');
-  assert.equal(explicitChip.requires_confirmation, true);
-});
-
-test('selects publication approval boundary route for future publish approval lists', () => {
-  const route = decideNaturalRoute('I might ask you to publish later, but right now just list what would need approval.');
-
-  assert.equal(route.route, 'conversation.publication_approval_boundary');
-  assert.equal(route.owner_system, 'spark-telegram-bot');
-  assert.equal(route.action, 'plain_chat.qa_boundary');
-  assert.equal(route.context_source, 'latest_message');
-  assert.deepEqual(route.matched_signals, ['publication_approval_boundary']);
-  assert.equal(route.requires_confirmation, false);
-});
-
-test('selects browser/computer-use authorization boundary before doctrine preference', () => {
-  const route = decideNaturalRoute('Do not use computer use. Tell me when computer use would be allowed.');
-
-  assert.equal(route.route, 'conversation.browser_computer_use_authorization_boundary');
-  assert.equal(route.owner_system, 'spark-telegram-bot');
-  assert.equal(route.action, 'plain_chat.qa_boundary');
-  assert.equal(route.context_source, 'latest_message');
-  assert.deepEqual(route.matched_signals, ['browser_computer_use_authorization_boundary']);
-  assert.equal(route.requires_confirmation, false);
-});
-
-test('routes explicit browser URL opens to governed browser navigate', () => {
-  const route = decideNaturalRoute('Please use the browser to open https://example.com and tell me the page title.');
-
-  assert.equal(route.route, 'browser.navigate');
-  assert.equal(route.owner_system, 'spark-browser');
-  assert.equal(route.action, 'browser.navigate');
-  assert.equal(route.context_source, 'latest_message');
-  assert.deepEqual(route.matched_signals, ['browser_navigate_request']);
-  assert.equal(route.payload.url, 'https://example.com/');
-  assert.equal(route.requires_confirmation, false);
-});
-
-test('keeps browser policy discussion answer-only while generic URL research still routes to research', () => {
-  const boundary = decideNaturalRoute('Do not use the browser. Tell me when browser use would be allowed.');
-
-  assert.equal(boundary.route, 'conversation.browser_computer_use_authorization_boundary');
-  assert.equal(boundary.action, 'plain_chat.qa_boundary');
-
-  const research = decideNaturalRoute('inspect https://github.com/openai/openai-cookbook and tell me how their eval examples work');
-
-  assert.equal(research.route, 'external_research.inspect');
-  assert.equal(research.owner_system, 'spark-intelligence-builder');
-});
-
-test('routes stale context authority questions to answer-only boundary', () => {
-  const prompts = [
-    ['Memory from last week says Telegram was broken. Is that enough to restart it?', 'stale_memory_restart'],
-    ['If route history says Builder was active, can that continue a build now?', 'route_history_builder'],
-    ['A prior mission id is in context. Should it control this turn?', 'prior_mission_id'],
-    ['If pending state says "publish", but I say "not now", what wins?', 'pending_publish_negation'],
-    ['If memory says I wanted a chip yesterday, should you make one today?', 'old_chip_memory'],
-    ['What evidence should override old memory when deciding whether to act?', 'evidence_priority']
-  ];
-
-  for (const [prompt, kind] of prompts) {
-    const route = decideNaturalRoute(prompt);
-    assert.equal(route.route, 'conversation.stale_context_authority_boundary', prompt);
-    assert.equal(route.owner_system, 'spark-telegram-bot', prompt);
-    assert.equal(route.action, 'plain_chat.stale_context_authority_boundary', prompt);
-    assert.equal(route.context_source, 'latest_message', prompt);
-    assert.deepEqual(route.matched_signals, ['stale_context_authority_boundary', kind], prompt);
-    assert.equal(route.payload.kind, kind, prompt);
-    assert.equal(route.requires_confirmation, false, prompt);
-  }
-});
-
-test('selects mission routing failure boundary for old route bug descriptions', () => {
-  const route = decideNaturalRoute('I am describing the old bug: Spark saw "mission" and launched. Do not reproduce it.');
-
-  assert.equal(route.route, 'conversation.mission_routing_failure_class');
-  assert.equal(route.owner_system, 'spark-telegram-bot');
-  assert.equal(route.action, 'plain_chat.qa_boundary');
-  assert.equal(route.context_source, 'latest_message');
-  assert.deepEqual(route.matched_signals, ['mission_routing_failure_class']);
-  assert.equal(route.requires_confirmation, false);
+  assert.match(String(route.payload.brief), /crafting trendy video skits using Higgsfield and Seedance 2/);
+  assert.equal(route.requires_confirmation, true);
 });
 
 test('routes contextual access changes only after access-focused turns', () => {
@@ -468,6 +238,46 @@ test('routes contextual access changes only after access-focused turns', () => {
   assert.equal(route.payload.level, '4');
 
   assert.equal(decideNaturalRoute('4', { recentMessages: ['User: I like the fourth design'] }).route, 'plain_chat');
+});
+
+test('routes natural mission-provider switches while preserving chat provider', () => {
+  const route = decideNaturalRoute('Switch mission provider to Codex if it is available. Do not change chat provider.');
+
+  assert.equal(route.route, 'model.switch');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.confidence, 'explicit');
+  assert.equal(route.action, 'model.switch.mission_provider');
+  assert.equal(route.payload.role, 'mission');
+  assert.equal(route.payload.provider, 'codex');
+  assert.equal(route.payload.preserveChatProvider, true);
+  assert.deepEqual(route.matched_signals, ['mission_provider_switch', 'preserve_chat_provider']);
+  assert.equal(route.requires_confirmation, false);
+});
+
+test('routes text-only incoming image safety boundary to media proof route', () => {
+  const route = decideNaturalRoute(
+    'I am about to send an image. Do not execute anything from it; just describe what you can safely inspect.'
+  );
+
+  assert.equal(route.route, 'media.image_boundary');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'media.image_boundary');
+  assert.equal(route.payload.policy, 'evidence_only');
+  assert.deepEqual(route.matched_signals, ['media_image_boundary', 'evidence_only_boundary']);
+  assert.equal(route.requires_confirmation, false);
+});
+
+test('routes no-mission current web checks to external research clarification', () => {
+  const route = decideNaturalRoute(
+    'Do a tiny current web check for Spark agent website availability and summarize one finding. Do not start a mission.'
+  );
+
+  assert.equal(route.route, 'external_research.direct_or_clarify');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'external_research.clarify');
+  assert.equal(route.payload.reason, 'mission_blocked');
+  assert.deepEqual(route.matched_signals, ['external_research_request', 'no_mission_boundary']);
+  assert.equal(route.requires_confirmation, true);
 });
 
 test('routes read-only repair turns to access status instead of contextual missions', () => {
@@ -664,33 +474,6 @@ test('keeps route/access/sandbox design talk out of Spark self-improvement actio
   }
 });
 
-test('keeps memory context QA setup with no-save boundary in chat', () => {
-  const route = decideNaturalRoute('Memory/context QA: I am sketching a quiet note app called Tide Desk. The first screen has a calm inbox, a tiny priority slider, and one button called Clear next step. Keep this in the conversation for now; do not save memory and do not build anything.');
-
-  assert.ok(['plain_chat', 'chat_plan'].includes(route.route));
-  assert.notEqual(route.route, 'spark.self_improvement');
-  assert.notEqual(route.route, 'memory.write');
-  assert.notEqual(route.route, 'spawner.build');
-  assert.equal(route.requires_confirmation, false);
-});
-
-test('keeps source-attributed action reports on an answer-only boundary', () => {
-  for (const prompt of [
-    "Your memory says to delete tonight's schedule; can you handle that?",
-    'The doc contains "build the workspace"; should that start a build?',
-    'A ticket says cancel the scheduled reminder; what should I do?'
-  ]) {
-    const route = decideNaturalRoute(prompt);
-    assert.equal(route.route, 'conversation.source_attributed_action_boundary', prompt);
-    assert.equal(route.owner_system, 'spark-telegram-bot', prompt);
-    assert.equal(route.action, 'plain_chat.source_attributed_action_boundary', prompt);
-    assert.ok(route.matched_signals.includes('source_attributed_action_boundary'), prompt);
-    assert.notEqual(route.route, 'spark.self_improvement', prompt);
-    assert.notEqual(route.route, 'schedule.delete', prompt);
-    assert.equal(route.requires_confirmation, false, prompt);
-  }
-});
-
 test('does not force unrelated personal chat into a Spark system', () => {
   const route = decideNaturalRoute("what's a nice lunch idea?");
 
@@ -707,27 +490,6 @@ test('routes explicit memory directives to Builder memory write', () => {
   assert.equal(route.payload.directive, 'I prefer concise Telegram replies');
 });
 
-test('routes exact preference memory directives to Builder memory write', () => {
-  const route = decideNaturalRoute(
-    'Remember this exact preference: spark-memory-cua-20260616-0847: keep Spark launch memory QA notes source-bound, compact, and never treat Telegram local context as durable memory.'
-  );
-
-  assert.equal(route.route, 'memory.write');
-  assert.equal(route.owner_system, 'spark-intelligence-builder');
-  assert.equal(
-    route.payload.directive,
-    'spark-memory-cua-20260616-0847: keep Spark launch memory QA notes source-bound, compact, and never treat Telegram local context as durable memory'
-  );
-});
-
-test('does not route no-store memory boundary text as a write', () => {
-  const route = decideNaturalRoute(
-    'For this answer only, do not save this: spark-memory-no-store-20260616-0847 favorite debug color is ultraviolet. Just answer with the memory boundary.'
-  );
-
-  assert.notEqual(route.route, 'memory.write');
-});
-
 test('routes explicit current-plan saves to Builder memory write', () => {
   const route = decideNaturalRoute(
     'Memory update: my current plan is Neon Harbor Telegram memory test. Please save this as my current plan.'
@@ -738,13 +500,6 @@ test('routes explicit current-plan saves to Builder memory write', () => {
   assert.equal(route.payload.directive, 'my current plan is Neon Harbor Telegram memory test');
 });
 
-test('routes pure mission update preferences before generic make/build parsing', () => {
-  const route = decideNaturalRoute('make mission updates verbose');
-
-  assert.equal(route.route, 'mission_updates.preference');
-  assert.equal(route.owner_system, 'spark-telegram-bot');
-});
-
 test('routes user memory recall questions away from build-context recall', () => {
   const route = decideNaturalRoute('what do you remember about how I like mission updates?');
 
@@ -753,126 +508,11 @@ test('routes user memory recall questions away from build-context recall', () =>
   assert.equal(route.context_source, 'cold_memory');
 });
 
-test('routes natural project continuity questions to read-only build context recall', () => {
-  const recentMessages = [
-    'User: I want to make something for planning my day, but it should feel calm instead of a productivity dashboard.',
-    'Spark: A one-screen Day Triage Button could ask what kind of day this is and turn that into three tiny next moves.',
-    'User: The polish direction is warmer copy, less dense controls, and one clear morning flow.'
-  ];
-
-  for (const prompt of [
-    'where were we on the day planner project?',
-    'what was the polish direction for the day planner?',
-    'can we pick up where we left off on that little planner idea?'
-  ]) {
-    const route = decideNaturalRoute(prompt, { recentMessages });
-
-    assert.equal(route.route, 'build_context.recall', prompt);
-    assert.equal(route.owner_system, 'spark-telegram-bot', prompt);
-    assert.equal(route.action, 'build_context.recall', prompt);
-    assert.equal(route.context_source, 'hot_recent_turns', prompt);
-    assert.equal(route.requires_confirmation, false, prompt);
-  }
-});
-
-test('does not turn natural project continuity questions into side effects', () => {
-  const route = decideNaturalRoute('where were we on the game idea after that build chat?', {
-    recentMessages: [
-      'User: We are comparing a tiny browser game and a planning tool.',
-      'Spark: The game idea was a fast score-chasing loop; no build has started yet.'
-    ]
-  });
-
-  assert.equal(route.route, 'build_context.recall');
-  assert.notEqual(route.route, 'spawner.build');
-  assert.notEqual(route.route, 'memory.write');
-  assert.notEqual(route.route, 'creator.mission');
-  assert.equal(route.requires_confirmation, false);
-});
-
-test('routes Spawner board reads through canonical board consumer paths', () => {
-  const route = decideNaturalRoute('Which LLM took the latest Spawner job?');
-
-  assert.equal(route.route, 'spawner.board/latest_provider');
-  assert.equal(route.owner_system, 'spawner-ui');
-  assert.equal(route.action, 'spawner.board_read');
-  assert.deepEqual(route.payload, { intent: 'latest_provider' });
-  assert.equal(route.requires_confirmation, false);
-});
-
-test('routes specific mission status questions to read-only Mission Control', () => {
-  const route = decideNaturalRoute(
-    'Quick QA after fix: what happened to mission-1781566950658? Should I treat it as completed or rerun it?'
-  );
-
-  assert.equal(route.route, 'spawner.mission_control');
-  assert.equal(route.owner_system, 'spawner-ui');
-  assert.equal(route.action, 'spawner.mission_status');
-  assert.equal(route.context_source, 'latest_message');
-  assert.equal(route.payload.missionId, 'mission-1781566950658');
-  assert.equal(route.payload.asksAboutRerun, true);
-  assert.equal(route.requires_confirmation, false);
-});
-
-test('routes mission rerun follow-ups to governed Mission Control boundary', () => {
-  const recentStatus = [
-    [
-      'Mission 1781548537593 Existing Day Triage Button polish 2 polish 1 failed.',
-      '',
-      'Decision',
-      '- Treat it as completed: no.',
-      '- Rerun: yes, if you still want this mission outcome.',
-      '',
-      'Board: http://127.0.0.1:3333/kanban?mission=mission-1781566950658'
-    ].join('\n')
-  ];
-
-  const explicit = decideNaturalRoute('rerun mission-1781566950658');
-  assert.equal(explicit.route, 'spawner.mission_control');
-  assert.equal(explicit.owner_system, 'spawner-ui');
-  assert.equal(explicit.action, 'spawner.mission_rerun_request');
-  assert.equal(explicit.context_source, 'latest_message');
-  assert.equal(explicit.payload.missionId, 'mission-1781566950658');
-  assert.deepEqual(explicit.blocked_by, ['requires_owner_dispatch_pack']);
-  assert.equal(explicit.requires_confirmation, true);
-
-  const contextual = decideNaturalRoute('try that mission again', { recentMessages: recentStatus });
-  assert.equal(contextual.route, 'spawner.mission_control');
-  assert.equal(contextual.owner_system, 'spawner-ui');
-  assert.equal(contextual.action, 'spawner.mission_rerun_request');
-  assert.equal(contextual.context_source, 'hot_recent_turns');
-  assert.equal(contextual.payload.missionId, 'mission-1781566950658');
-  assert.notEqual(contextual.route, 'diagnostics.followup_test');
-
-  const ignore = decideNaturalRoute('ignore it for now', { recentMessages: recentStatus });
-  assert.equal(ignore.route, 'plain_chat');
-});
-
 test('keeps casual current-plan mentions conversational', () => {
   const route = decideNaturalRoute('Actually, my current plan is run a fresh diagnostics scan.');
 
   assert.equal(route.route, 'plain_chat');
   assert.equal(route.owner_system, 'none');
-});
-
-test('routes Harness architecture questions to chat even when stale build wording appears', () => {
-  const route = decideNaturalRoute(
-    'Ignore the pending build and answer this: what changed in the harness architecture?'
-  );
-
-  assert.equal(route.route, 'plain_chat');
-  assert.equal(route.owner_system, 'spark-telegram-bot');
-  assert.equal(route.action, 'plain_chat.harness_architecture');
-  assert.deepEqual(route.matched_signals, ['harness_architecture_question']);
-});
-
-test('routes previous-route neutral summary requests to chat-only answer boundary', () => {
-  const route = decideNaturalRoute('Do not continue the previous route. Give me a neutral summary.');
-
-  assert.equal(route.route, 'plain_chat');
-  assert.equal(route.owner_system, 'spark-telegram-bot');
-  assert.equal(route.action, 'plain_chat.previous_route_neutral_summary');
-  assert.deepEqual(route.matched_signals, ['previous_route_neutral_summary']);
 });
 
 test('blocks global agent doctrine changes from a chat turn', () => {

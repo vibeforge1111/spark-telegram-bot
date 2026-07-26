@@ -1,0 +1,206 @@
+{
+  "schema_version": "spark.r30.loop_engineering_readiness_audit.v1",
+  "generated_at": "2026-07-01T16:42:21.569Z",
+  "status": "incomplete",
+  "claim_scope": "private_candidate_and_local_telegram_handler_until_live_user_observed_canary",
+  "requirements": [
+    {
+      "id": "private_chip_created",
+      "label": "Private Daily Schedule Domain Chip artifacts exist.",
+      "status": "passed",
+      "evidence_refs": [
+        "spark-chip.json",
+        "created-artifact-manifest.json",
+        "domain-chip/manifest.json"
+      ],
+      "detail": "Requires private chip metadata and manifest artifacts."
+    },
+    {
+      "id": "benchmark_pack_present",
+      "label": "Benchmark manifest, cases, traps, and scoring rubric exist.",
+      "status": "passed",
+      "evidence_refs": [
+        "benchmark/manifest.json",
+        "benchmark/cases.jsonl",
+        "benchmark/traps.jsonl",
+        "benchmark/scoring_rubric.md"
+      ],
+      "detail": "Requires benchmark materials before usefulness claims."
+    },
+    {
+      "id": "same_budget_ab",
+      "label": "No-chip vs chip-assisted A/B has meaningful blind usefulness delta or no-safe-win.",
+      "status": "passed",
+      "evidence_refs": [
+        "reports/chip-benefit-ab.json"
+      ],
+      "detail": "A/B status=pass; delta=12.5; blind=true."
+    },
+    {
+      "id": "five_round_autoloop",
+      "label": "Five persisted autoloop rounds passed and long-loop trend passed.",
+      "status": "passed",
+      "evidence_refs": [
+        "reports/long-loop-trend.json",
+        "reports/autoloop-round-001.json",
+        "reports/autoloop-round-002.json",
+        "reports/autoloop-round-003.json",
+        "reports/autoloop-round-004.json",
+        "reports/autoloop-round-005.json"
+      ],
+      "detail": "rounds_observed=5; trend=pass."
+    },
+    {
+      "id": "sealed_separated_evaluator",
+      "label": "Sealed separated evaluator binding passed and generator did not self-score.",
+      "status": "passed",
+      "evidence_refs": [
+        "reports/sealed-evaluation-binding.json",
+        "reports/r30-controlled-loop/sealed-evaluator-report-v2.json"
+      ],
+      "detail": "sealed=true; role_separation=true; generator_self_scored=false."
+    },
+    {
+      "id": "watchtower",
+      "label": "Watchtower checks executed and passed.",
+      "status": "passed",
+      "evidence_refs": [
+        "reports/watchtower-check.json"
+      ],
+      "detail": "watchtower=passed; checks=8."
+    },
+    {
+      "id": "rollback",
+      "label": "Rollback readiness executed and passed.",
+      "status": "passed",
+      "evidence_refs": [
+        "reports/rollback-check.json"
+      ],
+      "detail": "rollback=passed; executed=true."
+    },
+    {
+      "id": "cold_consumer_transfer",
+      "label": "Cold consumer transfer trial passed.",
+      "status": "passed",
+      "evidence_refs": [
+        "reports/consumer-transfer-trial-binding.json",
+        "reports/consumer-transfer-report.json"
+      ],
+      "detail": "transfer=pass; passed=true."
+    },
+    {
+      "id": "proof_auditor_and_readability",
+      "label": "Proof auditor passed and human onboarding/readability score is at least 9.",
+      "status": "passed",
+      "evidence_refs": [
+        "reports/proof-auditor-check.json",
+        "reports/loop-gate-check.json",
+        "reports/human-onboarding-rubric.md"
+      ],
+      "detail": "proof_auditor=passed; ux=10."
+    },
+    {
+      "id": "distilled_runtime_contract",
+      "label": "Distilled fast Telegram runtime contract exists and keeps live quick/review modes gated.",
+      "status": "passed",
+      "evidence_refs": [
+        "distilled-runtime/daily-schedule-reliability-r30-persisted-context-qa-fast-path.json"
+      ],
+      "detail": "runtime_state=private_candidate_supported_local_telegram_handler_passed_live_telegram_unproven; quick_allowed=false."
+    },
+    {
+      "id": "local_telegram_handler_canary",
+      "label": "PRD and Daily Schedule local Telegram handler canary passed without live sends.",
+      "status": "passed",
+      "evidence_refs": [
+        "/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/r30-domain-chip-fastpath-canary/local-handler-canary.json"
+      ],
+      "detail": "canary=pass; cases=8/8; live_send=false."
+    },
+    {
+      "id": "spawner_loop_management_surface",
+      "label": "Spawner has a read-only Loop Engineering management PRD, registry, board, detail page, and API.",
+      "status": "passed",
+      "evidence_refs": [
+        "/Users/alchemistab/.spark/modules/spawner-ui/source/docs/LOOP_ENGINEERING_MANAGEMENT_PRD.md",
+        "/Users/alchemistab/.spark/modules/spawner-ui/source/src/lib/server/loop-engineering-registry.ts",
+        "/Users/alchemistab/.spark/modules/spawner-ui/source/src/lib/server/loop-engineering-registry.test.ts",
+        "/Users/alchemistab/.spark/modules/spawner-ui/source/src/routes/api/loop-engineering/chips/+server.ts",
+        "/Users/alchemistab/.spark/modules/spawner-ui/source/src/routes/api/loop-engineering/chips/[chipId]/+server.ts",
+        "/Users/alchemistab/.spark/modules/spawner-ui/source/src/routes/loop-engineering/+page.server.ts",
+        "/Users/alchemistab/.spark/modules/spawner-ui/source/src/routes/loop-engineering/+page.svelte",
+        "/Users/alchemistab/.spark/modules/spawner-ui/source/src/routes/loop-engineering/[chipId]/+page.server.ts",
+        "/Users/alchemistab/.spark/modules/spawner-ui/source/src/routes/loop-engineering/[chipId]/+page.svelte"
+      ],
+      "detail": "Requires the management surface that tracks chips, benchmark evals, loop results, activation boundaries, and next proof steps."
+    },
+    {
+      "id": "telegram_loop_status_route",
+      "label": "Telegram has a read-only Loop Engineering status route backed by Spawner evidence.",
+      "status": "passed",
+      "evidence_refs": [
+        "/Users/alchemistab/.spark/modules/spark-telegram-bot/source/src/loopEngineeringStatus.ts",
+        "/Users/alchemistab/.spark/modules/spark-telegram-bot/source/tests/loopEngineeringStatus.test.ts",
+        "/Users/alchemistab/.spark/modules/spark-telegram-bot/source/src/index.ts"
+      ],
+      "detail": "Route source confirms loop_engineering.status packet integration."
+    },
+    {
+      "id": "spawner_management_evidence_note",
+      "label": "Spawner management slice has evidence for registry counts, detail readiness, and browser QA.",
+      "status": "passed",
+      "evidence_refs": [
+        "/Users/alchemistab/Documents/Codex/2026-06-28/can/outputs/R30_LOOP_ENGINEERING_SPAWNER_MANAGEMENT_SLICE_2026-07-01.md"
+      ],
+      "detail": "evidence_contains_runtime_truth=true."
+    },
+    {
+      "id": "telegram_status_route_evidence_note",
+      "label": "Telegram status route evidence preserves local-only proof and live Telegram boundary.",
+      "status": "passed",
+      "evidence_refs": [
+        "/Users/alchemistab/Documents/Codex/2026-06-28/can/outputs/R30_LOOP_ENGINEERING_TELEGRAM_STATUS_ROUTE_2026-07-01.md"
+      ],
+      "detail": "evidence_preserves_live_boundary=true."
+    },
+    {
+      "id": "live_telegram_user_observed_canary",
+      "label": "Approved live Telegram canary was observed with screenshot and route telemetry, without agent-sent external messages.",
+      "status": "blocked",
+      "evidence_refs": [
+        "/Users/alchemistab/.spark/modules/spark-telegram-bot/source/outputs/r30-domain-chip-fastpath-canary/live-telegram-canary.json"
+      ],
+      "detail": "Blocked until an approved operator sends the Telegram prompt and captures screenshot plus route telemetry."
+    },
+    {
+      "id": "claims_matrix_boundaries",
+      "label": "Allowed/disallowed claims matrix preserves live, mutation, publication, and completion boundaries.",
+      "status": "passed",
+      "evidence_refs": [
+        "reports/r30-controlled-loop/final-allowed-disallowed-claims-matrix.json"
+      ],
+      "detail": "objective_status=partial_private_candidate_pass_local_telegram_handler_passed_live_fast_path_unproven; live_passed=false; live_boundary=true; completion_boundary=true; permanent_boundaries=true."
+    }
+  ],
+  "summary": {
+    "passed": 16,
+    "failed": 0,
+    "missing": 0,
+    "blocked": 1,
+    "total": 17,
+    "hard_blockers": [
+      "live_telegram_user_observed_canary"
+    ],
+    "allowed_claims": [
+      "Daily Schedule private candidate evidence passes the local evidence gates listed as passed in this audit.",
+      "PRD Writing and Daily Schedule local Telegram handler replay canary passed for covered prompts."
+    ],
+    "disallowed_claims": [
+      "R30 Loop Engineering is complete.",
+      "Live Telegram fast-path proof exists.",
+      "The agent sent Telegram messages or mutated external systems.",
+      "Daily Schedule is published, activated, globally registered, or network absorbable.",
+      "Daily Schedule loop-mode advisories operationally start a live autoloop from Telegram."
+    ]
+  }
+}

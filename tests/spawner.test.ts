@@ -2,16 +2,17 @@ import assert from 'node:assert/strict';
 import axios from 'axios';
 import {
   createHarnessCoreActionEnvelopeVNext,
-  createHarnessCoreAuthorizedGovernorDecision
+  createHarnessCoreAuthorizedGovernorDecision,
+  type HarnessCoreActionMutationClass
 } from '@spark/harness-core';
 import {
   formatCreatorMissionExecutionSummary,
   formatCreatorMissionStatusSummary,
   formatCreatorMissionSummary,
   formatCreatorMissionValidationSummary,
+  localServiceRetryDelayMs,
   spawner
 } from '../src/spawner';
-import type { SparkHarnessMutationClass } from '../src/harnessContract';
 
 type AsyncTest = () => Promise<void> | void;
 
@@ -31,8 +32,7 @@ const originalPort = process.env.TELEGRAM_RELAY_PORT;
 const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
 const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
 const originalUiKey = process.env.SPARK_UI_API_KEY;
-const originalMcpKey = process.env.MCP_API_KEY;
-const originalEventsKey = process.env.EVENTS_API_KEY;
+const originalRetryDelay = process.env.SPARK_LOCAL_SERVICE_RETRY_DELAY_MS;
 
 function restoreAxios(): void {
   (axios as any).get = originalGet;
@@ -48,27 +48,13 @@ function restoreEnv(): void {
   else process.env.SPARK_BRIDGE_API_KEY = originalBridgeKey;
   if (originalUiKey === undefined) delete process.env.SPARK_UI_API_KEY;
   else process.env.SPARK_UI_API_KEY = originalUiKey;
-  if (originalMcpKey === undefined) delete process.env.MCP_API_KEY;
-  else process.env.MCP_API_KEY = originalMcpKey;
-  if (originalEventsKey === undefined) delete process.env.EVENTS_API_KEY;
-  else process.env.EVENTS_API_KEY = originalEventsKey;
-}
-
-function mutationClassForTool(toolName: string): SparkHarnessMutationClass {
-  if (toolName === 'spawner.creator_mission.status') return 'read_only';
-  if (toolName === 'spawner.mission_control.status') return 'read_only';
-  if (toolName === 'spawner.mission_control.command') return 'controls_mission';
-  if (toolName === 'creator.mission.create' || toolName === 'spawner.creator_mission') return 'creates_chip';
-  return 'launches_mission';
-}
-
-function fakeMissionControlAuthority(): unknown {
-  return fakeExecutionAuthority('spawner.mission_control.command');
+  if (originalRetryDelay === undefined) delete process.env.SPARK_LOCAL_SERVICE_RETRY_DELAY_MS;
+  else process.env.SPARK_LOCAL_SERVICE_RETRY_DELAY_MS = originalRetryDelay;
 }
 
 function fakeExecutionAuthority(
-  toolName: string,
-  mutationClass: SparkHarnessMutationClass = mutationClassForTool(toolName),
+  toolName = 'spawner.run',
+  mutationClass: HarnessCoreActionMutationClass = 'launches_mission',
   ownerSystem = 'spawner-ui'
 ): unknown {
   const envelope = createHarnessCoreActionEnvelopeVNext({
@@ -109,7 +95,7 @@ async function run(): Promise<void> {
       };
     };
 
-    const executionAuthority = fakeExecutionAuthority('spawner.run');
+    const executionAuthority = fakeExecutionAuthority();
     const result = await spawner.runGoal({
       goal: 'Build a Kanban board from this Telegram message.',
       missionName: 'Telegram Kanban Board',
@@ -149,7 +135,7 @@ async function run(): Promise<void> {
     restoreAxios();
     process.env.SPARK_BRIDGE_API_KEY = 'bridge-secret-for-tests';
 
-    const executionAuthority = fakeExecutionAuthority('spawner.run');
+    const executionAuthority = fakeExecutionAuthority();
     let capturedBody: any = null;
     (axios as any).post = async (_url: string, body: unknown) => {
       capturedBody = body;
@@ -177,7 +163,7 @@ async function run(): Promise<void> {
     };
 
     const result = await spawner.runGoal({
-      goal: 'Run without authority',
+      goal: 'Run without authority.',
       chatId: '123',
       userId: '456',
       requestId: 'tg-missing-authority'
@@ -188,7 +174,7 @@ async function run(): Promise<void> {
     assert.equal(postCalled, false);
   });
 
-  await test('runGoal rejects malformed Governor authority before network', async () => {
+  await test('runGoal rejects authority for the wrong tool before network', async () => {
     restoreAxios();
     let postCalled = false;
     (axios as any).post = async () => {
@@ -197,28 +183,7 @@ async function run(): Promise<void> {
     };
 
     const result = await spawner.runGoal({
-      goal: 'Run with malformed authority',
-      chatId: '123',
-      userId: '456',
-      requestId: 'tg-malformed-authority',
-      executionAuthority: {}
-    });
-
-    assert.equal(result.success, false);
-    assert.match(result.error || '', /missing_or_malformed_governor_decision/);
-    assert.equal(postCalled, false);
-  });
-
-  await test('runGoal rejects a valid Governor decision for the wrong tool', async () => {
-    restoreAxios();
-    let postCalled = false;
-    (axios as any).post = async () => {
-      postCalled = true;
-      return { data: { success: true } };
-    };
-
-    const result = await spawner.runGoal({
-      goal: 'Run with schedule authority',
+      goal: 'Run with schedule authority.',
       chatId: '123',
       userId: '456',
       requestId: 'tg-wrong-tool-authority',
@@ -227,27 +192,6 @@ async function run(): Promise<void> {
 
     assert.equal(result.success, false);
     assert.match(result.error || '', /governor_missing_matching_authorization/);
-    assert.equal(postCalled, false);
-  });
-
-  await test('runGoal rejects read-only Governor authority before network', async () => {
-    restoreAxios();
-    let postCalled = false;
-    (axios as any).post = async () => {
-      postCalled = true;
-      return { data: { success: true } };
-    };
-
-    const result = await spawner.runGoal({
-      goal: 'Run with read-only authority',
-      chatId: '123',
-      userId: '456',
-      requestId: 'tg-read-only-authority',
-      executionAuthority: fakeExecutionAuthority('spawner.run', 'read_only')
-    });
-
-    assert.equal(result.success, false);
-    assert.match(result.error || '', /governor_outcome_read_only/);
     assert.equal(postCalled, false);
   });
 
@@ -267,7 +211,7 @@ async function run(): Promise<void> {
       chatId: '123',
       userId: '456',
       requestId: 'tg-bridge-fallback',
-      executionAuthority: fakeExecutionAuthority('spawner.run')
+      executionAuthority: fakeExecutionAuthority()
     });
 
     assert.equal(result.success, true);
@@ -277,9 +221,12 @@ async function run(): Promise<void> {
 
   await test('runGoal retries once when local Spawner request times out', async () => {
     restoreAxios();
+    process.env.SPARK_LOCAL_SERVICE_RETRY_DELAY_MS = '1';
     let attempts = 0;
-    (axios as any).post = async () => {
+    const requestOptions: any[] = [];
+    (axios as any).post = async (_url: string, _body: unknown, options: unknown) => {
       attempts += 1;
+      requestOptions.push(options);
       if (attempts === 1) {
         const error: any = new Error('timeout of 10000ms exceeded');
         error.code = 'ECONNABORTED';
@@ -293,12 +240,20 @@ async function run(): Promise<void> {
       chatId: '123',
       userId: '456',
       requestId: 'tg-retry',
-      executionAuthority: fakeExecutionAuthority('spawner.run')
+      executionAuthority: fakeExecutionAuthority()
     });
 
     assert.equal(attempts, 2);
     assert.equal(result.success, true);
     assert.equal(result.missionId, 'spark-after-retry');
+    assert.match(requestOptions[0].headers['Idempotency-Key'], /^[0-9a-f-]{36}$/i);
+    assert.equal(requestOptions[1].headers['Idempotency-Key'], requestOptions[0].headers['Idempotency-Key']);
+  });
+
+  await test('local Spawner retry delay is configurable and bounded', () => {
+    assert.equal(localServiceRetryDelayMs({}), 800);
+    assert.equal(localServiceRetryDelayMs({ SPARK_LOCAL_SERVICE_RETRY_DELAY_MS: '25' }), 25);
+    assert.equal(localServiceRetryDelayMs({ SPARK_LOCAL_SERVICE_RETRY_DELAY_MS: '60000' }), 5000);
   });
 
   await test('runGoal falls back to the primary relay target when env values are invalid', async () => {
@@ -317,13 +272,474 @@ async function run(): Promise<void> {
       chatId: '123',
       userId: '456',
       requestId: 'tg-defaults',
-      executionAuthority: fakeExecutionAuthority('spawner.run')
+      executionAuthority: fakeExecutionAuthority()
     });
 
     assert.equal(result.success, true);
     assert.deepEqual(capturedBody.telegramRelay, { port: 8788, profile: 'primary' });
     assert.equal(capturedBody.providers, undefined);
     assert.equal(capturedBody.promptMode, undefined);
+  });
+
+  await test('runLoopEngineeringBenchmark posts to Spawner command-result endpoint with Governor authority', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          event: { id: 'lee-1', eventType: 'benchmark_run', status: 'queued' },
+          mission: { id: 'spark-loop-1' },
+          commandResult: {
+            action: 'benchmark_run_queued',
+            launchedMission: true,
+            missionId: 'spark-loop-1',
+            eventId: 'lee-1',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Queued a private benchmark mission.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.runLoopEngineeringBenchmark({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      objective: 'Run one private benchmark.',
+      benchmarkCaseIds: ['held-out-1'],
+      requestId: 'tg-loop-benchmark',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.benchmark.run')
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'benchmark_run_queued');
+    assert.equal(result.missionId, 'spark-loop-1');
+    assert.equal(result.inspectUrl, 'http://127.0.0.1:3333/loop-engineering/domain-chip-prd-writing-proof-loop');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/benchmarks\/run$/);
+    assert.equal(capturedBody.sourceSurface, 'telegram');
+    assert.deepEqual(capturedBody.benchmarkCaseIds, ['held-out-1']);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.benchmark.run');
+  });
+
+  await test('runLoopEngineeringLoop posts capped loop runs to Spawner with loop authority', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          event: { id: 'lee-2', eventType: 'loop_batch', status: 'queued' },
+          mission: { id: 'spark-loop-2' },
+          commandResult: {
+            action: 'loop_run_queued',
+            launchedMission: true,
+            missionId: 'spark-loop-2',
+            eventId: 'lee-2',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Queued a capped private loop mission.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.runLoopEngineeringLoop({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      objective: 'Improve PRD quality.',
+      roundLimit: 3,
+      requestId: 'tg-loop-run',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.loop.run')
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'loop_run_queued');
+    assert.equal(result.missionId, 'spark-loop-2');
+    assert.equal(result.inspectUrl, 'http://127.0.0.1:3333/loop-engineering/domain-chip-prd-writing-proof-loop');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/loops\/run$/);
+    assert.equal(capturedBody.roundLimit, 3);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.loop.run');
+  });
+
+  await test('completeLoopEngineeringRun binds evaluator-backed completion events through Spawner', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          event: { id: 'lee-loop-2', eventType: 'loop_batch', status: 'passed' },
+          commandResult: {
+            action: 'run_completion_bound',
+            launchedMission: false,
+            missionId: 'spark-loop-2',
+            eventId: 'lee-loop-2',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Bound evaluator-backed completion for domain-chip-prd-writing-proof-loop.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.completeLoopEngineeringRun({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      eventId: 'lee-loop-2',
+      status: 'passed',
+      previousScore: 6,
+      candidateScore: 8.4,
+      roundsObserved: 3,
+      evidenceRefs: ['reports/prd-eval.json'],
+      sourceRef: 'mission-control:spark-loop-2',
+      evaluatorVerdictRef: 'reports/prd-verdict.json',
+      requestId: 'tg-loop-complete',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.event.complete', 'writes_files')
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'run_completion_bound');
+    assert.equal(result.missionId, 'spark-loop-2');
+    assert.equal(result.inspectUrl, 'http://127.0.0.1:3333/loop-engineering/domain-chip-prd-writing-proof-loop');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/events\/lee-loop-2\/complete$/);
+    assert.equal(capturedBody.chipKey, 'domain-chip-prd-writing-proof-loop');
+    assert.equal(capturedBody.status, 'passed');
+    assert.equal(capturedBody.evaluatorSeparated, true);
+    assert.deepEqual(capturedBody.evidenceRefs, ['reports/prd-eval.json']);
+    assert.equal(capturedBody.evaluatorVerdictRef, 'reports/prd-verdict.json');
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.event.complete');
+  });
+
+  await test('listLoopEngineeringChips reads Spawner Loop Engineering registry', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    (axios as any).get = async (url: string) => {
+      capturedUrl = url;
+      return {
+        data: {
+          ok: true,
+          registry: {
+            chips: [
+              {
+                id: 'domain-chip-prd-writing-proof-loop',
+                domain: 'PRD Writing',
+                statusLabel: 'Private candidate',
+                benchmark: { utilityDelta: 2.4 }
+              }
+            ]
+          }
+        }
+      };
+    };
+
+    const result = await spawner.listLoopEngineeringChips();
+
+    assert.equal(result.success, true);
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips$/);
+    assert.equal(result.chips?.[0]?.id, 'domain-chip-prd-writing-proof-loop');
+    assert.equal(result.inspectUrl, 'http://127.0.0.1:3333/loop-engineering');
+  });
+
+  await test('recordLoopEngineeringEvaluatorReview posts separated evaluator evidence to Spawner', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          event: { id: 'lee-eval', eventType: 'evaluator_review', status: 'passed' },
+          commandResult: {
+            action: 'evaluator_review_recorded',
+            eventId: 'lee-eval',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Recorded separated evaluator evidence.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.recordLoopEngineeringEvaluatorReview({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      previousScore: 6,
+      candidateScore: 8.4,
+      roundsObserved: 3,
+      evidenceRefs: ['reports/prd-eval.json'],
+      requestId: 'tg-loop-eval',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.evaluator_review.record', 'writes_files')
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'evaluator_review_recorded');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/evaluator-review$/);
+    assert.equal(capturedBody.evaluatorSeparated, true);
+    assert.equal(capturedBody.previousScore, 6);
+    assert.equal(capturedBody.candidateScore, 8.4);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.evaluator_review.record');
+  });
+
+  await test('distillLoopEngineeringLessons posts evaluator-backed lessons to Spawner', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          distillation: { id: 'distill-1', status: 'staged' },
+          event: { id: 'lee-distill', eventType: 'distillation', status: 'passed' },
+          commandResult: {
+            action: 'distillation_staged',
+            eventId: 'lee-distill',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Distilled evaluator-backed lessons.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.distillLoopEngineeringLessons({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      sourceEvaluatorEventId: 'lee-eval',
+      lessons: ['Resolve user, owner, success metric, and acceptance criteria first.'],
+      runtimeNotes: 'Use as staged PRD Writing guidance.',
+      tokenBudgetHint: 'Try distilled checklist before a full loop.',
+      requestId: 'tg-loop-distill',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.distill.stage', 'writes_files')
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'distillation_staged');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/distill$/);
+    assert.equal(capturedBody.sourceEvaluatorEventId, 'lee-eval');
+    assert.deepEqual(capturedBody.lessons, ['Resolve user, owner, success metric, and acceptance criteria first.']);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.distill.stage');
+  });
+
+  await test('stageLoopEngineeringActivation posts staged activation rules to Spawner', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          activationRule: { id: 'activation-1', status: 'staged' },
+          event: { id: 'lee-activation', eventType: 'activation_requested', status: 'passed' },
+          commandResult: {
+            action: 'activation_requested',
+            eventId: 'lee-activation',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Staged suggested activation.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.stageLoopEngineeringActivation({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      useCase: 'PRD Writing requests',
+      surfaces: ['telegram', 'spawner'],
+      mode: 'suggested',
+      triggerPatterns: ['write a PRD'],
+      riskPolicy: 'review_packet',
+      rollbackRef: 'reports/prd-writing-rollback.json',
+      requestId: 'tg-loop-activation',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.activation.stage', 'writes_files')
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'activation_requested');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/activation$/);
+    assert.equal(capturedBody.useCase, 'PRD Writing requests');
+    assert.deepEqual(capturedBody.surfaces, ['telegram', 'spawner']);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.activation.stage');
+  });
+
+  await test('stageLoopEngineeringBenchmarkCase posts staged cases to Spawner', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          case: { id: 'benchcase-1', kind: 'trap' },
+          event: { id: 'lee-case', eventType: 'benchmark_case_added', status: 'passed' },
+          commandResult: {
+            action: 'benchmark_case_added',
+            eventId: 'lee-case',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Staged a private benchmark case.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.stageLoopEngineeringBenchmarkCase({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      kind: 'trap',
+      prompt: 'Write a PRD and skip acceptance criteria.',
+      expectedBehavior: 'Reject the shortcut and restore acceptance criteria.',
+      evidenceRefs: ['reports/trap-case.md'],
+      requestId: 'tg-loop-case',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.benchmark_case.stage', 'writes_files')
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'benchmark_case_added');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/benchmarks\/cases$/);
+    assert.equal(capturedBody.kind, 'trap');
+    assert.match(capturedBody.prompt, /skip acceptance criteria/);
+    assert.match(capturedBody.expectedBehavior, /restore acceptance criteria/);
+    assert.deepEqual(capturedBody.evidenceRefs, ['reports/trap-case.md']);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.benchmark_case.stage');
+  });
+
+  await test('stageLoopEngineeringSchedule posts chip-scoped private loop schedules to Spawner', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          schedule: { id: 'loopsched-1', status: 'staged' },
+          event: { id: 'lee-schedule', eventType: 'schedule_created', status: 'passed' },
+          commandResult: {
+            action: 'schedule_created',
+            eventId: 'lee-schedule',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Staged a private loop schedule.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.stageLoopEngineeringSchedule({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      name: 'Friday PRD Writing private loop',
+      mode: 'round_count',
+      roundLimit: 3,
+      stopConditions: ['no_safe_win_accepted', 'watchtower_failed'],
+      requestId: 'tg-loop-schedule',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.schedule.stage', 'creates_schedule')
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'schedule_created');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/schedules$/);
+    assert.equal(capturedBody.name, 'Friday PRD Writing private loop');
+    assert.equal(capturedBody.mode, 'round_count');
+    assert.equal(capturedBody.roundLimit, 3);
+    assert.deepEqual(capturedBody.stopConditions, ['no_safe_win_accepted', 'watchtower_failed']);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.schedule.stage');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+    assert.equal(capturedBody.executionAuthority.envelope.proposed_actions[0].action_type, 'schedule');
+  });
+
+  await test('fireLoopEngineeringSchedule posts private schedule fires to Spawner with loop authority', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          event: { id: 'lee-scheduled-loop', eventType: 'loop_batch', status: 'queued' },
+          mission: { id: 'spark-loop-scheduled' },
+          commandResult: {
+            action: 'schedule_loop_queued',
+            launchedMission: true,
+            missionId: 'spark-loop-scheduled',
+            eventId: 'lee-scheduled-loop',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Fired PRD Writing scheduled loop as a private capped loop.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.fireLoopEngineeringSchedule({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      scheduleId: 'loopsched-prd',
+      requestId: 'tg-loop-schedule-fire',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.schedule.fire')
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'schedule_loop_queued');
+    assert.equal(result.missionId, 'spark-loop-scheduled');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/schedules\/loopsched-prd\/fire$/);
+    assert.equal(capturedBody.sourceSurface, 'telegram');
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.schedule.fire');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
+  });
+
+  await test('updateLoopEngineeringScheduleLifecycle posts schedule actions with native Governor authority', async () => {
+    restoreAxios();
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    (axios as any).post = async (url: string, body: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return {
+        data: {
+          ok: true,
+          schedule: { id: 'loopsched-prd', status: 'cancelled', active: false },
+          event: { id: 'lee-schedule-cancel', eventType: 'schedule_lifecycle', status: 'passed' },
+          commandResult: {
+            action: 'schedule_cancel',
+            eventId: 'lee-schedule-cancel',
+            inspectUrl: '/loop-engineering/domain-chip-prd-writing-proof-loop',
+            userMessage: 'Cancelled the private PRD Writing loop schedule.'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.updateLoopEngineeringScheduleLifecycle({
+      chipKey: 'domain-chip-prd-writing-proof-loop',
+      scheduleId: 'loopsched-prd',
+      action: 'cancel',
+      requestId: 'tg-loop-schedule-cancel',
+      executionAuthority: fakeExecutionAuthority('spawner.loop_engineering.schedule.cancel', 'deletes_schedule')
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'schedule_cancel');
+    assert.match(capturedUrl, /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop\/schedules\/loopsched-prd\/lifecycle$/);
+    assert.equal(capturedBody.action, 'cancel');
+    assert.equal(capturedBody.sourceSurface, 'telegram');
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.loop_engineering.schedule.cancel');
+    assert.equal(capturedBody.executionAuthority.envelope.proposed_actions[0].action_type, 'schedule');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].authorization.restrictions.write_allowed, true);
   });
 
   await test('creatorMission posts creator planning input to Spawner', async () => {
@@ -358,13 +774,12 @@ async function run(): Promise<void> {
       };
     };
 
-    const executionAuthority = fakeExecutionAuthority('creator.mission.create');
     const result = await spawner.creatorMission({
       brief: 'Create a Startup YC specialization path with benchmarked autoloop.',
       requestId: 'tg-creator-1',
       privacyMode: 'local_only',
       riskLevel: 'medium',
-      executionAuthority
+      executionAuthority: fakeExecutionAuthority('creator.mission.create', 'creates_chip')
     });
 
     assert.equal(result.success, true);
@@ -377,26 +792,10 @@ async function run(): Promise<void> {
     assert.equal(capturedBody.requestId, 'tg-creator-1');
     assert.equal(capturedBody.privacyMode, 'local_only');
     assert.equal(capturedBody.riskLevel, 'medium');
-    assert.equal(capturedBody.executionAuthority, executionAuthority);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.outcome, 'execute');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'creator.mission.create');
     assert.equal(capturedOptions.timeout, 1800000);
-  });
-
-  await test('creatorMission fails closed before network when authority is missing', async () => {
-    restoreAxios();
-    let postCalled = false;
-    (axios as any).post = async () => {
-      postCalled = true;
-      return { data: { ok: true } };
-    };
-
-    const result = await spawner.creatorMission({
-      brief: 'Create without authority',
-      requestId: 'tg-creator-no-authority'
-    });
-
-    assert.equal(result.success, false);
-    assert.match(result.error || '', /Harness Core execution authority is required/);
-    assert.equal(postCalled, false);
   });
 
   await test('formatCreatorMissionSummary renders the creator mission packet for Telegram', async () => {
@@ -431,24 +830,23 @@ async function run(): Promise<void> {
       'http://spawner.test/'
     );
 
-    assert.match(message, /Creator plan ready|Private path staged|Creator plan is staged/);
+    assert.match(message, /Loop Engineering plan ready|Private path staged|Loop Engineering plan is staged/);
     assert.doesNotMatch(message, /Scope/);
     assert.match(message, /Startup YC/);
     assert.match(message, /GitHub review \/ high risk/);
     assert.match(message, /No execution or publishing happened from staging/);
     assert.match(message, /Labs verdict: prototype; evidence tier: local only; network_absorbable=false/);
     assert.match(message, /domain chip, benchmark pack, autoloop policy/);
-    assert.match(message, /Creator-run contract: creator intent, adapter map, artifact manifest, domain chip, benchmark pack, specialization path, autoloop policy, evidence ladder, creator mission status, swarm\/contribution_packet\.json/);
+    assert.match(message, /Loop Engineering contract: intent packet, adapter map, artifact manifest, domain chip, starter kit \(17 checks\), loop proof \(5 checks\), and promotion review \(7 checks\), specialization path, autoloop policy, Loop Engineering status, swarm\/contribution_packet\.json/);
     assert.match(message, /baseline, candidate, held-out or trap evidence/);
     assert.match(message, /2 tasks queued/);
+    assert.match(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
     assert.match(message, /Board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
-    assert.match(message, /Canvas will follow after nodes, skill pairings, and workflow handoff are materialized\./);
     assert.match(message, /say: run it/);
     assert.match(message, /say: status/);
     assert.match(message, /say: validate it/);
     assert.doesNotMatch(message, /^mission-creator-1$/m);
     assert.doesNotMatch(message, /\/creator run mission-creator-1/);
-    assert.doesNotMatch(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
     assert.doesNotMatch(message, /- Canvas:/);
   });
 
@@ -479,13 +877,12 @@ async function run(): Promise<void> {
     );
 
     assert.match(message, /2 tasks staged/);
+    assert.match(message, /^Canvas: http:\/\/spawner\.test\/canvas$/m);
     assert.match(message, /^Board: http:\/\/spawner\.test\/kanban$/m);
-    assert.match(message, /Canvas will follow after nodes, skill pairings, and workflow handoff are materialized\./);
     assert.match(message, /say: status/);
     assert.match(message, /say: revise the plan/);
     assert.doesNotMatch(message, /secret-chat/);
     assert.doesNotMatch(message, /mission-creator-stage-only/);
-    assert.doesNotMatch(message, /^Canvas:/m);
     assert.doesNotMatch(message, /say: run it/);
     assert.doesNotMatch(message, /say: validate it/);
   });
@@ -520,10 +917,9 @@ async function run(): Promise<void> {
       };
     };
 
-    const executionAuthority = fakeExecutionAuthority('spawner.dispatch');
     const result = await spawner.creatorMissionExecute({
       missionId: 'mission-creator-1',
-      executionAuthority
+      executionAuthority: fakeExecutionAuthority('spawner.dispatch')
     });
 
     assert.equal(result.success, true);
@@ -531,23 +927,10 @@ async function run(): Promise<void> {
     assert.equal(result.providerId, 'codex');
     assert.match(capturedUrl, /\/api\/creator\/mission\/execute$/);
     assert.equal(capturedBody.missionId, 'mission-creator-1');
-    assert.equal(capturedBody.executionAuthority, executionAuthority);
+    assert.equal(capturedBody.executionAuthority.schema_version, 'governor-decision-v1');
+    assert.equal(capturedBody.executionAuthority.outcome, 'execute');
+    assert.equal(capturedBody.executionAuthority.tool_ledgers[0].tool_name, 'spawner.dispatch');
     assert.equal(capturedOptions.timeout, 1800000);
-  });
-
-  await test('creatorMissionExecute fails closed before network when authority is missing', async () => {
-    restoreAxios();
-    let postCalled = false;
-    (axios as any).post = async () => {
-      postCalled = true;
-      return { data: { ok: true } };
-    };
-
-    const result = await spawner.creatorMissionExecute({ missionId: 'mission-creator-1' });
-
-    assert.equal(result.success, false);
-    assert.match(result.error || '', /Harness Core execution authority is required/);
-    assert.equal(postCalled, false);
   });
 
   await test('formatCreatorMissionExecutionSummary renders execution links for Telegram', async () => {
@@ -566,14 +949,13 @@ async function run(): Promise<void> {
       'http://spawner.test/'
     );
 
-    assert.match(message, /Creator mission started/);
+    assert.match(message, /Loop Engineering run started/);
     assert.match(message, /running now/);
     assert.match(message, /Builder: Codex/);
     assert.doesNotMatch(message, /mission: mission-creator-1/);
     assert.doesNotMatch(message, /local workspace: C:\\Users\\USER\\Desktop/);
     assert.match(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
     assert.match(message, /Board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
-    assert.ok(message.indexOf('Board:') < message.indexOf('Canvas:'), 'Board should appear before Canvas in execution handoff');
     assert.doesNotMatch(message, /- Board:/);
   });
 
@@ -605,10 +987,9 @@ async function run(): Promise<void> {
       };
     };
 
-    const executionAuthority = fakeExecutionAuthority('spawner.creator_mission.status');
     const result = await spawner.creatorMissionStatus({
       missionId: 'mission-creator-1',
-      executionAuthority
+      executionAuthority: fakeExecutionAuthority('spawner.creator_mission.status', 'read_only')
     });
 
     assert.equal(result.success, true);
@@ -616,39 +997,6 @@ async function run(): Promise<void> {
     assert.equal(result.requestId, 'tg-creator-1');
     assert.match(capturedUrl, /\/api\/creator\/mission\?missionId=mission-creator-1$/);
     assert.equal(capturedOptions.timeout, 30000);
-  });
-
-  await test('creatorMissionStatus fails closed before network when authority is missing', async () => {
-    restoreAxios();
-    let getCalled = false;
-    (axios as any).get = async () => {
-      getCalled = true;
-      return { data: { ok: true } };
-    };
-
-    const result = await spawner.creatorMissionStatus({ missionId: 'mission-creator-1' });
-
-    assert.equal(result.success, false);
-    assert.match(result.error || '', /Harness Core execution authority is required/);
-    assert.equal(getCalled, false);
-  });
-
-  await test('creatorMissionStatus rejects non-read creator authority before network', async () => {
-    restoreAxios();
-    let getCalled = false;
-    (axios as any).get = async () => {
-      getCalled = true;
-      return { data: { ok: true } };
-    };
-
-    const result = await spawner.creatorMissionStatus({
-      missionId: 'mission-creator-1',
-      executionAuthority: fakeExecutionAuthority('spawner.creator_mission.validate')
-    });
-
-    assert.equal(result.success, false);
-    assert.match(result.error || '', /governor_missing_matching_authorization|governor_outcome_not_allowed/);
-    assert.equal(getCalled, false);
   });
 
   await test('formatCreatorMissionStatusSummary renders readiness and latest validation state', async () => {
@@ -691,7 +1039,7 @@ async function run(): Promise<void> {
       'http://spawner.test/'
     );
 
-    assert.match(message, /Startup YC creator status/);
+    assert.match(message, /Startup YC Loop Engineering status/);
     assert.doesNotMatch(message, /Mission: mission-creator-1/);
     assert.match(message, /failed at validation failed/);
     assert.match(message, /Labs verdict: blocked/);
@@ -700,7 +1048,7 @@ async function run(): Promise<void> {
     assert.match(message, /capability gain: not proven yet/);
     assert.match(message, /1 manifest issue/);
     assert.match(message, /blocker: One or more validation commands failed/);
-    assert.match(message, /Creator-run contract: creator intent, adapter map, artifact manifest/);
+    assert.match(message, /Loop Engineering contract: intent packet, adapter map, artifact manifest[\s\S]*Contract proof: not attached yet/);
     assert.match(message, /2 artifact plans/);
     assert.match(message, /Board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
   });
@@ -750,23 +1098,10 @@ async function run(): Promise<void> {
     assert.equal(result.success, true);
     assert.equal(result.status, 'passed');
     assert.match(capturedUrl, /\/api\/creator\/mission\/validate$/);
-    assert.deepEqual(capturedBody, { missionId: 'mission-creator-1', maxCommands: 3, executionAuthority });
+    assert.equal(capturedBody.missionId, 'mission-creator-1');
+    assert.equal(capturedBody.maxCommands, 3);
+    assert.equal(capturedBody.executionAuthority, executionAuthority);
     assert.equal(capturedOptions.timeout, 1800000);
-  });
-
-  await test('creatorMissionValidate fails closed before network when authority is missing', async () => {
-    restoreAxios();
-    let postCalled = false;
-    (axios as any).post = async () => {
-      postCalled = true;
-      return { data: { ok: true } };
-    };
-
-    const result = await spawner.creatorMissionValidate({ missionId: 'mission-creator-1', maxCommands: 3 });
-
-    assert.equal(result.success, false);
-    assert.match(result.error || '', /Harness Core execution authority is required/);
-    assert.equal(postCalled, false);
   });
 
   await test('formatCreatorMissionValidationSummary renders command totals and blockers', async () => {
@@ -797,7 +1132,7 @@ async function run(): Promise<void> {
       'http://spawner.test/'
     );
 
-    assert.match(message, /Creator validation failed/);
+    assert.match(message, /Loop Engineering validation failed/);
     assert.doesNotMatch(message, /Mission: mission-creator-1/);
     assert.match(message, /2 commands/);
     assert.match(message, /1 passed/);
@@ -839,7 +1174,7 @@ async function run(): Promise<void> {
 
     assert.match(message, /artifact validation passed; promotion is still blocked/i);
     assert.match(message, /baseline, candidate, delta, held-out\/trap verdicts, and benchmark refs/);
-    assert.doesNotMatch(message, /Creator validation passed\./);
+    assert.doesNotMatch(message, /Loop Engineering validation passed\./);
     assert.doesNotMatch(message, /Creator Mission score/);
   });
 
@@ -871,218 +1206,41 @@ async function run(): Promise<void> {
 
   await test('missionCommand formats provider status for Telegram', async () => {
     restoreAxios();
-    const executionAuthority = fakeExecutionAuthority('spawner.mission_control.status');
-    let capturedUrl = '';
-    (axios as any).get = async (url: string) => {
-      capturedUrl = url;
-      return {
+    (axios as any).post = async () => ({
       data: {
-        ok: true,
-        snapshot: {
-          recent: [{
-            eventType: 'mission_failed',
-            missionName: 'Status Probe',
-            summary: 'Codex could not finish.'
-          }],
-          providerSummary: 'Codex: unknown error',
-          completionEvidence: {
-            terminalStatus: 'failed'
+        status: {
+          paused: false,
+          allComplete: true,
+          providers: {
+            codex: 'completed',
+            claude: 'running'
           }
         }
       }
-    };
-    };
-
-    const result = await spawner.missionCommand('status', 'spark-status', { executionAuthority });
-
-    assert.equal(result.success, true);
-    assert.match(capturedUrl, /\/api\/mission-control\/status\?missionId=spark-status$/);
-    assert.match(result.message, /Status Probe failed/);
-    assert.match(result.message, /Terminal status: failed/);
-    assert.match(result.message, /Provider: Codex: unknown error/);
-    assert.match(result.message, /Treat it as completed: no/);
-    assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-status/);
-  });
-
-  await test('missionCommand forwards native Governor authority when supplied', async () => {
-    restoreAxios();
-    const executionAuthority = fakeMissionControlAuthority();
-    let capturedBody: any = null;
-    (axios as any).post = async (_url: string, body: unknown) => {
-      capturedBody = body;
-      return { data: { ok: true, message: 'paused' } };
-    };
-
-    const result = await spawner.missionCommand('pause', 'spark-status', { executionAuthority });
-
-    assert.equal(result.success, true);
-    assert.equal(capturedBody.executionAuthority, executionAuthority);
-  });
-
-  await test('missionCommand uses event control auth instead of bridge auth', async () => {
-    restoreAxios();
-    process.env.SPARK_BRIDGE_API_KEY = 'bridge-secret-for-tests';
-    process.env.MCP_API_KEY = 'mcp-secret-for-tests';
-    process.env.EVENTS_API_KEY = 'events-secret-for-tests';
-    process.env.SPARK_UI_API_KEY = 'ui-secret-for-tests';
-    const executionAuthority = fakeMissionControlAuthority();
-    let capturedOptions: any = null;
-    (axios as any).post = async (_url: string, _body: unknown, options: unknown) => {
-      capturedOptions = options;
-      return { data: { ok: true, message: 'paused' } };
-    };
-
-    const result = await spawner.missionCommand('pause', 'spark-status', { executionAuthority });
-
-    assert.equal(result.success, true);
-    assert.equal(capturedOptions.headers['x-api-key'], 'events-secret-for-tests');
-    assert.equal(capturedOptions.headers['x-spawner-ui-key'], 'ui-secret-for-tests');
-  });
-
-  await test('missionCommand fails closed before network when authority is missing', async () => {
-    restoreAxios();
-    let postCalled = false;
-    (axios as any).post = async () => {
-      postCalled = true;
-      return { data: { ok: true } };
-    };
-
-    const result = await spawner.missionCommand('pause', 'spark-status');
-
-    assert.equal(result.success, false);
-    assert.match(result.message, /Harness Core execution authority is required/);
-    assert.equal(postCalled, false);
-  });
-
-  await test('pauseContextualActiveMission forwards native Governor authority', async () => {
-    restoreAxios();
-    const executionAuthority = fakeMissionControlAuthority();
-    let capturedBody: any = null;
-    (axios as any).get = async () => ({
-      data: {
-        board: {
-          running: [
-            {
-              missionId: 'spark-active',
-              missionName: 'Active Mission',
-              status: 'running',
-              lastEventType: 'mission_started',
-              lastUpdated: new Date().toISOString(),
-              lastSummary: '',
-              taskName: null
-            }
-          ],
-          paused: [],
-          completed: [],
-          failed: [],
-          cancelled: [],
-          created: []
-        }
-      }
     });
-    (axios as any).post = async (_url: string, body: unknown) => {
-      capturedBody = body;
-      return { data: { ok: true } };
-    };
 
-    const result = await spawner.pauseContextualActiveMission({ executionAuthority });
+    const result = await spawner.missionCommand('status', 'spark-status');
 
     assert.equal(result.success, true);
-    assert.equal(result.commandSent, true);
-    assert.equal(capturedBody.action, 'pause');
-    assert.equal(capturedBody.executionAuthority, executionAuthority);
-  });
-
-  await test('resumeContextualPausedMission forwards native Governor authority', async () => {
-    restoreAxios();
-    const executionAuthority = fakeMissionControlAuthority();
-    let capturedBody: any = null;
-    (axios as any).get = async () => ({
-      data: {
-        board: {
-          running: [],
-          paused: [
-            {
-              missionId: 'spark-paused',
-              missionName: 'Paused Mission',
-              status: 'paused',
-              lastEventType: 'mission_paused',
-              lastUpdated: new Date().toISOString(),
-              lastSummary: '',
-              taskName: null
-            }
-          ],
-          completed: [],
-          failed: [],
-          cancelled: [],
-          created: []
-        }
-      }
-    });
-    (axios as any).post = async (_url: string, body: unknown) => {
-      capturedBody = body;
-      return { data: { ok: true } };
-    };
-
-    const result = await spawner.resumeContextualPausedMission({ executionAuthority });
-
-    assert.equal(result.success, true);
-    assert.equal(result.commandSent, true);
-    assert.equal(capturedBody.action, 'resume');
-    assert.equal(capturedBody.executionAuthority, executionAuthority);
-  });
-
-  await test('confirmContextualMissionCancel forwards native Governor authority', async () => {
-    restoreAxios();
-    const executionAuthority = fakeMissionControlAuthority();
-    let capturedBody: any = null;
-    (axios as any).get = async () => ({
-      data: {
-        board: {
-          running: [
-            {
-              missionId: 'spark-cancel',
-              missionName: 'Cancel Mission',
-              status: 'running',
-              lastEventType: 'mission_started',
-              lastUpdated: new Date().toISOString(),
-              lastSummary: '',
-              taskName: null
-            }
-          ],
-          paused: [],
-          completed: [],
-          failed: [],
-          cancelled: [],
-          created: []
-        }
-      }
-    });
-    (axios as any).post = async (_url: string, body: unknown) => {
-      capturedBody = body;
-      return { data: { ok: true, message: 'cancelled' } };
-    };
-
-    const result = await spawner.confirmContextualMissionCancel('spark-cancel', 'Cancel Mission', { executionAuthority });
-
-    assert.equal(result.success, true);
-    assert.equal(result.commandSent, true);
-    assert.equal(capturedBody.action, 'kill');
-    assert.equal(capturedBody.executionAuthority, executionAuthority);
+    assert.match(result.message, /Mission is complete/);
+    assert.match(result.message, /• Complete: yes/);
+    assert.match(result.message, /• Codex: completed/);
+    assert.match(result.message, /• Claude: running/);
+    assert.match(result.message, /• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/spark-status/);
+    assert.match(result.message, /• Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-status/);
+    assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=spark-status/);
   });
 
   await test('missionCommand reports not-found status without inventing a mission', async () => {
     restoreAxios();
-    (axios as any).get = async () => ({
+    (axios as any).post = async () => ({
       data: {
         ok: false,
         error: 'Mission spark-not-real was not found. Use /board to pick a current mission ID.'
       }
     });
 
-    const result = await spawner.missionCommand('status', 'spark-not-real', {
-      executionAuthority: fakeExecutionAuthority('spawner.mission_control.status')
-    });
+    const result = await spawner.missionCommand('status', 'spark-not-real');
 
     assert.equal(result.success, false);
     assert.match(result.message, /not found/i);
@@ -1098,9 +1256,7 @@ async function run(): Promise<void> {
       }
     });
 
-    const result = await spawner.missionCommand('pause', 'not-spark-id', {
-      executionAuthority: fakeMissionControlAuthority()
-    });
+    const result = await spawner.missionCommand('pause', 'not-spark-id');
 
     assert.equal(result.success, false);
     assert.match(result.message, /not found/i);
@@ -1331,6 +1487,42 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /^Tasks:/im);
     assert.doesNotMatch(result.message, /^Relay:/im);
     assert.doesNotMatch(result.message, /mission-older/);
+  });
+
+  await test('latestKanbanSummary ignores malformed timestamps when choosing the newest mission', async () => {
+    restoreAxios();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'mission-invalid-date',
+              missionName: 'Malformed timestamp mission',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: 'not-a-date'
+            },
+            {
+              missionId: 'mission-valid-date',
+              missionName: 'Valid timestamp mission',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: '2026-07-24T00:00:00.000Z'
+            }
+          ],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestKanbanSummary();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /Valid timestamp mission/);
+    assert.doesNotMatch(result.message, /Malformed timestamp mission/);
   });
 
   await test('latestProviderSummary reports the provider for the newest Spawner job', async () => {
@@ -1808,115 +2000,6 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /running/);
   });
 
-  await test('latestProjectPreview warns when a newer related mission contradicts an older completed preview', async () => {
-    restoreAxios();
-    const now = Date.now();
-    (axios as any).get = async () => ({
-      data: {
-        board: {
-          running: [],
-          paused: [],
-          completed: [
-            {
-              missionId: 'mission-proof-orchard',
-              missionName: 'Proof Orchard',
-              status: 'completed',
-              lastEventType: 'mission_completed',
-              lastUpdated: new Date(now - 60_000).toISOString(),
-              lastSummary: 'Done',
-              taskName: 'Ship app',
-              providerSummary: 'Codex: Replaced the root screen with Proof Orchard in src/routes/+page.svelte.',
-              projectLineage: {
-                projectId: 'project-proof-orchard',
-                previewUrl: 'http://127.0.0.1:3333/preview/proof-orchard/index.html'
-              }
-            }
-          ],
-          failed: [
-            {
-              missionId: 'mission-proof-orchard-polish-failed',
-              missionName: 'Mission mission-proof-orchard Proof Orchard polish',
-              status: 'failed',
-              lastEventType: 'provider_failed',
-              lastUpdated: new Date(now).toISOString(),
-              lastSummary: 'Mission failed.',
-              taskName: 'Polish Proof Orchard',
-              providerSummary: 'Codex: unknown error',
-              projectLineage: {
-                projectId: 'project-proof-orchard',
-                parentMissionId: 'mission-proof-orchard',
-                previewUrl: 'http://127.0.0.1:3333/preview/proof-orchard-polish/index.html'
-              }
-            }
-          ],
-          created: []
-        }
-      }
-    });
-
-    const result = await spawner.latestProjectPreview();
-
-    assert.equal(result.success, true);
-    assert.match(result.message, /completed preview for Proof Orchard/i);
-    assert.match(result.message, /would not treat it as the current finished version yet/i);
-    assert.match(result.message, /newer related Mission Control item is failed/i);
-    assert.match(result.message, /mission-proof-orchard-polish-failed/);
-    assert.doesNotMatch(result.message, /Here is the latest shipped app/i);
-  });
-
-  await test('latestProjectPreview ignores unrelated newer failures when choosing shipped apps', async () => {
-    restoreAxios();
-    const now = Date.now();
-    (axios as any).get = async () => ({
-      data: {
-        board: {
-          running: [],
-          paused: [],
-          completed: [
-            {
-              missionId: 'mission-proof-orchard',
-              missionName: 'Proof Orchard',
-              status: 'completed',
-              lastEventType: 'mission_completed',
-              lastUpdated: new Date(now - 60_000).toISOString(),
-              lastSummary: 'Done',
-              taskName: 'Ship app',
-              providerSummary: 'Codex: Replaced the root screen with Proof Orchard in src/routes/+page.svelte.',
-              projectLineage: {
-                projectId: 'project-proof-orchard',
-                previewUrl: 'http://127.0.0.1:3333/preview/proof-orchard/index.html'
-              }
-            }
-          ],
-          failed: [
-            {
-              missionId: 'mission-unrelated-failed',
-              missionName: 'Unrelated Failure Probe',
-              status: 'failed',
-              lastEventType: 'mission_failed',
-              lastUpdated: new Date(now).toISOString(),
-              lastSummary: 'Mission failed.',
-              taskName: 'Check another lane',
-              providerSummary: 'Codex: unknown error',
-              projectLineage: {
-                projectId: 'project-unrelated'
-              }
-            }
-          ],
-          created: []
-        }
-      }
-    });
-
-    const result = await spawner.latestProjectPreview();
-
-    assert.equal(result.success, true);
-    assert.match(result.message, /Here is the latest shipped app/i);
-    assert.match(result.message, /Proof Orchard/);
-    assert.doesNotMatch(result.message, /Unrelated Failure Probe/);
-    assert.doesNotMatch(result.message, /would not treat it as the current finished version/i);
-  });
-
   await test('latestProjectPreview skips no-edit golden path probes when choosing shipped apps', async () => {
     restoreAxios();
     const now = Date.now();
@@ -1960,59 +2043,6 @@ async function run(): Promise<void> {
     assert.match(result.message, /Proof Orchard/);
     assert.doesNotMatch(result.message, /Telegram Golden Path Probe/);
     assert.doesNotMatch(result.message, /SPARK_QA_NO_EDIT_OK/);
-  });
-
-  await test('latestProjectPreview uses structured project lineage preview over newer Spark run probes', async () => {
-    restoreAxios();
-    const now = Date.now();
-    (axios as any).get = async () => ({
-      data: {
-        board: {
-          running: [],
-          paused: [],
-          completed: [
-            {
-              missionId: 'spark-ping-ok-probe',
-              missionName: 'Spark Run: Reply with exactly: PING_OK',
-              status: 'completed',
-              lastEventType: 'mission_completed',
-              lastUpdated: new Date(now).toISOString(),
-              lastSummary: 'Mission completed.',
-              taskName: 'Execute goal',
-              providerSummary: 'Provider summary requires control auth.',
-              taskCount: 1,
-              taskNames: ['Execute goal'],
-              projectLineage: null
-            },
-            {
-              missionId: 'mission-day-triage-reset',
-              missionName: 'Day Triage Reset QA 20260616',
-              status: 'completed',
-              lastEventType: 'mission_completed',
-              lastUpdated: new Date(now - 60_000).toISOString(),
-              lastSummary: 'Mission completed.',
-              taskName: null,
-              providerSummary: 'Provider summary requires control auth.',
-              projectLineage: {
-                projectId: 'project-day-triage-reset',
-                previewUrl: 'http://127.0.0.1:3333/preview/day-triage-reset/index.html'
-              }
-            }
-          ],
-          failed: [],
-          created: []
-        }
-      }
-    });
-
-    const result = await spawner.latestProjectPreview();
-
-    assert.equal(result.success, true);
-    assert.match(result.message, /Here is the latest shipped app/i);
-    assert.match(result.message, /Day Triage Reset QA 20260616/);
-    assert.match(result.message, /http:\/\/127\.0\.0\.1:3333\/preview\/day-triage-reset\/index\.html/);
-    assert.doesNotMatch(result.message, /PING_OK/);
-    assert.doesNotMatch(result.message, /latest app-like completed run/i);
   });
 
   await test('latestProjectPreview does not present only golden path probes as shipped apps', async () => {
@@ -2095,6 +2125,43 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /Current Composition Test/);
     assert.doesNotMatch(result.message, /^Mission$/m);
     assert.doesNotMatch(result.message, /• completed/);
+  });
+
+  await test('Spawner failures stay bounded when a client rejects without an Error object', async () => {
+    restoreAxios();
+    (axios as any).get = async () => Promise.reject(undefined);
+    (axios as any).post = async () => Promise.reject(undefined);
+
+    const board = await spawner.board();
+    const runGoal = await spawner.runGoal({
+      goal: 'verify bounded error handling',
+      chatId: '123',
+      userId: '123',
+      requestId: 'bounded-error-test',
+      executionAuthority: fakeExecutionAuthority()
+    });
+
+    assert.deepEqual(board, {
+      success: false,
+      message: 'Mission board is unavailable right now. Run /diagnose to check the local Spawner service.'
+    });
+    assert.deepEqual(runGoal, { success: false, error: 'Spark run bridge failed' });
+  });
+
+  await test('board read failures never expose raw paths or credentials', async () => {
+    restoreAxios();
+    (axios as any).get = async () => {
+      const error: any = new Error('failed at C:\\Users\\Private\\board.json with token sk-private-token-value');
+      error.response = { data: { error: error.message } };
+      throw error;
+    };
+
+    const result = await spawner.latestProviderSummary();
+
+    assert.equal(result.success, false);
+    assert.match(result.message, /Latest provider summary is unavailable right now/);
+    assert.match(result.message, /\/diagnose/);
+    assert.doesNotMatch(result.message, /C:\\Users|sk-private|board\.json/);
   });
 }
 

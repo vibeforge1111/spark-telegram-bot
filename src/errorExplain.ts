@@ -55,6 +55,11 @@ function compactDetail(text: string): string {
   ) {
     return 'Builder bridge command did not finish cleanly. Run /diagnose for the current Builder and memory status.';
   }
+  if (
+    /\bcommand failed\b|\bspawn\s+\S+\s+(?:enoent|eacces)\b|\binternal command\b/i.test(oneLine)
+  ) {
+    return 'An internal command did not finish cleanly. Run /diagnose for the current runtime status.';
+  }
   return oneLine.length > 220 ? `${oneLine.slice(0, 217)}...` : oneLine;
 }
 
@@ -63,9 +68,34 @@ function doctorCommand(category: string, context: SparkErrorContext): string {
   return `spark doctor llm "${problem}" --save-report --upstream-report`;
 }
 
+export function isHypotheticalSparkTroubleshootingQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const hypothetical = (
+    /\bwhat\s+(?:(?:would|will)\s+happen|happens?)\s+if\b/.test(normalized)
+    || /\bwhat\s+if\b/.test(normalized)
+    || /\bsuppose\b/.test(normalized)
+    || /\bhypothetically\b/.test(normalized)
+  );
+  const component = /\b(?:spawner|mission control|provider|model provider|telegram relay|mission relay)\b/.test(normalized);
+  const failure = /\b(?:down|offline|unavailable|broken|fails?|failed|not running|stops?|disconnects?)\b/.test(normalized);
+  return hypothetical && component && failure;
+}
+
+export function explainHypotheticalSparkScenario(text: string): string {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (/\b(?:spawner|mission control)\b/.test(normalized)) {
+    return 'If Mission Control is offline, Spark should fail the mission start instead of pretending it launched. Check /diagnose, then have the operator run spark live status and restart spawner-ui before retrying.';
+  }
+  if (/\b(?:telegram relay|mission relay)\b/.test(normalized)) {
+    return 'If the Telegram relay is down, mission updates cannot be trusted as delivered even if work continues elsewhere. Check /diagnose, inspect the board, and have the operator restart telegram-starter before relying on chat updates.';
+  }
+  return 'If a model provider fails, the affected chat or mission role should report the failure rather than silently switching context. Check /diagnose and spark providers status; the operator can use spark setup if that role needs a different provider.';
+}
+
 export function explainSparkError(error: unknown, context: SparkErrorContext = 'chat'): SparkErrorExplanation {
-  const detail = compactDetail(extractErrorText(error));
-  const lower = detail.toLowerCase();
+  const errorText = extractErrorText(error);
+  const detail = compactDetail(errorText);
+  const lower = errorText.toLowerCase();
 
   if (
     context === 'spawner' &&
@@ -117,6 +147,22 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
   }
 
   if (
+    lower.includes('http 404') ||
+    lower.includes('status code 404') ||
+    lower.includes('404 not found') ||
+    lower.includes('endpoint not found') ||
+    lower.includes('model endpoint not found')
+  ) {
+    return {
+      category: 'provider_endpoint',
+      userLine: 'Spark reached the model provider, but the configured endpoint returned 404 (not found).',
+      detail,
+      check: 'Run /diagnose so Spark can show which base URL and model name the chat path is targeting.',
+      repair: 'Operator fix: run spark providers status, then spark setup to select a valid provider URL and model.'
+    };
+  }
+
+  if (
     lower.includes('model not found') ||
     lower.includes('unknown model') ||
     lower.includes('invalid model') ||
@@ -146,6 +192,23 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
       detail,
       check: 'Check the current runner writability and whether the requested path is inside a writable Spark workspace.',
       repair: 'Route the work through a writable Spark/Spawner/Codex lane, or run /access_setup and restart Spark if this local lane should be writable.'
+    };
+  }
+
+  if (
+    context === 'spawner' &&
+    (
+      lower.includes('missing mission id') ||
+      lower.includes('without mission id') ||
+      lower.includes('missing closure proof')
+    )
+  ) {
+    return {
+      category: 'spawner_missing_closure_proof',
+      userLine: 'Mission Control answered, but it did not return a mission id.',
+      detail,
+      check: 'Treat this as missing closure proof, not a started run. Retry only after Mission Control can return a fresh mission id for the exact turn.',
+      repair: 'Operator fix: check the /api/spark/run response and Mission Control relay logs, then rerun the no-edit probe.'
     };
   }
 
@@ -238,6 +301,16 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
       detail,
       check: 'Run /diagnose so Spark can check Builder, memory, and the selected memory model.',
       repair: 'Operator fix: spark fix telegram, then spark verify --onboarding.'
+    };
+  }
+
+  if (/\bspawn\s+claude\b/.test(lower) && lower.includes('enoent')) {
+    return {
+      category: 'claude_cli_path',
+      userLine: 'Spark cannot see the Claude executable from the Telegram runtime.',
+      detail,
+      check: 'Run /diagnose and spark providers status to confirm the Claude provider and service environment.',
+      repair: 'Operator fix: make the claude executable available on the Spark service PATH, restart telegram-starter, then run /diagnose again.'
     };
   }
 

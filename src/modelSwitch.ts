@@ -139,6 +139,14 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
 const CODEX_REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']);
 const CODEX_SERVICE_TIERS = new Set(['fast', 'flex']);
 
+function codexReasoningHelp(): string {
+  return Array.from(CODEX_REASONING_EFFORTS).join(', ');
+}
+
+function codexServiceTierHelp(): string {
+  return Array.from(CODEX_SERVICE_TIERS).join(', ');
+}
+
 function isModelLikeToken(token: string): boolean {
   return /^(?:gpt|o\d|openai\/|codex\/)/i.test(token) || token.includes('/');
 }
@@ -167,10 +175,24 @@ export function codexClientConfigArgsFromModelCommand(raw: string): CodexClientC
         args.push('--model', value);
         modelSet = true;
       } else if (key === 'reasoning' || key === 'reasoning-effort' || key === 'effort') {
-        args.push('--reasoning-effort', value);
+        const normalizedValue = value.toLowerCase();
+        if (!CODEX_REASONING_EFFORTS.has(normalizedValue)) {
+          return {
+            handled: true,
+            error: `I do not recognize Codex reasoning effort "${value}". Use one of: ${codexReasoningHelp()}.`
+          };
+        }
+        args.push('--reasoning-effort', normalizedValue);
         reasoningSet = true;
       } else {
-        args.push('--service-tier', value);
+        const normalizedValue = value.toLowerCase();
+        if (!CODEX_SERVICE_TIERS.has(normalizedValue)) {
+          return {
+            handled: true,
+            error: `I do not recognize Codex service tier "${value}". Use one of: ${codexServiceTierHelp()}.`
+          };
+        }
+        args.push('--service-tier', normalizedValue);
         tierSet = true;
       }
       continue;
@@ -237,7 +259,8 @@ const PROVIDER_ALIASES: Record<string, ProviderId> = {
 };
 
 function moduleConfigDir(): string {
-  return process.env.SPARK_MODULE_CONFIG_DIR || path.join(os.homedir(), '.spark', 'config', 'modules');
+  const sparkHome = process.env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark');
+  return process.env.SPARK_MODULE_CONFIG_DIR || path.join(sparkHome, 'config', 'modules');
 }
 
 function envFiles(): string[] {

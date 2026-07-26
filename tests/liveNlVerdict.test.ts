@@ -7,8 +7,11 @@ import {
   buildObservedLiveNlEvidencePacket,
   buildLiveNlEvidencePacket,
   buildLiveNlObservationTemplate,
+  deriveLiveNlHarnessCoreMapping,
+  formatLiveNlHarnessCoreMap,
   formatLiveNlCopyPastePrompts,
   formatLiveNlVerdictReport,
+  LIVE_NL_AUTHORITY_CLAIM_BOUNDARY,
   liveNlCaseTurns,
   parseLiveNlCommandCases,
   parseLiveNlObservationFile,
@@ -76,6 +79,95 @@ test('keeps explicit multi-case selection in requested order', () => {
   const selected = selectLiveNlCommandCases(cases, { caseIds: ['wiki-001', 'safe-001'] });
 
   assert.deepEqual(selected.map((entry) => entry.id), ['wiki-001', 'safe-001']);
+});
+
+test('rejects unknown explicit live NL case ids', () => {
+  assert.throws(
+    () => selectLiveNlCommandCases(cases, { caseIds: ['safe-001', 'missing-001'] }),
+    /Unknown live NL case id\(s\): missing-001/
+  );
+});
+
+test('derives Harness Core mutation and authority fields from legacy NL cases', () => {
+  const [memoryCase, accessCase, missionCase, noActionCase] = parseLiveNlCommandCases([
+    {
+      id: 'memory-safe-001',
+      suite: 'memory',
+      risk: 'safe',
+      prompt: 'remember this: concise replies',
+      expectedRoute: 'memory_directive',
+      expectedOutcome: 'Saves the preference.'
+    },
+    {
+      id: 'access-safe-001',
+      suite: 'access',
+      risk: 'safe',
+      prompt: '/access 3',
+      expectedRoute: 'slash_access',
+      expectedOutcome: 'Sets agent access.'
+    },
+    {
+      id: 'mission-legacy-001',
+      suite: 'mission',
+      risk: 'mission',
+      prompt: '/run say OK',
+      expectedRoute: 'slash_run',
+      expectedOutcome: 'Starts a mission.'
+    },
+    {
+      id: 'no-action-001',
+      suite: 'guardrails',
+      risk: 'safe',
+      prompt: 'I am mentioning build and mission, but do not start anything.',
+      expectedRoute: 'conversation',
+      expectedOutcome: 'Explains without launching work. Must not save this as memory.'
+    }
+  ]);
+
+  assert.deepEqual(
+    {
+      mutation: deriveLiveNlHarnessCoreMapping(memoryCase).expectedMutationClass,
+      authority: deriveLiveNlHarnessCoreMapping(memoryCase).expectedAuthority,
+      use: deriveLiveNlHarnessCoreMapping(memoryCase).recommendedUse,
+      promotionGapRequired: deriveLiveNlHarnessCoreMapping(memoryCase).promotionGapRequired
+    },
+    {
+      mutation: 'writes_memory',
+      authority: 'confirmation_required_or_allowed',
+      use: 'run_only_with_intentional_action_confirmation',
+      promotionGapRequired: 'name measured control-proof or trace-join gap before promotion'
+    }
+  );
+  assert.equal(deriveLiveNlHarnessCoreMapping(accessCase).expectedMutationClass, 'updates_access_setting');
+  assert.equal(deriveLiveNlHarnessCoreMapping(missionCase).expectedMutationClass, 'launches_mission');
+  assert.equal(deriveLiveNlHarnessCoreMapping(noActionCase).expectedMutationClass, 'none');
+  assert.equal(deriveLiveNlHarnessCoreMapping(noActionCase).expectedAuthority, 'blocked_without_authority');
+  assert.equal(deriveLiveNlHarnessCoreMapping(noActionCase).recommendedUse, 'promote_after_refurbish');
+});
+
+test('formats a Harness Core map without claiming release proof', () => {
+  const report = formatLiveNlHarnessCoreMap([cases[0], cases[1]], {
+    catalog: 'fixture-live-catalog.json',
+    title: 'Fixture Harness Map'
+  });
+
+  assert.match(report, /# Fixture Harness Map/);
+  assert.match(report, /Catalog: fixture-live-catalog\.json/);
+  assert.match(report, /Selected cases: 2/);
+  assert.match(report, /Do not treat this map or a passing `nl:live` run as Harness Core release proof/);
+  assert.match(report, /\| Case \| Suite \| Old risk \| Mutation \| Authority \| Use \| Promotion gap \| Proof if promoted \| Capture required \|/);
+  assert.match(report, /\| safe-001 \| memory \| safe \| writes_memory \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| name measured control-proof or trace-join gap before promotion \| yes \| observed_reply, side_effects, trace_join, proof_join, reply_shape, proof_panel, screenshot_or_user_confirmation \|/);
+  assert.match(report, /\| mission-001 \| mission \| mission \| launches_mission \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| name measured control-proof or trace-join gap before promotion \| yes \| observed_reply, side_effects, trace_join, proof_join, reply_shape, proof_panel, screenshot_or_user_confirmation \|/);
+});
+
+test('formats Harness Core map with selected versus full catalog count', () => {
+  const report = formatLiveNlHarnessCoreMap([cases[0], cases[2]], {
+    catalog: 'fixture-live-catalog.json',
+    totalCases: cases.length,
+    includeRisky: false
+  });
+
+  assert.match(report, /Selected cases: 2 of 3 \(risky cases excluded unless explicitly selected\)/);
 });
 
 test('expands suite aliases for verdict reports', () => {
@@ -154,6 +246,37 @@ test('rejects malformed command cases', () => {
   assert.throws(
     () => parseLiveNlCommandCases([{ id: 'bad', suite: 'memory', risk: 'danger', prompt: 'x', expectedRoute: 'x', expectedOutcome: 'x' }]),
     /unsupported risk danger\. Allowed risks: safe, mission, writes_files, external\./
+  );
+});
+
+test('names every missing required live command field', () => {
+  assert.throws(
+    () => parseLiveNlCommandCases([{ id: 'missing-fields', risk: 'safe' }]),
+    /Live NL case missing-fields is missing required field\(s\): suite, prompt or turns, expectedRoute, expectedOutcome/
+  );
+});
+
+test('rejects duplicate live NL command case ids before selection', () => {
+  assert.throws(
+    () => parseLiveNlCommandCases([
+      {
+        id: 'safe-duplicate',
+        suite: 'memory',
+        risk: 'safe',
+        prompt: 'remember this: concise replies',
+        expectedRoute: 'memory_directive',
+        expectedOutcome: 'Saves the preference.'
+      },
+      {
+        id: 'safe-duplicate',
+        suite: 'wiki',
+        risk: 'safe',
+        prompt: 'what pages are in your LLM wiki?',
+        expectedRoute: 'natural_wiki_inventory',
+        expectedOutcome: 'Lists wiki pages.'
+      }
+    ]),
+    /Live NL case id safe-duplicate is duplicated\./
   );
 });
 
@@ -279,7 +402,10 @@ test('Genesis live Telegram evidence packet is a structured untested run contain
   assert.deepEqual(packet.cases[99].evidence_refs.authorization_ledgers, []);
   assert.equal(packet.cases[99].side_effects.mission_started, null);
   assert.equal(packet.required_session_evidence.overall_verdict, 'untested');
-  assert.match(packet.authority_claim_boundary, /does not prove release readiness/);
+  assert.match(packet.authority_claim_boundary, /claim_scope=legacy_breadth/);
+  assert.match(packet.authority_claim_boundary, /release_gate=none/);
+  assert.match(packet.authority_claim_boundary, /not Harness Core release proof/);
+  assert.match(packet.authority_claim_boundary, /remains legacy breadth evidence unless the case is promoted into a Harness-shaped control-proof canary packet/);
 });
 
 test('Genesis live Telegram observation template hides scoring expectations', () => {
@@ -294,6 +420,11 @@ test('Genesis live Telegram observation template hides scoring expectations', ()
 
   assert.equal(template.generatedAt, '2026-06-02T00:00:00.000Z');
   assert.equal(template.title, 'Spark Genesis Telegram Live QA Observation Template');
+  assert.equal(template.claimScope, 'legacy_breadth');
+  assert.equal(template.authorityClaimBoundary, LIVE_NL_AUTHORITY_CLAIM_BOUNDARY);
+  assert.match(template.authorityClaimBoundary || '', /claim_scope=legacy_breadth/);
+  assert.match(template.authorityClaimBoundary || '', /release_gate=none/);
+  assert.match(template.authorityClaimBoundary || '', /not Harness Core release proof/);
   assert.equal(template.cases.length, 2);
   assert.equal(template.cases[0].id, 'genesis-002');
   assert.equal(template.cases[0].verdict, 'untested');
@@ -306,6 +437,8 @@ test('Genesis live Telegram observation template hides scoring expectations', ()
   assert.doesNotMatch(serialized, /chat_plan|chat_draft_text/);
 
   const parsed = parseLiveNlObservationFile(template);
+  assert.equal(parsed.claimScope, 'legacy_breadth');
+  assert.equal(parsed.authorityClaimBoundary, LIVE_NL_AUTHORITY_CLAIM_BOUNDARY);
   assert.deepEqual(parsed.cases.map((entry) => entry.id), ['genesis-002', 'genesis-010']);
 });
 
@@ -353,6 +486,8 @@ test('observed live QA packet imports replies, side effects, evidence refs, and 
       }
     ]
   });
+  assert.equal(observations.claimScope, 'legacy_breadth');
+  assert.equal(observations.authorityClaimBoundary, LIVE_NL_AUTHORITY_CLAIM_BOUNDARY);
   const packet = buildObservedLiveNlEvidencePacket(cases, observations, {
     catalog: 'fixture-live-catalog.json',
     includeRisky: true,
@@ -367,6 +502,8 @@ test('observed live QA packet imports replies, side effects, evidence refs, and 
   assert.equal(packet.required_session_evidence.profile, 'sparkqa-bot');
   assert.equal(packet.required_session_evidence.overall_verdict, 'fail');
   assert.deepEqual(packet.required_session_evidence.remaining_risks, ['full 100-case run still incomplete']);
+  assert.match(packet.authority_claim_boundary, /claim_scope=legacy_breadth/);
+  assert.match(packet.authority_claim_boundary, /release_gate=none/);
 
   const safeCase = packet.cases.find((entry) => entry.id === 'safe-001');
   assert.ok(safeCase);
@@ -384,6 +521,32 @@ test('observed live QA packet imports replies, side effects, evidence refs, and 
   assert.equal(wikiCase.retest_required, true);
   assert.equal(wikiCase.issue, 'Missed read-only wiki inventory route.');
   assert.deepEqual(wikiCase.evidence_refs.traces, ['trace:wiki-001']);
+});
+
+test('live NL observation parser preserves the legacy breadth boundary', () => {
+  assert.throws(
+    () => parseLiveNlObservationFile({
+      claimScope: 'release_proof',
+      authorityClaimBoundary: LIVE_NL_AUTHORITY_CLAIM_BOUNDARY,
+      cases: [{ id: 'safe-001', verdict: 'pass' }]
+    }),
+    /claim scope must be legacy_breadth/
+  );
+
+  assert.throws(
+    () => parseLiveNlObservationFile({
+      claimScope: 'legacy_breadth',
+      authorityClaimBoundary: 'claim_scope=legacy_breadth; release_gate=control_proof_canary',
+      cases: [{ id: 'safe-001', verdict: 'pass' }]
+    }),
+    /authority boundary must preserve claim_scope=legacy_breadth, release_gate=none/
+  );
+
+  const parsed = parseLiveNlObservationFile({
+    cases: [{ id: 'safe-001', verdict: 'pass' }]
+  });
+  assert.equal(parsed.claimScope, 'legacy_breadth');
+  assert.equal(parsed.authorityClaimBoundary, LIVE_NL_AUTHORITY_CLAIM_BOUNDARY);
 });
 
 test('observed live QA packet rejects unknown observation case ids', () => {
@@ -421,6 +584,97 @@ test('live NL CLI loads the Genesis 100-prompt catalog by name', () => {
   assert.match(lines[99], /^genesis-100\tgenesis_stale_recursive_swarm\tmission\texecute_action_launch_mission$/);
 });
 
+test('live NL CLI emits Harness Core refurbishment map for selected legacy cases', () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/liveNlCommandSuite.ts',
+      '--harness-map',
+      '--cases',
+      'memory-001,access-002,mission-001'
+    ],
+    {
+      cwd: ROOT,
+      encoding: 'utf8'
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /# Natural Language Harness Core Map/);
+  assert.match(result.stdout, /Selected cases: 3 of 73 \(risky cases excluded unless explicitly selected\)/);
+  assert.match(result.stdout, /Authority boundary: claim_scope=legacy_breadth; release_gate=none; promotion_target=control_proof_canary/);
+  assert.match(result.stdout, /not Harness Core release proof/);
+  assert.match(result.stdout, /promote selected prompts only when they close a measured control-proof or trace-join gap/);
+  assert.match(result.stdout, /do not use legacy NL cases to expand UI, media support, rich composition, or new features/);
+  assert.match(result.stdout, /\| memory-001 \| memory \| safe \| writes_memory \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| name measured control-proof or trace-join gap before promotion \| yes \| observed_reply, side_effects, trace_join, proof_join, reply_shape, proof_panel, screenshot_or_user_confirmation \|/);
+  assert.match(result.stdout, /\| access-002 \| access \| safe \| updates_access_setting \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| name measured control-proof or trace-join gap before promotion \| yes \| observed_reply, side_effects, trace_join, proof_join, reply_shape, proof_panel, screenshot_or_user_confirmation \|/);
+  assert.match(result.stdout, /\| mission-001 \| mission \| mission \| launches_mission \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| name measured control-proof or trace-join gap before promotion \| yes \| observed_reply, side_effects, trace_join, proof_join, reply_shape, proof_panel, screenshot_or_user_confirmation \|/);
+});
+
+test('live NL CLI help keeps the legacy suite out of release-proof claims', () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/liveNlCommandSuite.ts',
+      '--help'
+    ],
+    {
+      cwd: ROOT,
+      encoding: 'utf8'
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /legacy NL suite is breadth\/drift coverage, not Harness Core release proof/);
+  assert.match(result.stdout, /--harness-map classifies selected old cases into Harness Core authority and mutation fields; it is a promotion helper, not a release gate/);
+});
+
+test('live NL CLI strict Harness map fails cases that need promotion', () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/liveNlCommandSuite.ts',
+      '--harness-map',
+      '--harness-strict',
+      '--cases',
+      'memory-001,access-002,mission-001'
+    ],
+    {
+      cwd: ROOT,
+      encoding: 'utf8'
+    }
+  );
+
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /run_only_with_intentional_action_confirmation: 3/);
+  assert.match(result.stderr, /Harness strict failed: 3 selected legacy case\(s\) need promotion or intentional-action confirmation: memory-001, access-002, mission-001/);
+});
+
+test('live NL CLI strict Harness map allows legacy breadth-only cases', () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/liveNlCommandSuite.ts',
+      '--harness-map',
+      '--harness-strict',
+      '--case',
+      'smoke-001'
+    ],
+    {
+      cwd: ROOT,
+      encoding: 'utf8'
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /keep_legacy_breadth: 1/);
+  assert.doesNotMatch(result.stderr, /Harness strict failed/);
+});
+
 test('live NL verdict CLI emits a Genesis evidence packet', () => {
   const result = spawnSync(
     process.execPath,
@@ -444,6 +698,8 @@ test('live NL verdict CLI emits a Genesis evidence packet', () => {
   assert.equal(packet.schema_version, 'spark.telegram_live_qa_evidence_packet.v1');
   assert.equal(packet.catalog, 'genesis-live-telegram-100.json');
   assert.equal(packet.selection.case_count, 100);
+  assert.match(packet.authority_claim_boundary, /claim_scope=legacy_breadth/);
+  assert.match(packet.authority_claim_boundary, /release_gate=none/);
   assert.equal(packet.summary.untested, 100);
   assert.equal(packet.cases[0].id, 'genesis-001');
   assert.equal(packet.cases[99].id, 'genesis-100');
@@ -472,6 +728,11 @@ test('live NL verdict CLI emits a Genesis observation template', () => {
   const template = JSON.parse(result.stdout);
   const serialized = JSON.stringify(template);
   assert.equal(template.title, 'Spark Genesis Telegram Live QA Observation Template');
+  assert.equal(template.claimScope, 'legacy_breadth');
+  assert.match(template.authorityClaimBoundary, /claim_scope=legacy_breadth/);
+  assert.match(template.authorityClaimBoundary, /release_gate=none/);
+  assert.match(template.authorityClaimBoundary, /not Harness Core release proof/);
+  assert.match(template.authorityClaimBoundary, /must not authorize high-agency actions/);
   assert.equal(template.cases.length, 1);
   assert.equal(template.cases[0].id, 'genesis-002');
   assert.equal(template.cases[0].verdict, 'untested');
@@ -546,6 +807,9 @@ test('live NL verdict CLI emits an observed Genesis evidence packet from observa
     assert.equal(packet.summary.pass, 1);
     assert.equal(packet.summary.untested, 0);
     assert.equal(packet.required_session_evidence.profile, 'sparkqa-bot');
+    assert.match(packet.authority_claim_boundary, /claim_scope=legacy_breadth/);
+    assert.match(packet.authority_claim_boundary, /release_gate=none/);
+    assert.match(packet.authority_claim_boundary, /remains legacy breadth evidence unless the case is promoted into a Harness-shaped control-proof canary packet/);
     assert.equal(packet.cases[0].observed_turns[0].reply, 'Yes, use it when you have a concrete startup proof target.');
     assert.equal(packet.cases[0].side_effects.mission_started, false);
     assert.deepEqual(packet.cases[0].evidence_refs.screenshots, ['/tmp/genesis-001.png']);

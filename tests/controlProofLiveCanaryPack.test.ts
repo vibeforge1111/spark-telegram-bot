@@ -1,0 +1,4064 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+import {
+  CONTROL_PROOF_LIVE_CANARY_CASES,
+  buildControlProofCanaryObservationTemplate,
+  formatControlProofCanaryObservationSummary,
+  formatControlProofCanaryChecklist,
+  formatControlProofCanaryCoverage,
+  formatControlProofCanaryCopyPaste,
+  formatControlProofCanaryLiveRunGuide,
+  recordControlProofCanaryObservation,
+  repairStaleProofPanelAuditLines,
+  selectControlProofCanaryCases,
+  summarizeControlProofAuditRuntimeEvidence,
+  summarizeControlProofCanaryCoverage,
+  summarizeControlProofCanaryObservations,
+  withControlProofCanaryRuntimeEvidence,
+  type ControlProofCanaryCategory
+} from '../src/controlProofLiveCanaryPack';
+
+function test(name: string, fn: () => void): void {
+  try {
+    fn();
+    console.log(`ok - ${name}`);
+  } catch (error) {
+    console.error(`not ok - ${name}`);
+    throw error;
+  }
+}
+
+const ROOT = resolve(__dirname, '..');
+const TEST_RUNTIME_COLLECTED_AT = new Date().toISOString();
+function cleanControlProofAudit(generatedAt = TEST_RUNTIME_COLLECTED_AT): string {
+  return [
+  '$ npm run control:proof:audit -- --sample 100 --fresh-strict',
+  'exit=0',
+  `Generated: ${generatedAt}`,
+  'Actionable status: clean',
+  'Blocking status: clean',
+  'Fresh-strict status: clean',
+  'Gap posture: backed legacy gaps only; no blocking or latest proof gaps',
+  '- telegram_final_answer: 100/100 sampled | latest_gap no',
+  '- telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no',
+  '- builder_gateway: 100/100 sampled | proof_gap 62 | gap_capsule 62 | gap_capsule_valid 62 | gap_ref 62 | gap_backing complete | latest_gap no',
+  '- spawner_prd_trace: 100/100 sampled | proof_gap 94 | gap_capsule 94 | gap_capsule_valid 94 | gap_ref 94 | gap_backing complete | latest_gap no',
+  '- memory_movement_index: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no',
+  '- voice_surface_view: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no',
+  '- voice_runtime_state: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no',
+  'missing evidence: 0',
+  'missing trace joins: 0',
+  'missing proof capsules: 0',
+  'legacy proof gaps: 3',
+  'incomplete legacy gap backing: 0',
+  'latest proof gaps: 0',
+  'raw ref leaks: 0',
+  'robotic failure reasons: 0',
+  'stack-like leaks: 0',
+  'Gap planes:',
+  '- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace',
+  'Legacy gap backing:',
+  '- telegram_route_confidence: backing complete | source route_confidence_legacy_repair | latest_gap no | release_blocking no | marked 97 | incomplete 0 | latest 2026-06-24T23:04:43.263Z | repair npm run control:proof:repair:route-confidence -- --dry-run --json',
+  '- builder_gateway: backing complete | source builder_gateway_trace_legacy_repair | latest_gap no | release_blocking no | marked 62 | incomplete 0 | latest 2026-06-25T23:47:10+00:00 | repair npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json',
+  '- spawner_prd_trace: backing complete | source spawner_prd_trace_legacy_repair | latest_gap no | release_blocking no | marked 94 | incomplete 0 | latest 2026-06-24T23:04:43.878Z | repair npm run control:proof:repair:legacy -- --plane spawner_prd_trace --dry-run --json'
+].join('\n');
+}
+const CLEAN_CONTROL_PROOF_AUDIT = cleanControlProofAudit();
+const CLEAN_ROUTE_BOUNDARY_TRACE_JOIN = [
+  '$ npx ts-node ops/routeBoundaryHandlerHarness.ts --cases guard-006,guard-007,build-004,domain-chip-003',
+  'exit=0',
+  'PASS guard-006: agent_doctrine.global_blocked -> agent_doctrine.global_blocked',
+  'PASS guard-007: agent_doctrine.global_blocked -> agent_doctrine.global_blocked',
+  'PASS build-004: conversation.ideation -> conversation.ideation',
+  'PASS domain-chip-003: conversation.ideation -> conversation.ideation',
+  'Summary: 4/4 cases passed.',
+  'Trace join:',
+  'Control-proof trace join checker',
+  'Status: clean',
+  'Route rows: 4/4 sampled',
+  'Joined rows: 4',
+  'Gap rows: 0',
+  'Parse errors: 0',
+  'Gap counts:',
+  '- missing join keys: 0',
+  '- missing reply joins: 0',
+  '- missing proof joins: 0',
+  '- missing action/no-action evidence: 0',
+  '- route mismatches: 0'
+].join('\n');
+const CLEAN_LIVE_TRACE_JOIN = [
+  '$ npm run control:proof:live-trace',
+  'exit=0',
+  'Control-proof trace join checker',
+  'Route rows: 4/4 sampled',
+  '',
+  'Status: clean',
+  'Joined rows: 4',
+  'Gap rows: 0',
+  'Parse errors: 0',
+  'Live route proof: ready (4/4 minimum joined rows)',
+  'No-action route proof: ready (4/4 minimum no-action rows)',
+  'Safe prompt proof: ready (4/4 required safe prompts)',
+  'Safe prompt evidence: risk_profile_no_build, mission_routing_explain_only, repair_status_no_action, memory_vs_fresh_state',
+  '',
+  'Gap counts:',
+  '- missing join keys: 0',
+  '- missing reply joins: 0',
+  '- missing proof joins: 0',
+  '- missing action/no-action evidence: 0',
+  '- route mismatches: 0'
+].join('\n');
+function cleanSparkOsCompile(generatedAt = TEST_RUNTIME_COLLECTED_AT): string {
+  return [
+  '$ spark os compile --json',
+  'exit=0',
+  JSON.stringify({
+    generated_at: generatedAt,
+    ok: true,
+    gaps: 0,
+    duplicate_truths: { item_count: 2 },
+    repo_board: { dirty_repo_count: 0, blocked_release_count: 0, critical_repo_count: 0, duplicate_truth_count: 2, critical_duplicate_truth_count: 1 },
+    gate: { dirty_repo_count: 0, broad_dirty_repo_count: 0 },
+    privacy: {
+      raw_secret_values_read: false,
+      raw_logs_read: false,
+      raw_conversation_content_read: false,
+      raw_memory_evidence_read: false,
+      sqlite_row_contents_read: false
+    }
+  }, null, 2)
+].join('\n');
+}
+const CLEAN_SPARK_OS_COMPILE = cleanSparkOsCompile();
+const CLEAN_SPARK_LIVE_STATUS = [
+  '$ spark live status',
+  'exit=0',
+  'Spark Live',
+  '[OK] Spark Live is ready.',
+  '[OK] spark-telegram-bot: Relay runtime: OK (primary@<redacted-port> pid=<redacted-pid> polling=active)'
+].join('\n');
+const CLEAN_PROVIDER_STATUS = [
+  '$ spark providers test --role chat',
+  'exit=0',
+  'Spark provider test',
+  '[OK] chat -> codex: PING_OK'
+].join('\n');
+const CLEAN_RUNTIME_SYNC = [
+  '$ npm run sync:check',
+  'exit=0',
+  '[check] runtime in sync.'
+].join('\n');
+const CLEAN_PROOF_PANEL = [
+  'Harness Proof',
+  'Intent: builder_gateway.plain_chat',
+  'Authority: allowed by spark.turn_intent.v1',
+  'Governor: allow, verified',
+  'Execution: not_started',
+  'Reply: delivered as natural',
+  'Audit actionable: clean',
+  'Audit blocking: clean',
+  'Audit fresh-strict: clean',
+  'Audit posture: backed legacy gaps only; no blocking or latest proof gaps',
+  'Blocking gap planes: none',
+  'Evidence capsule gaps: none',
+  'Legacy proof gaps visible: 3'
+].join('\n');
+const STABLE_SCREENSHOT_REF = 'screenshot:sha256:45b02d5985721f4374ca537d39ed9bcd60b481a7aef860cb3682cd422ad610b7';
+const STABLE_SCREENSHOT_REF_TWO = 'screenshot:sha256:2911385c0329829d3cd072611b0fb859e86e12018474614e38c1e73bd9b16968';
+
+test('control-proof canary pack stays small enough for live runs', () => {
+  assert.ok(CONTROL_PROOF_LIVE_CANARY_CASES.length >= 20);
+  assert.ok(CONTROL_PROOF_LIVE_CANARY_CASES.length <= 30);
+  assert.equal(new Set(CONTROL_PROOF_LIVE_CANARY_CASES.map((entry) => entry.id)).size, CONTROL_PROOF_LIVE_CANARY_CASES.length);
+});
+
+test('control-proof canary pack covers the current Harness Core behavior areas', () => {
+  const categories = new Set(CONTROL_PROOF_LIVE_CANARY_CASES.map((entry) => entry.category));
+  const required: ControlProofCanaryCategory[] = [
+    'no_action',
+    'authority',
+    'proof',
+    'streaming',
+    'rich_messages',
+    'builder',
+    'spawner_build',
+    'mission',
+    'memory',
+    'access',
+    'publish',
+    'web_research',
+    'model_switch',
+    'media',
+    'audio',
+    'voice'
+  ];
+
+  for (const category of required) {
+    assert.ok(categories.has(category), `missing category ${category}`);
+  }
+});
+
+test('checked-in full canary summary JSON matches the observation packet', () => {
+  const observations = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-observations.json'), 'utf8'));
+  const summaryJson = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-summary.json'), 'utf8'));
+  const summaryMd = readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-summary.md'), 'utf8');
+  const summary = summarizeControlProofCanaryObservations(observations, {
+    maxRuntimeEvidenceAgeHours: 1,
+    now: observations.evidence.collectedAt
+  });
+  const observedCases = selectControlProofCanaryCases(CONTROL_PROOF_LIVE_CANARY_CASES, {
+    caseIds: observations.cases.map((entry: { id: string }) => entry.id),
+    includeActions: true
+  });
+  const coverage = summarizeControlProofCanaryCoverage(observedCases);
+
+  assert.equal(summaryJson.summary.runtimeEvidenceCollectedAt, observations.evidence.collectedAt);
+  assert.equal(summaryJson.summary.runtimeEvidenceMaxAgeHours, summary.runtimeEvidenceMaxAgeHours);
+  assert.equal(summaryJson.summary.runtimeEvidenceExpiresAt, summary.runtimeEvidenceExpiresAt);
+  assert.equal(summaryJson.summary.readyForRelease, summary.readyForRelease);
+  assert.equal(summaryJson.summary.readyForPublish, summary.readyForPublish);
+  assert.equal(summaryJson.summary.gateScope, 'full_release_pack');
+  assert.match(summaryMd, /Gate scope: full release pack/);
+  assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
+  assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
+  assert.deepEqual(summaryJson.summary.invalidPacketEvidence, summary.invalidPacketEvidence);
+  if (summary.invalidPacketEvidence.length > 0) {
+    assert.match(summaryMd, new RegExp(`Packet evidence invalid: ${summary.invalidPacketEvidence.join(', ')}`));
+  } else {
+    assert.doesNotMatch(summaryMd, /Packet evidence invalid:/);
+  }
+  assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
+  assert.equal(summaryJson.summary.totalCases, summary.totalCases);
+  assert.deepEqual(summaryJson.summary.verdictCounts, summary.verdictCounts);
+  assert.deepEqual(summaryJson.summary.cases, summary.cases);
+  assert.ok(
+    summaryJson.summary.cases.every((entry: {
+      expectedRoute?: unknown;
+      expectedAuthority?: unknown;
+      expectedMutationClass?: unknown;
+      expectedReplyShape?: unknown;
+      sourceRefs?: unknown;
+      observed?: unknown;
+      prompt?: unknown;
+    }) =>
+      typeof entry.expectedRoute === 'string' &&
+      typeof entry.expectedAuthority === 'string' &&
+      typeof entry.expectedMutationClass === 'string' &&
+      typeof entry.expectedReplyShape === 'string' &&
+      (entry.sourceRefs === undefined || Array.isArray(entry.sourceRefs)) &&
+      entry.observed === undefined &&
+      entry.prompt === undefined
+    ),
+    'saved case summaries must preserve safe Harness metadata without raw prompts or observations'
+  );
+  assert.deepEqual(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-001')?.sourceRefs,
+    [
+      { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'streaming-status-defaults', relationship: 'coverage_for' }
+    ],
+    'saved summary must preserve streaming canary source refs'
+  );
+  assert.equal(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-001')?.expectedReplyShape,
+    'compact_card',
+    'saved summary must preserve streaming status reply-shape expectation'
+  );
+  assert.deepEqual(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-002')?.sourceRefs,
+    [
+      { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'rich-message-delivery-proof', relationship: 'coverage_for' }
+    ],
+    'saved summary must preserve rich-message canary source refs'
+  );
+  assert.equal(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-002')?.expectedReplyShape,
+    'natural',
+    'saved summary must preserve rich-message reply-shape expectation'
+  );
+  assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
+  assert.equal(summaryJson.coverage.gateScope, 'full_release_pack');
+  assert.equal(summaryJson.coverage.coverageComplete, coverage.coverageComplete);
+  assert.equal(summaryJson.coverage.releasePackComplete, coverage.releasePackComplete);
+  assert.deepEqual(summaryJson.summary.missingPacketEvidence, summary.missingPacketEvidence);
+  assert.deepEqual(summaryJson.summary.invalidPacketEvidence, summary.invalidPacketEvidence);
+  assert.deepEqual(summaryJson.summary.stalePacketEvidence, summary.stalePacketEvidence);
+  assert.deepEqual(summaryJson.summary.packetEvidenceDetails, summary.packetEvidenceDetails);
+  assert.deepEqual(summaryJson.summary.controlProofAuditDetails, summary.controlProofAuditDetails);
+  assert.deepEqual(summaryJson.summary.releaseCaveats, summary.releaseCaveats);
+  assert.deepEqual(summaryJson.summary.releaseHandoffs, summary.releaseHandoffs);
+  assert.deepEqual(summaryJson.summary.releaseCaveatDetails, summary.releaseCaveatDetails);
+  assert.deepEqual(summaryJson.summary.releaseHandoffDetails, summary.releaseHandoffDetails);
+  assert.deepEqual(summaryJson.summary.publishHandoffs, summary.publishHandoffs);
+  assert.ok(
+    summaryJson.summary.releaseCaveatDetails.repo_release_blocks.blocked_release_repos.length > 0,
+    'saved summary must preserve blocked repo caveat detail rows'
+  );
+  assert.ok(
+    Object.keys(summaryJson.summary.releaseCaveatDetails.duplicate_truths.owner_sets).length > 0,
+    'saved summary must preserve duplicate-truth owner sets'
+  );
+  assert.ok(
+    summaryJson.summary.releaseHandoffDetails.every((entry: { familyDetails: unknown }) => entry.familyDetails),
+    'saved summary must preserve handoff familyDetails joins'
+  );
+  assert.deepEqual(
+    summaryJson.summary.gateDecisionDetails.publish.blockers,
+    summary.gateDecisionDetails.publish.blockers,
+    'saved packet must keep publish blocked by caveats and handoffs after release proof is ready'
+  );
+  assert.ok(
+    summaryJson.summary.releaseHandoffDetails.every((entry: {
+      releaseBlocking?: unknown;
+      publishBlocking?: unknown;
+    }) => entry.releaseBlocking === false && entry.publishBlocking === true),
+    'saved release handoffs must keep publish-only impact explicit'
+  );
+  assert.ok(
+    Object.values(summaryJson.summary.releaseCaveatDetails as Record<string, {
+      releaseBlocking?: unknown;
+      publishBlocking?: unknown;
+    }>).every((entry) => entry.releaseBlocking === false && entry.publishBlocking === true),
+    'saved release caveats must keep publish-only impact explicit'
+  );
+});
+
+test('checked-in safe-first canary summary JSON matches the selected observation packet', () => {
+  const bundleDir = resolve(ROOT, 'outputs/live-canary-safe-first');
+  const observationsPath = resolve(bundleDir, 'live-canary-observations.json');
+  const summaryJsonPath = resolve(bundleDir, 'live-canary-summary.json');
+  const summaryMdPath = resolve(bundleDir, 'live-canary-summary.md');
+  const runGuidePath = resolve(bundleDir, 'live-canary-run-guide.md');
+  const readmePath = resolve(bundleDir, 'README.md');
+  const observations = JSON.parse(readFileSync(observationsPath, 'utf8'));
+  const summaryJson = JSON.parse(readFileSync(summaryJsonPath, 'utf8'));
+  const summaryMd = readFileSync(summaryMdPath, 'utf8');
+  const summary = summarizeControlProofCanaryObservations(observations, {
+    maxRuntimeEvidenceAgeHours: 1,
+    now: observations.evidence.collectedAt
+  });
+  const observedCases = selectControlProofCanaryCases(CONTROL_PROOF_LIVE_CANARY_CASES, {
+    caseIds: observations.cases.map((entry: { id: string }) => entry.id),
+    includeActions: true
+  });
+  const coverage = summarizeControlProofCanaryCoverage(observedCases);
+  const runGuide = readFileSync(runGuidePath, 'utf8');
+  const readme = readFileSync(readmePath, 'utf8');
+
+  assert.equal(summaryJson.summary.runtimeEvidenceCollectedAt, observations.evidence.collectedAt);
+  assert.equal(summaryJson.summary.runtimeEvidenceMaxAgeHours, summary.runtimeEvidenceMaxAgeHours);
+  assert.equal(summaryJson.summary.runtimeEvidenceExpiresAt, summary.runtimeEvidenceExpiresAt);
+  assert.equal(summaryJson.summary.readyForRelease, summary.readyForRelease);
+  assert.equal(summaryJson.summary.readyForPublish, summary.readyForPublish);
+  assert.equal(summaryJson.summary.gateScope, 'selected_case_gate');
+  assert.match(summaryMd, /Gate scope: selected-case gate/);
+  assert.match(
+    summaryMd,
+    /Selected-case note: this packet proves only the selected cases; use the full release pack for release or publish handoff authority\./
+  );
+  assert.match(
+    summaryMd,
+    /Selected-case note: selected cases are ready with caveats; complete handoffs from the full release packet before publish\/registry claims\./
+  );
+  assert.doesNotMatch(summaryMd, /Release note: ready with caveats; complete the listed handoffs before publish\/registry claims\./);
+  assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
+  assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
+  assert.deepEqual(summaryJson.summary.invalidPacketEvidence, summary.invalidPacketEvidence);
+  assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
+  assert.deepEqual(summaryJson.summary.packetEvidenceDetails, summary.packetEvidenceDetails);
+  assert.deepEqual(summaryJson.summary.controlProofAuditDetails, summary.controlProofAuditDetails);
+  assert.deepEqual(summaryJson.summary.cases, summary.cases);
+  assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
+  assert.equal(summaryJson.coverage.gateScope, 'selected_case_gate');
+  assert.equal(summaryJson.coverage.releasePackComplete, false);
+  assert.equal(summaryJson.summary.readyForPublish, false);
+  if (summary.invalidPacketEvidence.length > 0) {
+    assert.match(summaryMd, new RegExp(`Packet evidence invalid: ${summary.invalidPacketEvidence.join(', ')}`));
+  } else {
+    assert.doesNotMatch(summaryMd, /Packet evidence invalid:/);
+  }
+  assert.match(summaryMd, /All selected canaries passed with required captures present/);
+  assert.doesNotMatch(summaryMd, /Recapture hint:/);
+  assert.equal((runGuide.match(/--record-case/g) || []).length, observations.cases.length);
+  assert.equal((runGuide.match(/--summary-json-out/g) || []).length, observations.cases.length);
+  assert.match(readme, /Current summary JSON:/);
+  assert.match(readme, /selected-case gate/);
+  assert.match(readme, /not the full release gate/);
+  assert.deepEqual(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-001')?.sourceRefs,
+    [
+      { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'streaming-status-defaults', relationship: 'coverage_for' }
+    ],
+    'safe-first summary must preserve streaming source refs'
+  );
+  assert.equal(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-001')?.expectedReplyShape,
+    'compact_card',
+    'safe-first summary must preserve streaming status reply-shape expectation'
+  );
+  assert.deepEqual(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-002')?.sourceRefs,
+    [
+      { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'rich-message-delivery-proof', relationship: 'coverage_for' }
+    ],
+    'safe-first summary must preserve rich-message source refs'
+  );
+  assert.equal(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-002')?.expectedReplyShape,
+    'natural',
+    'safe-first summary must preserve rich-message reply-shape expectation'
+  );
+  assert.deepEqual(
+    summaryJson.summary.gateDecisionDetails.publish.blockers,
+    summary.gateDecisionDetails.publish.blockers,
+    'safe-first packet must preserve publish caveats after proof-panel recaptures pass'
+  );
+  assert.ok(
+    summaryJson.summary.releaseHandoffDetails.every((entry: {
+      releaseBlocking?: unknown;
+      publishBlocking?: unknown;
+    }) => entry.releaseBlocking === false && entry.publishBlocking === true),
+    'safe-first release handoffs must keep publish-only impact explicit'
+  );
+  assert.ok(
+    Object.values(summaryJson.summary.releaseCaveatDetails as Record<string, {
+      releaseBlocking?: unknown;
+      publishBlocking?: unknown;
+    }>).every((entry) => entry.releaseBlocking === false && entry.publishBlocking === true),
+    'safe-first release caveats must keep publish-only impact explicit'
+  );
+  assert.ok(
+    summaryJson.summary.cases.every((entry: {
+      expectedRoute?: unknown;
+      expectedAuthority?: unknown;
+      expectedMutationClass?: unknown;
+      expectedReplyShape?: unknown;
+      observed?: unknown;
+      prompt?: unknown;
+      proofPanel?: unknown;
+      userConfirmation?: unknown;
+    }) =>
+      typeof entry.expectedRoute === 'string' &&
+      typeof entry.expectedAuthority === 'string' &&
+      typeof entry.expectedMutationClass === 'string' &&
+      typeof entry.expectedReplyShape === 'string' &&
+      entry.observed === undefined &&
+      entry.prompt === undefined &&
+      entry.proofPanel === undefined &&
+      entry.userConfirmation === undefined
+    ),
+    'safe-first summary must keep safe Harness metadata without raw live captures'
+  );
+});
+
+test('control-proof canaries carry Harness-shaped expectations and capture fields', () => {
+  for (const entry of CONTROL_PROOF_LIVE_CANARY_CASES) {
+    assert.ok(entry.expectedAuthority, `${entry.id} missing expectedAuthority`);
+    assert.ok(entry.expectedMutationClass, `${entry.id} missing expectedMutationClass`);
+    assert.ok(entry.expectedRoute, `${entry.id} missing expectedRoute`);
+    assert.ok(entry.expectedSideEffect, `${entry.id} missing expectedSideEffect`);
+    assert.ok(entry.expectedProofJoin, `${entry.id} missing expectedProofJoin`);
+    assert.ok(entry.passCriteria.length > 0, `${entry.id} missing pass criteria`);
+    assert.equal(
+      new Set(entry.passCriteria.map((criteria) => criteria.trim().toLowerCase())).size,
+      entry.passCriteria.length,
+      `${entry.id} has duplicate pass criteria`
+    );
+    assert.equal(entry.capture.observedReply, true, `${entry.id} must capture observed reply`);
+    assert.equal(typeof entry.capture.sideEffects, 'boolean');
+    assert.equal(typeof entry.capture.proofPanel, 'boolean');
+    assert.equal(typeof entry.capture.screenshot, 'boolean');
+    assert.equal(typeof entry.capture.userConfirmation, 'boolean');
+    const sourceRefKeys = new Set<string>();
+    for (const ref of entry.sourceRefs || []) {
+      assert.ok(ref.catalog, `${entry.id} has source ref without catalog`);
+      assert.ok(ref.caseId, `${entry.id} has source ref without case id`);
+      assert.ok(ref.relationship, `${entry.id} has source ref without relationship`);
+      const key = `${ref.catalog}\0${ref.caseId}\0${ref.relationship}`;
+      assert.equal(sourceRefKeys.has(key), false, `${entry.id} has duplicate source ref ${ref.catalog}:${ref.caseId}:${ref.relationship}`);
+      sourceRefKeys.add(key);
+    }
+  }
+
+  const richMessage = CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-002');
+  assert.ok(richMessage);
+  assert.match(richMessage.expectedProofJoin, /rich-message reply came through the live Telegram profile path/);
+  assert.match(richMessage.passCriteria.join('\n'), /rich-message final delivery through the active Telegram profile path/);
+  assert.match(richMessage.passCriteria.join('\n'), /collapses to one final Telegram message/);
+  const streamingStatus = CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001');
+  assert.ok(streamingStatus);
+  assert.match(streamingStatus.expectedProofJoin, /live \/streaming runtime status/);
+  assert.match(streamingStatus.expectedProofJoin, /transport-proof line/);
+  assert.match(streamingStatus.expectedProofJoin, /active Telegram profile path/);
+  assert.match(streamingStatus.passCriteria.join('\n'), /collapses to one final Telegram message/);
+});
+
+test('promoted canaries keep traceable legacy source references', () => {
+  const byId = new Map(CONTROL_PROOF_LIVE_CANARY_CASES.map((entry) => [entry.id, entry]));
+  const naturalLanguageCaseIds = new Set(
+    JSON.parse(readFileSync(resolve(ROOT, 'ops/natural-language-live-commands.json'), 'utf8'))
+      .map((entry: { id: string }) => entry.id)
+  );
+  const genesisCaseIds = new Set(
+    JSON.parse(readFileSync(resolve(ROOT, 'ops/genesis-live-telegram-100.json'), 'utf8'))
+      .map((entry: { id: string }) => entry.id)
+  );
+  const streamingDesign = readFileSync(resolve(ROOT, 'docs/LIVE_CHAT_STREAMING_DESIGN.md'), 'utf8');
+
+  assert.deepEqual(
+    byId.get('cp-builder-001')?.sourceRefs,
+    [
+      { catalog: 'natural-language-live-commands.json', caseId: 'memory-004', relationship: 'derived_from' }
+    ]
+  );
+  assert.ok(
+    byId.get('cp-spawner-001')?.sourceRefs?.some((ref) => ref.catalog === 'natural-language-live-commands.json' && ref.caseId === 'build-004'),
+    'cp-spawner-001 should point back to the old no-build design prompt'
+  );
+  assert.ok(
+    byId.get('cp-mission-001')?.sourceRefs?.some((ref) => ref.catalog === 'genesis-live-telegram-100.json' && ref.caseId === 'genesis-061'),
+    'cp-mission-001 should point back to the Genesis no-edit mission smoke'
+  );
+  assert.ok(
+    byId.get('cp-streaming-001')?.sourceRefs?.some((ref) => ref.catalog === 'docs/LIVE_CHAT_STREAMING_DESIGN.md' && ref.caseId === 'streaming-status-defaults'),
+    'cp-streaming-001 should point back to the streaming defaults/status contract'
+  );
+  assert.ok(
+    byId.get('cp-streaming-002')?.sourceRefs?.some((ref) => ref.catalog === 'docs/LIVE_CHAT_STREAMING_DESIGN.md' && ref.caseId === 'rich-message-delivery-proof'),
+    'cp-streaming-002 should point back to the rich-message delivery proof contract'
+  );
+
+  for (const entry of CONTROL_PROOF_LIVE_CANARY_CASES) {
+    for (const ref of entry.sourceRefs || []) {
+      if (ref.catalog === 'natural-language-live-commands.json') {
+        assert.ok(naturalLanguageCaseIds.has(ref.caseId), `${entry.id} points to unknown natural-language case ${ref.caseId}`);
+      }
+      if (ref.catalog === 'genesis-live-telegram-100.json') {
+        assert.ok(genesisCaseIds.has(ref.caseId), `${entry.id} points to unknown Genesis case ${ref.caseId}`);
+      }
+      if (ref.catalog === 'docs/LIVE_CHAT_STREAMING_DESIGN.md') {
+        assert.match(streamingDesign, new RegExp(ref.caseId), `${entry.id} points to unknown streaming design contract ${ref.caseId}`);
+      }
+    }
+  }
+});
+
+test('default selection excludes intentional live actions but explicit selection can include them', () => {
+  const selected = selectControlProofCanaryCases();
+  assert.ok(selected.length < CONTROL_PROOF_LIVE_CANARY_CASES.length);
+  assert.equal(selected.some((entry) => entry.risk === 'intentional_action'), false);
+
+  const explicit = selectControlProofCanaryCases(CONTROL_PROOF_LIVE_CANARY_CASES, { caseId: 'cp-mission-001' });
+  assert.deepEqual(explicit.map((entry) => entry.id), ['cp-mission-001']);
+  assert.equal(explicit[0].risk, 'intentional_action');
+});
+
+test('category selection keeps non-action defaults safe', () => {
+  const selected = selectControlProofCanaryCases(CONTROL_PROOF_LIVE_CANARY_CASES, { category: 'spawner_build' });
+
+  assert.deepEqual(selected.map((entry) => entry.id), ['cp-spawner-001']);
+});
+
+test('streaming and rich-message canaries stay visual release checks', () => {
+  const selected = selectControlProofCanaryCases(CONTROL_PROOF_LIVE_CANARY_CASES, {
+    caseIds: ['cp-streaming-001', 'cp-streaming-002']
+  });
+
+  assert.deepEqual(selected.map((entry) => entry.category), ['streaming', 'rich_messages']);
+  for (const entry of selected) {
+    assert.equal(entry.capture.screenshot, true, `${entry.id} needs Telegram visual capture`);
+    assert.equal(entry.capture.userConfirmation, true, `${entry.id} needs user confirmation capture`);
+    assert.match(entry.passCriteria.join('\n'), /duplicate|render|settings/i);
+  }
+});
+
+test('copy-paste output keeps scoring expectations outside Telegram blocks', () => {
+  const promptSheet = formatControlProofCanaryCopyPaste([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ]);
+
+  assert.match(promptSheet, /SparkRecursive_bot Control-Proof Canary Prompts/);
+  assert.match(promptSheet, /```text\nIn one sentence, what does route confidence mean for Spark\? Do not start anything\.\n```/);
+  assert.doesNotMatch(promptSheet, /Expected route|Expected side effect|builder_gateway\.plain_chat|Builder gateway row should carry/);
+});
+
+test('checklist output includes proof, side-effect, visual, authority, and mutation capture', () => {
+  const checklist = formatControlProofCanaryChecklist([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ]);
+
+  assert.match(checklist, /Expected authority:/);
+  assert.match(checklist, /Expected mutation class:/);
+  assert.match(checklist, /Source refs: natural-language-live-commands\.json:memory-004:derived_from/);
+  assert.match(checklist, /Observed reply:/);
+  assert.match(checklist, /Observed side effects:/);
+  assert.match(checklist, /Observed proof join:/);
+  assert.match(checklist, /Screenshot\/user confirmation:/);
+});
+
+test('coverage output summarizes categories, action risk, and mutation classes', () => {
+  const coverage = formatControlProofCanaryCoverage(CONTROL_PROOF_LIVE_CANARY_CASES);
+
+  assert.match(coverage, /Control-Proof Canary Coverage/);
+  assert.match(coverage, /Cases: 29/);
+  assert.match(coverage, /Intentional action cases: 4/);
+  assert.match(coverage, /Manual media cases: 4/);
+  assert.match(coverage, /Required category coverage: complete/);
+  assert.match(coverage, /Missing required categories: none/);
+  assert.match(coverage, /Full release pack: complete/);
+  assert.match(coverage, /Release-check scope: full release readiness/);
+  assert.match(coverage, /Missing release cases: none/);
+  assert.match(coverage, /- mission: 1/);
+  assert.match(coverage, /- publish: 1/);
+  assert.match(coverage, /- streaming: 1/);
+  assert.match(coverage, /- rich_messages: 1/);
+  assert.match(coverage, /- launches_mission: 1/);
+  assert.match(coverage, /- confirmation_required_or_allowed:/);
+
+  const narrow = formatControlProofCanaryCoverage([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ]);
+  const narrowSummary = summarizeControlProofCanaryCoverage([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ]);
+  assert.equal(narrowSummary.coverageComplete, false);
+  assert.equal(narrowSummary.releasePackComplete, false);
+  assert.ok(narrowSummary.missingRequiredCategories.includes('mission'));
+  assert.ok(narrowSummary.missingReleaseCaseIds.includes('cp-proof-001'));
+  assert.match(narrow, /Required category coverage: missing/);
+  assert.match(narrow, /Full release pack: missing/);
+  assert.match(narrow, /Release-check scope: selected cases only; not a full release claim/);
+  assert.match(narrow, /Missing required categories: .*mission/);
+});
+
+test('live run guide pairs Telegram prompts with record commands', () => {
+  const guide = formatControlProofCanaryLiveRunGuide([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!,
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-access-002')!,
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001')!
+  ], { observationsPath: '/tmp/live-canary-observations.json' });
+
+  assert.match(guide, /SparkRecursive_bot Control-Proof Live Run Guide/);
+  assert.match(guide, /Observation packet: \/tmp\/live-canary-observations\.json/);
+  assert.match(guide, /```text\nIn one sentence, what does route confidence mean for Spark\? Do not start anything\.\n```/);
+  assert.match(guide, /Proof inspection prompt:\n```text\n\/proof\n```/);
+  assert.match(guide, /--observations '\/tmp\/live-canary-observations\.json' --record-case cp-builder-001/);
+  assert.match(guide, /--reply-file '\/tmp\/cp-builder-001-reply\.txt'/);
+  assert.match(guide, /--mission-started <true\|false\|unknown>/);
+  assert.match(guide, /--record-case cp-builder-001[\s\S]*--no-other-side-effects/);
+  assert.match(guide, /--record-case cp-streaming-001[\s\S]*--no-other-side-effects/);
+  assert.match(guide, /--record-case cp-access-002[\s\S]*--access-changed <true\|false\|unknown>[\s\S]*--no-other-side-effects/);
+  assert.match(guide, /cp-builder-001[\s\S]*Capture proof panel: yes/);
+  assert.match(guide, /cp-streaming-001[\s\S]*Capture proof panel: no/);
+  assert.match(guide, /--screenshot-file '\/tmp\/cp-streaming-001\.png'/);
+  assert.doesNotMatch(guide, /```text\n(?:(?!```).)*Expected route/s);
+});
+
+test('live run guide omits proof inspection for cases without proof-panel capture', () => {
+  const guide = formatControlProofCanaryLiveRunGuide([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001')!
+  ]);
+
+  assert.match(guide, /cp-streaming-001/);
+  assert.match(guide, /Capture proof panel: no/);
+  assert.doesNotMatch(guide, /Proof inspection prompt/);
+  assert.doesNotMatch(guide, /--proof-panel/);
+});
+
+test('observation template records expected fields and empty live observations', () => {
+  const template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+
+  assert.equal(template.target, 'SparkRecursive_bot');
+  assert.equal(template.generatedAt, '2026-06-24T00:00:00.000Z');
+  assert.deepEqual(template.verdictValues, ['pass', 'fail', 'blocked', 'needs-retest', 'untested']);
+  assert.equal(template.evidence.collectedAt, null);
+  assert.equal(template.evidence.sparkLiveStatus, null);
+  assert.equal(template.evidence.controlProofAudit, null);
+  assert.equal(template.cases[0].id, 'cp-builder-001');
+  assert.deepEqual(template.cases[0].sourceRefs, [
+    { catalog: 'natural-language-live-commands.json', caseId: 'memory-004', relationship: 'derived_from' }
+  ]);
+  assert.equal(template.cases[0].expected.route, 'plain_conversation');
+  assert.equal(template.cases[0].expected.proofJoin, 'Telegram proof should show a no-execution plain conversation with a Builder-backed reply.');
+  assert.equal(template.cases[0].observed.verdict, 'untested');
+  assert.equal(template.cases[0].observed.reply, null);
+  assert.equal(template.cases[0].observed.proofJoin, null);
+  assert.equal(template.cases[0].observed.sideEffects.missionStarted, null);
+  assert.deepEqual(template.cases[0].observed.screenshotRefs, []);
+  assert.equal(template.cases[0].observed.userConfirmation, null);
+});
+
+test('runtime evidence refresh backfills canonical canary source refs and expectations', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001')!,
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-002')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template.cases = template.cases.map((entry) => ({
+    ...entry,
+    sourceRefs: undefined,
+    prompt: 'stale prompt',
+    expected: {
+      ...entry.expected,
+      route: 'stale.route',
+      replyShape: 'natural',
+      passCriteria: ['old duplicate preview wording only']
+    }
+  }));
+
+  const refreshed = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
+    notes: null
+  });
+
+  assert.deepEqual(refreshed.cases[0].sourceRefs, [
+    { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'streaming-status-defaults', relationship: 'coverage_for' }
+  ]);
+  assert.deepEqual(refreshed.cases[1].sourceRefs, [
+    { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'rich-message-delivery-proof', relationship: 'coverage_for' }
+  ]);
+  assert.equal(refreshed.cases[0].prompt, '/streaming');
+  assert.equal(refreshed.cases[0].expected.route, 'streaming.status');
+  assert.equal(refreshed.cases[0].expected.replyShape, 'compact_card');
+  assert.match(refreshed.cases[0].expected.passCriteria.join('\n'), /one final Telegram message/);
+  assert.equal(refreshed.cases[1].expected.route, 'plain_chat.rich_message_render');
+  assert.match(refreshed.cases[1].expected.passCriteria.join('\n'), /one final Telegram message/);
+});
+
+test('observation summary uses canonical source refs and expectations over stale packet refs', () => {
+  const template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template.cases[0].sourceRefs = [
+    { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'old-streaming-contract', relationship: 'coverage_for' }
+  ];
+  template.cases[0].expected.route = 'old.streaming.status';
+  template.cases[0].expected.replyShape = 'natural';
+
+  const summary = summarizeControlProofCanaryObservations(template, {
+    now: '2026-06-24T00:00:00.000Z'
+  });
+
+  assert.deepEqual(summary.cases[0].sourceRefs, [
+    { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'streaming-status-defaults', relationship: 'coverage_for' }
+  ]);
+  assert.equal(summary.cases[0].category, 'streaming');
+  assert.equal(summary.cases[0].expectedRoute, 'streaming.status');
+  assert.equal(summary.cases[0].expectedReplyShape, 'compact_card');
+});
+
+test('observation summary rejects duplicate canary rows', () => {
+  const template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!,
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+
+  assert.throws(
+    () => summarizeControlProofCanaryObservations(template),
+    /Duplicate observed canary id: cp-builder-001/
+  );
+});
+
+test('control-proof audit parser preserves legacy gap planes with summary suffix metadata', () => {
+  const auditWithSuffix = CLEAN_CONTROL_PROOF_AUDIT.replace(
+    '- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace',
+    '- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace (backing complete; latest gaps 0; release blocking no)'
+  );
+  const summary = summarizeControlProofAuditRuntimeEvidence(auditWithSuffix);
+
+  assert.deepEqual(summary?.gapPlanes.legacy_proof_gaps, [
+    'telegram_route_confidence',
+    'builder_gateway',
+    'spawner_prd_trace'
+  ]);
+  assert.deepEqual(summary?.legacyGapBackingDetails?.map((entry) => ({
+    plane: entry.plane,
+    backing: entry.backing,
+    repairSource: entry.repairSource,
+    latestGap: entry.latestGap,
+    releaseBlocking: entry.releaseBlocking
+  })), [
+    {
+      plane: 'telegram_route_confidence',
+      backing: 'complete',
+      repairSource: 'route_confidence_legacy_repair',
+      latestGap: false,
+      releaseBlocking: false
+    },
+    {
+      plane: 'builder_gateway',
+      backing: 'complete',
+      repairSource: 'builder_gateway_trace_legacy_repair',
+      latestGap: false,
+      releaseBlocking: false
+    },
+    {
+      plane: 'spawner_prd_trace',
+      backing: 'complete',
+      repairSource: 'spawner_prd_trace_legacy_repair',
+      latestGap: false,
+      releaseBlocking: false
+    }
+  ]);
+});
+
+test('observation summary requires pass verdicts and all requested capture evidence', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
+    notes: null
+  });
+  assert.deepEqual(template.evidence.controlProofAuditSummary, summarizeControlProofAuditRuntimeEvidence(CLEAN_CONTROL_PROOF_AUDIT));
+  template.cases[0].observed = {
+    ...template.cases[0].observed,
+    verdict: 'pass',
+    reply: 'Route confidence means Spark is justified in taking this route now.',
+    sideEffects: {
+      ...template.cases[0].observed.sideEffects,
+      filesChanged: false,
+      memoryWritten: false,
+      missionStarted: false,
+      externalNetworkCalled: false,
+      accessChanged: false,
+      providerChanged: false,
+      mediaHandled: false,
+      notes: 'No mission or mutation observed.'
+    },
+    proofJoin: 'Builder gateway joined with redacted proof ref.',
+    proofPanel: CLEAN_PROOF_PANEL,
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
+    userConfirmation: 'User confirmed Telegram reply rendered once.'
+  };
+
+  const summary = summarizeControlProofCanaryObservations(template);
+  assert.equal(summary.readyForRelease, true);
+  assert.equal(summary.readyForPublish, false);
+  assert.match(String(summary.runtimeEvidenceCollectedAt), /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(summary.runtimeEvidenceMaxAgeHours, 24);
+  assert.match(String(summary.runtimeEvidenceExpiresAt), /^\d{4}-\d{2}-\d{2}T/);
+  assert.deepEqual(summary.stalePacketEvidence, []);
+  assert.equal(summary.verdictCounts.pass, 1);
+  assert.deepEqual(summary.missingPacketEvidence, []);
+  assert.deepEqual(summary.cases[0].missingCaptures, []);
+  assert.equal(summary.controlProofAuditDetails?.actionableStatus, 'clean');
+  assert.equal(summary.controlProofAuditDetails?.blockingStatus, 'clean');
+  assert.equal(summary.controlProofAuditDetails?.freshStrictOk, true);
+  assert.equal(summary.controlProofAuditDetails?.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
+  assert.equal(summary.controlProofAuditDetails?.gapCounts.legacy_proof_gaps, 3);
+  assert.deepEqual(summary.controlProofAuditDetails?.gapPlanes.legacy_proof_gaps, [
+    'telegram_route_confidence',
+    'builder_gateway',
+    'spawner_prd_trace'
+  ]);
+  assert.deepEqual(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.planeLabels, [
+    'telegram_route_confidence',
+    'builder_gateway',
+    'spawner_prd_trace'
+  ]);
+  assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.count, 3);
+  assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.releaseBlocking, false);
+  assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.publishBlocking, false);
+  assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.backingStatus, 'complete');
+  assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.latestGapPlaneCount, 0);
+  assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.incompleteBackingPlaneCount, 0);
+  assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.completeBackingPlaneCount, 3);
+  assert.deepEqual(summary.controlProofAuditDetails?.legacyGapBackingDetails, [
+    {
+      plane: 'telegram_route_confidence',
+      backing: 'complete',
+      repairSource: 'route_confidence_legacy_repair',
+      latestGap: false,
+      releaseBlocking: false,
+      proofGapMarked: 97,
+      incompleteBacking: 0,
+      latestRecordAt: '2026-06-24T23:04:43.263Z',
+      repairCommand: 'npm run control:proof:repair:route-confidence -- --dry-run --json'
+    },
+    {
+      plane: 'builder_gateway',
+      backing: 'complete',
+      repairSource: 'builder_gateway_trace_legacy_repair',
+      latestGap: false,
+      releaseBlocking: false,
+      proofGapMarked: 62,
+      incompleteBacking: 0,
+      latestRecordAt: '2026-06-25T23:47:10+00:00',
+      repairCommand: 'npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json'
+    },
+    {
+      plane: 'spawner_prd_trace',
+      backing: 'complete',
+      repairSource: 'spawner_prd_trace_legacy_repair',
+      latestGap: false,
+      releaseBlocking: false,
+      proofGapMarked: 94,
+      incompleteBacking: 0,
+      latestRecordAt: '2026-06-24T23:04:43.878Z',
+      repairCommand: 'npm run control:proof:repair:legacy -- --plane spawner_prd_trace --dry-run --json'
+    }
+  ]);
+  assert.deepEqual(summary.legacyRepairDryRunDetails, []);
+  assert.deepEqual(
+    summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.planes.map((entry) => ({
+      label: entry.label,
+      proofGap: entry.proofGap,
+      gapBacking: entry.gapBacking,
+      latestGap: entry.latestGap
+    })),
+    [
+      { label: 'telegram_route_confidence', proofGap: 97, gapBacking: 'complete', latestGap: false },
+      { label: 'builder_gateway', proofGap: 62, gapBacking: 'complete', latestGap: false },
+      { label: 'spawner_prd_trace', proofGap: 94, gapBacking: 'complete', latestGap: false }
+    ]
+  );
+  assert.deepEqual(summary.controlProofAuditDetails?.planes.find((entry) => entry.label === 'builder_gateway'), {
+    label: 'builder_gateway',
+    sampledRows: 100,
+    totalRows: 100,
+    requestPresent: NaN,
+    tracePresent: NaN,
+    proofPresent: NaN,
+    proofRefPresent: NaN,
+    proofCapsulePresent: NaN,
+    proofNotApplicable: NaN,
+    proofGap: 62,
+    gapCapsule: 62,
+    gapCapsuleValid: 62,
+    gapRef: 62,
+    gapBacking: 'complete',
+    latestGap: false,
+    rawRefs: NaN,
+    rawIdKeys: NaN,
+    reasonCodes: NaN,
+    parseErrors: NaN
+  });
+  assert.match(formatControlProofCanaryObservationSummary(summary), /Release gate: ready/);
+  assert.match(formatControlProofCanaryObservationSummary(summary), /Gate scope: selected-case gate/);
+  assert.match(formatControlProofCanaryObservationSummary(summary), /Publish gate: not ready/);
+  assert.match(
+    formatControlProofCanaryObservationSummary(summary),
+    /Structured gate details: summary JSON `summary\.gateDecisionDetails`/
+  );
+  assert.match(formatControlProofCanaryObservationSummary(summary), /Runtime evidence collected: \d{4}-\d{2}-\d{2}T/);
+  assert.match(formatControlProofCanaryObservationSummary(summary), /Runtime evidence expires: \d{4}-\d{2}-\d{2}T.*\(24h window\)/);
+
+  template.cases[0].observed.reply = 'Mission\nProvider\nMove';
+  const roboticReply = summarizeControlProofCanaryObservations(template);
+  assert.equal(roboticReply.readyForRelease, false);
+  assert.deepEqual(roboticReply.cases[0].missingCaptures, ['observed_reply_robotic_shape']);
+
+  template.cases[0].observed.reply = '**Mission**\n• Token Launch Dashboard\n\nProvider - Codex\n\n> Status:\n• running';
+  const decoratedRoboticReply = summarizeControlProofCanaryObservations(template);
+  assert.equal(decoratedRoboticReply.readyForRelease, false);
+  assert.deepEqual(decoratedRoboticReply.cases[0].missingCaptures, ['observed_reply_robotic_shape']);
+
+  template.cases[0].observed.reply = 'Mission Control is open, and Codex is still on the latest job.';
+  const naturalMissionControlReply = summarizeControlProofCanaryObservations(template);
+  assert.equal(naturalMissionControlReply.readyForRelease, true);
+  assert.deepEqual(naturalMissionControlReply.cases[0].missingCaptures, []);
+
+  template.cases[0].observed.reply = 'That turn was blocked by tool_not_allowed_by_policy in /Users/example/private.';
+  const leakyReply = summarizeControlProofCanaryObservations(template);
+  assert.equal(leakyReply.readyForRelease, false);
+  assert.deepEqual(leakyReply.cases[0].missingCaptures, ['observed_reply_raw_leak']);
+
+  template.cases[0].observed.reply = 'Route confidence means Spark is justified in taking this route now.';
+  template.cases[0].observed.screenshotRefs = [];
+  const missing = summarizeControlProofCanaryObservations(template);
+  assert.equal(missing.readyForRelease, false);
+  assert.deepEqual(missing.cases[0].missingCaptures, ['screenshot']);
+  assert.match(formatControlProofCanaryObservationSummary(missing), /missing screenshot/);
+
+  template.cases[0].observed.screenshotRefs = ['Telegram screenshot captured'];
+  const vagueScreenshotRef = summarizeControlProofCanaryObservations(template);
+  assert.equal(vagueScreenshotRef.readyForRelease, false);
+  assert.deepEqual(vagueScreenshotRef.cases[0].missingCaptures, ['screenshot_ref']);
+
+  template.cases[0].observed.screenshotRefs = ['telegram-screenshot: file_id hidden'];
+  const rawScreenshotRef = summarizeControlProofCanaryObservations(template);
+  assert.equal(rawScreenshotRef.readyForRelease, false);
+  assert.deepEqual(rawScreenshotRef.cases[0].missingCaptures, ['screenshot_ref', 'screenshot_raw_leak']);
+
+  template.cases[0].observed.screenshotRefs = [STABLE_SCREENSHOT_REF];
+  const digestScreenshotRef = summarizeControlProofCanaryObservations(template);
+  assert.equal(digestScreenshotRef.readyForRelease, true);
+  assert.deepEqual(digestScreenshotRef.cases[0].missingCaptures, []);
+
+  template.cases[0].observed.screenshotRefs = ['/tmp/spark-recursive-builder.png'];
+  const localScreenshotPath = summarizeControlProofCanaryObservations(template);
+  assert.equal(localScreenshotPath.readyForRelease, false);
+  assert.deepEqual(localScreenshotPath.cases[0].missingCaptures, ['screenshot_ref']);
+
+  template.cases[0].observed.screenshotRefs = [
+    'screenshot:raw:45b02d5985721f4374ca537d39ed9bcd60b481a7aef860cb3682cd422ad610b7'
+  ];
+  const rawDigestScreenshotRef = summarizeControlProofCanaryObservations(template);
+  assert.equal(rawDigestScreenshotRef.readyForRelease, false);
+  assert.deepEqual(rawDigestScreenshotRef.cases[0].missingCaptures, ['screenshot_ref', 'screenshot_raw_leak']);
+
+  template.cases[0].observed.screenshotRefs = [STABLE_SCREENSHOT_REF];
+  template.cases[0].observed.sideEffects.missionStarted = null;
+  template.cases[0].observed.sideEffects.notes = 'No mission or mutation observed.';
+  const sideEffectNotesOnly = summarizeControlProofCanaryObservations(template);
+  assert.equal(sideEffectNotesOnly.readyForRelease, false);
+  assert.deepEqual(sideEffectNotesOnly.cases[0].missingCaptures, ['side_effects']);
+
+  template.cases[0].observed.sideEffects.missionStarted = true;
+  const unexpectedMutation = summarizeControlProofCanaryObservations(template);
+  assert.equal(unexpectedMutation.readyForRelease, false);
+  assert.deepEqual(unexpectedMutation.cases[0].missingCaptures, ['side_effects_unexpected_mutation']);
+
+  template.cases[0].observed.sideEffects.missionStarted = false;
+  template.cases[0].observed.proofJoin = 'missing proof';
+  const missingProofJoin = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingProofJoin.readyForRelease, false);
+  assert.deepEqual(missingProofJoin.cases[0].missingCaptures, ['proof_join_missing']);
+
+  template.cases[0].observed.proofJoin = 'trace:raw-proof-command joined';
+  const leakyProofJoin = summarizeControlProofCanaryObservations(template);
+  assert.equal(leakyProofJoin.readyForRelease, false);
+  assert.deepEqual(leakyProofJoin.cases[0].missingCaptures, ['proof_join_raw_leak']);
+
+  template.cases[0].observed.proofJoin = 'Builder gateway joined with redacted proof ref.';
+  template.cases[0].observed.proofPanel = 'Harness Proof\nEvidence joined: Telegram final';
+  const malformedProofPanel = summarizeControlProofCanaryObservations(template);
+  assert.equal(malformedProofPanel.readyForRelease, false);
+  assert.deepEqual(malformedProofPanel.cases[0].missingCaptures, [
+    'proof_panel_actionable_status',
+    'proof_panel_audit_status',
+    'proof_panel_fresh_strict_status',
+    'proof_panel_gap_posture',
+    'proof_panel_blocking_gap_planes',
+    'proof_panel_capsule_gap_status',
+    'proof_panel_legacy_gap_status'
+  ]);
+  assert.match(
+    formatControlProofCanaryObservationSummary(malformedProofPanel),
+    /Recapture hint:\n- Refresh \/proof panel captures for: cp-builder-001/
+  );
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('legacy proof gaps: 3', 'legacy proof gaps: 2');
+  template.cases[0].observed.proofPanel = CLEAN_PROOF_PANEL;
+  const staleProofPanelAuditCount = summarizeControlProofCanaryObservations(template);
+  assert.equal(staleProofPanelAuditCount.readyForRelease, false);
+  assert.deepEqual(staleProofPanelAuditCount.cases[0].missingCaptures, ['proof_panel_legacy_gap_stale']);
+  assert.match(
+    formatControlProofCanaryObservationSummary(staleProofPanelAuditCount),
+    /Attention summary:\n- proof_panel_legacy_gap_stale: 1 case/
+  );
+  assert.match(
+    formatControlProofCanaryObservationSummary(staleProofPanelAuditCount),
+    /Recapture hint:\n- Refresh \/proof panel captures for: cp-builder-001/
+  );
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  template.cases[0].observed.proofPanel = CLEAN_PROOF_PANEL.replace('\nEvidence capsule gaps: none', '');
+  const staleProofPanelSchema = summarizeControlProofCanaryObservations(template);
+  assert.equal(staleProofPanelSchema.readyForRelease, false);
+  assert.deepEqual(staleProofPanelSchema.cases[0].missingCaptures, ['proof_panel_capsule_gap_status']);
+  assert.match(
+    formatControlProofCanaryObservationSummary(staleProofPanelSchema),
+    /Recapture hint:\n- Refresh \/proof panel captures for: cp-builder-001/
+  );
+
+  template.cases[0].observed.proofPanel = `${CLEAN_PROOF_PANEL}\ntool_not_allowed_by_policy /Users/example/private`;
+  const leakyProofPanel = summarizeControlProofCanaryObservations(template);
+  assert.equal(leakyProofPanel.readyForRelease, false);
+  assert.deepEqual(leakyProofPanel.cases[0].missingCaptures, ['proof_panel_raw_leak']);
+
+  template.cases[0].observed.proofPanel = [
+    CLEAN_PROOF_PANEL,
+    'Evidence joined: Builder gateway',
+    'Evidence proof refs: none',
+    'Evidence proof capsules: none',
+    'Evidence trace-only: Builder gateway'
+  ].join('\n');
+  const traceOnlyJoinedProofPanel = summarizeControlProofCanaryObservations(template);
+  assert.equal(traceOnlyJoinedProofPanel.readyForRelease, false);
+  assert.deepEqual(traceOnlyJoinedProofPanel.cases[0].missingCaptures, ['proof_panel_trace_only_joined']);
+  assert.match(
+    formatControlProofCanaryObservationSummary(traceOnlyJoinedProofPanel),
+    /Attention summary:\n- proof_panel_trace_only_joined: 1 case/
+  );
+
+  template.cases[0].observed.proofPanel = CLEAN_PROOF_PANEL;
+  template.cases[0].observed.userConfirmation = 'Looks good.';
+  const vagueConfirmation = summarizeControlProofCanaryObservations(template);
+  assert.equal(vagueConfirmation.readyForRelease, false);
+  assert.deepEqual(vagueConfirmation.cases[0].missingCaptures, ['user_confirmation', 'user_confirmation_surface']);
+
+  template.cases[0].observed.userConfirmation = 'Confirmed.';
+  const missingConfirmationSurface = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingConfirmationSurface.readyForRelease, false);
+  assert.deepEqual(missingConfirmationSurface.cases[0].missingCaptures, ['user_confirmation_surface']);
+
+  template.cases[0].observed.userConfirmation = 'User confirmed Telegram reply rendered once at /Users/example/private with file_id hidden.';
+  const leakyConfirmation = summarizeControlProofCanaryObservations(template);
+  assert.equal(leakyConfirmation.readyForRelease, false);
+  assert.deepEqual(leakyConfirmation.cases[0].missingCaptures, ['user_confirmation_raw_leak']);
+
+  template.cases[0].observed.userConfirmation = `User confirmed Telegram reply rendered once with screenshot ${STABLE_SCREENSHOT_REF}.`;
+  const digestConfirmation = summarizeControlProofCanaryObservations(template);
+  assert.equal(digestConfirmation.readyForRelease, true);
+  assert.deepEqual(digestConfirmation.cases[0].missingCaptures, []);
+
+  template.cases[0].observed.sideEffects.notes = 'No mutation observed; raw detail was /Users/example/private.';
+  const leakySideEffectNotes = summarizeControlProofCanaryObservations(template);
+  assert.equal(leakySideEffectNotes.readyForRelease, false);
+  assert.deepEqual(leakySideEffectNotes.cases[0].missingCaptures, ['side_effects_notes_raw_leak']);
+
+  template.cases[0].observed.sideEffects.notes = `No mutation observed; screenshot ${STABLE_SCREENSHOT_REF}.`;
+  const digestSideEffectNotes = summarizeControlProofCanaryObservations(template);
+  assert.equal(digestSideEffectNotes.readyForRelease, true);
+  assert.deepEqual(digestSideEffectNotes.cases[0].missingCaptures, []);
+
+  template.cases[0].observed.notes = 'Operator note included chat_id hidden.';
+  const leakyObservedNotes = summarizeControlProofCanaryObservations(template);
+  assert.equal(leakyObservedNotes.readyForRelease, false);
+  assert.deepEqual(leakyObservedNotes.cases[0].missingCaptures, ['observed_notes_raw_leak']);
+
+  template.cases[0].observed.notes = null;
+  template.cases[0].observed.userConfirmation = 'User confirmed Telegram reply rendered once.';
+  template.evidence.controlProofAudit = null;
+  const missingPacketEvidence = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingPacketEvidence.readyForRelease, false);
+  assert.deepEqual(missingPacketEvidence.missingPacketEvidence, ['control_proof_audit']);
+  assert.deepEqual(missingPacketEvidence.packetEvidenceDetails.missing, [{
+    key: 'control_proof_audit',
+    state: 'missing',
+    reason: 'control_proof_audit runtime proof is absent',
+    nextSafeAction: null,
+    generatedAt: template.generatedAt,
+    runtimeEvidenceCollectedAt: template.evidence.collectedAt,
+    runtimeEvidenceExpiresAt: missingPacketEvidence.runtimeEvidenceExpiresAt
+  }]);
+  assert.deepEqual(missingPacketEvidence.gateDecisionDetails.release.blockerDetails.missing_packet_evidence, {
+    keys: ['control_proof_audit'],
+    details: missingPacketEvidence.packetEvidenceDetails.missing
+  });
+  assert.match(formatControlProofCanaryObservationSummary(missingPacketEvidence), /Packet evidence missing: control_proof_audit/);
+  assert.match(
+    formatControlProofCanaryObservationSummary(missingPacketEvidence),
+    /- control_proof_audit: control_proof_audit runtime proof is absent/
+  );
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  template.evidence.liveTraceJoin = CLEAN_LIVE_TRACE_JOIN
+    .replace('Safe prompt proof: ready (4/4 required safe prompts)\n', '')
+    .replace('Safe prompt evidence: risk_profile_no_build, mission_routing_explain_only, repair_status_no_action, memory_vs_fresh_state\n', '');
+  const staleLiveTraceShape = summarizeControlProofCanaryObservations(template);
+  assert.equal(staleLiveTraceShape.readyForRelease, false);
+  assert.deepEqual(staleLiveTraceShape.invalidPacketEvidence, ['live_trace_join']);
+  assert.match(
+    staleLiveTraceShape.packetEvidenceDetails.invalid[0].nextSafeAction || '',
+    /control:proof:live-trace:prompts/
+  );
+  assert.match(formatControlProofCanaryObservationSummary(staleLiveTraceShape), /Packet evidence invalid: live_trace_join/);
+  assert.match(
+    formatControlProofCanaryObservationSummary(staleLiveTraceShape),
+    /next safe action: Run npm run control:proof:live-trace:prompts/
+  );
+
+  template.evidence.liveTraceJoin = CLEAN_LIVE_TRACE_JOIN;
+  template.evidence.sparkOsCompile = null;
+  const missingCompileEvidence = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingCompileEvidence.readyForRelease, false);
+  assert.deepEqual(missingCompileEvidence.missingPacketEvidence, ['spark_os_compile']);
+  assert.match(formatControlProofCanaryObservationSummary(missingCompileEvidence), /Packet evidence missing: spark_os_compile/);
+
+  template.evidence.sparkOsCompile = CLEAN_SPARK_OS_COMPILE;
+  template.evidence.collectedAt = '2026-06-23T00:00:00.000Z';
+  const stalePacketEvidence = summarizeControlProofCanaryObservations(template, {
+    now: '2026-06-24T01:00:00.000Z'
+  });
+  assert.equal(stalePacketEvidence.readyForRelease, false);
+  assert.equal(stalePacketEvidence.runtimeEvidenceExpiresAt, '2026-06-24T00:00:00.000Z');
+  assert.deepEqual(stalePacketEvidence.stalePacketEvidence, ['runtime_evidence_collected_at']);
+  assert.deepEqual(stalePacketEvidence.packetEvidenceDetails.stale, [{
+    key: 'runtime_evidence_collected_at',
+    state: 'stale',
+    reason: 'runtime evidence collection timestamp is invalid, future-dated, or outside the allowed freshness window',
+    nextSafeAction: 'Rerun --refresh-runtime-evidence from the current committed source state.',
+    generatedAt: template.generatedAt,
+    runtimeEvidenceCollectedAt: '2026-06-23T00:00:00.000Z',
+    runtimeEvidenceExpiresAt: '2026-06-24T00:00:00.000Z'
+  }]);
+  assert.match(formatControlProofCanaryObservationSummary(stalePacketEvidence), /Packet evidence stale: runtime_evidence_collected_at/);
+  assert.match(
+    formatControlProofCanaryObservationSummary(stalePacketEvidence),
+    /- runtime_evidence_collected_at: runtime evidence collection timestamp is invalid, future-dated, or outside the allowed freshness window/
+  );
+  assert.match(
+    formatControlProofCanaryObservationSummary(stalePacketEvidence),
+    /next safe action: Rerun --refresh-runtime-evidence from the current committed source state\./
+  );
+
+  template.evidence.collectedAt = 'June 24, 2026 00:30 UTC';
+  const looseCollectedAt = summarizeControlProofCanaryObservations(template, {
+    now: '2026-06-24T01:00:00.000Z'
+  });
+  assert.equal(looseCollectedAt.readyForRelease, false);
+  assert.equal(looseCollectedAt.runtimeEvidenceExpiresAt, null);
+  assert.deepEqual(looseCollectedAt.stalePacketEvidence, ['runtime_evidence_collected_at']);
+
+  template.evidence.collectedAt = '2026-06-24T01:06:00.000Z';
+  const futureCollectedAt = summarizeControlProofCanaryObservations(template, {
+    now: '2026-06-24T01:00:00.000Z'
+  });
+  assert.equal(futureCollectedAt.readyForRelease, false);
+  assert.deepEqual(futureCollectedAt.stalePacketEvidence, ['runtime_evidence_collected_at']);
+
+  template.evidence.collectedAt = null;
+  const missingCollectedAt = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingCollectedAt.readyForRelease, false);
+  assert.deepEqual(missingCollectedAt.missingPacketEvidence, ['runtime_evidence_collected_at']);
+  assert.equal(missingCollectedAt.packetEvidenceDetails.runtimeEvidenceCollectedAt, null);
+});
+
+test('observation summary rejects unrelated mutations on action cases', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-access-002')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
+    notes: null
+  });
+  template.cases[0].observed = {
+    ...template.cases[0].observed,
+    verdict: 'pass',
+    reply: 'Access is set to level three; I did not run repair setup.',
+    sideEffects: {
+      ...template.cases[0].observed.sideEffects,
+      accessChanged: true,
+      notes: 'Access changed; no other mutation observed.'
+    },
+    proofJoin: 'Access change joined with redacted proof ref.',
+    proofPanel: CLEAN_PROOF_PANEL,
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
+    userConfirmation: 'User confirmed Telegram access reply rendered once.'
+  };
+
+  const unobservedExtraMutations = summarizeControlProofCanaryObservations(template);
+  assert.equal(unobservedExtraMutations.readyForRelease, false);
+  assert.deepEqual(unobservedExtraMutations.cases[0].missingCaptures, ['side_effects_unobserved']);
+
+  template.cases[0].observed.sideEffects.filesChanged = false;
+  template.cases[0].observed.sideEffects.memoryWritten = false;
+  template.cases[0].observed.sideEffects.missionStarted = false;
+  template.cases[0].observed.sideEffects.externalNetworkCalled = false;
+  template.cases[0].observed.sideEffects.providerChanged = false;
+  template.cases[0].observed.sideEffects.mediaHandled = false;
+  const cleanAction = summarizeControlProofCanaryObservations(template);
+  assert.equal(cleanAction.readyForRelease, true);
+  assert.deepEqual(cleanAction.cases[0].missingCaptures, []);
+
+  template.cases[0].observed.sideEffects.missionStarted = true;
+  const unexpectedActionMutation = summarizeControlProofCanaryObservations(template);
+  assert.equal(unexpectedActionMutation.readyForRelease, false);
+  assert.deepEqual(unexpectedActionMutation.cases[0].missingCaptures, ['side_effects_unexpected_mutation']);
+});
+
+test('streaming canaries require runtime status and rich-message proof shape', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001')!,
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-002')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
+    notes: null
+  });
+  template.cases[0].observed = {
+    ...template.cases[0].observed,
+    verdict: 'pass',
+    reply: 'Telegram live chat Status: on Rich messages: on',
+    sideEffects: {
+      ...template.cases[0].observed.sideEffects,
+      filesChanged: false,
+      memoryWritten: false,
+      missionStarted: false,
+      externalNetworkCalled: false,
+      accessChanged: false,
+      providerChanged: false,
+      mediaHandled: false,
+      notes: 'No setting changes observed.'
+    },
+    proofJoin: 'Telegram command reply joined the live runtime status.',
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
+    userConfirmation: 'Verified in SparkRecursive_bot via Telegram.'
+  };
+  template.cases[1].observed = {
+    ...template.cases[1].observed,
+    verdict: 'pass',
+    reply: 'Looks clean.',
+    sideEffects: {
+      ...template.cases[1].observed.sideEffects,
+      filesChanged: false,
+      memoryWritten: false,
+      missionStarted: false,
+      externalNetworkCalled: false,
+      accessChanged: false,
+      providerChanged: false,
+      mediaHandled: false,
+      notes: 'No mutation observed.'
+    },
+    proofJoin: 'Telegram final delivery joined the rich-message reply.',
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
+    userConfirmation: 'Verified in SparkRecursive_bot via Telegram.'
+  };
+
+  const missingProofShape = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingProofShape.readyForRelease, false);
+  assert.deepEqual(missingProofShape.cases[0].missingCaptures, [
+    'observed_reply_streaming_status_shape',
+    'proof_join_streaming_status_delivery_shape',
+    'user_confirmation_duplicate_preview'
+  ]);
+  assert.deepEqual(missingProofShape.cases[1].missingCaptures, [
+    'observed_reply_rich_message_shape',
+    'proof_join_rich_message_delivery_shape',
+    'user_confirmation_duplicate_preview'
+  ]);
+
+  template.cases[1].observed.reply = 'Spark Recursive\nStatus: clean.\n\nToken: ok';
+  template.cases[1].observed.proofJoin = 'Telegram final delivery carried the rich-message reply from the restarted primary profile.';
+  template.cases[1].observed.userConfirmation = 'Verified in SparkRecursive_bot via Telegram without duplicate preview or final artifact.';
+  const roboticRichMessageProof = summarizeControlProofCanaryObservations(template);
+  assert.equal(roboticRichMessageProof.readyForRelease, false);
+  assert.deepEqual(roboticRichMessageProof.cases[1].missingCaptures, [
+    'observed_reply_robotic_shape',
+    'observed_reply_rich_message_shape'
+  ]);
+
+  template.cases[0].observed.reply = [
+    'Spark Recursive',
+    'Telegram live chat Profile: primary Status: on Rich messages: on Draft transport: rich Full-reply preview: on Draft interval: 500ms',
+    '',
+    'Process telemetry: no rich/draft delivery attempt observed since start.',
+    'Transport proof: configured only until a final or draft delivery is observed.',
+    '',
+    'Private chats only.'
+  ].join('\n');
+  template.cases[0].observed.proofJoin = 'Telegram command reply joined live /streaming runtime status through the active primary profile; transport proof line was visible in the final Telegram message.';
+  template.cases[0].observed.userConfirmation = 'Verified in SparkRecursive_bot via Telegram with no duplicate preview.';
+  template.cases[1].observed.reply = 'Spark Recursive\nCheck: clean.\n\nToken: ok';
+  template.cases[1].observed.proofJoin = 'Telegram final delivery carried the rich-message reply from the restarted primary profile.';
+  template.cases[1].observed.userConfirmation = 'Verified in SparkRecursive_bot via Telegram without duplicate preview or final artifact.';
+  const cleanStreamingProof = summarizeControlProofCanaryObservations(template);
+  assert.equal(cleanStreamingProof.readyForRelease, true);
+  assert.deepEqual(cleanStreamingProof.cases.map((entry) => entry.missingCaptures), [[], []]);
+});
+
+test('publish canary requires release-ready versus publish-not-ready handoff shape', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-publish-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
+    notes: null
+  });
+  template.cases[0].observed = {
+    ...template.cases[0].observed,
+    verdict: 'pass',
+    reply: 'Registry drift exists. Please review it later.',
+    sideEffects: {
+      ...template.cases[0].observed.sideEffects,
+      filesChanged: false,
+      memoryWritten: false,
+      missionStarted: false,
+      externalNetworkCalled: false,
+      accessChanged: false,
+      providerChanged: false,
+      mediaHandled: false,
+      notes: 'Read-only registry drift lookup; no mutation observed.'
+    },
+    proofJoin: 'Telegram final answer joined read-only registry drift evidence without raw commits.',
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
+    userConfirmation: 'Verified in SparkRecursive_bot via Telegram.'
+  };
+
+  const weakHandoff = summarizeControlProofCanaryObservations(template);
+  assert.equal(weakHandoff.readyForRelease, false);
+  assert.deepEqual(weakHandoff.cases[0].missingCaptures, ['observed_reply_publish_handoff_shape']);
+
+  template.cases[0].observed.reply = [
+    'Spark Recursive',
+    'Current evidence shows 2 registry truth drift items; that means the running code is not fully matched to published release metadata yet.',
+    'Live behavior can still be release-ready, but publish stays not ready until the registry drift handoff is resolved.',
+    '',
+    'spark-telegram-bot: release branch pending registry batch. Keep it in the next verified metadata batch before claiming registry readiness.',
+    '',
+    'This was a read-only evidence lookup; no registry edit was made.'
+  ].join('\n');
+  const oneOwnerHandoff = summarizeControlProofCanaryObservations(template);
+  assert.equal(oneOwnerHandoff.readyForRelease, false);
+  assert.deepEqual(oneOwnerHandoff.cases[0].missingCaptures, ['observed_reply_publish_handoff_shape']);
+
+  template.cases[0].observed.reply = [
+    'Spark Recursive',
+    'Current evidence shows 2 registry truth drift items; that means the running code is not fully matched to published release metadata yet.',
+    'Live behavior can still be release-ready, but publish stays not ready until the registry drift handoff is resolved.',
+    '',
+    'spark-telegram-bot: release branch pending registry batch. Keep it in the next verified metadata batch before claiming registry readiness.',
+    'spawner-ui: release branch pending registry batch. Keep it in the next verified metadata batch before claiming registry readiness.',
+    '',
+    'This was a read-only evidence lookup; no registry edit was made.'
+  ].join('\n');
+  const cleanHandoff = summarizeControlProofCanaryObservations(template);
+  assert.equal(cleanHandoff.readyForRelease, true);
+  assert.deepEqual(cleanHandoff.cases[0].missingCaptures, []);
+});
+
+test('observation summary rejects dirty runtime evidence even when packet fields are filled', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
+    notes: null
+  });
+  template.cases[0].observed = {
+    ...template.cases[0].observed,
+    verdict: 'pass',
+    reply: 'Route confidence means Spark is justified in taking this route now.',
+    sideEffects: {
+      ...template.cases[0].observed.sideEffects,
+      filesChanged: false,
+      memoryWritten: false,
+      missionStarted: false,
+      externalNetworkCalled: false,
+      accessChanged: false,
+      providerChanged: false,
+      mediaHandled: false,
+      notes: 'No mutation observed.'
+    },
+    proofJoin: 'Builder joined.',
+    proofPanel: CLEAN_PROOF_PANEL,
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
+    userConfirmation: 'Confirmed in SparkRecursive_bot.'
+  };
+
+  template.evidence.controlProofAudit = 'missing evidence: 0\nmissing trace joins: 0\nmissing proof capsules: 1';
+  const dirtyAudit = summarizeControlProofCanaryObservations(template);
+  assert.equal(dirtyAudit.readyForRelease, false);
+  assert.deepEqual(dirtyAudit.invalidPacketEvidence, ['control_proof_audit']);
+  assert.match(formatControlProofCanaryObservationSummary(dirtyAudit), /Packet evidence invalid: control_proof_audit/);
+
+  template.evidence.controlProofAudit = 'no missing evidence; trace joins and proof capsules look clean';
+  const proseAudit = summarizeControlProofCanaryObservations(template);
+  assert.equal(proseAudit.readyForRelease, false);
+  assert.deepEqual(proseAudit.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT
+    .replace('$ npm run control:proof:audit -- --sample 100 --fresh-strict\n', '')
+    .replace('exit=0\n', '');
+  const missingFreshStrictTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingFreshStrictTranscript.readyForRelease, false);
+  assert.deepEqual(missingFreshStrictTranscript.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('exit=0', 'exit=1');
+  const failedFreshStrictTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(failedFreshStrictTranscript.readyForRelease, false);
+  assert.deepEqual(failedFreshStrictTranscript.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('Blocking status: clean\n', '');
+  const missingBlockingStatus = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingBlockingStatus.readyForRelease, false);
+  assert.deepEqual(missingBlockingStatus.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('Actionable status: clean\n', '');
+  const missingActionableStatus = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingActionableStatus.readyForRelease, false);
+  assert.deepEqual(missingActionableStatus.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace(
+    'Actionable status: clean',
+    'Actionable status: repair required'
+  );
+  const blockingActionableStatus = summarizeControlProofCanaryObservations(template);
+  assert.equal(blockingActionableStatus.readyForRelease, false);
+  assert.deepEqual(blockingActionableStatus.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = [
+    'missing evidence: 0',
+    'missing trace joins: 0',
+    'missing proof capsules: 0',
+    'legacy proof gaps: 3',
+    'incomplete legacy gap backing: 0',
+    'raw ref leaks: 0',
+    'robotic failure reasons: 0',
+    'stack-like leaks: 0'
+  ].join('\n');
+  const hiddenLegacyGapPlanes = summarizeControlProofCanaryObservations(template);
+  assert.equal(hiddenLegacyGapPlanes.readyForRelease, false);
+  assert.deepEqual(hiddenLegacyGapPlanes.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace(
+    /\nLegacy gap backing:\n[\s\S]+$/,
+    ''
+  );
+  const hiddenLegacyBackingDetails = summarizeControlProofCanaryObservations(template);
+  assert.equal(hiddenLegacyBackingDetails.readyForRelease, false);
+  assert.deepEqual(hiddenLegacyBackingDetails.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace(
+    '- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace',
+    '- legacy proof gaps: telegram_route_confidence, builder_gateway'
+  );
+  const mismatchedLegacyGapPlaneCount = summarizeControlProofCanaryObservations(template);
+  assert.equal(mismatchedLegacyGapPlaneCount.readyForRelease, false);
+  assert.deepEqual(mismatchedLegacyGapPlaneCount.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace(
+    'builder_gateway: backing complete | source builder_gateway_trace_legacy_repair | latest_gap no | release_blocking no | marked 62',
+    'builder_gateway: backing complete | source builder_gateway_trace_legacy_repair | latest_gap no | release_blocking no | marked 61'
+  );
+  const mismatchedLegacyBackingMarkedCount = summarizeControlProofCanaryObservations(template);
+  assert.equal(mismatchedLegacyBackingMarkedCount.readyForRelease, false);
+  assert.deepEqual(mismatchedLegacyBackingMarkedCount.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT
+    .replaceAll(' | gap_capsule_valid 97', '')
+    .replaceAll(' | gap_capsule_valid 62', '')
+    .replaceAll(' | gap_capsule_valid 94', '');
+  const staleAuditShape = summarizeControlProofCanaryObservations(template);
+  assert.equal(staleAuditShape.readyForRelease, false);
+  assert.deepEqual(staleAuditShape.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('gap_capsule_valid 62', 'gap_capsule_valid 61');
+  const invalidGapCapsuleCount = summarizeControlProofCanaryObservations(template);
+  assert.equal(invalidGapCapsuleCount.readyForRelease, false);
+  assert.deepEqual(invalidGapCapsuleCount.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('voice_runtime_state: 1/1 sampled | proof 0/1 | proof_n/a 1', 'voice_runtime_state: 1/1 sampled | proof 0/1 | proof_n/a 0');
+  const unclassifiedVoiceEvidence = summarizeControlProofCanaryObservations(template);
+  assert.equal(unclassifiedVoiceEvidence.readyForRelease, false);
+  assert.deepEqual(unclassifiedVoiceEvidence.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace(
+    'incomplete legacy gap backing: 0',
+    'incomplete legacy gap backing: 1'
+  );
+  const incompleteLegacyGapBacking = summarizeControlProofCanaryObservations(template);
+  assert.equal(incompleteLegacyGapBacking.readyForRelease, false);
+  assert.deepEqual(incompleteLegacyGapBacking.invalidPacketEvidence, ['control_proof_audit']);
+  assert.deepEqual(incompleteLegacyGapBacking.gateDecisionDetails.release.blockers, [
+    'invalid_packet_evidence',
+    'control_proof_audit_blocking_gaps'
+  ]);
+  assert.deepEqual(
+    incompleteLegacyGapBacking.gateDecisionDetails.release.blockerDetails.control_proof_audit_blocking_gaps,
+    {
+      source: 'control_proof_audit',
+      actionableStatus: 'clean',
+      blockingStatus: 'clean',
+      freshStrictOk: false,
+      gapPosture: 'backed legacy gaps only; no blocking or latest proof gaps',
+      legacyGapBackingDetails: incompleteLegacyGapBacking.controlProofAuditDetails?.legacyGapBackingDetails,
+      gapFamilies: {
+        incomplete_legacy_gap_backing: {
+          count: 1,
+          releaseBlocking: true,
+          publishBlocking: true,
+          backingStatus: 'none',
+          planeLabels: [],
+          latestGapPlaneCount: 0,
+          incompleteBackingPlaneCount: 0,
+          completeBackingPlaneCount: 0
+        }
+      }
+    }
+  );
+  assert.deepEqual(
+    incompleteLegacyGapBacking.gateDecisionDetails.publish.blockerDetails.release_gate_not_ready,
+    {
+      releaseReady: false,
+      releaseBlockers: [
+        'invalid_packet_evidence',
+        'control_proof_audit_blocking_gaps'
+      ],
+      releaseBlockerDetails: incompleteLegacyGapBacking.gateDecisionDetails.release.blockerDetails
+    }
+  );
+
+  template.evidence.controlProofAudit = [
+    'missing evidence: 0',
+    'missing trace joins: 0',
+    'missing proof capsules: 0',
+    'legacy proof gaps: 0',
+    'incomplete legacy gap backing: 0',
+    'raw ref leaks: 0',
+    'robotic failure reasons: 0',
+    'stack-like leaks: 0'
+  ].join('\n');
+  const missingLatestGapSummary = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingLatestGapSummary.readyForRelease, false);
+  assert.deepEqual(missingLatestGapSummary.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  template.evidence.controlProofAudit = `${CLEAN_CONTROL_PROOF_AUDIT}\nbuilder_gateway: 100/100 sampled | latest_gap yes`;
+  const freshGapAudit = summarizeControlProofCanaryObservations(template);
+  assert.equal(freshGapAudit.readyForRelease, false);
+  assert.deepEqual(freshGapAudit.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = `${CLEAN_CONTROL_PROOF_AUDIT}\nBlocking status: blocking gaps found`;
+  const blockingGapAudit = summarizeControlProofCanaryObservations(template);
+  assert.equal(blockingGapAudit.readyForRelease, false);
+  assert.deepEqual(blockingGapAudit.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = `${CLEAN_CONTROL_PROOF_AUDIT}\nbuilder_gateway: 1/1 sampled | raw_refs 0 | raw_id_keys 1 | reason_codes 0 | parse_errors 0`;
+  const rawIdPlaneAudit = summarizeControlProofCanaryObservations(template);
+  assert.equal(rawIdPlaneAudit.readyForRelease, false);
+  assert.deepEqual(rawIdPlaneAudit.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = `${CLEAN_CONTROL_PROOF_AUDIT}\nbuilder_gateway: 1/1 sampled | raw_refs 0 | raw_id_keys 0 | reason_codes 1 | parse_errors 0`;
+  const reasonCodePlaneAudit = summarizeControlProofCanaryObservations(template);
+  assert.equal(reasonCodePlaneAudit.readyForRelease, false);
+  assert.deepEqual(reasonCodePlaneAudit.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  template.evidence.notes = [
+    'Collected locally by control-proof canary CLI. Refresh after Spark restarts or proof-audit changes.',
+    'Legacy repair dry-run:',
+    '- telegram_route_confidence: changed_rows=0; rows_read=145; capsules_added=0; parse_errors=0',
+    '- builder_gateway: changed_rows=1; rows_read=522; capsules_added=1; parse_errors=0',
+    '- spawner_prd_trace: changed_rows=0; rows_read=495; capsules_added=0; parse_errors=0'
+  ].join('\n');
+  const dirtyLegacyRepairDryRun = summarizeControlProofCanaryObservations(template);
+  assert.equal(dirtyLegacyRepairDryRun.readyForRelease, false);
+  assert.deepEqual(dirtyLegacyRepairDryRun.invalidPacketEvidence, ['legacy_repair_dry_run']);
+  assert.match(
+    formatControlProofCanaryObservationSummary(dirtyLegacyRepairDryRun),
+    /Packet evidence invalid: legacy_repair_dry_run/
+  );
+
+  template.evidence.notes = [
+    'Collected locally by control-proof canary CLI. Refresh after Spark restarts or proof-audit changes.',
+    'Legacy repair dry-run:',
+    '- telegram_route_confidence: changed_rows=0; rows_read=145; capsules_added=0; parse_errors=0',
+    '- builder_gateway: changed_rows=0; rows_read=522; capsules_added=0; parse_errors=0'
+  ].join('\n');
+  const incompleteLegacyRepairDryRun = summarizeControlProofCanaryObservations(template);
+  assert.equal(incompleteLegacyRepairDryRun.readyForRelease, false);
+  assert.deepEqual(incompleteLegacyRepairDryRun.invalidPacketEvidence, ['legacy_repair_dry_run']);
+
+  template.evidence.notes = [
+    'Collected locally by control-proof canary CLI. Refresh after Spark restarts or proof-audit changes.',
+    'Legacy repair dry-run:',
+    '- telegram_route_confidence: changed_rows=0; rows_read=145; capsules_added=0; parse_errors=0',
+    '- builder_gateway: changed_rows=0; rows_read=522; capsules_added=0; parse_errors=0',
+    '- spawner_prd_trace: changed_rows=0; rows_read=495; capsules_added=0; parse_errors=0'
+  ].join('\n');
+  const cleanLegacyRepairDryRun = summarizeControlProofCanaryObservations(template);
+  assert.ok(!cleanLegacyRepairDryRun.invalidPacketEvidence.includes('legacy_repair_dry_run'));
+  assert.deepEqual(cleanLegacyRepairDryRun.legacyRepairDryRunDetails, [
+    {
+      plane: 'builder_gateway',
+      changedRows: 0,
+      rowsRead: 522,
+      capsulesAdded: 0,
+      parseErrors: 0
+    },
+    {
+      plane: 'spawner_prd_trace',
+      changedRows: 0,
+      rowsRead: 495,
+      capsulesAdded: 0,
+      parseErrors: 0
+    },
+    {
+      plane: 'telegram_route_confidence',
+      changedRows: 0,
+      rowsRead: 145,
+      capsulesAdded: 0,
+      parseErrors: 0
+    }
+  ]);
+
+  const cleanAuditSummary = summarizeControlProofAuditRuntimeEvidence(CLEAN_CONTROL_PROOF_AUDIT)!;
+  template.evidence.controlProofAuditSummary = {
+    ...cleanAuditSummary,
+    gapCounts: Object.fromEntries(Object.entries(cleanAuditSummary.gapCounts).reverse()),
+    gapPlanes: {
+      legacy_proof_gaps: [...cleanAuditSummary.gapPlanes.legacy_proof_gaps].reverse()
+    }
+  };
+  const reorderedAuditSummary = summarizeControlProofCanaryObservations(template);
+  assert.equal(reorderedAuditSummary.readyForRelease, true);
+  assert.deepEqual(reorderedAuditSummary.invalidPacketEvidence, []);
+
+  template.evidence.controlProofAuditSummary = {
+    ...cleanAuditSummary,
+    freshStrictOk: false
+  };
+  const mismatchedAuditSummary = summarizeControlProofCanaryObservations(template);
+  assert.equal(mismatchedAuditSummary.readyForRelease, false);
+  assert.deepEqual(mismatchedAuditSummary.invalidPacketEvidence, ['control_proof_audit_summary']);
+  assert.deepEqual(mismatchedAuditSummary.packetEvidenceDetails.invalid, [{
+    key: 'control_proof_audit_summary',
+    state: 'invalid',
+    reason: 'control-proof audit summary does not match the audit transcript',
+    nextSafeAction: null,
+    generatedAt: template.generatedAt,
+    runtimeEvidenceCollectedAt: template.evidence.collectedAt,
+    runtimeEvidenceExpiresAt: mismatchedAuditSummary.runtimeEvidenceExpiresAt
+  }]);
+  assert.match(
+    formatControlProofCanaryObservationSummary(mismatchedAuditSummary),
+    /- control_proof_audit_summary: control-proof audit summary does not match the audit transcript/
+  );
+
+  template.evidence.controlProofAuditSummary = summarizeControlProofAuditRuntimeEvidence(CLEAN_CONTROL_PROOF_AUDIT);
+  template.evidence.sparkLiveStatus = 'Spark Live healthy.';
+  const missingLiveStatusTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingLiveStatusTranscript.readyForRelease, false);
+  assert.deepEqual(missingLiveStatusTranscript.invalidPacketEvidence, ['spark_live_status']);
+
+  template.evidence.sparkLiveStatus = CLEAN_SPARK_LIVE_STATUS.replace('exit=0', 'exit=1');
+  const failedLiveStatusTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(failedLiveStatusTranscript.readyForRelease, false);
+  assert.deepEqual(failedLiveStatusTranscript.invalidPacketEvidence, ['spark_live_status']);
+
+  template.evidence.sparkLiveStatus = CLEAN_SPARK_LIVE_STATUS;
+  template.evidence.providerStatus = 'Provider ping failed.';
+  const dirtyProvider = summarizeControlProofCanaryObservations(template);
+  assert.equal(dirtyProvider.readyForRelease, false);
+  assert.deepEqual(dirtyProvider.invalidPacketEvidence, ['provider_status']);
+
+  template.evidence.providerStatus = 'Provider ping OK.';
+  const missingProviderTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingProviderTranscript.readyForRelease, false);
+  assert.deepEqual(missingProviderTranscript.invalidPacketEvidence, ['provider_status']);
+
+  template.evidence.providerStatus = CLEAN_PROVIDER_STATUS.replace('exit=0', 'exit=1');
+  const failedProviderTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(failedProviderTranscript.readyForRelease, false);
+  assert.deepEqual(failedProviderTranscript.invalidPacketEvidence, ['provider_status']);
+
+  template.evidence.providerStatus = CLEAN_PROVIDER_STATUS;
+  template.evidence.runtimeSync = 'runtime in sync.';
+  const missingSyncTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingSyncTranscript.readyForRelease, false);
+  assert.deepEqual(missingSyncTranscript.invalidPacketEvidence, ['runtime_sync']);
+
+  template.evidence.runtimeSync = CLEAN_RUNTIME_SYNC.replace('exit=0', 'exit=1');
+  const failedSyncTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(failedSyncTranscript.readyForRelease, false);
+  assert.deepEqual(failedSyncTranscript.invalidPacketEvidence, ['runtime_sync']);
+
+  template.evidence.runtimeSync = CLEAN_RUNTIME_SYNC;
+  template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":false,"gaps":1}';
+  const dirtyCompile = summarizeControlProofCanaryObservations(template);
+  assert.equal(dirtyCompile.readyForRelease, false);
+  assert.deepEqual(dirtyCompile.invalidPacketEvidence, ['spark_os_compile']);
+  assert.match(formatControlProofCanaryObservationSummary(dirtyCompile), /Packet evidence invalid: spark_os_compile/);
+
+  template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":true,"gaps":0,"privacy":{"raw_logs_read":true}}';
+  const compileRawPrivacyRead = summarizeControlProofCanaryObservations(template);
+  assert.equal(compileRawPrivacyRead.readyForRelease, false);
+  assert.deepEqual(compileRawPrivacyRead.invalidPacketEvidence, ['spark_os_compile']);
+
+  template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"privacy":{"raw_logs_read":false}}';
+  const compileIncompletePrivacy = summarizeControlProofCanaryObservations(template);
+  assert.equal(compileIncompletePrivacy.readyForRelease, false);
+  assert.deepEqual(compileIncompletePrivacy.invalidPacketEvidence, ['spark_os_compile']);
+
+  template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":true,"gaps":0,"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}';
+  const compileMissingDirtyState = summarizeControlProofCanaryObservations(template);
+  assert.equal(compileMissingDirtyState.readyForRelease, false);
+  assert.deepEqual(compileMissingDirtyState.invalidPacketEvidence, ['spark_os_compile']);
+
+  template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":true,"gaps":0,"repo_board":{"dirty_repo_count":1},"privacy":{"raw_logs_read":false}}';
+  const dirtyRuntimeCompile = summarizeControlProofCanaryObservations(template);
+  assert.equal(dirtyRuntimeCompile.readyForRelease, false);
+  assert.deepEqual(dirtyRuntimeCompile.invalidPacketEvidence, ['spark_os_compile']);
+
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":1,"blocked_release_count":1,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":1,"broad_dirty_repo_count":1},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"publish_handoffs":{"schema_version":"spark.publish_handoffs.summary.v0","family_count":1,"families":["repo_release_blocks"],"blocked_release_repos":[{"repo":"spark-world-editor","risk_class":"high","reason":"dirty worktree","next_safe_action":"curate local changes before merge or release","behind":0}]},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  const handedOffDirtyRuntimeCompile = summarizeControlProofCanaryObservations(template);
+  assert.equal(handedOffDirtyRuntimeCompile.readyForRelease, true);
+  assert.equal(handedOffDirtyRuntimeCompile.readyForPublish, false);
+  assert.deepEqual(handedOffDirtyRuntimeCompile.invalidPacketEvidence, []);
+  assert.deepEqual(handedOffDirtyRuntimeCompile.releaseHandoffs, [
+    'spark-world-editor: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release'
+  ]);
+
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  const publishCleanCompile = summarizeControlProofCanaryObservations(template);
+  assert.equal(publishCleanCompile.readyForRelease, true);
+  assert.equal(publishCleanCompile.readyForPublish, true);
+  assert.deepEqual(publishCleanCompile.gateDecisionDetails, {
+    release: {
+      ready: true,
+      blockers: [],
+      blockerDetails: {},
+      caveats: [],
+      caveatDetails: null,
+      caveatFamilies: [],
+      handoffDetails: null,
+      handoffActionDetails: [],
+      handoffFamilies: [],
+      handoffCount: 0,
+      packetEvidence: { missing: [], invalid: [], stale: [] },
+      failingCases: []
+    },
+    publish: {
+      ready: true,
+      blockers: [],
+      blockerDetails: {},
+      caveats: [],
+      caveatDetails: null,
+      caveatFamilies: [],
+      handoffDetails: null,
+      handoffActionDetails: [],
+      handoffFamilies: [],
+      handoffCount: 0,
+      packetEvidence: { missing: [], invalid: [], stale: [] },
+      failingCases: []
+    }
+  });
+  assert.deepEqual(publishCleanCompile.releaseCaveats, []);
+  assert.match(formatControlProofCanaryObservationSummary(publishCleanCompile), /Publish gate: ready/);
+
+  template.evidence.sparkOsCompile = CLEAN_SPARK_OS_COMPILE;
+  const compileDriftVisibleButClean = summarizeControlProofCanaryObservations(template);
+  assert.equal(compileDriftVisibleButClean.readyForRelease, true);
+  assert.equal(compileDriftVisibleButClean.readyForPublish, false);
+  assert.deepEqual(compileDriftVisibleButClean.invalidPacketEvidence, []);
+  assert.deepEqual(compileDriftVisibleButClean.releaseCaveats, [
+    'duplicate_truth_drift | duplicate_truth_count=2 | critical_duplicate_truth_count=1'
+  ]);
+  assert.deepEqual(compileDriftVisibleButClean.releaseHandoffs, []);
+  assert.match(
+    formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
+    /Release caveats:\n- duplicate_truth_drift/
+  );
+  assert.match(
+    formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
+    /Selected-case note: selected cases are ready with caveats; complete handoffs from the full release packet before publish\/registry claims\./
+  );
+  assert.match(
+    formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
+    /Publish gate: not ready/
+  );
+
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":["missing_trace_refs","historical_open_high_severity_events"],"builder_trace_current_health":{"status":"recent_missing_trace_refs","window":"24h","row_count":1039,"missing_trace_ref_count":480,"historical_missing_trace_ref_count":12721,"total_missing_trace_ref_count":13201,"missing_trace_ref_ratio":0.462,"high_severity_open_count":4,"unresolved_high_severity_open_count":1,"current_unresolved_high_severity_open_count":0,"latest_missing_group_count":2,"latest_clean_group_count":1,"repair_temporal_state_counts":{"latest_missing_trace_ref":2,"latest_clean_historical_window_debt":1}},"builder_trace_recent_windows":[{"window":"1h","row_count":0,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0},{"window":"24h","row_count":1039,"missing_trace_ref_count":480,"missing_trace_ref_ratio":0.462}],"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  const builderTraceHealthCaveat = summarizeControlProofCanaryObservations(template);
+  assert.equal(builderTraceHealthCaveat.readyForRelease, true);
+  assert.equal(builderTraceHealthCaveat.readyForPublish, false);
+  assert.deepEqual(builderTraceHealthCaveat.releaseCaveats, [
+    'builder_trace_health | flags=historical_open_high_severity_events,missing_trace_refs | trace_status=recent_missing_trace_refs | window=24h | missing_trace_refs=480 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=12721 | high_severity_open_events=4 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | latest_missing_source_groups=2 | latest_clean_historical_window_groups=1'
+  ]);
+  assert.deepEqual(builderTraceHealthCaveat.releaseHandoffs, [
+    'spark-intelligence-builder: warning builder_trace_health; next safe action: Repair or replay 2 latest-missing Builder trace source groups, then rerun spark os compile and the canary release-check.'
+  ]);
+  assert.match(
+    formatControlProofCanaryObservationSummary(builderTraceHealthCaveat),
+    /Release caveats:\n- builder_trace_health \| flags=historical_open_high_severity_events,missing_trace_refs \| trace_status=recent_missing_trace_refs \| window=24h \| missing_trace_refs=480 \| 1h_missing_trace_refs=0 \| historical_missing_trace_refs=12721 \| high_severity_open_events=4 \| unresolved_high_severity_events=1 \| current_unresolved_high_severity_events=0 \| latest_missing_source_groups=2 \| latest_clean_historical_window_groups=1/
+  );
+  assert.match(
+    formatControlProofCanaryObservationSummary(builderTraceHealthCaveat),
+    /Release handoffs:\n- spark-intelligence-builder: warning builder_trace_health; next safe action: Repair or replay 2 latest-missing Builder trace source groups, then rerun spark os compile and the canary release-check\./
+  );
+
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":["open_high_severity_events"],"builder_trace_current_health":{"status":"current_clean","window":"1h","row_count":12,"missing_trace_ref_count":0,"historical_missing_trace_ref_count":0,"total_missing_trace_ref_count":0,"missing_trace_ref_ratio":0,"high_severity_open_count":2,"unresolved_high_severity_open_count":2,"current_unresolved_high_severity_open_count":2},"builder_trace_recent_windows":[{"window":"1h","row_count":12,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0},{"window":"24h","row_count":1039,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0}],"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"sqlite_row_contents_read":false,"raw_memory_evidence_read":false}}`;
+  const currentHighSeverity = summarizeControlProofCanaryObservations(template);
+  assert.equal(currentHighSeverity.readyForRelease, false);
+  assert.equal(currentHighSeverity.readyForPublish, false);
+  assert.deepEqual(currentHighSeverity.releaseCaveats, [
+    'builder_trace_health | flags=open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=2 | unresolved_high_severity_events=2 | current_unresolved_high_severity_events=2'
+  ]);
+  assert.deepEqual(currentHighSeverity.releaseHandoffs, [
+    'spark-intelligence-builder: blocked builder_trace_health; next safe action: Resolve or replay current open high-severity Builder event families, then rerun spark os compile and the canary release-check.'
+  ]);
+  assert.deepEqual(currentHighSeverity.releaseHandoffDetails.map((entry) => ({
+    owner: entry.owner,
+    status: entry.status,
+    family: entry.family,
+    releaseBlocking: entry.releaseBlocking,
+    publishBlocking: entry.publishBlocking
+  })), [
+    {
+      owner: 'spark-intelligence-builder',
+      status: 'blocked',
+      family: 'builder_trace_health',
+      releaseBlocking: true,
+      publishBlocking: true
+    }
+  ]);
+  assert.match(formatControlProofCanaryObservationSummary(currentHighSeverity), /Release gate: not ready/);
+
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":["historical_open_high_severity_events"],"builder_trace_current_health":{"status":"current_clean","window":"1h","row_count":2,"missing_trace_ref_count":0,"historical_missing_trace_ref_count":0,"total_missing_trace_ref_count":0,"missing_trace_ref_ratio":0,"high_severity_open_count":46,"unresolved_high_severity_open_count":1,"current_unresolved_high_severity_open_count":0,"unresolved_high_severity_source_group_count":1,"latest_unresolved_high_severity_event_created_at":"2026-06-02 09:03:25","latest_missing_group_count":0,"latest_clean_group_count":0,"repair_temporal_state_counts":{}},"builder_trace_recent_windows":[{"window":"1h","row_count":2,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0},{"window":"24h","row_count":2474,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0}],"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  const historicalHighSeverity = summarizeControlProofCanaryObservations(template);
+  assert.equal(historicalHighSeverity.readyForRelease, true);
+  assert.equal(historicalHighSeverity.readyForPublish, false);
+  assert.deepEqual(historicalHighSeverity.releaseCaveats, [
+    'builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0'
+  ]);
+  assert.deepEqual(historicalHighSeverity.releaseHandoffs, [
+    'spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.'
+  ]);
+  assert.match(
+    formatControlProofCanaryObservationSummary(historicalHighSeverity),
+    /Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z/
+  );
+
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":["missing_trace_refs","historical_open_high_severity_events"],"builder_trace_current_health":{"status":"current_clean_historical_backlog","window":"24h","row_count":1048,"missing_trace_ref_count":0,"historical_missing_trace_ref_count":1783,"total_missing_trace_ref_count":1783,"missing_trace_ref_ratio":0,"high_severity_open_count":1,"unresolved_high_severity_open_count":1,"current_unresolved_high_severity_open_count":0,"latest_missing_group_count":0,"latest_clean_group_count":0,"repair_temporal_state_counts":{"latest_clean":9,"stale_missing_trace_ref":9}},"builder_trace_recent_windows":[{"window":"1h","row_count":0,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0},{"window":"24h","row_count":1048,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0},{"window":"7d","row_count":6992,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0}],"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  const builderHistoricalBacklog = summarizeControlProofCanaryObservations(template);
+  assert.deepEqual(builderHistoricalBacklog.releaseHandoffs, [
+    'spark-intelligence-builder: warning builder_trace_health; next safe action: Audit or backfill the remaining historical Builder trace rows, then rerun spark os compile.'
+  ]);
+  assert.match(
+    formatControlProofCanaryObservationSummary(builderHistoricalBacklog),
+    /Audit or backfill the remaining historical Builder trace rows/
+  );
+
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"blocked_release_count":4,"critical_repo_count":0,"duplicate_truth_count":2,"critical_duplicate_truth_count":1},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":2,"canonical_runtime_dirty":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  const registryPinDrift = summarizeControlProofCanaryObservations(template);
+  assert.equal(registryPinDrift.readyForRelease, true);
+  assert.equal(registryPinDrift.readyForPublish, false);
+  assert.deepEqual(registryPinDrift.releaseCaveats, [
+    'repo_release_blocks | blocked_release_count=4 | critical_repo_count=0',
+    'registry_pin_drift | classifications=runtime_ahead_of_registry_pin:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1'
+  ]);
+
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"blocked_release_count":4,"critical_repo_count":0,"duplicate_truth_count":2,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"local_runtime_test_artifact":2},"owner_sets":{"local_runtime_test_artifact":["spawner-ui","spark-telegram-bot"]}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  const localRuntimeArtifacts = summarizeControlProofCanaryObservations(template);
+  assert.equal(localRuntimeArtifacts.readyForRelease, true);
+  assert.equal(localRuntimeArtifacts.readyForPublish, false);
+  assert.deepEqual(localRuntimeArtifacts.releaseCaveats, [
+    'repo_release_blocks | blocked_release_count=4 | critical_repo_count=0',
+    'local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0'
+  ]);
+  assert.deepEqual(localRuntimeArtifacts.releaseHandoffs, [
+    'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.'
+  ]);
+  assert.match(
+    formatControlProofCanaryObservationSummary(localRuntimeArtifacts),
+    /local_runtime_test_artifacts \| classifications=local_runtime_test_artifact:2/
+  );
+  assert.match(
+    formatControlProofCanaryObservationSummary(localRuntimeArtifacts),
+    /spark-installer-registry: warning local_runtime_test_artifacts/
+  );
+
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":["historical_open_high_severity_events"],"builder_trace_current_health":{"status":"current_clean","window":"1h","missing_trace_ref_count":0,"historical_missing_trace_ref_count":0,"high_severity_open_count":46,"unresolved_high_severity_open_count":1,"current_unresolved_high_severity_open_count":0,"unresolved_high_severity_source_group_count":1,"latest_unresolved_high_severity_event_created_at":"2026-06-02 09:03:25"},"repo_board":{"dirty_repo_count":0,"blocked_release_count":1,"critical_repo_count":1,"duplicate_truth_count":2,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"local_runtime_test_artifact":2},"owner_sets":{"local_runtime_test_artifact":["spark-telegram-bot","spawner-ui"]}},"publish_handoffs":{"schema_version":"spark.publish_handoffs.summary.v0","family_count":3,"families":["repo_release_blocks","local_runtime_test_artifacts","builder_trace_health"],"blocked_release_repos":[{"repo":"spark-intelligence-builder","risk_class":"critical","reason":"behind upstream","next_safe_action":"pull or merge upstream before release","behind":12}],"local_runtime_test_artifacts":{"count":2,"owners":["spark-telegram-bot","spawner-ui"]},"builder_trace_health":{"flags":["historical_open_high_severity_events"],"high_severity_open_count":46,"unresolved_high_severity_open_count":1,"current_unresolved_high_severity_open_count":0,"unresolved_high_severity_source_group_count":1,"latest_unresolved_high_severity_event_created_at":"2026-06-02 09:03:25"}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  const structuredPublishHandoffs = summarizeControlProofCanaryObservations(template);
+  const expectedHandoffActionDetails = [
+    {
+      owner: 'spark-intelligence-builder',
+      status: 'publish_blocked',
+      family: 'repo_release_blocks',
+      releaseBlocking: false,
+      publishBlocking: true,
+      reason: 'behind upstream',
+      behind: 12,
+      nextSafeAction: 'pull or merge upstream before release',
+      familyDetails: {
+        repo: 'spark-intelligence-builder',
+        releaseBlocking: false,
+        publishBlocking: true,
+        risk_class: 'critical',
+        reason: 'behind upstream',
+        next_safe_action: 'pull or merge upstream before release',
+        behind: 12
+      },
+      line: 'spark-intelligence-builder: publish_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release'
+    },
+    {
+      owner: 'spark-installer-registry',
+      status: 'warning',
+      family: 'local_runtime_test_artifacts',
+      releaseBlocking: false,
+      publishBlocking: true,
+      reason: null,
+      behind: null,
+      nextSafeAction: 'Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
+      familyDetails: {
+        releaseBlocking: false,
+        publishBlocking: true,
+        count: 2,
+        owners: ['spark-telegram-bot', 'spawner-ui']
+      },
+      line: 'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.'
+    },
+    {
+      owner: 'spark-intelligence-builder',
+      status: 'warning',
+      family: 'builder_trace_health',
+      releaseBlocking: false,
+      publishBlocking: true,
+      reason: null,
+      behind: null,
+      nextSafeAction: 'Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.',
+      familyDetails: {
+        releaseBlocking: false,
+        publishBlocking: true,
+        flags: ['historical_open_high_severity_events'],
+        high_severity_open_count: 46,
+        unresolved_high_severity_open_count: 1,
+        current_unresolved_high_severity_open_count: 0,
+        unresolved_high_severity_source_group_count: 1,
+        latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
+      },
+      line: 'spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.'
+    }
+  ];
+  assert.equal(structuredPublishHandoffs.readyForRelease, true);
+  assert.equal(structuredPublishHandoffs.readyForPublish, false);
+  assert.deepEqual(structuredPublishHandoffs.gateDecisionDetails, {
+    release: {
+      ready: true,
+      blockers: [],
+      blockerDetails: {},
+      caveats: [
+        'builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z',
+        'repo_release_blocks | blocked_release_count=1 | critical_repo_count=1',
+        'local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0'
+      ],
+      caveatDetails: {
+        builder_trace_health: {
+          releaseBlocking: false,
+          publishBlocking: true,
+          flags: ['historical_open_high_severity_events'],
+          status: 'current_clean',
+          window: '1h',
+          missing_trace_ref_count: 0,
+          one_hour_missing_trace_ref_count: null,
+          historical_missing_trace_ref_count: 0,
+          high_severity_open_count: 46,
+          unresolved_high_severity_open_count: 1,
+          current_unresolved_high_severity_open_count: 0,
+          unresolved_high_severity_source_group_count: 1,
+          latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z',
+          latest_missing_source_group_count: null,
+          latest_clean_historical_window_group_count: null
+        },
+        repo_release_blocks: {
+          releaseBlocking: false,
+          publishBlocking: true,
+          blocked_release_count: 1,
+          critical_repo_count: 1,
+          blocked_release_repos: [
+            {
+              repo: 'spark-intelligence-builder',
+              releaseBlocking: false,
+              publishBlocking: true,
+              risk_class: 'critical',
+              reason: 'behind upstream',
+              next_safe_action: 'pull or merge upstream before release',
+              behind: 12
+            }
+          ]
+        },
+        duplicate_truths: {
+          releaseBlocking: false,
+          publishBlocking: true,
+          label: 'local_runtime_test_artifacts',
+          classification_counts: { local_runtime_test_artifact: 2 },
+          duplicate_truth_count: 2,
+          critical_duplicate_truth_count: 0,
+          owner_sets: {
+            local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+          }
+        }
+      },
+      caveatFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
+      handoffDetails: {
+        schema_version: 'spark.publish_handoffs.summary.v0',
+        family_count: 3,
+        families: ['repo_release_blocks', 'local_runtime_test_artifacts', 'builder_trace_health'],
+        blocked_release_repos: [
+          {
+            repo: 'spark-intelligence-builder',
+            releaseBlocking: false,
+            publishBlocking: true,
+            risk_class: 'critical',
+            reason: 'behind upstream',
+            next_safe_action: 'pull or merge upstream before release',
+            behind: 12
+          }
+        ],
+        local_runtime_test_artifacts: {
+          releaseBlocking: false,
+          publishBlocking: true,
+          count: 2,
+          owners: ['spark-telegram-bot', 'spawner-ui']
+        },
+        builder_trace_health: {
+          releaseBlocking: false,
+          publishBlocking: true,
+          flags: ['historical_open_high_severity_events'],
+          high_severity_open_count: 46,
+          unresolved_high_severity_open_count: 1,
+          current_unresolved_high_severity_open_count: 0,
+          unresolved_high_severity_source_group_count: 1,
+          latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
+        },
+        duplicate_truths: {
+          releaseBlocking: false,
+          publishBlocking: true,
+          classification_counts: { local_runtime_test_artifact: 2 },
+          duplicate_truth_count: null,
+          owner_sets: {
+            local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+          }
+        }
+      },
+      handoffActionDetails: expectedHandoffActionDetails,
+      handoffFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
+      handoffCount: 3,
+      packetEvidence: { missing: [], invalid: [], stale: [] },
+      failingCases: []
+    },
+    publish: {
+      ready: false,
+      blockers: ['release_caveats', 'release_handoffs'],
+      blockerDetails: {
+        release_caveats: {
+          caveatCount: 3,
+          caveatFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
+          caveatDetails: {
+            builder_trace_health: {
+              releaseBlocking: false,
+              publishBlocking: true,
+              flags: ['historical_open_high_severity_events'],
+              status: 'current_clean',
+              window: '1h',
+              missing_trace_ref_count: 0,
+              one_hour_missing_trace_ref_count: null,
+              historical_missing_trace_ref_count: 0,
+              high_severity_open_count: 46,
+              unresolved_high_severity_open_count: 1,
+              current_unresolved_high_severity_open_count: 0,
+              unresolved_high_severity_source_group_count: 1,
+              latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z',
+              latest_missing_source_group_count: null,
+              latest_clean_historical_window_group_count: null
+            },
+            repo_release_blocks: {
+              releaseBlocking: false,
+              publishBlocking: true,
+              blocked_release_count: 1,
+              critical_repo_count: 1,
+              blocked_release_repos: [
+                {
+                  repo: 'spark-intelligence-builder',
+                  releaseBlocking: false,
+                  publishBlocking: true,
+                  risk_class: 'critical',
+                  reason: 'behind upstream',
+                  next_safe_action: 'pull or merge upstream before release',
+                  behind: 12
+                }
+              ]
+            },
+            duplicate_truths: {
+              releaseBlocking: false,
+              publishBlocking: true,
+              label: 'local_runtime_test_artifacts',
+              classification_counts: { local_runtime_test_artifact: 2 },
+              duplicate_truth_count: 2,
+              critical_duplicate_truth_count: 0,
+              owner_sets: {
+                local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+              }
+            }
+          }
+        },
+        release_handoffs: {
+          handoffCount: 3,
+          handoffFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
+          handoffDetails: {
+            schema_version: 'spark.publish_handoffs.summary.v0',
+            family_count: 3,
+            families: ['repo_release_blocks', 'local_runtime_test_artifacts', 'builder_trace_health'],
+            blocked_release_repos: [
+              {
+                repo: 'spark-intelligence-builder',
+                releaseBlocking: false,
+                publishBlocking: true,
+                risk_class: 'critical',
+                reason: 'behind upstream',
+                next_safe_action: 'pull or merge upstream before release',
+                behind: 12
+              }
+            ],
+            local_runtime_test_artifacts: {
+              releaseBlocking: false,
+              publishBlocking: true,
+              count: 2,
+              owners: ['spark-telegram-bot', 'spawner-ui']
+            },
+            builder_trace_health: {
+              releaseBlocking: false,
+              publishBlocking: true,
+              flags: ['historical_open_high_severity_events'],
+              high_severity_open_count: 46,
+              unresolved_high_severity_open_count: 1,
+              current_unresolved_high_severity_open_count: 0,
+              unresolved_high_severity_source_group_count: 1,
+              latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
+            },
+            duplicate_truths: {
+              releaseBlocking: false,
+              publishBlocking: true,
+              classification_counts: { local_runtime_test_artifact: 2 },
+              duplicate_truth_count: null,
+              owner_sets: {
+                local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+              }
+            }
+          },
+          handoffActionDetails: expectedHandoffActionDetails,
+          handoffs: [
+            'spark-intelligence-builder: publish_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release',
+            'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
+            'spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.'
+          ]
+        }
+      },
+      caveats: [
+        'builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z',
+        'repo_release_blocks | blocked_release_count=1 | critical_repo_count=1',
+        'local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0'
+      ],
+      caveatDetails: {
+        builder_trace_health: {
+          releaseBlocking: false,
+          publishBlocking: true,
+          flags: ['historical_open_high_severity_events'],
+          status: 'current_clean',
+          window: '1h',
+          missing_trace_ref_count: 0,
+          one_hour_missing_trace_ref_count: null,
+          historical_missing_trace_ref_count: 0,
+          high_severity_open_count: 46,
+          unresolved_high_severity_open_count: 1,
+          current_unresolved_high_severity_open_count: 0,
+          unresolved_high_severity_source_group_count: 1,
+          latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z',
+          latest_missing_source_group_count: null,
+          latest_clean_historical_window_group_count: null
+        },
+        repo_release_blocks: {
+          releaseBlocking: false,
+          publishBlocking: true,
+          blocked_release_count: 1,
+          critical_repo_count: 1,
+          blocked_release_repos: [
+            {
+              repo: 'spark-intelligence-builder',
+              releaseBlocking: false,
+              publishBlocking: true,
+              risk_class: 'critical',
+              reason: 'behind upstream',
+              next_safe_action: 'pull or merge upstream before release',
+              behind: 12
+            }
+          ]
+        },
+        duplicate_truths: {
+          releaseBlocking: false,
+          publishBlocking: true,
+          label: 'local_runtime_test_artifacts',
+          classification_counts: { local_runtime_test_artifact: 2 },
+          duplicate_truth_count: 2,
+          critical_duplicate_truth_count: 0,
+          owner_sets: {
+            local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+          }
+        }
+      },
+      caveatFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
+      handoffDetails: {
+        schema_version: 'spark.publish_handoffs.summary.v0',
+        family_count: 3,
+        families: ['repo_release_blocks', 'local_runtime_test_artifacts', 'builder_trace_health'],
+        blocked_release_repos: [
+          {
+            repo: 'spark-intelligence-builder',
+            releaseBlocking: false,
+            publishBlocking: true,
+            risk_class: 'critical',
+            reason: 'behind upstream',
+            next_safe_action: 'pull or merge upstream before release',
+            behind: 12
+          }
+        ],
+        local_runtime_test_artifacts: {
+          releaseBlocking: false,
+          publishBlocking: true,
+          count: 2,
+          owners: ['spark-telegram-bot', 'spawner-ui']
+        },
+        builder_trace_health: {
+          releaseBlocking: false,
+          publishBlocking: true,
+          flags: ['historical_open_high_severity_events'],
+          high_severity_open_count: 46,
+          unresolved_high_severity_open_count: 1,
+          current_unresolved_high_severity_open_count: 0,
+          unresolved_high_severity_source_group_count: 1,
+          latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
+        },
+        duplicate_truths: {
+          releaseBlocking: false,
+          publishBlocking: true,
+          classification_counts: { local_runtime_test_artifact: 2 },
+          duplicate_truth_count: null,
+          owner_sets: {
+            local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+          }
+        }
+      },
+      handoffActionDetails: expectedHandoffActionDetails,
+      handoffFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
+      handoffCount: 3,
+      packetEvidence: { missing: [], invalid: [], stale: [] },
+      failingCases: []
+    }
+  });
+  assert.deepEqual(structuredPublishHandoffs.releaseHandoffs, [
+    'spark-intelligence-builder: publish_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release',
+    'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
+    'spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.'
+  ]);
+  assert.deepEqual(structuredPublishHandoffs.releaseHandoffDetails.map((entry) => ({
+    owner: entry.owner,
+    status: entry.status,
+    family: entry.family,
+    releaseBlocking: entry.releaseBlocking,
+    publishBlocking: entry.publishBlocking,
+    reason: entry.reason,
+    behind: entry.behind,
+    nextSafeAction: entry.nextSafeAction,
+    familyDetails: entry.familyDetails
+  })), [
+    {
+      owner: 'spark-intelligence-builder',
+      status: 'publish_blocked',
+      family: 'repo_release_blocks',
+      releaseBlocking: false,
+      publishBlocking: true,
+      reason: 'behind upstream',
+      behind: 12,
+      nextSafeAction: 'pull or merge upstream before release',
+      familyDetails: {
+        repo: 'spark-intelligence-builder',
+        releaseBlocking: false,
+        publishBlocking: true,
+        risk_class: 'critical',
+        reason: 'behind upstream',
+        next_safe_action: 'pull or merge upstream before release',
+        behind: 12
+      }
+    },
+    {
+      owner: 'spark-installer-registry',
+      status: 'warning',
+      family: 'local_runtime_test_artifacts',
+      releaseBlocking: false,
+      publishBlocking: true,
+      reason: null,
+      behind: null,
+      nextSafeAction: 'Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
+      familyDetails: {
+        releaseBlocking: false,
+        publishBlocking: true,
+        count: 2,
+        owners: ['spark-telegram-bot', 'spawner-ui']
+      }
+    },
+    {
+      owner: 'spark-intelligence-builder',
+      status: 'warning',
+      family: 'builder_trace_health',
+      releaseBlocking: false,
+      publishBlocking: true,
+      reason: null,
+      behind: null,
+      nextSafeAction: 'Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.',
+      familyDetails: {
+        releaseBlocking: false,
+        publishBlocking: true,
+        flags: ['historical_open_high_severity_events'],
+        high_severity_open_count: 46,
+        unresolved_high_severity_open_count: 1,
+        current_unresolved_high_severity_open_count: 0,
+        unresolved_high_severity_source_group_count: 1,
+        latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
+      }
+    }
+  ]);
+  assert.deepEqual(structuredPublishHandoffs.releaseCaveatDetails, {
+    builder_trace_health: {
+      releaseBlocking: false,
+      publishBlocking: true,
+      flags: ['historical_open_high_severity_events'],
+      status: 'current_clean',
+      window: '1h',
+      missing_trace_ref_count: 0,
+      one_hour_missing_trace_ref_count: null,
+      historical_missing_trace_ref_count: 0,
+      high_severity_open_count: 46,
+      unresolved_high_severity_open_count: 1,
+      current_unresolved_high_severity_open_count: 0,
+      unresolved_high_severity_source_group_count: 1,
+      latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z',
+      latest_missing_source_group_count: null,
+      latest_clean_historical_window_group_count: null
+    },
+    repo_release_blocks: {
+      releaseBlocking: false,
+      publishBlocking: true,
+      blocked_release_count: 1,
+      critical_repo_count: 1,
+      blocked_release_repos: [
+        {
+          repo: 'spark-intelligence-builder',
+          releaseBlocking: false,
+          publishBlocking: true,
+          risk_class: 'critical',
+          reason: 'behind upstream',
+          next_safe_action: 'pull or merge upstream before release',
+          behind: 12
+        }
+      ]
+    },
+    duplicate_truths: {
+      releaseBlocking: false,
+      publishBlocking: true,
+      label: 'local_runtime_test_artifacts',
+      classification_counts: { local_runtime_test_artifact: 2 },
+      duplicate_truth_count: 2,
+      critical_duplicate_truth_count: 0,
+      owner_sets: {
+        local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+      }
+    }
+  });
+  assert.deepEqual(structuredPublishHandoffs.publishHandoffs, {
+    schema_version: 'spark.publish_handoffs.summary.v0',
+    family_count: 3,
+    families: ['repo_release_blocks', 'local_runtime_test_artifacts', 'builder_trace_health'],
+    blocked_release_repos: [
+      {
+        repo: 'spark-intelligence-builder',
+        releaseBlocking: false,
+        publishBlocking: true,
+        risk_class: 'critical',
+        reason: 'behind upstream',
+        next_safe_action: 'pull or merge upstream before release',
+        behind: 12
+      }
+    ],
+    local_runtime_test_artifacts: {
+      releaseBlocking: false,
+      publishBlocking: true,
+      count: 2,
+      owners: ['spark-telegram-bot', 'spawner-ui']
+    },
+    builder_trace_health: {
+      releaseBlocking: false,
+      publishBlocking: true,
+      flags: ['historical_open_high_severity_events'],
+      high_severity_open_count: 46,
+      unresolved_high_severity_open_count: 1,
+      current_unresolved_high_severity_open_count: 0,
+      unresolved_high_severity_source_group_count: 1,
+      latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
+    },
+    duplicate_truths: {
+      releaseBlocking: false,
+      publishBlocking: true,
+      classification_counts: { local_runtime_test_artifact: 2 },
+      duplicate_truth_count: null,
+      owner_sets: {
+        local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+      }
+    }
+  });
+
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"blocked_release_count":1,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  const blockedReleaseOnly = summarizeControlProofCanaryObservations(template);
+  assert.equal(blockedReleaseOnly.readyForRelease, true);
+  assert.equal(blockedReleaseOnly.readyForPublish, false);
+  assert.deepEqual(blockedReleaseOnly.releaseCaveats, [
+    'repo_release_blocks | blocked_release_count=1 | critical_repo_count=0'
+  ]);
+
+  template.evidence.sparkOsCompile = cleanSparkOsCompile('2026-06-23T23:40:00.000Z');
+  const staleEmbeddedCompile = summarizeControlProofCanaryObservations(template);
+  assert.equal(staleEmbeddedCompile.readyForRelease, false);
+  assert.deepEqual(staleEmbeddedCompile.gateDecisionDetails.release.blockers, ['invalid_packet_evidence']);
+  assert.deepEqual(staleEmbeddedCompile.gateDecisionDetails.release.blockerDetails, {
+    invalid_packet_evidence: {
+      keys: ['spark_os_compile'],
+      details: staleEmbeddedCompile.packetEvidenceDetails.invalid
+    }
+  });
+  assert.deepEqual(staleEmbeddedCompile.gateDecisionDetails.publish.blockers, [
+    'release_gate_not_ready',
+    'release_caveats'
+  ]);
+  assert.deepEqual(staleEmbeddedCompile.gateDecisionDetails.publish.blockerDetails.release_gate_not_ready, {
+    releaseReady: false,
+    releaseBlockers: ['invalid_packet_evidence'],
+    releaseBlockerDetails: staleEmbeddedCompile.gateDecisionDetails.release.blockerDetails
+  });
+  assert.deepEqual(staleEmbeddedCompile.invalidPacketEvidence, ['spark_os_compile']);
+  assert.deepEqual(staleEmbeddedCompile.packetEvidenceDetails.invalid, [{
+    key: 'spark_os_compile',
+    state: 'invalid',
+    reason: 'spark os compile proof is dirty, incomplete, failed, or timestamp-mismatched',
+    nextSafeAction: null,
+    generatedAt: template.generatedAt,
+    runtimeEvidenceCollectedAt: template.evidence.collectedAt,
+    runtimeEvidenceExpiresAt: staleEmbeddedCompile.runtimeEvidenceExpiresAt
+  }]);
+
+  template.evidence.sparkOsCompile = CLEAN_SPARK_OS_COMPILE;
+  template.evidence.controlProofAudit = cleanControlProofAudit('2026-06-23T23:40:00.000Z');
+  const staleEmbeddedAudit = summarizeControlProofCanaryObservations(template);
+  assert.equal(staleEmbeddedAudit.readyForRelease, false);
+  assert.deepEqual(staleEmbeddedAudit.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  template.generatedAt = 'June 24, 2026 00:00 UTC';
+  const looseGeneratedAt = summarizeControlProofCanaryObservations(template);
+  assert.equal(looseGeneratedAt.readyForRelease, false);
+  assert.deepEqual(looseGeneratedAt.invalidPacketEvidence, ['packet_generated_at']);
+  assert.match(formatControlProofCanaryObservationSummary(looseGeneratedAt), /Packet evidence invalid: packet_generated_at/);
+
+  template.generatedAt = '2026-06-24T00:00:00.000Z';
+  template.evidence.collectedAt = '2026-06-24T00:06:00.000Z';
+  template.evidence.sparkOsCompile = cleanSparkOsCompile('2026-06-24T00:06:00.000Z');
+  template.evidence.controlProofAudit = cleanControlProofAudit('2026-06-24T00:06:00.000Z');
+  const staleGeneratedAt = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
+  assert.equal(staleGeneratedAt.readyForRelease, false);
+  assert.deepEqual(staleGeneratedAt.invalidPacketEvidence, ['packet_generated_at']);
+
+  template.generatedAt = '2000-01-01T00:00:00.000Z';
+  template.evidence.collectedAt = '2000-01-01T00:00:00.000Z';
+  template.evidence.sparkOsCompile = cleanSparkOsCompile('2000-01-01T00:00:00.000Z');
+  template.evidence.controlProofAudit = cleanControlProofAudit('2000-01-01T00:00:00.000Z');
+  const staleSourceSnapshot = summarizeControlProofCanaryObservations(template);
+  assert.equal(staleSourceSnapshot.readyForRelease, false);
+  assert.ok(staleSourceSnapshot.invalidPacketEvidence.includes('source_snapshot'));
+  assert.match(
+    staleSourceSnapshot.packetEvidenceDetails.invalid.find((entry) => entry.key === 'source_snapshot')?.nextSafeAction || '',
+    /Commit or revert source\/docs\/test changes/
+  );
+  assert.match(
+    formatControlProofCanaryObservationSummary(staleSourceSnapshot),
+    /Commit or revert source\/docs\/test changes, then rerun `--refresh-runtime-evidence`/
+  );
+  assert.match(
+    formatControlProofCanaryObservationSummary(staleSourceSnapshot),
+    /next safe action: Commit or revert source\/docs\/test changes, then rerun --refresh-runtime-evidence/
+  );
+
+  template.generatedAt = '2026-06-24T00:06:00.000Z';
+  template.evidence.collectedAt = '2026-06-24T00:06:00.000Z';
+  template.evidence.sparkOsCompile = cleanSparkOsCompile('2026-06-24T00:06:00.000Z');
+  template.evidence.controlProofAudit = cleanControlProofAudit('2026-06-24T00:06:00.000Z');
+  template.evidence.controlProofAuditSummary = summarizeControlProofAuditRuntimeEvidence(template.evidence.controlProofAudit);
+  const strictGeneratedAt = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
+  assert.equal(strictGeneratedAt.readyForRelease, true);
+  assert.deepEqual(strictGeneratedAt.invalidPacketEvidence, []);
+
+  template.generatedAt = '2026-06-24T00:12:00.000Z';
+  const futureGeneratedAt = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
+  assert.equal(futureGeneratedAt.readyForRelease, false);
+  assert.deepEqual(futureGeneratedAt.invalidPacketEvidence, ['packet_generated_at']);
+
+  template.generatedAt = '2026-06-24T00:11:00.000Z';
+  const skewGeneratedAt = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
+  assert.equal(skewGeneratedAt.readyForRelease, true);
+  assert.deepEqual(skewGeneratedAt.invalidPacketEvidence, []);
+
+  template.evidence.notes = 'Collected locally; raw repo board was /Users/example/private and chat_id was hidden.';
+  template.generatedAt = '2026-06-24T00:06:00.000Z';
+  const leakyRuntimeEvidenceNotes = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
+  assert.equal(leakyRuntimeEvidenceNotes.readyForRelease, false);
+  assert.deepEqual(leakyRuntimeEvidenceNotes.invalidPacketEvidence, ['runtime_evidence_notes']);
+  assert.match(formatControlProofCanaryObservationSummary(leakyRuntimeEvidenceNotes), /Packet evidence invalid: runtime_evidence_notes/);
+
+  template.evidence.notes = `Collected locally; screenshot ${STABLE_SCREENSHOT_REF}.`;
+  const digestRuntimeEvidenceNotes = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
+  assert.equal(digestRuntimeEvidenceNotes.readyForRelease, true);
+  assert.deepEqual(digestRuntimeEvidenceNotes.invalidPacketEvidence, []);
+});
+
+test('observation summary rejects unfilled run-guide placeholders as missing captures', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
+    notes: null
+  });
+  template.cases[0].observed = {
+    ...template.cases[0].observed,
+    verdict: 'pass',
+    reply: '<observed reply>',
+    sideEffects: {
+      ...template.cases[0].observed.sideEffects,
+      missionStarted: false,
+      notes: '<what changed, or no mutation observed>'
+    },
+    proofJoin: '<proof join observed, or missing proof>',
+    proofPanel: '<proof panel text, or not shown>',
+    screenshotRefs: ['<screenshot digest>'],
+    userConfirmation: '<confirmed in SparkRecursive_bot>'
+  };
+
+  const summary = summarizeControlProofCanaryObservations(template);
+  assert.equal(summary.readyForRelease, false);
+  assert.deepEqual(summary.cases[0].missingCaptures, [
+    'observed_reply',
+    'side_effects_unobserved',
+    'proof_join',
+    'proof_panel',
+    'screenshot',
+    'user_confirmation'
+  ]);
+  assert.match(formatControlProofCanaryObservationSummary(summary), /missing observed_reply, side_effects_unobserved, proof_join, proof_panel, screenshot, user_confirmation/);
+});
+
+test('observation recorder updates one case while preserving packet evidence', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
+    notes: 'Collected locally.'
+  });
+
+  const recorded = recordControlProofCanaryObservation(template, {
+    id: 'cp-builder-001',
+    verdict: 'pass',
+    reply: 'Route confidence means Spark is justified in taking this route now.',
+    sideEffects: {
+      filesChanged: false,
+      memoryWritten: false,
+      missionStarted: false,
+      externalNetworkCalled: false,
+      accessChanged: false,
+      providerChanged: false,
+      mediaHandled: false,
+      notes: 'No mission or mutation observed.'
+    },
+    proofJoin: 'Builder gateway joined with redacted proof ref.',
+    proofPanel: CLEAN_PROOF_PANEL,
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
+    userConfirmation: 'User confirmed Telegram reply rendered once.'
+  });
+
+  assert.equal(recorded.evidence.notes, 'Collected locally.');
+  assert.equal(recorded.cases[0].observed.verdict, 'pass');
+  assert.equal(recorded.cases[0].observed.sideEffects.missionStarted, false);
+  assert.deepEqual(recorded.cases[0].observed.screenshotRefs, [STABLE_SCREENSHOT_REF]);
+  assert.equal(summarizeControlProofCanaryObservations(recorded).readyForRelease, true);
+
+  const partiallyUpdated = recordControlProofCanaryObservation(recorded, {
+    id: 'cp-builder-001',
+    notes: 'Retested after runtime sync.'
+  });
+  assert.deepEqual(partiallyUpdated.cases[0].observed.screenshotRefs, [STABLE_SCREENSHOT_REF]);
+  assert.equal(partiallyUpdated.cases[0].observed.notes, 'Retested after runtime sync.');
+});
+
+test('proof-panel audit-line repair refreshes stale readiness fields from embedded audit evidence', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
+    notes: null
+  });
+  template.cases[0].observed = {
+    ...template.cases[0].observed,
+    verdict: 'pass',
+    reply: 'Builder stayed read-only.',
+    sideEffects: {
+      ...template.cases[0].observed.sideEffects,
+      filesChanged: false,
+      memoryWritten: false,
+      missionStarted: false,
+      externalNetworkCalled: false,
+      accessChanged: false,
+      providerChanged: false,
+      mediaHandled: false,
+      notes: 'No mutation observed.'
+    },
+    proofJoin: 'Builder proof joined.',
+    proofPanel: [
+      'Harness Proof',
+      'Intent: builder_gateway.plain_chat',
+      'Authority: allowed by spark.turn_intent.v1',
+      'Governor: allow, verified',
+      'Execution: not_started',
+      'Reply: delivered as natural',
+      'Audit blocking: clean',
+      'Legacy proof gaps visible: 3'
+    ].join('\n'),
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
+    userConfirmation: 'Confirmed in SparkRecursive_bot.'
+  };
+
+  assert.deepEqual(summarizeControlProofCanaryObservations(template).cases[0].missingCaptures, [
+    'proof_panel_actionable_status',
+    'proof_panel_fresh_strict_status',
+    'proof_panel_gap_posture',
+    'proof_panel_blocking_gap_planes',
+    'proof_panel_capsule_gap_status'
+  ]);
+
+  const result = repairStaleProofPanelAuditLines(template);
+  assert.deepEqual(result.changedCases, ['cp-builder-001']);
+  assert.match(String(result.observations.cases[0].observed.proofPanel), /Audit actionable: clean/);
+  assert.match(String(result.observations.cases[0].observed.proofPanel), /Audit fresh-strict: clean/);
+  assert.match(String(result.observations.cases[0].observed.proofPanel), /Audit posture: backed legacy gaps only; no blocking or latest proof gaps/);
+  assert.match(String(result.observations.cases[0].observed.proofPanel), /Blocking gap planes: none/);
+  assert.match(String(result.observations.cases[0].observed.proofPanel), /Evidence capsule gaps: none/);
+  assert.deepEqual(summarizeControlProofCanaryObservations(result.observations).cases[0].missingCaptures, []);
+});
+
+test('control-proof canary CLI lists and exports selected cases', () => {
+  const help = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/controlProofLiveCanaryPack.ts',
+      '--help'
+    ],
+    { cwd: ROOT, encoding: 'utf8' }
+  );
+
+  assert.equal(help.status, 0, help.stderr);
+  assert.match(help.stdout, /--summary-frozen-at-collected/);
+  assert.match(help.stdout, /checked fixture regeneration only; do not use it for live release claims or to bypass --refresh-runtime-evidence/);
+  assert.match(help.stdout, /--release-check is the full release gate only when the packet is the complete canary pack; selected-case packets prove selected cases only/);
+  assert.match(help.stdout, /--publish-check additionally requires publish readiness: no release caveats, no handoffs, and fresh full-pack evidence/);
+
+  const list = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/controlProofLiveCanaryPack.ts',
+      '--case',
+      'cp-builder-001',
+      '--list'
+    ],
+    { cwd: ROOT, encoding: 'utf8' }
+  );
+
+  assert.equal(list.status, 0, list.stderr);
+  assert.match(list.stdout, /^cp-builder-001\tbuilder\tsafe\tread_only_allowed\tread_only\tnatural/m);
+
+  const json = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/controlProofLiveCanaryPack.ts',
+      '--case',
+      'cp-builder-001',
+      '--json'
+    ],
+    { cwd: ROOT, encoding: 'utf8' }
+  );
+
+  assert.equal(json.status, 0, json.stderr);
+  const parsed = JSON.parse(json.stdout);
+  assert.equal(parsed.target, 'SparkRecursive_bot');
+  assert.equal(parsed.cases[0].id, 'cp-builder-001');
+  assert.equal(parsed.cases[0].expectedAuthority, 'read_only_allowed');
+  assert.equal(parsed.cases[0].sourceRefs[0].caseId, 'memory-004');
+
+  const observationTemplate = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/controlProofLiveCanaryPack.ts',
+      '--case',
+      'cp-builder-001',
+      '--observation-template'
+    ],
+    { cwd: ROOT, encoding: 'utf8' }
+  );
+
+  assert.equal(observationTemplate.status, 0, observationTemplate.stderr);
+  const observed = JSON.parse(observationTemplate.stdout);
+  assert.equal(observed.target, 'SparkRecursive_bot');
+  assert.equal(observed.cases[0].sourceRefs[0].caseId, 'memory-004');
+  assert.equal(observed.cases[0].expected.route, 'plain_conversation');
+  assert.equal(observed.cases[0].observed.verdict, 'untested');
+  assert.deepEqual(observed.cases[0].observed.screenshotRefs, []);
+
+  const runGuide = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/controlProofLiveCanaryPack.ts',
+      '--case',
+      'cp-builder-001',
+      '--run-guide',
+      '--observations',
+      '/tmp/live-canary-observations.json'
+    ],
+    { cwd: ROOT, encoding: 'utf8' }
+  );
+
+  assert.equal(runGuide.status, 0, runGuide.stderr);
+  assert.match(runGuide.stdout, /Control-Proof Live Run Guide/);
+  assert.match(runGuide.stdout, /Proof inspection prompt:\n```text\n\/proof\n```/);
+  assert.match(runGuide.stdout, /--record-case cp-builder-001/);
+  assert.doesNotMatch(runGuide.stdout, /Unexpected token|ENOENT/);
+
+  const coverage = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/controlProofLiveCanaryPack.ts',
+      '--include-actions',
+      '--coverage'
+    ],
+    { cwd: ROOT, encoding: 'utf8' }
+  );
+
+  assert.equal(coverage.status, 0, coverage.stderr);
+  assert.match(coverage.stdout, /Cases: 29/);
+  assert.match(coverage.stdout, /Intentional action cases: 4/);
+  assert.match(coverage.stdout, /- publish: 1/);
+
+  const strictCoverage = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/controlProofLiveCanaryPack.ts',
+      '--case',
+      'cp-builder-001',
+      '--coverage',
+      '--coverage-strict'
+    ],
+    { cwd: ROOT, encoding: 'utf8' }
+  );
+
+  assert.equal(strictCoverage.status, 1);
+  assert.match(strictCoverage.stdout, /Required category coverage: missing/);
+
+  const tempRoot = mkdtempSync(resolve(tmpdir(), 'spark-canary-observations-'));
+  try {
+    const requiredCategories: ControlProofCanaryCategory[] = [
+      'no_action',
+      'authority',
+      'proof',
+      'streaming',
+      'rich_messages',
+      'builder',
+      'spawner_build',
+      'mission',
+      'memory',
+      'access',
+      'publish',
+      'web_research',
+      'model_switch',
+      'media',
+      'audio',
+      'voice'
+    ];
+    const categoryCompleteCases = requiredCategories.map((category) =>
+      CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.category === category)!
+    );
+    const partialReleasePath = resolve(tempRoot, 'category-complete-partial-release.json');
+    writeFileSync(
+      partialReleasePath,
+      JSON.stringify(buildControlProofCanaryObservationTemplate(categoryCompleteCases), null, 2),
+      'utf8'
+    );
+    const partialReleaseCheck = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        partialReleasePath,
+        '--release-check'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(partialReleaseCheck.status, 1);
+    assert.match(partialReleaseCheck.stdout, /Required category coverage: complete/);
+    assert.match(partialReleaseCheck.stdout, /Full release pack: missing/);
+    assert.match(partialReleaseCheck.stdout, /Release-check scope: selected cases only; not a full release claim/);
+
+    const staleFullReleasePath = resolve(tempRoot, 'stale-full-release.json');
+    const staleFullRelease = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-observations.json'), 'utf8'));
+    staleFullRelease.evidence.collectedAt = '2000-01-01T00:00:00.000Z';
+    writeFileSync(staleFullReleasePath, JSON.stringify(staleFullRelease, null, 2), 'utf8');
+    const staleFullReleaseCheck = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        staleFullReleasePath,
+        '--release-check'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(staleFullReleaseCheck.status, 1);
+    assert.match(staleFullReleaseCheck.stdout, /Packet evidence stale: runtime_evidence_collected_at/);
+    assert.match(staleFullReleaseCheck.stdout, /Run with `--refresh-runtime-evidence` before making a release claim/);
+    assert.match(staleFullReleaseCheck.stdout, /Full release pack: complete/);
+    assert.match(staleFullReleaseCheck.stdout, /Release-check scope: full release readiness/);
+
+    const publishCaveatPath = resolve(tempRoot, 'publish-caveat-full-release.json');
+    const publishCaveatPacket = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-observations.json'), 'utf8'));
+    publishCaveatPacket.evidence.collectedAt = new Date().toISOString();
+    publishCaveatPacket.generatedAt = publishCaveatPacket.evidence.collectedAt;
+    publishCaveatPacket.evidence.controlProofAudit = String(publishCaveatPacket.evidence.controlProofAudit || '')
+      .replace(/Generated: .+/, `Generated: ${publishCaveatPacket.evidence.collectedAt}`);
+    publishCaveatPacket.evidence.controlProofAuditSummary =
+      summarizeControlProofAuditRuntimeEvidence(publishCaveatPacket.evidence.controlProofAudit);
+    publishCaveatPacket.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${publishCaveatPacket.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":[],"builder_trace_current_health":{"status":"current_clean","window":"24h","row_count":100,"missing_trace_ref_count":0,"historical_missing_trace_ref_count":0,"total_missing_trace_ref_count":0,"missing_trace_ref_ratio":0},"builder_trace_recent_windows":[{"window":"1h","row_count":0,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0},{"window":"24h","row_count":100,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0}],"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":2,"critical_duplicate_truth_count":1},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":2}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+    publishCaveatPacket.evidence.liveTraceJoin = CLEAN_LIVE_TRACE_JOIN;
+    publishCaveatPacket.cases = publishCaveatPacket.cases.map((entry: { observed?: { proofPanel?: string | null } }) => ({
+      ...entry,
+      observed: {
+        ...entry.observed,
+        proofPanel: entry.observed?.proofPanel
+          ? [
+            String(entry.observed.proofPanel),
+            'Audit actionable: clean',
+            'Audit fresh-strict: clean',
+            'Audit posture: backed legacy gaps only; no blocking or latest proof gaps'
+          ].join('\n')
+          : entry.observed?.proofPanel
+      }
+    }));
+    const publishCanary = publishCaveatPacket.cases.find((entry: { id: string }) => entry.id === 'cp-publish-001');
+    if (publishCanary) {
+      publishCanary.observed = {
+        ...publishCanary.observed,
+        verdict: 'pass',
+        reply: [
+          'Current evidence shows 2 registry truth drift items; that means the running code is not fully matched to published release metadata yet.',
+          'Live behavior can still be release-ready, but publish stays not ready until the registry drift handoff is resolved.',
+          '',
+          'spark-telegram-bot: release branch pending registry batch. Keep it in the next verified metadata batch before claiming registry readiness.',
+          'spawner-ui: release branch pending registry batch. Keep it in the next verified metadata batch before claiming registry readiness.',
+          '',
+          'This was a read-only evidence lookup; no registry edit was made.'
+        ].join('\n'),
+        sideEffects: {
+          filesChanged: false,
+          memoryWritten: false,
+          missionStarted: false,
+          externalNetworkCalled: false,
+          accessChanged: false,
+          providerChanged: false,
+          mediaHandled: false,
+          notes: 'Read-only registry drift lookup; no registry edit or release metadata change.'
+        },
+        proofJoin: 'Telegram final answer joined read-only registry drift evidence without raw commits.',
+        screenshotRefs: ['screenshot:sha256:1111111111111111111111111111111111111111111111111111111111111111'],
+        userConfirmation: 'Verified in SparkRecursive_bot.'
+      };
+    }
+    const onboardingCanary = publishCaveatPacket.cases.find((entry: { id: string }) => entry.id === 'cp-domain-chip-onboarding-001');
+    if (onboardingCanary) onboardingCanary.observed = { ...onboardingCanary.observed, proofPanel: 'Harness Proof\nIntent: conversation.qa_planning\nAuthority: read-only no-action answer\nExecution: no mission, no publish, no file write\nReply: delivered as natural onboarding copy\nAudit actionable: clean\nAudit blocking: clean\nAudit fresh-strict: clean\nAudit posture: backed legacy gaps only; no blocking or latest proof gaps\nLegacy proof gaps visible: 0\nEvidence capsule gaps: none\nBlocking gap planes: none', screenshotRefs: ['screenshot:sha256:1111111111111111111111111111111111111111111111111111111111111111'], userConfirmation: 'Verified in SparkRecursive_bot.' };
+    writeFileSync(publishCaveatPath, JSON.stringify(publishCaveatPacket, null, 2), 'utf8');
+    const caveatReleaseCheck = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        publishCaveatPath,
+        '--release-check'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(caveatReleaseCheck.status, 1); assert.match(caveatReleaseCheck.stdout, /Release gate: not ready/); assert.match(caveatReleaseCheck.stdout, /Publish gate: not ready/);
+    assert.match(caveatReleaseCheck.stdout, /source_snapshot|runtime_evidence_collected_at|proof_panel_legacy_gap_stale/);
+    const caveatPublishCheck = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        publishCaveatPath,
+        '--publish-check'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(caveatPublishCheck.status, 1); assert.match(caveatPublishCheck.stdout, /Release gate: not ready/); assert.match(caveatPublishCheck.stdout, /Publish gate: not ready/);
+    assert.match(caveatPublishCheck.stdout, /Release handoffs:/); assert.match(caveatPublishCheck.stdout, /Full release pack: complete/);
+    assert.match(caveatPublishCheck.stdout, /proof_panel_legacy_gap_stale|source_snapshot|runtime_evidence_collected_at/);
+
+    const duplicateObservationsPath = resolve(tempRoot, 'duplicate-observations.json');
+    writeFileSync(
+      duplicateObservationsPath,
+      JSON.stringify(buildControlProofCanaryObservationTemplate([
+        CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!,
+        CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+      ]), null, 2),
+      'utf8'
+    );
+    const duplicateReleaseCheck = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        duplicateObservationsPath,
+        '--release-check'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(duplicateReleaseCheck.status, 1);
+    assert.match(duplicateReleaseCheck.stderr, /Duplicate observed canary id: cp-builder-001/);
+    assert.doesNotMatch(duplicateReleaseCheck.stderr, /at main|\.ts:\d+|\/Users\/|\/var\/folders\//);
+
+    const missingObservations = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        `${ROOT}/missing-local-packet.json`,
+        '--release-check'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(missingObservations.status, 1);
+    assert.match(missingObservations.stderr, /Control-proof canary error:/);
+    assert.doesNotMatch(missingObservations.stderr, new RegExp(escapeRegExp(ROOT)));
+    assert.doesNotMatch(missingObservations.stderr, /\/Users\//);
+
+    const outTemplatePath = resolve(tempRoot, 'template.json');
+    const outTemplate = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--case',
+        'cp-builder-001',
+        '--observation-template',
+        '--out',
+        outTemplatePath
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(outTemplate.status, 0, outTemplate.stderr);
+    assert.match(outTemplate.stdout, /Wrote control-proof observation template/);
+    assert.equal(JSON.parse(readFileSync(outTemplatePath, 'utf8')).cases[0].id, 'cp-builder-001');
+
+    const staleProofObservationsPath = resolve(tempRoot, 'stale-proof-observations.json');
+    let staleProofObservations = buildControlProofCanaryObservationTemplate([
+      CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-noaction-001')!,
+      CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!,
+      CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-proof-001')!
+    ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+    staleProofObservations = withControlProofCanaryRuntimeEvidence(staleProofObservations, {
+      sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+      providerStatus: CLEAN_PROVIDER_STATUS,
+      runtimeSync: CLEAN_RUNTIME_SYNC,
+      sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+      controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT.replace('legacy proof gaps: 3', 'legacy proof gaps: 2'),
+      notes: null
+    });
+    staleProofObservations.cases = staleProofObservations.cases.map((entry) => ({
+      ...entry,
+      observed: {
+        ...entry.observed,
+        verdict: 'pass',
+        reply: 'Route confidence means Spark is justified in taking this route now.',
+        sideEffects: {
+          ...entry.observed.sideEffects,
+          filesChanged: false,
+          memoryWritten: false,
+          missionStarted: false,
+          externalNetworkCalled: false,
+          accessChanged: false,
+          providerChanged: false,
+          mediaHandled: false,
+          notes: 'No mutation observed.'
+        },
+        proofJoin: 'Builder joined.',
+        proofPanel: CLEAN_PROOF_PANEL,
+        screenshotRefs: [STABLE_SCREENSHOT_REF],
+        userConfirmation: 'Confirmed in SparkRecursive_bot.'
+      }
+    }));
+    writeFileSync(staleProofObservationsPath, JSON.stringify(staleProofObservations, null, 2), 'utf8');
+    const staleProofRunGuide = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        staleProofObservationsPath,
+        '--stale-proof-run-guide'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(staleProofRunGuide.status, 0, staleProofRunGuide.stderr);
+    assert.match(staleProofRunGuide.stdout, /Control-Proof Live Run Guide/);
+    assert.match(staleProofRunGuide.stdout, /1\. cp-builder-001/);
+    assert.match(staleProofRunGuide.stdout, /2\. cp-proof-001/);
+    assert.match(staleProofRunGuide.stdout, /3\. cp-noaction-001/);
+    assert.match(staleProofRunGuide.stdout, /Proof inspection prompt:\n```text\n\/proof\n```/);
+    assert.match(staleProofRunGuide.stdout, /--record-case cp-builder-001/);
+    const staleProofBundleDir = resolve(tempRoot, 'stale-proof-bundle');
+    mkdirSync(staleProofBundleDir, { recursive: true });
+    const staleProofBundleObservationsPath = resolve(staleProofBundleDir, 'live-canary-observations.json');
+    const staleProofBundleGuidePath = resolve(staleProofBundleDir, 'live-canary-proof-recapture-guide.md');
+    writeFileSync(staleProofBundleObservationsPath, JSON.stringify(staleProofObservations, null, 2), 'utf8');
+    const staleProofBundleRunGuide = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        staleProofBundleObservationsPath,
+        '--stale-proof-run-guide',
+        '--out',
+        staleProofBundleGuidePath
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(staleProofBundleRunGuide.status, 0, staleProofBundleRunGuide.stderr);
+    assert.match(staleProofBundleRunGuide.stdout, /Wrote control-proof stale proof run guide/);
+    const staleProofBundleGuide = readFileSync(staleProofBundleGuidePath, 'utf8');
+    assert.match(staleProofBundleGuide, new RegExp(`--summary-out '${escapeRegExp(resolve(staleProofBundleDir, 'live-canary-summary.md'))}'`));
+    assert.match(staleProofBundleGuide, new RegExp(`--summary-json-out '${escapeRegExp(resolve(staleProofBundleDir, 'live-canary-summary.json'))}'`));
+
+    observed.cases[0].observed = {
+      ...observed.cases[0].observed,
+      verdict: 'pass',
+      reply: 'Route confidence means Spark is justified in taking this route now.',
+      sideEffects: {
+        ...observed.cases[0].observed.sideEffects,
+        filesChanged: false,
+        memoryWritten: false,
+        missionStarted: false,
+        externalNetworkCalled: false,
+        accessChanged: false,
+        providerChanged: false,
+        mediaHandled: false,
+        notes: 'No mutation observed.'
+      },
+      proofJoin: 'Builder joined.',
+      proofPanel: CLEAN_PROOF_PANEL,
+      screenshotRefs: [STABLE_SCREENSHOT_REF],
+      userConfirmation: 'Confirmed in SparkRecursive_bot.'
+    };
+    observed.evidence = {
+      collectedAt: new Date().toISOString(),
+      sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+      providerStatus: CLEAN_PROVIDER_STATUS,
+      runtimeSync: CLEAN_RUNTIME_SYNC,
+      sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+      controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+      routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
+      notes: null
+    };
+    const observationsPath = resolve(tempRoot, 'observations.json');
+    writeFileSync(observationsPath, JSON.stringify(observed, null, 2), 'utf8');
+    const summary = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        observationsPath
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(summary.status, 0, summary.stderr);
+    assert.match(summary.stdout, /Gate scope: selected-case gate/);
+    assert.match(summary.stdout, /Release gate: ready/);
+
+    const summaryJson = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        observationsPath,
+        '--json',
+        '--coverage'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(summaryJson.status, 0, summaryJson.stderr);
+    const parsedSummaryJson = JSON.parse(summaryJson.stdout);
+    assert.equal(parsedSummaryJson.summary.gateScope, 'selected_case_gate');
+    assert.equal(parsedSummaryJson.coverage.gateScope, 'selected_case_gate');
+    assert.equal(parsedSummaryJson.summary.readyForRelease, true);
+    assert.equal(parsedSummaryJson.coverage.releasePackComplete, false);
+
+    const releaseCheck = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        observationsPath,
+        '--release-check'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(releaseCheck.status, 1);
+    assert.match(releaseCheck.stdout, /Release gate: ready/);
+    assert.match(releaseCheck.stdout, /Required category coverage: missing/);
+    assert.match(releaseCheck.stdout, /Release-check scope: selected cases only; not a full release claim/);
+
+    const replyPath = resolve(tempRoot, 'reply.txt');
+    writeFileSync(replyPath, 'Route confidence means Spark is justified in taking this route now.\n', 'utf8');
+    const recordedPath = resolve(tempRoot, 'recorded.json');
+    const recordedSummaryPath = resolve(tempRoot, 'recorded-summary.md');
+    const recordedSummaryJsonPath = resolve(tempRoot, 'recorded-summary.json');
+    const proofPanelPath = resolve(tempRoot, 'proof-panel.txt');
+    const screenshotPath = resolve(tempRoot, 'spark-recursive-builder.png');
+    const screenshotProofPath = resolve(tempRoot, 'spark-recursive-builder-proof.png');
+    writeFileSync(proofPanelPath, `${CLEAN_PROOF_PANEL}\n`, 'utf8');
+    writeFileSync(screenshotPath, 'telegram reply screenshot bytes', 'utf8');
+    writeFileSync(screenshotProofPath, 'telegram proof screenshot bytes', 'utf8');
+    const screenshotRef = `screenshot:sha256:${createHash('sha256').update(readFileSync(screenshotPath)).digest('hex')}`;
+    const screenshotProofRef = `screenshot:sha256:${createHash('sha256').update(readFileSync(screenshotProofPath)).digest('hex')}`;
+    const record = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        observationsPath,
+        '--out',
+        recordedPath,
+        '--record-case',
+        'cp-builder-001',
+        '--verdict',
+        'pass',
+        '--reply-file',
+        replyPath,
+        '--mission-started',
+        'false',
+        '--side-effects-notes',
+        'No mutation observed.',
+        '--proof-join',
+        'Builder joined.',
+        '--proof-panel-file',
+        proofPanelPath,
+        '--screenshot-file',
+        screenshotPath,
+        '--screenshot-file',
+        screenshotProofPath,
+        '--summary-out',
+        recordedSummaryPath,
+        '--summary-json-out',
+        recordedSummaryJsonPath,
+        '--user-confirmation',
+        'Confirmed in SparkRecursive_bot.'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(record.status, 0, record.stderr);
+    assert.match(record.stdout, /Recorded control-proof observation for cp-builder-001/);
+    assert.match(record.stdout, /Wrote control-proof observation summary/);
+    assert.match(record.stdout, /Wrote control-proof observation summary JSON/);
+    assert.match(record.stdout, /Release gate: ready/);
+    const recorded = JSON.parse(readFileSync(recordedPath, 'utf8'));
+    assert.equal(recorded.cases[0].observed.reply, 'Route confidence means Spark is justified in taking this route now.');
+    assert.equal(recorded.cases[0].observed.sideEffects.missionStarted, false);
+    assert.deepEqual(recorded.cases[0].observed.screenshotRefs, [
+      screenshotRef,
+      screenshotProofRef
+    ]);
+    assert.match(readFileSync(recordedSummaryPath, 'utf8'), /Release gate: ready/);
+    const recordedSummaryJson = JSON.parse(readFileSync(recordedSummaryJsonPath, 'utf8'));
+    assert.equal(recordedSummaryJson.summary.readyForRelease, true);
+    assert.equal(recordedSummaryJson.summary.gateScope, 'selected_case_gate');
+    assert.equal(recordedSummaryJson.coverage.gateScope, 'selected_case_gate');
+    assert.equal(recordedSummaryJson.summary.runtimeEvidenceMaxAgeHours, 1);
+    assert.equal(recordedSummaryJson.coverage.totalCases, 1);
+
+    const missingScreenshotRecord = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        observationsPath,
+        '--out',
+        resolve(tempRoot, 'missing-screenshot-recorded.json'),
+        '--record-case',
+        'cp-builder-001',
+        '--verdict',
+        'pass',
+        '--screenshot-file',
+        resolve(tempRoot, 'missing-screenshot.png')
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(missingScreenshotRecord.status, 1);
+    assert.match(missingScreenshotRecord.stderr, /Control-proof canary error:/);
+    assert.doesNotMatch(missingScreenshotRecord.stderr, new RegExp(tempRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+
+    const accessTemplate = withControlProofCanaryRuntimeEvidence(
+      buildControlProofCanaryObservationTemplate([
+        CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-access-002')!
+      ], { generatedAt: '2026-06-24T00:00:00.000Z' }),
+      {
+        sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+        providerStatus: CLEAN_PROVIDER_STATUS,
+        runtimeSync: CLEAN_RUNTIME_SYNC,
+        sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+        controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
+        notes: null
+      }
+    );
+    const accessObservationsPath = resolve(tempRoot, 'access-observations.json');
+    const accessRecordedPath = resolve(tempRoot, 'access-recorded.json');
+    const accessReplyPath = resolve(tempRoot, 'access-reply.txt');
+    writeFileSync(accessObservationsPath, JSON.stringify(accessTemplate, null, 2), 'utf8');
+    writeFileSync(accessReplyPath, 'Access is set to level three; I did not run repair setup.\n', 'utf8');
+    const recordAccess = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        accessObservationsPath,
+        '--out',
+        accessRecordedPath,
+        '--record-case',
+        'cp-access-002',
+        '--verdict',
+        'pass',
+        '--reply-file',
+        accessReplyPath,
+        '--access-changed',
+        'true',
+        '--no-other-side-effects',
+        '--side-effects-notes',
+        'Access changed; no other mutation observed.',
+        '--proof-join',
+        'Access change joined with redacted proof ref.',
+        '--proof-panel-file',
+        proofPanelPath,
+        '--screenshot-ref',
+        STABLE_SCREENSHOT_REF,
+        '--user-confirmation',
+        'Confirmed in SparkRecursive_bot.'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(recordAccess.status, 0, recordAccess.stderr);
+    assert.match(recordAccess.stdout, /Release gate: ready/);
+    const recordedAccess = JSON.parse(readFileSync(accessRecordedPath, 'utf8'));
+    assert.equal(recordedAccess.cases[0].observed.sideEffects.accessChanged, true);
+    assert.equal(recordedAccess.cases[0].observed.sideEffects.missionStarted, false);
+    assert.equal(recordedAccess.cases[0].observed.sideEffects.filesChanged, false);
+
+    const bundleDir = resolve(tempRoot, 'bundle');
+    const releaseBundle = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--case',
+        'cp-builder-001',
+        '--release-bundle',
+        '--out-dir',
+        bundleDir
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(releaseBundle.status, 0, releaseBundle.stderr);
+    assert.match(releaseBundle.stdout, /Wrote control-proof live canary bundle/);
+    assert.match(releaseBundle.stdout, /Release gate: not ready/);
+    const bundledObservationsPath = resolve(bundleDir, 'live-canary-observations.json');
+    const bundledGuidePath = resolve(bundleDir, 'live-canary-run-guide.md');
+    const bundledSummaryPath = resolve(bundleDir, 'live-canary-summary.md');
+    const bundledSummaryJsonPath = resolve(bundleDir, 'live-canary-summary.json');
+    const bundledReadmePath = resolve(bundleDir, 'README.md');
+    const bundledCoveragePath = resolve(bundleDir, 'live-canary-coverage.md');
+    const bundledProofRecaptureGuidePath = resolve(bundleDir, 'live-canary-proof-recapture-guide.md');
+    assert.equal(JSON.parse(readFileSync(bundledObservationsPath, 'utf8')).cases[0].id, 'cp-builder-001');
+    assert.match(releaseBundle.stdout, /README:/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Control-Proof Live Canary Bundle/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /refreshes the current summaries/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /local screenshot file/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /records screenshot files as digest refs/);
+    assert.doesNotMatch(readFileSync(bundledReadmePath, 'utf8'), /screenshot path/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Side-Effect Proof/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Notes alone are not enough/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Every record command should prove side effects explicitly/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /For no-action and read-only cases, keep `--no-other-side-effects`/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /--no-other-side-effects/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /selected-case strict check/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /not the full release gate until the complete canary pack is run/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /repo release blocks/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /repo_release_blocks/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /duplicate-truth drift/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /registry_pin_drift/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /local_runtime_test_artifacts/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Unhanded dirty runtime compile evidence/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /dirty owner repos are acceptable only when they are surfaced as sanitized `repo_release_blocks` handoffs/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /packetEvidenceDetails/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /proof-gap reasons, timestamps, and freshness windows/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /summary `cases` array carries safe Harness metadata/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /expectedRoute/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /expectedReplyShape/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /sourceRefs/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /observed replies/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /controlProofAuditDetails\.actionableStatus/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /freshStrictOk/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /gapPosture/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /controlProofAuditDetails\.legacyGapBackingDetails/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /legacyRepairDryRunDetails/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /releaseBlocking=false/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /matching `proofGapMarked` and plane `proofGap` counts/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Legacy gap backing/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /gateScope/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /gateScope=full_release_pack/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /gateScope=selected_case_gate/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Release-check scope/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Release-check scope: full release readiness/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Release-check scope: selected cases only; not a full release claim/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /gateDecisionDetails/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /control_proof_audit_blocking_gaps/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /release_gate_not_ready/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /releaseBlockerDetails/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --strict`));
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Coverage:/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Current summary JSON:/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Focused proof recapture guide:/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(escapeRegExp(bundledProofRecaptureGuidePath)));
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /--stale-proof-run-guide --out/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Audit actionable/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Audit fresh-strict/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Audit posture/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Blocking gap planes/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Evidence capsule gaps/);
+    assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --record-case cp-builder-001`));
+    assert.match(readFileSync(bundledGuidePath, 'utf8'), /--record-case cp-builder-001[\s\S]*--no-other-side-effects/);
+    assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--summary-out '${escapeRegExp(bundledSummaryPath)}'`));
+    assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--summary-json-out '${escapeRegExp(bundledSummaryJsonPath)}'`));
+    assert.match(readFileSync(bundledCoveragePath, 'utf8'), /Cases: 1/);
+    assert.match(readFileSync(resolve(bundleDir, 'live-canary-copy-paste.md'), 'utf8'), /Control-Proof Canary Prompts/);
+    assert.match(readFileSync(resolve(bundleDir, 'live-canary-checklist.md'), 'utf8'), /Control-Proof Canary Checklist/);
+    assert.match(readFileSync(bundledSummaryPath, 'utf8'), /Release gate: not ready/);
+    const bundledSummaryJson = JSON.parse(readFileSync(bundledSummaryJsonPath, 'utf8'));
+    assert.equal(bundledSummaryJson.summary.totalCases, 1);
+    assert.equal(bundledSummaryJson.coverage.totalCases, 1);
+
+    const fullBundleDir = resolve(tempRoot, 'full-bundle');
+    const fullReleaseBundle = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--include-actions',
+        '--release-bundle',
+        '--out-dir',
+        fullBundleDir
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(fullReleaseBundle.status, 0, fullReleaseBundle.stderr);
+    assert.equal(JSON.parse(readFileSync(resolve(fullBundleDir, 'live-canary-observations.json'), 'utf8')).cases.length, 29);
+    assert.match(readFileSync(resolve(fullBundleDir, 'live-canary-coverage.md'), 'utf8'), /Required category coverage: complete/);
+    assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /gateScope=full_release_pack/);
+    assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /Re-run the release check/);
+    assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /--release-check/);
+    assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /For publish or registry claims, run the publish check too:/);
+    assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /--publish-check/);
+
+    observed.evidence.controlProofAudit = null;
+    writeFileSync(observationsPath, JSON.stringify(observed, null, 2), 'utf8');
+    const strictSummary = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        observationsPath,
+        '--strict'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(strictSummary.status, 1);
+    assert.match(strictSummary.stdout, /Packet evidence missing: control_proof_audit/);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+test('runtime evidence collection keeps the audit tail needed for strict validation', () => {
+  const tempRoot = mkdtempSync(resolve(tmpdir(), 'spark-canary-runtime-evidence-'));
+  try {
+    const binRoot = resolve(tempRoot, 'bin');
+    const stateRoot = resolve(tempRoot, 'state');
+    const outTemplatePath = resolve(tempRoot, 'observations.json');
+    mkdirSync(binRoot);
+    mkdirSync(stateRoot);
+    const repoBoardPath = resolve(stateRoot, 'repo-board.json');
+    writeFileSync(repoBoardPath, JSON.stringify({
+      repos: [
+        {
+          repo: 'source',
+          path: '/Users/example/.spark/modules/domain-chip-memory/source',
+          release_eligibility: 'blocked',
+          behind: 6,
+          do_not_merge_reason: 'behind upstream',
+          next_safe_action: 'pull or merge upstream before release'
+        },
+        {
+          repo: 'spark-world-editor',
+          path: '/Users/example/Desktop/spark-world-editor',
+          release_eligibility: 'inspect',
+          do_not_merge_reason: 'not in installer registry',
+          next_safe_action: 'decide whether this repo should remain local, become a capability, or be ignored'
+        }
+      ],
+      duplicate_truths: {
+        items: [
+          {
+            owner_repo: 'spark-telegram-bot',
+            severity: 'critical',
+            classification: 'runtime_ahead_of_registry_pin',
+            next_safe_action: 'Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.',
+            evidence_details: {
+              installed_head: '5acaeb9e5538',
+              registry_commit: 'e5a1bd040986'
+            }
+          },
+          {
+            owner_repo: 'spawner-ui',
+            severity: 'warning',
+            classification: 'runtime_ahead_of_registry_pin',
+            next_safe_action: 'Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.'
+          }
+        ]
+      }
+    }, null, 2), 'utf8');
+    const sparkPath = resolve(binRoot, 'spark');
+    const npmPath = resolve(binRoot, 'npm');
+    const npxPath = resolve(binRoot, 'npx');
+    writeFileSync(sparkPath, [
+      '#!/bin/sh',
+      'if [ "$1 $2" = "live status" ]; then echo "Spark Live healthy"; echo "Relay runtime: OK (primary@8789 pid=86802 polling=active)"; echo "Board: http://127.0.0.1:3333/kanban"; exit 0; fi',
+      'if [ "$1 $2 $3" = "providers test --role" ]; then echo "chat provider PING_OK"; exit 0; fi',
+      'if [ "$1 $2 $3" = "os compile --json" ]; then cat <<JSON',
+      '{',
+      "  \"generated_at\": \"$(date -u +\"%Y-%m-%dT%H:%M:%S.000Z\")\",",
+      '  "ok": true,',
+      '  "gaps": 0,',
+      '  "builder_trace_health_flags": ["missing_trace_refs", "historical_open_high_severity_events"],',
+      '  "builder_trace_current_health": {',
+      '    "status": "current_missing_trace_refs",',
+      '    "window": "24h",',
+      '    "row_count": 1039,',
+      '    "missing_trace_ref_count": 480,',
+      '    "historical_missing_trace_ref_count": 12721,',
+      '    "total_missing_trace_ref_count": 13201,',
+      '    "missing_trace_ref_ratio": 0.462,',
+      '    "high_severity_open_count": 46,',
+      '    "unresolved_high_severity_open_count": 1,',
+      '    "current_unresolved_high_severity_open_count": 0,',
+      '    "latest_missing_source_group_count": 2,',
+      '    "latest_clean_historical_window_debt_group_count": 1,',
+      '    "latest_clean_window_debt_group_count": 1,',
+      '    "latest_missing_group_count": 2,',
+      '    "latest_clean_group_count": 1,',
+      '    "repair_temporal_state_counts": {',
+      '      "latest_missing_trace_ref": 2,',
+      '      "latest_clean_historical_window_debt": 1',
+      '    }',
+      '  },',
+      '  "duplicate_truths": { "item_count": 2 },',
+      '  "repo_board": { "dirty_repo_count": 0, "blocked_release_count": 1, "critical_repo_count": 0, "duplicate_truth_count": 2, "critical_duplicate_truth_count": 1 },',
+      '  "gate": { "dirty_repo_count": 0, "broad_dirty_repo_count": 0 },',
+      `  "outputs": { "repo_board": ${JSON.stringify(repoBoardPath)} },`,
+      '  "privacy": {',
+      '    "raw_secret_values_read": false,',
+      '    "raw_logs_read": false,',
+      '    "raw_conversation_content_read": false,',
+      '    "raw_memory_evidence_read": false,',
+      '    "sqlite_row_contents_read": false',
+      '  }',
+      '}',
+      'JSON',
+      'exit 0; fi',
+      'echo "unexpected spark args: $*" >&2',
+      'exit 1'
+    ].join('\n'), 'utf8');
+    writeFileSync(npmPath, [
+      '#!/bin/sh',
+      'if [ "$1 $2" = "run sync:check" ]; then echo "[check] runtime in sync."; exit 0; fi',
+      'if [ "$1 $2" = "run control:proof:live-trace" ]; then',
+      '  echo "Control-proof trace join checker"',
+      '  echo "Route rows: 4/4 sampled"',
+      '  echo ""',
+      '  echo "Status: clean"',
+      '  echo "Joined rows: 4"',
+      '  echo "Gap rows: 0"',
+      '  echo "Parse errors: 0"',
+      '  echo "Live route proof: ready (4/4 minimum joined rows)"',
+      '  echo "No-action route proof: ready (4/4 minimum no-action rows)"',
+      '  echo "Safe prompt proof: ready (4/4 required safe prompts)"',
+      '  echo "Safe prompt evidence: risk_profile_no_build, mission_routing_explain_only, repair_status_no_action, memory_vs_fresh_state"',
+      '  echo ""',
+      '  echo "Gap counts:"',
+      '  echo "- missing join keys: 0"',
+      '  echo "- missing reply joins: 0"',
+      '  echo "- missing proof joins: 0"',
+      '  echo "- missing action/no-action evidence: 0"',
+      '  echo "- route mismatches: 0"',
+      '  exit 0',
+      'fi',
+      'if [ "$1 $2" = "run control:proof:audit" ]; then',
+      '  case " $* " in *" --fresh-strict "*) ;; *) echo "missing --fresh-strict" >&2; exit 1;; esac',
+      '  i=0',
+      '  while [ "$i" -lt 80 ]; do echo "audit detail line $i before summary"; i=$((i + 1)); done',
+      "  echo \"Generated: $(date -u +\"%Y-%m-%dT%H:%M:%S.000Z\")\"",
+      '  echo "Status: gaps found"',
+      '  echo "Actionable status: clean"',
+      '  echo "Blocking status: clean"',
+      '  echo "Fresh-strict status: clean"',
+      '  echo "Gap posture: backed legacy gaps only; no blocking or latest proof gaps"',
+      '  echo "telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no"',
+      '  echo "builder_gateway: 100/100 sampled | proof_gap 62 | gap_capsule 62 | gap_capsule_valid 62 | gap_ref 62 | gap_backing complete | latest_gap no"',
+      '  echo "spawner_prd_trace: 100/100 sampled | proof_gap 94 | gap_capsule 94 | gap_capsule_valid 94 | gap_ref 94 | gap_backing complete | latest_gap no"',
+      '  echo "memory_movement_index: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no"',
+      '  echo "voice_surface_view: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no"',
+      '  echo "voice_runtime_state: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no"',
+      '  echo "Gap counts:"',
+      '  echo "- missing evidence: 0"',
+      '  echo "- missing trace joins: 0"',
+      '  echo "- missing proof capsules: 0"',
+      '  echo "- legacy proof gaps: 3"',
+      '  echo "- incomplete legacy gap backing: 0"',
+      '  echo "- latest proof gaps: 0"',
+      '  echo "- raw ref leaks: 0"',
+      '  echo "- robotic failure reasons: 0"',
+      '  echo "- stack-like leaks: 0"',
+      '  echo "Gap planes:"',
+      '  echo "- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace"',
+      '  echo "Legacy gap backing:"',
+      '  echo "- telegram_route_confidence: backing complete | source route_confidence_legacy_repair | latest_gap no | release_blocking no | marked 97 | incomplete 0 | latest 2026-06-24T23:04:43.263Z | repair npm run control:proof:repair:route-confidence -- --dry-run --json"',
+      '  echo "- builder_gateway: backing complete | source builder_gateway_trace_legacy_repair | latest_gap no | release_blocking no | marked 62 | incomplete 0 | latest 2026-06-25T23:47:10+00:00 | repair npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json"',
+      '  echo "- spawner_prd_trace: backing complete | source spawner_prd_trace_legacy_repair | latest_gap no | release_blocking no | marked 94 | incomplete 0 | latest 2026-06-24T23:04:43.878Z | repair npm run control:proof:repair:legacy -- --plane spawner_prd_trace --dry-run --json"',
+      '  exit 0',
+      'fi',
+      'if [ "$1 $2" = "run control:proof:repair:route-confidence" ]; then',
+      '  cat <<JSON',
+      '{"dryRun":true,"rowsRead":145,"parseErrors":0,"legacyGapCapsulesAdded":0,"changedRows":0}',
+      'JSON',
+      '  exit 0',
+      'fi',
+      'if [ "$1 $2" = "run control:proof:repair:legacy" ]; then',
+      '  case " $* " in',
+      '    *" --plane builder_gateway "*) echo \'{"plane":"builder_gateway","dryRun":true,"rowsRead":522,"parseErrors":0,"legacyGapCapsulesAdded":0,"changedRows":0}\'; exit 0 ;;',
+      '    *" --plane spawner_prd_trace "*) echo \'{"plane":"spawner_prd_trace","dryRun":true,"rowsRead":495,"parseErrors":0,"legacyGapCapsulesAdded":0,"changedRows":0}\'; exit 0 ;;',
+      '  esac',
+      'fi',
+      'echo "unexpected npm args: $*" >&2',
+      'exit 1'
+    ].join('\n'), 'utf8');
+    writeFileSync(npxPath, [
+      '#!/bin/sh',
+      'if [ "$1 $2" = "ts-node ops/routeBoundaryHandlerHarness.ts" ]; then',
+      '  echo "PASS guard-006: agent_doctrine.global_blocked -> agent_doctrine.global_blocked (global doctrine boundary)"',
+      '  echo "PASS guard-007: agent_doctrine.global_blocked -> agent_doctrine.global_blocked (global doctrine boundary)"',
+      '  echo "PASS build-004: conversation.ideation -> conversation.ideation (design-only boundary)"',
+      '  echo "PASS domain-chip-003: conversation.ideation -> conversation.ideation (chip shaping boundary)"',
+      '  echo "Report: /tmp/spark-route-boundary-handler/report.md"',
+      '  echo "# Route Boundary Handler Harness Report"',
+      '  echo "Summary: 4/4 cases passed."',
+      '  echo "Trace join:"',
+      '  echo "Control-proof trace join checker"',
+      '  echo "Status: clean"',
+      '  echo "Route rows: 4/4 sampled"',
+      '  echo "Joined rows: 4"',
+      '  echo "Gap rows: 0"',
+      '  echo "Parse errors: 0"',
+      '  echo "Gap counts:"',
+      '  echo "- missing join keys: 0"',
+      '  echo "- missing reply joins: 0"',
+      '  echo "- missing proof joins: 0"',
+      '  echo "- missing action/no-action evidence: 0"',
+      '  echo "- route mismatches: 0"',
+      '  exit 0',
+      'fi',
+      'echo "unexpected npx args: $*" >&2',
+      'exit 1'
+    ].join('\n'), 'utf8');
+    chmodSync(sparkPath, 0o755);
+    chmodSync(npmPath, 0o755);
+    chmodSync(npxPath, 0o755);
+
+    const collected = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--case',
+        'cp-builder-001',
+        '--observation-template',
+        '--collect-runtime-evidence',
+        '--out',
+        outTemplatePath
+      ],
+      {
+        cwd: ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${binRoot}:${process.env.PATH || ''}` }
+      }
+    );
+    assert.equal(collected.status, 0, collected.stderr);
+    const observed = JSON.parse(readFileSync(outTemplatePath, 'utf8'));
+    assert.match(observed.evidence.controlProofAudit, /audit detail line 0 before summary/);
+    assert.match(observed.evidence.controlProofAudit, /Blocking status: clean/);
+    assert.match(observed.evidence.controlProofAudit, /missing proof capsules: 0/);
+    assert.match(observed.evidence.controlProofAudit, /gap_capsule_valid 97/);
+    assert.match(observed.evidence.controlProofAudit, /voice_runtime_state: 1\/1 sampled .*proof_n\/a 1/);
+    assert.match(observed.evidence.controlProofAudit, /incomplete legacy gap backing: 0/);
+    assert.match(observed.evidence.controlProofAudit, /Gap planes:/);
+    assert.match(observed.evidence.controlProofAudit, /legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace/);
+    assert.match(observed.evidence.controlProofAudit, /Legacy gap backing:/);
+    assert.match(observed.evidence.controlProofAudit, /builder_gateway_trace_legacy_repair/);
+    assert.doesNotMatch(observed.evidence.controlProofAudit, /\n\.\.\.\n/);
+    assert.match(observed.evidence.routeBoundaryTraceJoin, /Summary: 4\/4 cases passed/);
+    assert.match(observed.evidence.routeBoundaryTraceJoin, /Status: clean/);
+    assert.match(observed.evidence.routeBoundaryTraceJoin, /Route rows: 4\/4 sampled/);
+    assert.match(observed.evidence.routeBoundaryTraceJoin, /missing proof joins: 0/);
+    assert.doesNotMatch(observed.evidence.routeBoundaryTraceJoin, /\/tmp\/spark-route-boundary-handler/);
+    assert.match(observed.evidence.liveTraceJoin, /Live route proof: ready \(4\/4 minimum joined rows\)/);
+    assert.match(observed.evidence.liveTraceJoin, /Safe prompt evidence: risk_profile_no_build, mission_routing_explain_only, repair_status_no_action, memory_vs_fresh_state/);
+    assert.match(observed.evidence.liveTraceJoin, /missing proof joins: 0/);
+    assert.match(observed.evidence.sparkOsCompile, /"ok": true/);
+    assert.match(observed.evidence.sparkOsCompile, /"gaps": 0/);
+    assert.match(observed.evidence.sparkOsCompile, /historical_open_high_severity_events/);
+    assert.match(observed.evidence.sparkOsCompile, /historical_missing_trace_ref_count/);
+    assert.match(observed.evidence.sparkOsCompile, /unresolved_high_severity_open_count/);
+    assert.match(observed.evidence.sparkOsCompile, /current_unresolved_high_severity_open_count/);
+    assert.match(observed.evidence.sparkOsCompile, /latest_missing_source_group_count/);
+    assert.match(observed.evidence.sparkOsCompile, /latest_clean_historical_window_debt_group_count/);
+    assert.match(observed.evidence.sparkOsCompile, /latest_clean_window_debt_group_count/);
+    assert.match(observed.evidence.sparkOsCompile, /"duplicate_truth_count": 2/);
+    assert.match(observed.evidence.sparkOsCompile, /"repo_board": "<tmp>"/);
+    assert.doesNotMatch(observed.evidence.sparkOsCompile, /<redacted-token>/);
+    assert.doesNotMatch(observed.evidence.sparkOsCompile, /\n\.\.\.\n/);
+    assert.match(observed.evidence.sparkLiveStatus, /primary@<redacted-port> pid=<redacted-pid>/);
+    assert.match(observed.evidence.sparkLiveStatus, /Board: <local-url>\/kanban/);
+    assert.match(observed.evidence.notes, /Refresh after Spark restarts or proof-audit changes/);
+    assert.match(observed.evidence.notes, /Legacy repair dry-run:/);
+    assert.match(observed.evidence.notes, /telegram_route_confidence: changed_rows=0; rows_read=145; capsules_added=0; parse_errors=0/);
+    assert.match(observed.evidence.notes, /builder_gateway: changed_rows=0; rows_read=522; capsules_added=0; parse_errors=0/);
+    assert.match(observed.evidence.notes, /spawner_prd_trace: changed_rows=0; rows_read=495; capsules_added=0; parse_errors=0/);
+    assert.match(observed.evidence.notes, /Repo release-block handoff:/);
+    assert.match(observed.evidence.notes, /domain-chip-memory: release_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release/);
+    assert.doesNotMatch(observed.evidence.notes, /spark-world-editor: release_blocked/);
+    assert.match(observed.evidence.notes, /Duplicate-truth handoff:/);
+    assert.match(observed.evidence.notes, /spark-telegram-bot: critical runtime_ahead_of_registry_pin/);
+    assert.match(observed.evidence.notes, /spawner-ui: warning runtime_ahead_of_registry_pin/);
+    assert.match(observed.evidence.notes, /next safe action: Port and push the owner repo commit/);
+    assert.doesNotMatch(observed.evidence.notes, /before live Telegram observation/);
+    assert.doesNotMatch(observed.evidence.notes, new RegExp(escapeRegExp(repoBoardPath)));
+    assert.doesNotMatch(observed.evidence.notes, /\/Users\/example/);
+    assert.doesNotMatch(observed.evidence.notes, /5acaeb9e5538|e5a1bd040986/);
+    assert.doesNotMatch(observed.evidence.sparkLiveStatus, /primary@8789|pid=86802|127\.0\.0\.1:3333/);
+    const observedSummary = summarizeControlProofCanaryObservations(observed, { now: observed.evidence.collectedAt });
+    assert.ok(observedSummary.releaseHandoffs.includes('domain-chip-memory: publish_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release'));
+    assert.ok(observedSummary.releaseHandoffs.includes('spark-telegram-bot: critical runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.'));
+
+    const staleObservations = buildControlProofCanaryObservationTemplate([
+      CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+    ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+    staleObservations.evidence.controlProofAudit = 'old audit without current gap plane details';
+    staleObservations.cases[0].observed.reply = 'preserve this recorded reply';
+    const stalePath = resolve(tempRoot, 'stale-observations.json');
+    const refreshedPath = resolve(tempRoot, 'refreshed-observations.json');
+    writeFileSync(stalePath, JSON.stringify(staleObservations, null, 2), 'utf8');
+    const refreshed = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        stalePath,
+        '--out',
+        refreshedPath,
+        '--refresh-runtime-evidence'
+      ],
+      {
+        cwd: ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${binRoot}:${process.env.PATH || ''}` }
+      }
+    );
+    assert.equal(refreshed.status, 0, refreshed.stderr);
+    assert.match(refreshed.stdout, /Refreshed control-proof runtime evidence/);
+    const refreshedObserved = JSON.parse(readFileSync(refreshedPath, 'utf8'));
+    assert.match(refreshedObserved.evidence.controlProofAudit, /Blocking status: clean/);
+    assert.match(refreshedObserved.evidence.controlProofAudit, /Fresh-strict status: clean/);
+    assert.match(refreshedObserved.evidence.routeBoundaryTraceJoin, /Route rows: 4\/4 sampled/);
+    assert.match(refreshedObserved.evidence.liveTraceJoin, /Live route proof: ready \(4\/4 minimum joined rows\)/);
+    assert.match(refreshedObserved.evidence.liveTraceJoin, /Safe prompt evidence: risk_profile_no_build, mission_routing_explain_only, repair_status_no_action, memory_vs_fresh_state/);
+    assert.equal(refreshedObserved.evidence.controlProofAuditSummary.freshStrictOk, true);
+    assert.equal(refreshedObserved.evidence.controlProofAuditSummary.actionableStatus, 'clean');
+    assert.equal(refreshedObserved.evidence.controlProofAuditSummary.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
+    assert.equal(refreshedObserved.evidence.controlProofAuditSummary.gapCounts.latest_proof_gaps, 0);
+    assert.equal(refreshedObserved.evidence.controlProofAuditSummary.legacyGapBackingDetails.length, 3);
+    assert.equal(refreshedObserved.evidence.controlProofAuditSummary.legacyGapBackingDetails[1].repairSource, 'builder_gateway_trace_legacy_repair');
+    assert.equal(refreshedObserved.evidence.controlProofAuditSummary.legacyGapBackingDetails[1].releaseBlocking, false);
+    assert.match(refreshedObserved.evidence.sparkOsCompile, /"ok": true/);
+    assert.doesNotMatch(refreshedObserved.evidence.controlProofAudit, /old audit/);
+    assert.equal(refreshedObserved.generatedAt, refreshedObserved.evidence.collectedAt);
+    assert.equal(refreshedObserved.cases[0].observed.reply, 'preserve this recorded reply');
+
+    const bundleDir = resolve(tempRoot, 'bundle-refresh');
+    mkdirSync(bundleDir);
+    const bundleObservationsPath = resolve(bundleDir, 'live-canary-observations.json');
+    const bundleSummaryPath = resolve(bundleDir, 'live-canary-summary.md');
+    const bundleSummaryJsonPath = resolve(bundleDir, 'live-canary-summary.json');
+    writeFileSync(bundleObservationsPath, JSON.stringify(staleObservations, null, 2), 'utf8');
+    writeFileSync(bundleSummaryPath, 'stale markdown summary', 'utf8');
+    writeFileSync(bundleSummaryJsonPath, '{"stale":true}\n', 'utf8');
+    const refreshedBundle = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        bundleObservationsPath,
+        '--refresh-runtime-evidence'
+      ],
+      {
+        cwd: ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${binRoot}:${process.env.PATH || ''}` }
+      }
+    );
+    assert.equal(refreshedBundle.status, 0, refreshedBundle.stderr);
+    assert.match(refreshedBundle.stdout, /Wrote control-proof observation summary:/);
+    assert.match(refreshedBundle.stdout, /Wrote control-proof observation summary JSON:/);
+    assert.doesNotMatch(readFileSync(bundleSummaryPath, 'utf8'), /stale markdown/);
+    const refreshedBundleSummaryJson = JSON.parse(readFileSync(bundleSummaryJsonPath, 'utf8'));
+    const refreshedBundleObserved = JSON.parse(readFileSync(bundleObservationsPath, 'utf8'));
+    assert.equal(refreshedBundleObserved.generatedAt, refreshedBundleObserved.evidence.collectedAt);
+    assert.equal(refreshedBundleObserved.evidence.controlProofAuditSummary.freshStrictOk, true);
+    assert.equal(refreshedBundleObserved.evidence.controlProofAuditSummary.actionableStatus, 'clean');
+    assert.equal(refreshedBundleObserved.evidence.controlProofAuditSummary.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
+    assert.equal(refreshedBundleSummaryJson.summary.controlProofAuditDetails.freshStrictOk, true);
+    assert.equal(refreshedBundleSummaryJson.summary.controlProofAuditDetails.actionableStatus, 'clean');
+    assert.equal(refreshedBundleSummaryJson.summary.controlProofAuditDetails.legacyGapBackingDetails.length, 3);
+    assert.equal(refreshedBundleSummaryJson.summary.controlProofAuditDetails.legacyGapBackingDetails[0].repairSource, 'route_confidence_legacy_repair');
+    assert.equal(refreshedBundleSummaryJson.summary.generatedAt, refreshedBundleObserved.evidence.collectedAt);
+    assert.equal(refreshedBundleSummaryJson.summary.runtimeEvidenceCollectedAt, refreshedBundleObserved.evidence.collectedAt);
+    assert.equal(refreshedBundleSummaryJson.summary.runtimeEvidenceMaxAgeHours, 1);
+    assert.equal(refreshedBundleSummaryJson.coverage.totalCases, 1);
+
+    writeFileSync(npmPath, [
+      '#!/bin/sh',
+      'if [ "$1 $2" = "run sync:check" ]; then echo "[check] runtime in sync."; exit 0; fi',
+      'if [ "$1 $2" = "run control:proof:live-trace" ]; then',
+      '  echo "Control-proof trace join checker"',
+      '  echo "Route rows: 4/4 sampled"',
+      '  echo "Status: gaps found"',
+      '  echo "Structurally joined rows: 4"',
+      '  echo "Joined rows: 0"',
+      '  echo "Gap rows: 4"',
+      '  echo "Live route proof: not ready (0/4 minimum joined rows)"',
+      '  echo "No-action route proof: not ready (0/4 minimum no-action rows)"',
+      '  echo "Safe prompt proof: not ready (0/4 required safe prompts)"',
+      '  echo "Stale safe prompt evidence: risk_profile_no_build, mission_routing_explain_only, repair_status_no_action, memory_vs_fresh_state"',
+      '  echo "Gap counts:"',
+      '  echo "- stale live route evidence: 4"',
+      '  exit 1',
+      'fi',
+      'if [ "$1 $2" = "run control:proof:audit" ]; then',
+      '  case " $* " in *" --fresh-strict "*) ;; *) echo "missing --fresh-strict" >&2; exit 1;; esac',
+      "  echo \"Generated: $(date -u +\"%Y-%m-%dT%H:%M:%S.000Z\")\"",
+      '  echo "Status: gaps found"',
+      '  echo "Actionable status: clean"',
+      '  echo "Blocking status: clean"',
+      '  echo "Fresh-strict status: clean"',
+      '  echo "Gap posture: backed legacy gaps only; no blocking or latest proof gaps"',
+      '  echo "telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no"',
+      '  echo "builder_gateway: 100/100 sampled | proof_gap 62 | gap_capsule 62 | gap_capsule_valid 62 | gap_ref 62 | gap_backing complete | latest_gap no"',
+      '  echo "spawner_prd_trace: 100/100 sampled | proof_gap 94 | gap_capsule 94 | gap_capsule_valid 94 | gap_ref 94 | gap_backing complete | latest_gap no"',
+      '  echo "Gap counts:"',
+      '  echo "- missing evidence: 0"',
+      '  echo "- missing trace joins: 0"',
+      '  echo "- missing proof capsules: 0"',
+      '  echo "- legacy proof gaps: 3"',
+      '  echo "- incomplete legacy gap backing: 0"',
+      '  echo "- latest proof gaps: 0"',
+      '  echo "- raw ref leaks: 0"',
+      '  echo "- robotic failure reasons: 0"',
+      '  echo "- stack-like leaks: 0"',
+      '  echo "Gap planes:"',
+      '  echo "- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace"',
+      '  echo "Legacy gap backing:"',
+      '  echo "- telegram_route_confidence: backing complete | source route_confidence_legacy_repair | latest_gap no | release_blocking no | marked 97 | incomplete 0 | latest 2026-06-24T23:04:43.263Z | repair npm run control:proof:repair:route-confidence -- --dry-run --json"',
+      '  echo "- builder_gateway: backing complete | source builder_gateway_trace_legacy_repair | latest_gap no | release_blocking no | marked 62 | incomplete 0 | latest 2026-06-25T23:47:10+00:00 | repair npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json"',
+      '  echo "- spawner_prd_trace: backing complete | source spawner_prd_trace_legacy_repair | latest_gap no | release_blocking no | marked 94 | incomplete 0 | latest 2026-06-24T23:04:43.878Z | repair npm run control:proof:repair:legacy -- --plane spawner_prd_trace --dry-run --json"',
+      '  exit 0',
+      'fi',
+      'if [ "$1 $2" = "run control:proof:repair:route-confidence" ]; then echo \'{"dryRun":true,"rowsRead":145,"parseErrors":0,"legacyGapCapsulesAdded":0,"changedRows":0}\'; exit 0; fi',
+      'if [ "$1 $2" = "run control:proof:repair:legacy" ]; then',
+      '  case " $* " in',
+      '    *" --plane builder_gateway "*) echo \'{"plane":"builder_gateway","dryRun":true,"rowsRead":522,"parseErrors":0,"legacyGapCapsulesAdded":0,"changedRows":0}\'; exit 0 ;;',
+      '    *" --plane spawner_prd_trace "*) echo \'{"plane":"spawner_prd_trace","dryRun":true,"rowsRead":495,"parseErrors":0,"legacyGapCapsulesAdded":0,"changedRows":0}\'; exit 0 ;;',
+      '  esac',
+      'fi',
+      'echo "unexpected npm args: $*" >&2',
+      'exit 1'
+    ].join('\n'), 'utf8');
+    chmodSync(npmPath, 0o755);
+
+    writeFileSync(bundleObservationsPath, JSON.stringify(staleObservations, null, 2), 'utf8');
+    writeFileSync(bundleSummaryPath, 'preserve checked markdown summary', 'utf8');
+    writeFileSync(bundleSummaryJsonPath, '{"preserve":true}\n', 'utf8');
+    const refusedBundleRefresh = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        bundleObservationsPath,
+        '--refresh-runtime-evidence'
+      ],
+      {
+        cwd: ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${binRoot}:${process.env.PATH || ''}` }
+      }
+    );
+    assert.equal(refusedBundleRefresh.status, 1);
+    assert.match(refusedBundleRefresh.stderr, /Refused to write refreshed control-proof runtime evidence/);
+    assert.match(refusedBundleRefresh.stderr, /Invalid packet evidence: live_trace_join/);
+    assert.match(refusedBundleRefresh.stderr, /Next safe action for live_trace_join: Run npm run control:proof:live-trace:prompts, send the safe prompts to SparkRecursive_bot/);
+    assert.match(refusedBundleRefresh.stderr, /Live trace prompt guide: npm run control:proof:live-trace:prompts/);
+    assert.match(refusedBundleRefresh.stdout, /Packet evidence invalid: live_trace_join/);
+    assert.match(readFileSync(bundleObservationsPath, 'utf8'), /old audit without current gap plane details/);
+    assert.match(readFileSync(bundleSummaryPath, 'utf8'), /preserve checked markdown summary/);
+    assert.match(readFileSync(bundleSummaryJsonPath, 'utf8'), /"preserve":true/);
+
+    observed.cases[0].observed = {
+      ...observed.cases[0].observed,
+      verdict: 'pass',
+      reply: 'Route confidence means Spark is justified in taking this route now.',
+      sideEffects: {
+        ...observed.cases[0].observed.sideEffects,
+        filesChanged: false,
+        memoryWritten: false,
+        missionStarted: false,
+        externalNetworkCalled: false,
+        accessChanged: false,
+        providerChanged: false,
+        mediaHandled: false,
+        notes: 'No mutation observed.'
+      },
+      proofJoin: 'Builder joined.',
+      proofPanel: CLEAN_PROOF_PANEL,
+      screenshotRefs: [STABLE_SCREENSHOT_REF],
+      userConfirmation: 'Confirmed in SparkRecursive_bot.'
+    };
+    const summary = summarizeControlProofCanaryObservations(observed);
+    assert.equal(summary.readyForRelease, true);
+    assert.equal(summary.readyForPublish, false);
+    assert.deepEqual(summary.invalidPacketEvidence, []);
+    assert.deepEqual(summary.releaseHandoffs, [
+      'spark-intelligence-builder: warning builder_trace_health; next safe action: Repair or replay 2 latest-missing Builder trace source groups, then rerun spark os compile and the canary release-check.',
+      'domain-chip-memory: publish_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release',
+      'spark-telegram-bot: critical runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.',
+      'spawner-ui: warning runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.'
+    ]);
+    assert.match(formatControlProofCanaryObservationSummary(summary), /Release handoffs:\n- spark-intelligence-builder: warning builder_trace_health/);
+    assert.match(formatControlProofCanaryObservationSummary(summary), /Repair or replay 2 latest-missing Builder trace source groups/);
+    assert.match(formatControlProofCanaryObservationSummary(summary), /spark-telegram-bot: critical runtime_ahead_of_registry_pin/);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime evidence collection gives os compile a release-proof timeout budget', () => {
+  const cliSource = readFileSync(resolve(ROOT, 'ops/controlProofLiveCanaryPack.ts'), 'utf8');
+  const match = cliSource.match(/label:\s*'spark_os_compile'[\s\S]*?timeoutMs:\s*(\d[\d_]*)/);
+  assert.ok(match, 'spark_os_compile runtime evidence command should set an explicit timeout');
+  assert.ok(Number(match[1].replaceAll('_', '')) >= 600_000, 'spark_os_compile timeout should allow slow release proof collection');
+});

@@ -1,23 +1,22 @@
 import assert from 'node:assert/strict';
 import {
-  buildDiagnosePingExecutionAuthority,
   describeAccessDiagnostics,
   describeBuilderBridgeHealth,
   describeChatProviderHealth,
-  describeRouteDivergence,
   describeRelayHealth,
   describeProviderStatus,
   describeSpawnerPublicLinkHealth,
   getRelayIdentityFromEnv,
   inferDiagnoseLikelyIssue,
+  providerPingPolling,
   readableLocalServiceUrl,
-  renderDiagnoseReportHtml,
+  renderDiagnoseBuildHealth,
+  renderDiagnoseChatHealth,
   resolveDiagnoseRouteProviders,
   selectPingProviderIds,
   type DiagnoseSubject,
   type ProviderStatus
 } from '../src/diagnose';
-import type { NaturalRouteExecutionRecord } from '../src/naturalRouteLedger';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -27,34 +26,6 @@ function test(name: string, fn: () => void): void {
     console.error(`not ok - ${name}`);
     throw error;
   }
-}
-
-function routeRecord(
-  shadowRoute: string,
-  executedRoute: string,
-  outcome: NaturalRouteExecutionRecord['outcome'] = shadowRoute === executedRoute ? 'matched' : 'mismatch'
-): NaturalRouteExecutionRecord {
-  return {
-    schema_version: 'spark.nlp.route_execution.v1',
-    recorded_at: '2026-06-10T00:00:00.000Z',
-    profile: 'test',
-    user_id: 'user_redacted',
-    chat_id: 'chat_redacted',
-    chat_type: 'private',
-    admin: true,
-    shadow_route: shadowRoute,
-    shadow_owner: shadowRoute === 'spawner.build' ? 'spawner-ui' : 'none',
-    shadow_confidence: 'explicit',
-    shadow_context_source: 'latest_message',
-    shadow_requires_confirmation: false,
-    shadow_signals: [],
-    shadow_blocked_by: [],
-    executed_route: executedRoute,
-    executed_owner: executedRoute === 'spawner.build' ? 'spawner-ui' : 'spark-telegram-bot',
-    executed_action: executedRoute,
-    outcome,
-    delivery: 'selected'
-  };
 }
 
 test('reports terminal CLI providers as ready without API keys', () => {
@@ -73,6 +44,15 @@ test('reports terminal CLI providers as ready without API keys', () => {
   const description = describeProviderStatus(provider);
   assert.equal(description.ready, true);
   assert.equal(description.note, 'cli');
+});
+
+test('keeps diagnose health icons consistent with their text', () => {
+  assert.equal(renderDiagnoseChatHealth(true, true), '🟢 Chat ready');
+  assert.equal(renderDiagnoseChatHealth(true, false), '🟡 Chat ready, bridge offline');
+  assert.equal(renderDiagnoseChatHealth(false, true), '🔴 Chat degraded');
+  assert.equal(renderDiagnoseBuildHealth(true, true), '🟢 Builds ready');
+  assert.equal(renderDiagnoseBuildHealth(true, false), '🟡 Builds degraded');
+  assert.equal(renderDiagnoseBuildHealth(false, null), '🔴 Builds offline');
 });
 
 test('marks selected API-key providers missing when no key is configured', () => {
@@ -143,21 +123,10 @@ test('pings selected Spawner route providers only', () => {
   assert.deepEqual(selectPingProviderIds(providers, ['zai']), ['zai']);
 });
 
-test('diagnostic provider pings carry Harness Core Spawner run authority', () => {
-  const authority = buildDiagnosePingExecutionAuthority({
-    providerId: 'codex',
-    requestId: 'diag-codex-123'
-  }) as any;
-
-  assert.equal(authority.schema_version, 'governor-decision-v1');
-  assert.equal(authority.execution_boundary.action_authorized, true);
-  assert.equal(authority.authorizations[0].verdict, 'allow');
-  assert.equal(authority.authorizations[0].capability_id, 'capability:spawner-ui:spawner.run');
-  assert.equal(authority.authorizations[0].restrictions.publish_allowed, false);
-  assert.equal(authority.envelope.actor.kind, 'human');
-  assert.equal(authority.envelope.proposed_actions[0].action_type, 'launch_mission');
-  assert.equal(authority.envelope.proposed_actions[0].args_ref.path_or_uri, 'telegram://actions/spawner.run/diag-codex-123');
-  assert.match(authority.turn_id, /diagnose-command:diag-codex-123$/);
+test('gives local provider pings enough time to complete without slowing hosted checks', () => {
+  assert.deepEqual(providerPingPolling('ollama'), { maxPolls: 60, intervalMs: 3000 });
+  assert.deepEqual(providerPingPolling('lmstudio'), { maxPolls: 60, intervalMs: 3000 });
+  assert.deepEqual(providerPingPolling('codex'), { maxPolls: 25, intervalMs: 2000 });
 });
 
 test('diagnostics keep OpenAI-compatible chat separate from Codex mission routing', () => {
@@ -172,45 +141,6 @@ test('diagnostics keep OpenAI-compatible chat separate from Codex mission routin
   assert.equal(routes.chatProvider, 'openai');
   assert.equal(routes.telegramRunProvider, 'codex');
   assert.equal(routes.spawnerDefaultProvider, 'codex');
-});
-
-test('renders diagnose reports as safe Telegram HTML with readable sections', () => {
-  const html = renderDiagnoseReportHtml([
-    '🟢 Spark diagnostics look healthy.',
-    '',
-    'Health',
-    '🟢 Relay ready',
-    '',
-    'Routes',
-    'Chat: codex (gpt-5.5)',
-    'Builds: zai <unsafe>',
-    'Spawner UI: http://127.0.0.1:3333'
-  ].join('\n'));
-
-  assert.match(html, /^<b>🟢 Spark diagnostics look healthy\.<\/b>/);
-  assert.match(html, /<b>Health<\/b>/);
-  assert.match(html, /<b>Routes<\/b>/);
-  assert.match(html, /<b>Chat:<\/b> <code>codex \(gpt-5\.5\)<\/code>/);
-  assert.match(html, /<b>Builds:<\/b> <code>zai &lt;unsafe&gt;<\/code>/);
-  assert.match(html, /<b>Spawner UI:<\/b> <a href="http:\/\/127\.0\.0\.1:3333">open<\/a>/);
-});
-
-test('summarizes route divergence and build misroutes for diagnose', () => {
-  assert.deepEqual(describeRouteDivergence([]), ['Route divergence: no route ledger records yet']);
-  assert.deepEqual(
-    describeRouteDivergence([routeRecord('spawner.build', 'spawner.build')]),
-    ['Route divergence: ok (1 records, 0 mismatches)']
-  );
-
-  const lines = describeRouteDivergence([
-    routeRecord('spawner.build', 'plain_chat'),
-    routeRecord('spawner.build', 'spark.read_only_state.live_status'),
-    routeRecord('memory.write', 'plain_chat')
-  ]);
-
-  assert.equal(lines[0], 'Route divergence: 3/3 mismatched; build misroutes 2');
-  assert.match(lines[1], /spawner\.build->plain_chat x1/);
-  assert.match(lines[1], /spawner\.build->spark\.read_only_state\.live_status x1/);
 });
 
 test('uses the active Telegram relay profile and port for diagnostics', () => {
@@ -258,11 +188,46 @@ test('describes relay identity mismatches clearly', () => {
   );
 });
 
-test('describes HTTP failures as relay errors', () => {
+test('describes relay route and authentication failures with bounded next steps', () => {
+  assert.match(
+    describeRelayHealth({ ok: false, status: 404, err: 'HTTP 404' }, { port: 8788, profile: 'primary' }),
+    /reachable, but this route or profile is missing; check the expected port\/profile/
+  );
   assert.match(
     describeRelayHealth({ ok: false, status: 401, err: 'HTTP 401' }, { port: 8788, profile: 'primary' }),
-    /HTTP 401$/
+    /HTTP 401 — relay access was rejected; check relay authentication and profile alignment$/
   );
+});
+
+test('redacts diagnostic error details before formatting user-facing health lines', () => {
+  const placeholderKey = 'sk-diagnoseplaceholder000000000000000000';
+  const chatLine = describeChatProviderHealth(
+    { ok: false, detail: `provider rejected OPENAI_API_KEY=${placeholderKey}` },
+    'openai (gpt-placeholder)'
+  );
+  const relayLine = describeRelayHealth(
+    { ok: false, err: `relay failed with Authorization: Bearer ${placeholderKey}` },
+    { port: 8788, profile: 'primary' }
+  );
+
+  assert.doesNotMatch(chatLine, new RegExp(placeholderKey));
+  assert.doesNotMatch(relayLine, new RegExp(placeholderKey));
+  assert.match(chatLine, /OPENAI_API_KEY=/);
+  assert.match(relayLine, /Authorization: Bearer /);
+});
+
+test('keeps diagnose failures compact and hides local stack paths', () => {
+  const line = describeChatProviderHealth(
+    {
+      ok: false,
+      detail: 'provider failed at /Users/example/private/provider.ts\n    at runProvider (/Users/example/private/runner.ts:42:7)'
+    },
+    'openai (gpt-placeholder)'
+  );
+
+  assert.match(line, /provider failed at \[REDACTED_PATH\]/);
+  assert.doesNotMatch(line, /\/Users\/|runProvider|runner\.ts|\n/);
+  assert.ok(line.length < 220);
 });
 
 test('formats local service URLs as localhost links', () => {
@@ -389,7 +354,7 @@ test('infers likely diagnose issue from user-facing failure class', () => {
       chatProviderOk: false,
       missionPingOk: false
     }),
-    /plain chat provider is unhealthy/
+    /failing for both plain chat and Spawner builds/
   );
   assert.match(
     inferDiagnoseLikelyIssue({
@@ -402,35 +367,5 @@ test('infers likely diagnose issue from user-facing failure class', () => {
       }
     }),
     /Builder bridge is required/
-  );
-});
-
-test('missionPingOk=null (not checked) shows degraded, not "no obvious fault"', () => {
-  // This is the core bug: before the fix, missionPingOk !== false treated
-  // undefined/null as healthy. After fix, only === true shows ready.
-  const base = {
-    subject: { userId: 123, chatId: 456, isAdmin: true, isAllowed: true },
-    botRelayOk: true,
-    spawnerOk: true,
-    builder: { mode: 'auto' as const, available: true, builderRepo: 'repo', builderHome: 'home' },
-    chatProviderOk: true,
-  };
-
-  // null (not checked) should show degraded
-  assert.match(
-    inferDiagnoseLikelyIssue({ ...base, missionPingOk: null }),
-    /mission provider ping failed or not reached/
-  );
-
-  // true should show no obvious fault
-  assert.match(
-    inferDiagnoseLikelyIssue({ ...base, missionPingOk: true }),
-    /no obvious fault/
-  );
-
-  // false should show degraded
-  assert.match(
-    inferDiagnoseLikelyIssue({ ...base, missionPingOk: false }),
-    /mission provider ping failed/
   );
 });

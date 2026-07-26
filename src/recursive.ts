@@ -6,10 +6,27 @@ import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { LoopResult } from './chipLoop';
+import { effectiveLevel5RuntimeEnv } from './level5RuntimeEnv';
 import type { PathLoopResult, SpecializationLoopInsights, SpecializationLoopPackageResult, SpecializationLoopStatus } from './pathLoop';
 import { redactText } from './redaction';
 
 export type RecursiveDecision = 'approve_local' | 'defer' | 'reject' | 'request_more_eval';
+
+export function recursiveTargetRepairGuidance(error: unknown): string | null {
+  const detail = error instanceof Error ? error.message : String(error || '');
+  if (!/(?:path|chip|target).*(?:missing|not found|does not exist|unknown)|(?:missing|not found).*(?:path|chip|target)/i.test(detail)) {
+    return null;
+  }
+  return "I couldn’t find that recursive target. Check the available paths with `/recursive paths`; if you meant a new chip, create it with `/chip create` first.";
+}
+
+export function recursiveWorkspaceRepairGuidance(error: unknown): string | null {
+  const detail = error instanceof Error ? error.message : String(error || '');
+  if (!/workspace is not configured|SPARK_SWARM_(?:WORKSPACE_ID|ACCESS_TOKEN)/i.test(detail)) {
+    return null;
+  }
+  return "This recursive command needs Spark Workspace credentials. Ask your Spark admin to configure the workspace, then try again.";
+}
 
 export interface RecursiveCommand {
   action: string;
@@ -668,6 +685,10 @@ function localStatusId(chipKey: string): string {
   return `path_builder_chip_${normalizeWorkspaceIdPart(chipKey)}`;
 }
 
+function isLatestRecursiveId(id: string): boolean {
+  return /^(?:latest|last|recent|current)$/i.test(id.trim());
+}
+
 async function readLocalRecursiveStatus(filePath: string): Promise<LocalRecursiveLoopStatus | null> {
   try {
     const parsed = JSON.parse(await readFile(filePath, 'utf-8'));
@@ -730,6 +751,7 @@ async function localRecursiveSessionItems(): Promise<RecursiveSessionListItem[]>
 async function resolveLocalRecursiveStatus(id: string): Promise<LocalRecursiveLoopStatus | null> {
   const statuses = await localRecursiveStatuses();
   const trimmed = id.trim();
+  if (isLatestRecursiveId(trimmed)) return statuses[0] ?? null;
   if (/^\d+$/.test(trimmed)) return statuses[Number.parseInt(trimmed, 10) - 1] ?? null;
   const normalized = normalizeWorkspaceIdPart(trimmed.replace(/^path:/i, ''));
   return statuses.find((status) => {
@@ -751,7 +773,7 @@ function latestLocalRound(status: LocalRecursiveLoopStatus): LocalRecursiveLoopS
   return status.history.slice(-1)[0] ?? null;
 }
 
-function localLoopVerdict(status: LocalRecursiveLoopStatus): 'improved' | 'flat' | 'regressed' {
+function localLoopVerdict(status: LocalRecursiveLoopStatus): 'improved' | 'flat' | 'regressed' | 'defer' {
   const round = latestLocalRound(status);
   return inferOutcomeVerdict(round?.best_verdict, round?.best_metric);
 }
@@ -762,27 +784,56 @@ function localRoundCount(status: LocalRecursiveLoopStatus): string {
   return `${completed}/${total}`;
 }
 
-function renderLocalRecursiveWorkspaceHint(): string {
-  return [
-    'Workspace',
-    '• local-only mode',
-    '• connect Spark Workspace later for reviews, decisions, and network sharing'
-  ].join('\n');
+function roundProgressPhrase(completed: number, total: number): string {
+  return `${completed}/${total} ${total === 1 ? 'round' : 'rounds'}`;
+}
+
+function loopCandidateSignalSentence(finalRound: { suggestions_count?: number | null; best_metric?: number | null } | null, label = 'this workflow'): string {
+  if (!finalRound) return 'No candidate scores were recorded yet.';
+  if (typeof finalRound.best_metric === 'number') {
+    return 'Spark drafted a possible improvement for this private workflow helper. It has not been used, approved, or shared.';
+  }
+  if (typeof finalRound.suggestions_count === 'number') return 'Spark checked the candidates it found. Nothing is ready to apply yet.';
+  return 'No candidate scores were recorded yet.';
+}
+
+function loopProofBoundarySentence(verdict: string | null | undefined): string {
+  const normalized = (verdict || '').toLowerCase();
+  if (normalized.includes('regress')) {
+    return 'Treat this as a rollback signal until separated judges explain what broke.';
+  }
+  if (normalized.includes('defer')) {
+    return 'I kept it private and made no changes.';
+  }
+  return 'This only proves Spark can compare draft versions in a private run; real self-improvement still needs a separate review on a multi-round trend.';
+}
+
+function readableReportCommand(_chipKey: string): string {
+  return '/recursive report latest';
+}
+
+function loopCompletionHeadline(label: string, completed: number, total: number, verdict: string | null | undefined, local = false): string {
+  const normalized = (verdict || '').toLowerCase();
+  if (normalized.includes('defer')) {
+    return `I finished checking ${label}${local ? ' locally' : ''}.`;
+  }
+  return `${outcomeStatusIcon(verdict)} ${label} finished ${roundProgressPhrase(completed, total)}${local ? ' locally' : ''} and ${friendlyOutcomeVerb(verdict)}.`;
 }
 
 function renderLocalRecursiveReport(status: LocalRecursiveLoopStatus): string {
   const label = labelFromKey(status.chip_key);
   const verdict = localLoopVerdict(status);
   const round = latestLocalRound(status);
+  const completed = status.rounds_completed ?? status.history.length;
+  const total = status.total_rounds ?? completed;
   const lines = [
-    `${outcomeStatusIcon(verdict)} Latest ${label} local run ${friendlyOutcomeVerb(verdict)}.`,
+    loopCompletionHeadline(label, completed, total, verdict, true),
     '',
-    'Score',
-    `• ${localRoundCount(status)} rounds`
+    loopCandidateSignalSentence(round, label),
+    '',
+    loopProofBoundarySentence(verdict)
   ];
-  if (typeof round?.best_metric === 'number') lines.push(`• best score ${formatNumber(round.best_metric)}`);
-  if (typeof round?.suggestions_count === 'number') lines.push(`• ${pluralize(round.suggestions_count, 'suggestion')} reviewed`);
-  lines.push('', 'Local', '• status file saved', '', renderLocalRecursiveWorkspaceHint());
+  lines.push('', 'Saved locally. Keep it private until the review gates pass.');
   return lines.join('\n');
 }
 
@@ -818,6 +869,9 @@ export async function recursiveSessions(): Promise<RecursiveSessionListItem[]> {
 
 function resolveRecursiveSessionId(snapshot: SparkWorkspaceSnapshot, id: string): string {
   const trimmed = id.trim();
+  if (isLatestRecursiveId(trimmed)) {
+    return orderedRecursiveSessions(workspaceSessions(snapshot))[0]?.session_id || id;
+  }
   if (!/^\d+$/.test(trimmed)) return id;
   const index = Number.parseInt(trimmed, 10) - 1;
   const session = orderedRecursiveSessions(workspaceSessions(snapshot))[index];
@@ -908,7 +962,7 @@ export async function syncRecursiveArtifactToWorkspace(input: RecursiveArtifactS
     'python'
   ).trim();
   const bridgeSrc = resolveSparkSwarmBridgeSrc();
-  const env: NodeJS.ProcessEnv = { ...process.env };
+  const env: NodeJS.ProcessEnv = effectiveLevel5RuntimeEnv({ ...process.env });
   if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
   if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
   if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN = config.accessToken;
@@ -1167,7 +1221,7 @@ export async function proposeRecursiveWorkspaceEvidence(
     'python'
   ).trim();
   const bridgeSrc = resolveSparkSwarmBridgeSrc();
-  const env: NodeJS.ProcessEnv = { ...process.env };
+  const env: NodeJS.ProcessEnv = effectiveLevel5RuntimeEnv({ ...process.env });
   if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
   if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
   if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN = config.accessToken;
@@ -1271,7 +1325,7 @@ export function buildBuilderChipLoopWorkspacePayload(input: {
   const finalRound = input.history?.slice(-1)[0] ?? null;
   const verdict = inferOutcomeVerdict(finalRound?.best_verdict, finalRound?.best_metric);
   const metricValue = typeof finalRound?.best_metric === 'number' ? finalRound.best_metric : null;
-  const summary = `Builder chip loop for ${chipLabel} completed ${roundsCompleted}/${totalRounds} round(s).`;
+  const summary = `Builder chip loop for ${chipLabel} completed ${roundProgressPhrase(roundsCompleted, totalRounds)}.`;
   const artifactRefs = input.statusPath ? [{
     id: `artifact_builder_chip_${chipSlug}_${compactTimestamp(emittedAt)}`,
     kind: 'run_trace',
@@ -1424,9 +1478,7 @@ async function syncBuilderChipLoopViaBridge(
     'python'
   ).trim();
   const bridgeSrc = resolveSparkSwarmBridgeSrc();
-  const env: NodeJS.ProcessEnv = {
-    ...process.env
-  };
+  const env: NodeJS.ProcessEnv = effectiveLevel5RuntimeEnv({ ...process.env });
   if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
   if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
   if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN = config.accessToken;
@@ -1523,44 +1575,41 @@ export function renderBuilderChipLoopCompletion(
   syncError: string | null = null
 ): string {
   const chipKey = result.chipKey || 'unknown-chip';
-  const pathId = sync?.pathId || `path_builder_chip_${normalizeWorkspaceIdPart(chipKey)}`;
   const finalRound = result.history?.slice(-1)[0] ?? null;
-  const rounds = `${result.roundsCompleted ?? result.history?.length ?? 0}/${result.totalRounds ?? result.roundsCompleted ?? result.history?.length ?? 0}`;
+  const completed = result.roundsCompleted ?? result.history?.length ?? 0;
+  const total = result.totalRounds ?? result.roundsCompleted ?? result.history?.length ?? 0;
   const verdict = finalRound
     ? finalRound.best_verdict || inferOutcomeVerdict(finalRound.best_verdict, finalRound.best_metric)
     : 'no rounds recorded';
+  const label = labelFromKey(chipKey);
   const lines = [
-    `${outcomeStatusIcon(verdict)} Latest ${labelFromKey(chipKey)} run ${friendlyOutcomeVerb(verdict)}.`,
+    loopCompletionHeadline(label, completed, total, verdict),
     '',
-    'Score',
-    `• ${rounds} rounds`
+    loopCandidateSignalSentence(finalRound, label),
+    '',
+    loopProofBoundarySentence(verdict)
   ];
-
-  if (finalRound) {
-    if (typeof finalRound.best_metric === 'number') {
-      lines.push(`• best score ${formatNumber(finalRound.best_metric)}`);
-    }
-    lines.push(`• ${pluralize(finalRound.suggestions_count, 'suggestion')} reviewed`);
-  }
 
   if (sync) {
     lines.push(
       '',
-      'Workspace',
-      sync.synced ? '• updated' : '• update skipped',
-      `• ${sync.workspaceUrl}`
+      sync.synced
+        ? `Workspace is updated: ${sync.workspaceUrl}`
+        : `Workspace update skipped: ${sync.workspaceUrl}`
     );
   } else if (syncError) {
-    lines.push('', 'Workspace', `• update skipped: ${truncateAtWord(syncError, 120)}`);
-  } else {
-    lines.push('', 'Local', '• status file saved');
+    lines.push('', `Workspace update skipped: ${truncateAtWord(syncError, 120)}`);
+  } else if (!String(verdict || '').toLowerCase().includes('defer')) {
+    lines.push('', 'Saved locally and kept private.');
   }
 
   lines.push(
     '',
-    'Report',
-    `• /recursive report ${pathId}`,
-    `• /recursive trace ${pathId}`
+    'To open the private draft, send:',
+    readableReportCommand(chipKey),
+    'This only opens the private draft.',
+    '',
+    'After you read it, you can ignore it, ask for changes, or ask me to run another review.'
   );
   return lines.join('\n');
 }
@@ -2418,6 +2467,7 @@ function normalizeKnownAcronyms(value: string): string {
   return value
     .replace(/\bAgi\b/g, 'AGI')
     .replace(/\bApi\b/g, 'API')
+    .replace(/\bB2c\b/g, 'B2C')
     .replace(/\bCli\b/g, 'CLI')
     .replace(/\bDb\b/g, 'DB')
     .replace(/\bGpt\b/g, 'GPT')
@@ -2442,7 +2492,7 @@ function compactTimestamp(iso: string): string {
 }
 
 function labelFromKey(value: string): string {
-  const acronyms = new Set(['agi', 'api', 'cli', 'db', 'gpt', 'gtm', 'llm', 'qa', 'ui', 'ux', 'yc']);
+  const acronyms = new Set(['agi', 'api', 'b2c', 'cli', 'db', 'gpt', 'gtm', 'llm', 'qa', 'r30', 'ui', 'ux', 'yc']);
   return value
     .split(/[-_\s]+/)
     .filter(Boolean)
@@ -2476,9 +2526,10 @@ function sessionTitleLabel(title: string): string {
   return truncateAtWord(labelFromKey(cleaned || title), 64);
 }
 
-function inferOutcomeVerdict(rawVerdict: string | null | undefined, metric: number | null | undefined): 'improved' | 'flat' | 'regressed' {
+function inferOutcomeVerdict(rawVerdict: string | null | undefined, metric: number | null | undefined): 'improved' | 'flat' | 'regressed' | 'defer' {
   const normalized = (rawVerdict || '').toLowerCase();
   if (/\b(regress\w*|worse|failed|revert\w*)\b/.test(normalized)) return 'regressed';
+  if (/\b(defer\w*|deferred|hold|review)\b/.test(normalized)) return 'defer';
   if (/\b(flat|same|no[_ -]?gain)\b/.test(normalized)) return 'flat';
   if (/\b(improv\w*|kept|keep|accepted|better|pass\w*)\b/.test(normalized)) return 'improved';
   return 'flat';
@@ -2757,7 +2808,16 @@ export function renderRecursiveWorkspaceReview(snapshot: SparkWorkspaceSnapshot,
 }
 
 function findPath(snapshot: SparkWorkspaceSnapshot, id: string): SparkWorkspaceEvolutionPath | null {
-  return snapshot.evolutionPaths.find((path) => path.id === id || path.specializationId === id) ?? null;
+  const trimmed = id.trim();
+  const normalized = normalizeWorkspaceIdPart(trimmed.replace(/^path:/i, ''));
+  return snapshot.evolutionPaths.find((path) => {
+    if (path.id === trimmed || path.specializationId === trimmed) return true;
+    const builderChipMatch = /^path_builder_chip_(.+)$/.exec(path.id);
+    if (builderChipMatch && normalizeWorkspaceIdPart(builderChipMatch[1]) === normalized) return true;
+    const simplePathMatch = /^path_(.+)$/.exec(path.id);
+    if (simplePathMatch && normalizeWorkspaceIdPart(simplePathMatch[1]) === normalized) return true;
+    return false;
+  }) ?? null;
 }
 
 function specializationForPath(snapshot: SparkWorkspaceSnapshot, path: SparkWorkspaceEvolutionPath): SparkWorkspaceSpecialization | null {
@@ -2866,6 +2926,7 @@ function outcomeStatusIcon(verdict: string | null | undefined): string {
 function friendlyOutcomeVerb(verdict: string | null | undefined): string {
   const normalized = (verdict || '').toLowerCase();
   if (normalized.includes('regress')) return 'regressed';
+  if (normalized.includes('defer')) return 'was deferred';
   if (normalized.includes('improv')) return 'improved';
   if (normalized.includes('flat')) return 'held steady';
   if (normalized.includes('record')) return 'was recorded';

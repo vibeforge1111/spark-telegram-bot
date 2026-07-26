@@ -353,4 +353,3 @@ Add these dimensions to Spark readiness scoring:
 6. Test rich message readability for status, failure, build report, and table output.
 7. Test CUA/browser proof for canvas, board, preview, and execution panel claims.
 8. Promote only root-cause findings into code, skills, and governance docs.
-

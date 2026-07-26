@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import axios from 'axios';
-import { spawnerPrdWriteAuthorityFailureReason } from '../src/spawnerPrdWriteAuthority';
+import { harnessExecutionAuthorityFailureReason } from '../src/harnessExecutionAuthority';
 
 interface CapturedCall {
 	url: string;
@@ -29,20 +32,36 @@ function makeFakeCtx(chatId: number, fromId: number, messageId: number, replies:
 	};
 }
 
-function assertSpawnerPrdWriteAuthority(authority: any, requestId: string): void {
+function assertBuilderChipCreateAuthority(authority: any): void {
 	assert.equal(authority?.schema_version, 'governor-decision-v1');
-	assert.equal(authority?.tool_ledgers?.[0]?.tool_name, 'spawner.prd.write');
-	assert.equal(spawnerPrdWriteAuthorityFailureReason(authority), null);
-	const pathOrUri = String(authority?.envelope?.proposed_actions?.[0]?.args_ref?.path_or_uri || '');
-	assert.equal(decodeURIComponent(pathOrUri.split('/').pop() || ''), requestId);
+	assert.equal(authority?.outcome, 'execute');
+	assert.equal(authority?.execution_boundary?.action_authorized, true);
+	assert.equal(authority?.tool_ledgers?.[0]?.tool_name, 'chip.create');
+	assert.equal(harnessExecutionAuthorityFailureReason(authority, {
+		toolName: 'chip.create',
+		ownerSystem: 'spark-intelligence-builder',
+		actionType: 'create_domain_chip'
+	}), null);
 }
 
 async function run(): Promise<void> {
 	const originalPost = axios.post;
 	const originalGet = axios.get;
+	const tempDir = mkdtempSync(path.join(os.tmpdir(), 'spark-domain-chip-pending-authority-'));
+	const fakeBuilder = path.join(tempDir, 'fake-builder');
+	const builderArgvPath = path.join(tempDir, 'builder-argv.json');
+	const builderHome = path.join(tempDir, 'builder-home');
+	const outputDir = path.join(tempDir, 'chips');
+	const chipLabsRoot = path.join(tempDir, 'chip-labs');
 	const originalEnv = {
 		ADMIN_TELEGRAM_IDS: process.env.ADMIN_TELEGRAM_IDS,
 		BOT_DEFAULT_TIER: process.env.BOT_DEFAULT_TIER,
+		CHIP_CREATE_OUTPUT_DIR: process.env.CHIP_CREATE_OUTPUT_DIR,
+		SPARK_BUILDER_HOME: process.env.SPARK_BUILDER_HOME,
+		SPARK_BUILDER_PYTHON: process.env.SPARK_BUILDER_PYTHON,
+		SPARK_BUILDER_REPO: process.env.SPARK_BUILDER_REPO,
+		SPARK_DOMAIN_CHIP_LABS_ROOT: process.env.SPARK_DOMAIN_CHIP_LABS_ROOT,
+		SPARK_MISSION_CONTROL_DISABLED: process.env.SPARK_MISSION_CONTROL_DISABLED,
 		SPAWNER_UI_URL: process.env.SPAWNER_UI_URL,
 		SPAWNER_UI_PUBLIC_URL: process.env.SPAWNER_UI_PUBLIC_URL,
 		SPARK_AGENT_ACCESS_PROFILE: process.env.SPARK_AGENT_ACCESS_PROFILE,
@@ -57,7 +76,25 @@ async function run(): Promise<void> {
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.CHIP_CREATE_OUTPUT_DIR = outputDir;
+		process.env.SPARK_BUILDER_HOME = builderHome;
+		process.env.SPARK_BUILDER_PYTHON = fakeBuilder;
+		process.env.SPARK_BUILDER_REPO = tempDir;
+		process.env.SPARK_DOMAIN_CHIP_LABS_ROOT = chipLabsRoot;
+		process.env.SPARK_MISSION_CONTROL_DISABLED = '1';
 		delete process.env.SPARK_MODEL_ROUTER;
+		mkdirSync(path.join(tempDir, 'src', 'spark_intelligence'), { recursive: true });
+		writeFileSync(path.join(tempDir, 'src', 'spark_intelligence', 'cli.py'), '');
+		mkdirSync(builderHome, { recursive: true });
+		mkdirSync(outputDir, { recursive: true });
+		mkdirSync(chipLabsRoot, { recursive: true });
+		writeFileSync(fakeBuilder, [
+			'#!/usr/bin/env node',
+			"const fs = require('node:fs');",
+			`if (process.argv.includes('chips') && process.argv.includes('create')) fs.writeFileSync(${JSON.stringify(builderArgvPath)}, JSON.stringify(process.argv));`,
+			"process.stdout.write(JSON.stringify({ ok: true, chip_key: 'domain-chip-payments-risk-domain-chip-for', chip_path: 'domain-chip-payments-risk-domain-chip-for', router_invokable: false, proof_artifacts: { schema_version: 'spark.chip_proof.v1' }, warnings: [] }));"
+		].join('\n'));
+		chmodSync(fakeBuilder, 0o755);
 
 		const captured: CapturedCall[] = [];
 		(axios as any).post = async (url: string, body: any) => {
@@ -73,7 +110,10 @@ async function run(): Promise<void> {
 		createCtx.message.text = 'create a payments risk domain chip for launch readiness';
 		await indexModule.handleTextMessage(createCtx);
 
-		assert.match(replies.join('\n'), /I can build this as domain-chip-payments-risk-domain-chip-for/);
+		assert.match(
+			replies.join('\n'),
+			/I can turn this into a private Domain Chip: domain-chip-payments-risk-domain-chip-for/i
+		);
 		assert.match(replies.join('\n'), /Reply "go"/);
 		assert.doesNotMatch(replies.join('\n'), /names only/);
 		assert.ok(!captured.some((call) => call.url.includes('/api/prd-bridge/write')), 'preview must not enqueue before follow-up');
@@ -94,10 +134,13 @@ async function run(): Promise<void> {
 		goCtx.message.text = 'go';
 		await indexModule.handleTextMessage(goCtx);
 
-		const pendingChipWrite = captured.find((call) => call.url.includes('/api/prd-bridge/write'));
-		assert.ok(pendingChipWrite, 'go should dispatch the pending domain chip');
-		assertSpawnerPrdWriteAuthority(pendingChipWrite!.body.executionAuthority, pendingChipWrite!.body.requestId);
-		assert.match(replies.join('\n'), /Starting domain-chip-payments-risk-domain-chip-for with the recommended defaults/i);
+		assert.ok(!captured.some((call) => call.url.includes('/api/prd-bridge/write')), 'pending go must stay on the canonical Builder lane');
+		const builderArgs = JSON.parse(readFileSync(builderArgvPath, 'utf8')) as string[];
+		assert.deepEqual(builderArgs.slice(2, 6), ['-m', 'spark_intelligence.cli', 'chips', 'create']);
+		const governorArg = JSON.parse(String(builderArgs[builderArgs.indexOf('--governor-decision-json') + 1] || '{}'));
+		assertBuilderChipCreateAuthority(governorArg);
+		assert.match(replies.join('\n'), /Creating domain-chip-payments-risk-domain-chip-for privately with the recommended defaults/i);
+		assert.match(replies.join('\n'), /Domain Chip created: domain-chip-payments-risk-domain-chip-for/i);
 
 		console.log('ok - domain chip pending go dispatches with Harness authority');
 	} finally {
@@ -107,6 +150,7 @@ async function run(): Promise<void> {
 			if (value === undefined) delete (process.env as any)[key];
 			else (process.env as any)[key] = value;
 		}
+		rmSync(tempDir, { recursive: true, force: true });
 	}
 }
 

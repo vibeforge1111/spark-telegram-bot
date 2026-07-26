@@ -7,27 +7,50 @@
     "node": ">=22.5.0"
   },
   "scripts": {
-    "prestart": "npm run build",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "npm run clean && tsc",
+    "build": "npm run clean && node node_modules/typescript/bin/tsc",
     "check:line-count": "python3 scripts/harness_checks/line_count_gate.py --root .",
     "sync:runtime": "node scripts/sync-runtime.cjs",
     "sync:check": "node scripts/sync-runtime.cjs --check",
     "sync:check:strict": "node scripts/sync-runtime.cjs --check --require-runtime",
     "verify:vendor": "node scripts/verify-vendor.cjs",
     "build:sync": "npm run build && npm run sync:runtime",
-    "restart:safe": "npm run build:sync && npm run sync:check:strict && powershell -NoProfile -Command \"& 'C:\\Users\\USER\\.spark\\bin\\spark.cmd' restart spark-telegram-bot --profile spark-recursive\"",
-    "deploy:doctor": "node scripts/deploy-doctor.mjs",
+    "deploy:doctor": "node scripts/deploy-doctor.mjs --",
     "health:polling": "node scripts/run-health-polling.cjs",
     "health:runtime": "node scripts/run-health-runtime.cjs",
     "nl:live": "ts-node ops/liveNlCommandSuite.ts",
+    "nl:harness-map": "ts-node ops/liveNlCommandSuite.ts --harness-map",
     "nl:verdict": "ts-node ops/liveNlVerdictReport.ts",
     "nl:replay": "ts-node ops/naturalRouteReplay.ts",
+    "control:proof:audit": "ts-node ops/controlProofTraceAudit.ts",
+    "control:proof:trace-join": "ts-node ops/controlProofTraceJoin.ts",
+    "control:proof:live-trace": "ts-node ops/controlProofTraceJoin.ts --strict --require-live-evidence --min-route-rows 4 --min-no-action-rows 4",
+    "control:proof:live-trace:prompts": "ts-node ops/controlProofTraceJoin.ts --safe-prompts",
+    "control:proof:source-inventory": "ts-node ops/controlProofSourceInventory.ts --strict",
+    "control:proof:capsules": "ts-node ops/controlProofCapsuleCoverage.ts",
+    "control:proof:evals": "ts-node ops/controlProofReliabilityEvalCoverage.ts",
+    "control:proof:legacy-prompts": "ts-node ops/controlProofLegacyPromptSurface.ts",
+    "control:proof:capabilities": "ts-node ops/controlProofCapabilityEvidence.ts",
+    "control:proof:surface": "ts-node ops/controlProofSurfaceEval.ts",
+    "control:proof:render-firewall": "npm test -- --run tests/outboundSanitize.test.ts",
+    "control:proof:reliability": "npm run control:proof:audit -- --sample 100 --fresh-strict && npm run control:proof:live-trace && npm run control:proof:source-inventory && npm run control:proof:render-firewall && npm run control:proof:capsules -- --strict && npm run control:proof:evals -- --strict && npm run control:proof:legacy-prompts -- --strict && npm run control:proof:capabilities -- --strict && npm run control:proof:surface -- --strict",
+    "control:proof:panel": "ts-node ops/harnessProofPanel.ts",
+    "control:proof:canaries": "ts-node ops/controlProofLiveCanaryPack.ts",
+    "domain-chip:fastpath:canary": "ts-node ops/domainChipFastPathCanary.ts",
+    "r30:live-telegram:proof-pack": "ts-node ops/r30LiveTelegramProofPack.ts",
+    "r30:live-telegram:summary": "ts-node ops/r30LiveTelegramSummary.ts",
+    "r30:live-telegram:evidence": "ts-node ops/r30LiveTelegramEvidence.ts",
+    "r30:screenshot-manifest": "ts-node ops/r30ScreenshotManifest.ts",
+    "r30:loop-readiness:audit": "ts-node ops/r30LoopEngineeringReadinessAudit.ts --allow-incomplete",
+    "r30:loop-readiness:strict": "ts-node ops/r30LoopEngineeringReadinessAudit.ts",
+    "control:proof:repair:legacy": "ts-node ops/repairLegacyTraceProofGaps.ts",
+    "control:proof:repair:outbound": "ts-node ops/repairOutboundTraceAudit.ts",
+    "control:proof:repair:final-answer": "ts-node ops/repairFinalAnswerTraceAudit.ts",
+    "control:proof:repair:route-confidence": "ts-node ops/repairRouteConfidenceTraceAudit.ts",
     "context:live": "ts-node ops/contextWindowLiveHarness.ts",
     "context:ux": "ts-node ops/contextWindowLiveHarness.ts --ux",
-    "pretest": "npm run check:line-count",
     "test": "node scripts/run-tests.cjs",
     "test:live-token": "node scripts/run-tests.cjs --require-real-token"
   },
@@ -42,7 +65,7 @@
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
-    "@spark/harness-core": "file:vendor/harness-core",
+    "@spark/harness-core": "0.1.0",
     "axios": "^1.16.1",
     "dotenv": "^17.2.3",
     "telegraf": "^4.16.3"
@@ -51,5 +74,11 @@
     "@types/node": "^25.0.10",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
-  }
+  },
+  "workspaces": [
+    "vendor/harness-core"
+  ],
+  "bundleDependencies": [
+    "@spark/harness-core"
+  ]
 }

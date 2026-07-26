@@ -361,6 +361,7 @@
         "id": "canvas-on-kanban",
         "user": "did the latest canvas run show up on kanban?",
         "expectedRouteOneOf": [
+          "spawner.latest_on_kanban",
           "spawner.board/latest_on_kanban",
           "spawner.board",
           "plain_chat",
@@ -374,6 +375,7 @@
         "id": "latest-provider",
         "user": "which LLM took the latest Spawner job?",
         "expectedRouteOneOf": [
+          "spawner.latest_provider",
           "spawner.board/latest_provider",
           "spawner.board",
           "plain_chat",
