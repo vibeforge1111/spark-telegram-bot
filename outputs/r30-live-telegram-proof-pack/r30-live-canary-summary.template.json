@@ -91,7 +91,7 @@
         "promptHash": "sha256:6ed49de77647af69d58868bd0fe01e66f898261d6869647de459dfd81cc0845b",
         "category": "boundary",
         "verdict": "untested",
-        "expectedRoute": "plain_chat.no_action_boundary",
+        "expectedRoute": "plain_chat.qa_boundary",
         "expectedAuthority": "chat_only",
         "expectedMutationClass": "none",
         "expectedReplyShape": "natural",

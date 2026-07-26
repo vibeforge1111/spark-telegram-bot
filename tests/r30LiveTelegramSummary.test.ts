@@ -14,6 +14,11 @@ function test(name: string, fn: AsyncTest): void {
   tests.push({ name, fn });
 }
 
+test('uses the emitted plain-chat QA action for the timezone boundary case', () => {
+  const boundary = R30_LIVE_TELEGRAM_CASES.find((entry) => entry.id === 'r30-boundary-meta-timezone-001');
+  assert.equal(boundary?.expectedRoute, 'plain_chat.qa_boundary');
+});
+
 async function makePackets(options: { incompleteCaseId?: string } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'r30-live-summary-'));
   const entries = [];

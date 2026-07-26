@@ -46,7 +46,7 @@ const CASE_DEFINITIONS: Array<Omit<R30LiveTelegramCase, 'promptHash'>> = [
   {
     id: 'r30-boundary-meta-timezone-001',
     prompt: 'We are discussing timezone routing bugs. Do not schedule anything; just explain which route should win.',
-    expectedRoute: 'plain_chat.no_action_boundary',
+    expectedRoute: 'plain_chat.qa_boundary',
     expectedAuthority: 'chat_only',
     expectedMutationClass: 'none',
     expectedReplyShape: 'natural',

@@ -156,7 +156,7 @@
       "expected": {
         "authority": "chat_only",
         "mutationClass": "none",
-        "route": "plain_chat.no_action_boundary",
+        "route": "plain_chat.qa_boundary",
         "replyShape": "natural",
         "sideEffect": "No Daily Schedule fast path, reminder, calendar mutation, mission, or external send.",
         "proofJoin": "Live /proof or route telemetry must show the expected route joined to Telegram evidence with no latest proof gaps.",

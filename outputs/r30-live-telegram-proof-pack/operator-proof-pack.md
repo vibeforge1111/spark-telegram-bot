@@ -42,7 +42,7 @@ Continue improving the Daily Schedule chip with a loop, but do not start an auto
 
 4. r30-boundary-meta-timezone-001
 
-Expected route: `plain_chat.no_action_boundary`
+Expected route: `plain_chat.qa_boundary`
 Authority: `chat_only`
 Mutation class: `none`
 Reply shape: natural
