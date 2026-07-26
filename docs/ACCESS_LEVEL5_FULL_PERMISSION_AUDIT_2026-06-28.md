@@ -76,4 +76,3 @@ final Telegram UX confirmation should still be done from the trusted admin chat:
 3. Ask: `is Level 5 active?`
 4. Confirm the answer says Level 5 is active only when effective sandbox is
    `danger-full-access` and runner writability is yes.
-
