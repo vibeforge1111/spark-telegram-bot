@@ -846,12 +846,12 @@ test('Telegram handler drafts future PRDs with Spawner distilled lesson and no l
 
       assert.equal(replies.length, 1);
       assert.match(replies[0], /PRD draft: Invoice Export/i);
-      assert.match(replies[0], /Loop lesson reused: PRDs improved when acceptance criteria were tied to observable evidence, rollout risk, and owner decisions\./i);
+      assert.match(replies[0], /I used the current PRD Writing checklist: PRDs improved when acceptance criteria were tied to observable evidence, rollout risk, and owner decisions\./i);
       assert.match(replies[0], /reuse this staged lesson without rerunning the full loop/i);
-      assert.match(replies[0], /I did not start a benchmark or self-improvement loop for this PRD turn\./i);
-      assert.match(replies[0], /Evidence: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-prd-writing-proof-loop/i);
+      assert.match(replies[0], /No mission, benchmark, or loop was started\./i);
+      assert.match(replies[0], /Details: http:\/\/127\.0\.0\.1:\d+\/loop-engineering\/domain-chip-prd-writing-proof-loop/i);
       assert.doesNotMatch(replies[0], /should use loop mode before a normal PRD draft/i);
-      assert.doesNotMatch(replies[0], /\b(?:I (?:activated|published|registered|scheduled|started|created)|mission)\b/i);
+      assert.doesNotMatch(replies[0], /\bI (?:activated|published|registered|scheduled|started|created)\b|\bmission (?:started|launched|created)\b/i);
       assert.deepEqual(hits, ['/api/loop-engineering/chips/domain-chip-prd-writing-proof-loop']);
     } finally {
       restoreEnv();

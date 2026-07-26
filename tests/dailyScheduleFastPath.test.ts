@@ -52,6 +52,18 @@ test('answers no-action scheduling prompts with read-only facts and no mutation 
   assert.doesNotMatch(result.reply, /I created|I moved|I recovered/i);
 });
 
+test('answers the live tomorrow-planning prompt with a useful human plan', () => {
+  const result = evaluateDailyScheduleFastPath(
+    'Help me make tomorrow easier with a daily schedule plan. Do not create reminders or change my calendar.'
+  );
+  assert.ok(result);
+  assert.equal(result.mode, 'readonly_answer');
+  assert.match(result.reply, /simple plan for tomorrow/i);
+  assert.match(result.reply, /must-finish outcome/i);
+  assert.match(result.reply, /calendar and reminders unchanged/i);
+  assert.doesNotMatch(result.reply, /private fast path|required facts only/i);
+});
+
 test('blocks external reminder or calendar mutation attempts until approval facts exist', () => {
   const result = evaluateDailyScheduleFastPath("The user in Dubai says move tomorrow's reminder to 9 while the owner is in New York.");
   assert.ok(result);
@@ -79,7 +91,8 @@ test('sends weak feedback and explicit proof requests back through the loop', ()
   assert.ok(result);
   assert.equal(result.mode, 'loop_mode');
   assert.equal(result.tokenMode, 'loop_mode');
-  assert.match(result.reply, /benchmark\/sealed-eval pass/i);
+  assert.match(result.reply, /read-only replay/i);
+  assert.match(result.reply, /Nothing has started/i);
 });
 
 test('blocks unsafe bypass or false-recovery requests', () => {
@@ -124,6 +137,27 @@ test('Telegram handler routes daily schedule fast path before Builder or Spawner
   assert.match(replies[0], /No reminder was created, moved, sent, completed, or marked recovered/i);
   assert.equal(replyExtras.length, 1);
   assert.equal(replyExtras[0], undefined);
+});
+
+test('Telegram handler keeps the live Daily Schedule loop advisory on its specific route', async () => {
+  process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+  process.env.ADMIN_TELEGRAM_IDS = '8319079055,8319079056';
+  process.env.SPARK_BOT_TEST_MODE = '1';
+  process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+
+  const indexModule: any = await import('../src/index');
+  const replies: string[] = [];
+  await indexModule.handleTextMessage(fakeCtx(
+    'Continue improving the Daily Schedule chip with a loop, but do not start an autoloop yet. What would the next safe loop be?',
+    replies,
+    [],
+    { chat: 8319079056, user: 8319079056, message: 7466 }
+  ));
+
+  assert.equal(replies.length, 1);
+  assert.match(replies[0], /next safe loop is a read-only replay/i);
+  assert.match(replies[0], /Nothing has started/i);
+  assert.doesNotMatch(replies[0], /For this Domain Chip|recommendation boundary/i);
 });
 
 test('Telegram handler leaves PRD prompts on the PRD fast path', async () => {

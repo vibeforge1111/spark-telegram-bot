@@ -53,11 +53,11 @@ function blockExternalActionReply(reason: string): string {
   ].join('\n');
 }
 
-function loopModeReply(reason: string): string {
+function loopModeReply(): string {
   return [
-    `This should go through the Daily Schedule loop before becoming a fast answer: ${reason}.`,
+    'The next safe loop is a read-only replay of the current Daily Schedule examples.',
     '',
-    'The private candidate has useful proof, but the safe move here is another benchmark/sealed-eval pass because timezone context or prior feedback could change the answer.'
+    'I would run the current examples against timezone, recurrence, missed-window, and approval edge cases, compare the answers with the last proven version, and keep the candidate only if it is clearer without weakening safety. Nothing has started.'
   ].join('\n');
 }
 
@@ -71,6 +71,18 @@ function questionsOnlyReply(reason: string): string {
 
 function readonlyReply(text: string): string {
   const normalized = normalizedText(text);
+  if (/\b(?:make\s+tomorrow\s+easier|daily\s+schedule\s+plan|plan\s+for\s+tomorrow)\b/i.test(normalized)) {
+    return [
+      'Here’s a simple plan for tomorrow:',
+      '',
+      '- Choose one must-finish outcome and give it your best focus block.',
+      '- Put smaller admin work into one short batch instead of letting it interrupt the day.',
+      '- Leave a buffer for anything that runs long.',
+      '- End with a quick reset: capture loose ends and pick the first step for the following morning.',
+      '',
+      'I left your calendar and reminders unchanged. Share your timezone and any fixed commitments if you want this shaped into specific time blocks.'
+    ].join('\n');
+  }
   const lines = ['Daily Schedule private fast path: read-only.'];
   if (TIMEZONE_PATTERN.test(normalized)) {
     lines.push('Name the current-case timezone evidence before interpreting words like tomorrow, morning, or 9.');
@@ -120,7 +132,7 @@ export function evaluateDailyScheduleFastPath(text: string): DailyScheduleFastPa
   }
 
   const reply = mode === 'loop_mode'
-    ? loopModeReply(reasons[0] === 'known_timezone_context_or_feedback_reloop_trigger' ? 'timezone context or prior weak feedback is a reloop trigger' : 'the user asked for proof/loop behavior')
+    ? loopModeReply()
     : mode === 'questions_only'
       ? questionsOnlyReply('the prompt does not include enough date/time/timezone/approval context')
       : mode === 'block_external_action'

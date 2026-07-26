@@ -3210,7 +3210,7 @@ async function run(): Promise<void> {
 		await indexModule.handleTextMessage(ctx);
 
 		const reply = replies[0] || '';
-		assert.match(reply, /language evidence|Governor/i);
+		assert.match(reply, /Plain chat should win|context.not permission to run/i);
 		assert.doesNotMatch(reply, /This is no-action|no-action/i);
 		assert.doesNotMatch(reply, /Spark is healthy right now|No restart needed|Live loop/i);
 		assert.equal(captured.length, 0, 'meta risky-word discussion must not call Spawner or PRD bridge');

@@ -76,9 +76,9 @@ async function main(): Promise<void> {
     assert.equal(hits.length, 1);
     assert.match(hits[0], /\/api\/loop-engineering\/chips\/domain-chip-prd-writing-proof-loop/);
     assert.match(reply, /PRD draft: Invoice Export/i);
-    assert.match(reply, /Loop lesson reused: Start with owner, affected user, success metric, acceptance criteria, rollout risk, rollback, and evidence refs/i);
+    assert.match(reply, /I used the current PRD Writing checklist: Start with owner, affected user, success metric, acceptance criteria, rollout risk, rollback, and evidence refs/i);
     assert.match(reply, /without rerunning the full loop/i);
-    assert.match(reply, /I did not start a benchmark or self-improvement loop for this PRD turn\./);
+    assert.match(reply, /No mission, benchmark, or loop was started\./);
     assert.doesNotMatch(reply, /I only read Spawner here/);
     assert.doesNotMatch(sanitizeOutbound(reply), /\*\*/);
     assert.match(sanitizeOutbound(reply), /PRD draft: Invoice Export/i);

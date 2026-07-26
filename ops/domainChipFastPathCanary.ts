@@ -62,9 +62,9 @@ const CASES: CanaryCase[] = [
   {
     id: 'r30-prd-fast-001',
     domain: 'prd_writing',
-    prompt: 'Write a PRD for improving onboarding activation after new users drop before creating their first project.',
+    prompt: 'Write a PRD for a Telegram-first loop engineering dashboard. Use the PRD Writing domain chip if it fits, and do not launch a mission.',
     expectation: {
-      replyIncludes: [/PRD draft:/i, /Acceptance:/i, /Private \+ approval-gated/i],
+      replyIncludes: [/PRD draft: Telegram First Loop Engineering Dashboard/i, /Acceptance checks:/i, /kept it in chat/i],
       replyExcludes: [/Daily Schedule private fast path/i, /ticket created|roadmap changed|published/i],
       logIncludes: [/\[PrdWritingFastPath\]/],
       logExcludes: [/\[DailyScheduleFastPath\]/, /\[BuilderBridge\]/, /\[Bridge\]/],
@@ -74,9 +74,9 @@ const CASES: CanaryCase[] = [
   {
     id: 'r30-daily-fast-001',
     domain: 'daily_schedule',
-    prompt: "The user in Dubai says move tomorrow's reminder to 9 while the owner is in New York.",
+    prompt: 'Help me make tomorrow easier with a daily schedule plan. Do not create reminders or change my calendar.',
     expectation: {
-      replyIncludes: [/keep this read-only/i, /explicit approval/i, /No reminder was created, moved, sent, completed, or marked recovered/i],
+      replyIncludes: [/simple plan for tomorrow/i, /must-finish outcome/i, /calendar and reminders unchanged/i],
       replyExcludes: [/PRD draft:/i, /\bI (?:created|moved|recovered)\b/i],
       logIncludes: [/\[DailyScheduleFastPath\]/],
       logExcludes: [/\[PrdWritingFastPath\]/, /\[BuilderBridge\]/, /\[Bridge\]/],
@@ -98,9 +98,9 @@ const CASES: CanaryCase[] = [
   {
     id: 'r30-daily-loop-advisory-001',
     domain: 'daily_schedule',
-    prompt: 'The previous answer copied the wrong timezone from another case; run the loop for schedule reliability.',
+    prompt: 'Continue improving the Daily Schedule chip with a loop, but do not start an autoloop yet. What would the next safe loop be?',
     expectation: {
-      replyIncludes: [/Daily Schedule loop/i, /benchmark\/sealed-eval pass/i],
+      replyIncludes: [/read-only replay/i, /Nothing has started/i],
       replyExcludes: [/operational autoloop started|mission started|published|activated/i],
       logIncludes: [/\[DailyScheduleFastPath\]/],
       logExcludes: [/\[BuilderBridge\]/, /\[Bridge\]/],
@@ -134,10 +134,10 @@ const CASES: CanaryCase[] = [
   {
     id: 'r30-boundary-meta-timezone-001',
     domain: 'boundary',
-    prompt: 'Do not start a mission; explain why timezone prompts are hard to route.',
+    prompt: 'We are discussing timezone routing bugs. Do not schedule anything; just explain which route should win.',
     llmReply: 'That is a routing discussion, not a schedule mutation. No mission started.',
     expectation: {
-      replyIncludes: [/routing discussion|No mission started|action words as evidence|not as permission to act/i],
+      replyIncludes: [/Plain chat should win|routing behavior/i, /not permission to run/i],
       replyExcludes: [/Daily Schedule private fast path|scheduling facts|reminder was created/i],
       logExcludes: [/\[DailyScheduleFastPath\]/],
       noForbiddenClaims: true

@@ -70,8 +70,9 @@ function cleanSubject(value: string): string {
   return value
     .replace(/\bFASTPATH-CANARY-\d+\b/gi, ' ')
     .replace(/\b(?:please|quickly|fast|now|for\s+me)\b/gi, ' ')
+    .replace(/[.;]\s*(?:use|using|try|keep|do|don't|dont|without)\b[\s\S]*$/i, ' ')
     .replace(/\b(?:with|but|and)\s+(?:make|keep|do|don't|dont|without)\b[\s\S]*$/i, ' ')
-    .replace(/[.!?]+$/g, '')
+    .replace(/[\s,;.!?]+$/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -207,23 +208,23 @@ function draftReply(text: string, tokenMode: PrdTokenMode): string {
   ].filter(Boolean).join(', ');
   const lines = [
     `PRD draft: ${area}`,
-    'Private + approval-gated. No tickets, roadmap changes, publishing, launch claims, or external messages from this draft.',
+    'Here’s a compact first pass. I kept it in chat—no mission, ticket, roadmap, or publication action was started.',
     '',
     `Problem: ${problem}.`,
     `Users: ${users}.`,
     `Metric: ${metric}.`,
     '',
-    'Draft:',
+    'Core flow:',
     `- Flow: define the ${area} path, owner, and decision points.`,
     '- Fallback: show the main error state, recovery path, and owner.',
     '- Approval: require human approval before implementation or external changes.',
     '',
-    'Acceptance:',
+    'Acceptance checks:',
     `- ${users} can complete the core flow without hitting ${acceptanceProblem}.`,
     '- Errors and blocked dependencies produce a recoverable fallback.',
     `- Rollout tracks ${metric} plus one guardrail metric.`,
     '',
-    `Checks: ${reviewChecks}.`
+    `Before build: confirm ${reviewChecks}.`
   ];
   return lines.join('\n');
 }
@@ -253,11 +254,11 @@ function appendEvidenceProof(reply: string, evidence: PrdFastPathEvidence | null
   return [
     reply,
     '',
-    `Loop lesson reused: ${evidence.distilledLearningLine}`,
+    `I used the current PRD Writing checklist: ${evidence.distilledLearningLine}`,
     '',
-    'I did not start a benchmark or self-improvement loop for this PRD turn.',
+    'No mission, benchmark, or loop was started.',
     '',
-    `Evidence: ${evidence.detailUrl}`
+    `Details: ${evidence.detailUrl}`
   ].join('\n');
 }
 

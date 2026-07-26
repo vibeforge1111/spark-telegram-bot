@@ -72,7 +72,7 @@ import {
 } from './spawner';
 import { chipCreateRepairGuidance, createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
-import { evaluateDailyScheduleFastPath } from './dailyScheduleFastPath';
+import { evaluateDailyScheduleFastPath, isDailyScheduleFastPathRequest } from './dailyScheduleFastPath';
 import { fetchLoopEngineeringStatusPacket, resolveLoopEngineeringChipId } from './loopEngineeringStatus';
 import { domainChipBenchmarkFollowupReplyExtra, handleNaturalDomainChipBenchmarkAutoloopFollowup, labelForTelegram } from './domainChipBenchmarkFollowup';
 import { renderDistilledPrdFastPathReplyWithEvidence } from './prdWritingFastPath';
@@ -10545,7 +10545,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
-  if (!earlyBuildIntent && isDomainChipNoActionAdvisoryQuestion(text)) {
+  if (!earlyBuildIntent && !isDailyScheduleFastPathRequest(text) && isDomainChipNoActionAdvisoryQuestion(text)) {
     const key = telegramPendingDomainChipKey(ctx.chat?.id, ctx.from?.id);
     const lastCreated = await getLastCreatedDomainChip(key).catch(() => null);
     const reply = renderDomainChipNoActionAdvisoryReply(
@@ -10711,7 +10711,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
       naturalRouteShadow,
       dailyScheduleResult.mode === 'loop_mode' ? 'domain_chip.daily_schedule_loop_mode_advisory' : 'domain_chip.daily_schedule_fast_path',
       'spark-telegram-bot',
-      dailyScheduleResult.mode === 'loop_mode' ? 'daily_schedule.loop_mode_advisory' : 'daily_schedule.fast_path'
+      dailyScheduleResult.mode === 'loop_mode' ? 'daily_schedule.loop_advisory' : 'daily_schedule.fast_path'
     );
     await ctx.reply(dailyScheduleResult.reply);
     await conversation.rememberAssistantReply(user, dailyScheduleResult.reply).catch(() => {});

@@ -31,9 +31,20 @@ test('drafts a compact private PRD for concrete safe asks', () => {
   assert.match(result.reply, /PRD draft/i);
   assert.match(result.reply, /PRD draft: Onboarding Activation/i);
   assert.match(result.reply, /Users: new users\./);
-  assert.match(result.reply, /Private \+ approval-gated/i);
-  assert.match(result.reply, /Acceptance:/);
+  assert.match(result.reply, /kept it in chat/i);
+  assert.match(result.reply, /Acceptance checks:/);
   assert.doesNotMatch(result.reply, /ticket created|roadmap changed|published/i);
+});
+
+test('keeps live canary instructions out of the PRD subject and uses conversational safety copy', () => {
+  const result = evaluatePrdFastPath(
+    'Write a PRD for a Telegram-first loop engineering dashboard. Use the PRD Writing domain chip if it fits, and do not launch a mission.'
+  );
+  assert.ok(result);
+  assert.equal(result.mode, 'draft_prd');
+  assert.match(result.reply, /PRD draft: Telegram First Loop Engineering Dashboard/i);
+  assert.match(result.reply, /no mission/i);
+  assert.doesNotMatch(result.reply, /Use The PRD Domain Chip|Private \+ approval-gated/i);
 });
 
 test('keeps canary markers and goal phrases out of user-facing PRD fields', () => {
@@ -115,7 +126,7 @@ test('adds review packet sections for sensitive or dependency-heavy drafts', () 
   assert.ok(result);
   assert.equal(result.mode, 'draft_prd');
   assert.equal(result.tokenMode, 'review_packet');
-  assert.match(result.reply, /Checks:/);
+  assert.match(result.reply, /Before build:/);
   assert.match(result.reply, /privacy\/security review/);
   assert.match(result.reply, /upstream owners \+ rollback/);
 });

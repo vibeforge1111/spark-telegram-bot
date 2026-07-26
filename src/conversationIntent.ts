@@ -2376,8 +2376,8 @@ function renderContextualHarnessBoundaryReply(_text: string, normalized: string)
 		].join('\n');
 	}
 	return [
-		'Treat the action words as evidence for understanding the turn, not as permission to act.',
-		'The harness should answer the question in chat unless the user gives a fresh explicit request that the Governor authorizes.'
+		'Plain chat should win here.',
+		'You are discussing routing behavior, so those action words are context—not permission to run anything.'
 	].join('\n');
 }
 
