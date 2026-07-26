@@ -309,7 +309,7 @@ async function run(): Promise<void> {
       await assertTraceRouteLedgerJoin(
         'Stay in chat and just explain the boundary. Do not start anything.',
         'conversation.no_execution_explanation',
-        /not as permission to act|answer the question in chat/i
+        /not permission to run|Plain chat should win/i
       );
     } finally {
       restoreEnv();

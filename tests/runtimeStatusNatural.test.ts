@@ -441,7 +441,7 @@ async function main(): Promise<void> {
     }
 
     assert.equal(replies.length, 1);
-    assert.match(replies[0], /(?:evidence for understanding|Route words can be discussed)/i);
+    assert.match(replies[0], /(?:Plain chat should win|action words are context)/i);
     assert.doesNotMatch(replies[0], /Provider runtime truth|Current evidence reports/i);
     assert.notEqual(extras[0]?.__sparkTraceContext?.route, 'spark.read_only_state.registry_drift');
     assert.equal(extras[0]?.__sparkTraceContext?.missionId, undefined);
