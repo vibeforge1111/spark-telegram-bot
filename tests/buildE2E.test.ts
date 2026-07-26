@@ -45,6 +45,7 @@ const originalEnv = {
 	SPARK_CLARIFICATION_COPY_LLM: process.env.SPARK_CLARIFICATION_COPY_LLM,
 	SPARK_CHAT_LLM_PROVIDER: process.env.SPARK_CHAT_LLM_PROVIDER,
 	SPARK_BOT_TEST_MODE: process.env.SPARK_BOT_TEST_MODE,
+	SPARK_CLI_BIN: process.env.SPARK_CLI_BIN,
 	SPARK_FINAL_ANSWER_GATE_AUDIT_PATH: process.env.SPARK_FINAL_ANSWER_GATE_AUDIT_PATH,
 	SPARK_GATEWAY_STATE_DIR: process.env.SPARK_GATEWAY_STATE_DIR,
 	SPARK_HOME: process.env.SPARK_HOME,
@@ -2030,11 +2031,12 @@ async function run(): Promise<void> {
 			restoreEnv();
 		});
 
-		await test('browser proof health questions use owner status before recursive context', async () => {
+		await test('browser proof health questions fail closed before recursive context when owner status is unavailable', async () => {
 			restoreAxios();
 			process.env.ADMIN_TELEGRAM_IDS = '8319079055';
 			process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_CLI_BIN = path.join(os.tmpdir(), 'spark-cli-intentionally-unavailable');
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 
 		const pathLoop = require('../src/pathLoop') as typeof import('../src/pathLoop');
@@ -2075,10 +2077,9 @@ async function run(): Promise<void> {
 
 			const reply = replies.join('\n');
 			assert.equal(recursiveStatusCalls, 0);
-			assert.match(reply, /Browser-use is not currently proven ready/i);
-			assert.match(reply, /Owner status: <code>installed_unproven<\/code>/i);
-			assert.match(reply, /spark browser-use probe/i);
-			assert.doesNotMatch(reply, /fresh `\/probe browser` result/i);
+			assert.match(reply, /need a fresh `\/probe browser` result/i);
+			assert.match(reply, /browser route may exist/i);
+			assert.doesNotMatch(reply, /Browser-use is not currently proven ready|Owner status:/i);
 			assert.doesNotMatch(reply, /benchmark-backed evidence for an improvement claim/i);
 		} finally {
 			(pathLoop as any).readSpecializationPathLoopStatus = originalRead;
