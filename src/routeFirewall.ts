@@ -1,5 +1,5 @@
 import { resolveBuildCommandBoundary } from './scopedBuildCommand';
-import { isProtectedJuryPreflightRequest } from './conversationIntent';
+import { isProtectedJuryPreflightRequest } from './protectedJuryPreflight';
 import type { DeterministicRouteId } from './routeTypes';
 
 export type { DeterministicRouteId } from './routeTypes';

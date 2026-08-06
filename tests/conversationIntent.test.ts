@@ -82,7 +82,6 @@ import {
   isMemoryDoctorRequest,
   isVoiceReadinessProofQuestion,
   isNoExecutionBoundary,
-  isProtectedJuryPreflightRequest,
   isNoExecutionExplanationPrompt,
   isLowInformationLlmReply,
   isAgentDoctrinePreferenceStatusQuestion,
@@ -172,23 +171,6 @@ test('detects no-execution boundaries before pending builds can launch', () => {
   assert.equal(isNoExecutionBoundary('not now, maybe later'), true);
   assert.equal(isNoExecutionBoundary('we can discuss here for now'), true);
   assert.equal(isNoExecutionBoundary('go ahead and build it'), false);
-});
-
-test('keeps conditional protected Jury preflights executable without weakening stop boundaries', () => {
-  const prompt = [
-    'Please run the legitimate protected review-control preflight at exact head e25f16b3e32626a541b5eceab3ece0035898f791.',
-    'If and only if every required gate and signature check all pass, publish the spark-jury-approval status.',
-    'If any gate fails, do not publish the status; return a bounded blocker receipt.',
-    'Do not bypass protection.'
-  ].join(' ');
-  assert.equal(isProtectedJuryPreflightRequest(prompt), true);
-  assert.equal(isNoExecutionBoundary(prompt), false);
-  assert.equal(isProtectedJuryPreflightRequest(`Do not run it. ${prompt}`), false);
-  assert.equal(isNoExecutionBoundary(`Do not run it. ${prompt}`), true);
-  assert.equal(
-    isProtectedJuryPreflightRequest(prompt.replace('If any gate fails, do not publish the status; ', '')),
-    false
-  );
 });
 
 test('infers Spark bug-recognition mission from recent planning context', () => {

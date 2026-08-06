@@ -11,7 +11,6 @@ import {
   isBrowserComputerUseAuthorizationBoundaryQuestion,
   isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
-  isProtectedJuryPreflightRequest,
   isPublicationApprovalBoundaryQuestion,
   isQuotedDraftedExampleBoundary,
   isRouteWordMetaExplanationDiscussion,
@@ -23,6 +22,7 @@ import {
   isUserMemoryRecallQuestion,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
+import { isProtectedJuryPreflightRequest } from './protectedJuryPreflight';
 import { parseBuildIntent } from './buildIntent';
 import { decideNaturalRoute, type NaturalRouteDecision, type NaturalRouteDecisionContext } from './naturalRouteDecision';
 import { isLiveSparkHealthQuestion } from './runtimeRouteGuards';

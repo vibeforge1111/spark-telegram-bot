@@ -327,7 +327,6 @@ import {
   isNoEditSpawnerProbeExplanationRequest,
   isNoExecutionExplanationPrompt,
   isNoExecutionBoundary,
-  isProtectedJuryPreflightRequest,
   isProviderRuntimeConfigQuestion,
   isRouteWordMetaExplanationDiscussion,
   isPlainChatAnswerEditingRequest,
@@ -384,6 +383,7 @@ import {
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
+import { isProtectedJuryPreflightRequest } from './protectedJuryPreflight';
 import { isNaturalHarnessProofInspectRequest } from './harnessProofNaturalRequest';
 import {
   decideNaturalRoute,
