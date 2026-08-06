@@ -1161,7 +1161,7 @@ export function decideNaturalRoute(
   if (isExternalResearchRequest(normalized)) {
     return decision({
       route: 'external_research.inspect',
-      owner_system: 'spark-intelligence-builder',
+      owner_system: 'spawner-ui',
       confidence: 'explicit',
       action: 'external_research.inspect',
       payload: { goal: buildExternalResearchGoal(normalized, recentMessages) },

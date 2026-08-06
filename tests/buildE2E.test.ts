@@ -19,6 +19,7 @@ import { readJsonFile, resolveStatePath } from '../src/jsonState';
 import { readHarnessCoreToolLedger } from '../src/harnessCoreLedger';
 import { buildHarnessProofCapsule } from '../src/harnessProofCapsule';
 import { buildTelegramTurnIntentEnvelope } from '../src/harnessContract';
+import { harnessExecutionAuthorityFailureReason } from '../src/harnessExecutionAuthority';
 import { classifyTelegramIntentV2 } from '../src/telegramIntentGate';
 
 type AsyncTest = () => Promise<void> | void;
@@ -494,6 +495,86 @@ async function run(): Promise<void> {
 		});
 		assertOutboundAuditCarriesProof(indexModule, replyExtras[0]?.__sparkTraceContext);
 
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('natural external research gives the Spawner adapter matching mission authority', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-external-research-authority-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = path.join(tempRoot, 'harness-ledger.jsonl');
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			if (url.includes('/api/spark/run')) {
+				return {
+					data: {
+						success: true,
+						missionId: 'spark-external-research-authority-test',
+						requestId: body.requestId,
+						providers: ['codex']
+					}
+				};
+			}
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({ data: { providers: [{ id: 'codex' }] } });
+
+		const replies: string[] = [];
+		const replyExtras: any[] = [];
+		const isolatedChatId = 8319079188;
+		const ctx = makeFakeCtx(isolatedChatId, 8319079055, 560, replies, replyExtras);
+		(ctx.chat as any).type = 'private';
+		ctx.message.text = [
+			'Lane F: please run the legitimate protected review-control preflight for Spark Compete PR #124 at exact head e25f16b3e32626a541b5eceab3ece0035898f791.',
+			'Use the sealed public-safe evidence bundle /tmp/spark-r30-pr124-jury-evidence-bundle.json.',
+			'If and only if the fresh GitHub head, required non-jury checks, packet/security/jury/lab/duplicate/team-account gates, signature, freshness, and replay store all pass, publish the legitimate spark-jury-approval status.',
+			'Do not bypass protection, expose HMAC/signing material, mutate points, merge a PR, or publish anything else.'
+		].join(' ');
+		const decision = classifyTelegramIntentV2(ctx.message.text);
+		assert.equal(decision.route, 'external_research.inspect');
+		assert.equal(decision.constraints.noExecution, false);
+		assert.equal(decision.constraints.noMerge, true);
+
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const runCalls = captured.filter((call) => call.url.includes('/api/spark/run'));
+		assert.equal(runCalls.length, 1, `expected one natural external research Spawner call; replies=${JSON.stringify(replies)}`);
+		const runCall = runCalls[0];
+		assert.match(runCall.body.goal, /Spark Compete PR #124/);
+		assert.match(runCall.body.goal, /Do not bypass protection/);
+		assert.equal(
+			harnessExecutionAuthorityFailureReason(runCall.body.executionAuthority, {
+				toolName: 'spawner.run',
+				ownerSystem: 'spawner-ui',
+				actionType: 'launch_mission'
+			}),
+			null,
+			'Spawner must receive authority for the adapter call it actually performs'
+		);
+		assert.equal(runCall.body.executionAuthority.outcome, 'execute');
+		assert.equal(runCall.body.executionAuthority.execution_boundary.action_authorized, true);
+		assertTraceContextWithProof(replyExtras[0]?.__sparkTraceContext, {
+			route: 'spawner.run',
+			command: 'run',
+			replyKind: 'mission_ack',
+			requestId: runCall.body.requestId,
+			traceRef: runCall.body.traceRef,
+			missionId: 'spark-external-research-authority-test'
+		});
+		assertOutboundAuditCarriesProof(indexModule, replyExtras[0]?.__sparkTraceContext, isolatedChatId);
+		assert.doesNotMatch(replies.join('\n'), /Harness Core execution authority is required|chat model is not healthy/);
+
+		rmSync(tempRoot, { force: true, recursive: true });
 		restoreAxios();
 		restoreEnv();
 	});
