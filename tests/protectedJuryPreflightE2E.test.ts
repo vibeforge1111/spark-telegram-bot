@@ -3,7 +3,6 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import axios from 'axios';
-import { harnessExecutionAuthorityFailureReason } from '../src/harnessExecutionAuthority';
 import { classifyTelegramIntentV2 } from '../src/telegramIntentGate';
 
 const originalPost = axios.post;
@@ -87,25 +86,17 @@ async function run(): Promise<void> {
     const indexModule: any = await import('../src/index');
     await indexModule.handleTextMessage(ctx);
     const runCalls = captured.filter((call) => call.url.includes('/api/spark/run'));
-    assert.equal(runCalls.length, 1, `expected one Spawner call; replies=${JSON.stringify(replies)}`);
-    const runCall = runCalls[0];
-    assert.match(runCall.body.goal, /Spark Compete PR #124/);
-    assert.match(runCall.body.goal, /Do not bypass protection/);
-    assert.equal(
-      harnessExecutionAuthorityFailureReason(runCall.body.executionAuthority, {
-        toolName: 'spawner.run',
-        ownerSystem: 'spawner-ui',
-        actionType: 'launch_mission'
-      }),
-      null
-    );
-    assert.equal(runCall.body.executionAuthority.outcome, 'execute');
-    assert.equal(runCall.body.executionAuthority.execution_boundary.action_authorized, true);
-    assert.equal(extras[0]?.__sparkTraceContext?.route, 'spawner.run');
-    assert.equal(extras[0]?.__sparkTraceContext?.replyKind, 'mission_ack');
-    assert.equal(extras[0]?.__sparkTraceContext?.proofCapsule?.schema, 'spark.harness_proof.v1');
-    assert.doesNotMatch(replies.join('\n'), /Harness Core execution authority is required|chat model is not healthy/);
-    console.log('ok - protected Jury preflight gives the Spawner adapter matching mission authority');
+    assert.equal(runCalls.length, 0, `protected Jury control must not launch a generic Spawner mission; replies=${JSON.stringify(replies)}`);
+    const reply = replies.join('\n');
+    assert.match(reply, /protected review-control signer/i);
+    assert.match(reply, /durable replay store/i);
+    assert.match(reply, /nothing was published/i);
+    assert.match(reply, /equipped review-control host/i);
+    assert.doesNotMatch(reply, /I will run that through|Mission:|Provider:|Harness Core execution authority is required|chat model is not healthy/i);
+    assert.equal(extras.length, 1);
+    assert.equal(extras[0]?.__sparkTraceContext?.route, 'spark_compete.protected_jury_handoff');
+    assert.equal(extras[0]?.__sparkTraceContext?.replyKind, 'bounded_blocker');
+    console.log('ok - protected Jury preflight fails closed to the equipped review-control owner');
   } finally {
     restore();
     rmSync(tempRoot, { force: true, recursive: true });
@@ -113,6 +104,6 @@ async function run(): Promise<void> {
 }
 
 run().catch((error) => {
-  console.error('not ok - protected Jury preflight gives the Spawner adapter matching mission authority');
+  console.error('not ok - protected Jury preflight fails closed to the equipped review-control owner');
   throw error;
 });

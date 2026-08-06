@@ -12,3 +12,10 @@ export function isProtectedJuryPreflightRequest(text: string): boolean {
     /\b(?:do\s+not|don't|dont|please\s+don't|please\s+dont)\s+(?:run|start|execute|launch)\b/.test(normalized);
   return requestsPreflight && exactHead && namedStatus && passGate && failureGuard && protectionBoundary && !blanketExecutionStop;
 }
+
+export function protectedJuryPreflightHandoffReply(): string {
+  return [
+    '⚠️ I can’t issue the protected Jury status from this Telegram/Spawner runtime.',
+    'It doesn’t own the protected review-control signer or durable replay store, so nothing was published; run the sealed preflight on the equipped review-control host and bring the receipt back here.'
+  ].join(' ');
+}
