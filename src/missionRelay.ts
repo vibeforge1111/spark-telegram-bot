@@ -5,6 +5,7 @@ import { conversation } from './conversation';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 import { relaySecretMatches, requireRelaySecret } from './launchMode';
 import { buildMissionRelayTraceContext } from './missionRelayProof';
+import { fetchMissionCompletionSummary, type MissionCompletionSummary } from './missionCompletionFetch';
 import { probePreviewReachability } from './previewFetchPolicy';
 import { protectRelayHealthPayload } from './relayHealthPrivacy';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
@@ -12,6 +13,11 @@ import { redactIdentifier, redactText } from './redaction';
 import { recordShippedProjectFromMission } from './shippedProjectContext';
 import { spawnerAuthHeaders } from './spawnerAuth';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
+import {
+  TerminalDeliveryCoordinator,
+  type TerminalDeliveryOutboxRecord,
+  type TerminalDeliveryTarget
+} from './terminalDeliveryOutbox';
 
 const MISSION_LESSON_APPROVAL_PATH = resolveStatePath('.spark-mission-lesson-approvals.json');
 let relayRuntimeStatus: MissionRelayRuntimeStatus = {};
@@ -120,7 +126,8 @@ const openTaskStartCache = new Map<string, { taskKey: string; timestamp: number 
 const completionDeliveryCache = new Map<string, number>();
 const COMPLETION_CACHE_TTL_MS = 24 * 60 * 60_000;
 const completionDeliveryInFlight = new Set<string>();
-const completionSummaryScheduled = new Set<string>();
+let terminalDeliveryCoordinator: TerminalDeliveryCoordinator<MissionCompletionSummary> | null = null;
+let completionDeliveryCacheWriter = writeJsonAtomic;
 function pruneCompletionDeliveryCache(now = Date.now()): void {
   for (const [key, ts] of completionDeliveryCache) {
     if (now - ts > COMPLETION_CACHE_TTL_MS) completionDeliveryCache.delete(key);
@@ -167,6 +174,9 @@ function getRelayProfile(): string {
   return telegramRelayIdentityFromEnv().profile;
 }
 
+function terminalDeliveryTarget(): TerminalDeliveryTarget {
+  return { relayProfile: getRelayProfile(), relayPort: getRelayPort() };
+}
 function getRelayHost(): string {
   const raw = process.env.TELEGRAM_RELAY_HOST || process.env.SPARK_TELEGRAM_RELAY_HOST;
   return typeof raw === 'string' && raw.trim() ? raw.trim() : '127.0.0.1';
@@ -706,13 +716,6 @@ async function fetchMissionBoardEntry(missionId: string): Promise<MissionBoardEn
   }
 }
 
-interface MissionCompletionSummary {
-  providerLabel: string;
-  response: string;
-  openLink?: string | null;
-  previewPending?: boolean;
-}
-
 interface MissionLessonApproval {
   missionId: string;
   chatId: string;
@@ -729,79 +732,12 @@ interface MissionLessonApprovalState {
   pendingByUserId?: Record<string, MissionLessonApproval>;
 }
 
-interface MissionCompletionFetchOptions {
-  attempts?: number;
-  delayMs?: number;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function firstString(record: Record<string, unknown> | null, keys: string[]): string | null {
-  if (!record) return null;
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === 'string' && value.trim()) return value.trim();
-  }
-  return null;
-}
-
-async function fetchMissionCompletionSummary(
-  missionId: string,
-  options: MissionCompletionFetchOptions = {}
-): Promise<MissionCompletionSummary | null> {
-  const attempts = Math.max(1, options.attempts ?? 4);
-  const delayMs = Math.max(250, options.delayMs ?? 1500);
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    if (attempt > 0) await sleep(delayMs);
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
-      try {
-        const response = await fetch(`${spawnerUiUrl()}/api/mission-control/trace?mission=${encodeURIComponent(missionId)}`, {
-          headers: spawnerAuthHeaders(), signal: controller.signal
-        });
-        if (!response.ok) continue;
-        const payload = asRecord(await response.json());
-        if (!payload) continue;
-        const phase = typeof payload.phase === 'string' ? payload.phase.toLowerCase() : '';
-        const providerSummary = typeof payload.providerSummary === 'string' && payload.providerSummary.trim() !== 'Provider summary requires control auth.' ? payload.providerSummary.trim() : '';
-        const providerResults = Array.isArray(payload.providerResults) ? payload.providerResults.map(asRecord).filter(Boolean) : [];
-        const completedProvider =
-          providerResults.find((entry) => String(entry?.status || '').toLowerCase() === 'completed') ||
-          providerResults.find((entry) => typeof entry?.summary === 'string' && entry.summary.trim());
-        const resultSummary = completedProvider && typeof completedProvider.summary === 'string'
-          ? completedProvider.summary.trim()
-          : '';
-        const responseText = providerSummary || resultSummary;
-        if (phase !== 'completed' || !responseText) continue;
-
-        const projectLineage = asRecord(payload.projectLineage);
-        const projectPath = firstString(projectLineage, ['projectPath', 'project_path']);
-        const previewUrl = firstString(projectLineage, ['previewUrl', 'preview_url']);
-        const openLink = await readyProjectOpenLink(previewUrl, projectPath);
-        const providerLabel = completedProvider && typeof completedProvider.providerId === 'string'
-          ? completedProvider.providerId
-          : 'provider';
-        return {
-          providerLabel,
-          response: responseText,
-          openLink,
-          previewPending: false
-        };
-      } finally {
-        clearTimeout(timeout);
-      }
-    } catch {
-      // Retry briefly; mission_completed can arrive before provider results are persisted.
-    }
-  }
-  return null;
-}
-
 function isProviderLevelCompletionEvent(event: DeliverableRelayEvent): boolean {
   return event.type === 'task_completed' && !event.taskId && !event.taskName;
+}
+
+function isTerminalSummaryEvent(event: DeliverableRelayEvent): boolean {
+  return event.type === 'mission_completed' || isProviderLevelCompletionEvent(event);
 }
 
 function traceRefFromEvent(event: DeliverableRelayEvent): string | undefined {
@@ -856,38 +792,17 @@ async function sendFetchedCompletionSummary(
       );
     }
     completionDeliveryCache.set(event.missionId, Date.now());
-    await saveCompletionDeliveryCache();
+    try {
+      await saveCompletionDeliveryCache();
+    } catch (error) {
+      completionDeliveryCache.delete(event.missionId);
+      throw error;
+    }
     await handleMissionCompletionMemory(bot, chatId, subscription, event, completion.providerLabel, completion.response);
     return chunks.length;
   } finally {
     completionDeliveryInFlight.delete(event.missionId);
   }
-}
-
-function scheduleDelayedCompletionSummary(
-  bot: Telegraf,
-  chatId: number,
-  subscription: MissionSubscription,
-  event: DeliverableRelayEvent,
-  verbosity: TelegramRelayVerbosity
-): void {
-  if (completionDeliveryCache.has(event.missionId) || completionSummaryScheduled.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
-  completionSummaryScheduled.add(event.missionId);
-  const summaryTimer = setTimeout(() => {
-    void (async () => {
-		try {
-			if (completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
-			const completion = await fetchMissionCompletionSummary(event.missionId, { attempts: 12, delayMs: 5000 });
-			if (!completion) return console.warn(formatCompletionSummaryDeliveryFailureLog(event.missionId, 'terminal result unavailable after bounded retries'));
-			if (!completionDeliveryCache.has(event.missionId) && !shouldSuppressMissionHandoff(event.missionId)) await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
-		} finally {
-			completionSummaryScheduled.delete(event.missionId);
-		}
-    })().catch((error) => {
-      console.warn(formatCompletionSummaryDeliveryFailureLog(event.missionId, error));
-    });
-  }, 1000);
-  summaryTimer.unref?.();
 }
 
 function safeCompletionSummaryErrorDetail(error: unknown): string {
@@ -910,6 +825,63 @@ function formatCompletionSummaryDeliveryFailureLog(missionId: string, error: unk
   const missionRef = redactIdentifier(missionId, 'mission');
   const detail = safeCompletionSummaryErrorDetail(error).trim() || 'unknown error';
   return `[CompletionSummary] delivery failed mission=${missionRef} error=${detail}`;
+}
+
+function terminalDeliveryRetryBaseMs(): number {
+  const configured = Number(process.env.SPARK_TERMINAL_DELIVERY_RETRY_BASE_MS || '1000');
+  return Number.isFinite(configured) ? configured : 1000;
+}
+
+function ensureTerminalDeliveryCoordinator(bot: Telegraf): TerminalDeliveryCoordinator<MissionCompletionSummary> {
+  if (terminalDeliveryCoordinator) return terminalDeliveryCoordinator;
+  terminalDeliveryCoordinator = new TerminalDeliveryCoordinator({
+    target: terminalDeliveryTarget(),
+    retryBaseMs: terminalDeliveryRetryBaseMs(),
+    resolve: (record) => fetchMissionCompletionSummary(record.missionId, {
+      spawnerBaseUrl: spawnerUiUrl(), headers: spawnerAuthHeaders(), readyOpenLink: readyProjectOpenLink, attempts: 1
+    }),
+    deliver: async (record, completion) => {
+      if (completionDeliveryCache.has(record.missionId)) return 'delivered';
+      if (isMissionRelayPaused(record.missionId)) return 'paused';
+      pruneCancelledMissionCache();
+      if (cancelledMissionCache.has(record.missionId) || getMissionHandoffOutcome(record.missionId) === 'failed') {
+        return 'discarded';
+      }
+      const subscription = registry.get(record.missionId);
+      if (!subscription || !subscriptionBelongsToThisRelay(subscription)) {
+        throw new Error('terminal relay subscription unavailable');
+      }
+      const chatId = parseRelayChatId(subscription.chatId);
+      if (chatId === null) return 'discarded';
+      const event: DeliverableRelayEvent = { type: record.eventType, missionId: record.missionId };
+      const verbosity = await getTelegramRelayVerbosity(subscription.chatId);
+      await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
+      if (completionDeliveryCache.has(record.missionId)) return 'delivered';
+      if (isMissionRelayPaused(record.missionId)) return 'paused';
+      throw new Error('terminal delivery did not persist completion evidence');
+    },
+    onFailure: (missionId, reason) => {
+      console.warn(formatCompletionSummaryDeliveryFailureLog(missionId, reason));
+    }
+  });
+  return terminalDeliveryCoordinator;
+}
+
+async function queueTerminalDelivery(
+  bot: Telegraf,
+  event: DeliverableRelayEvent
+): Promise<'queued' | 'duplicate'> {
+  const coordinator = ensureTerminalDeliveryCoordinator(bot);
+  if (completionDeliveryCache.has(event.missionId)) {
+    await coordinator.cancel(event.missionId);
+    return 'duplicate';
+  }
+  const result = await coordinator.enqueue({
+    missionId: event.missionId,
+    eventType: event.type === 'mission_completed' ? 'mission_completed' : 'task_completed',
+    paused: isMissionRelayPaused(event.missionId)
+  });
+  return result.created ? 'queued' : 'duplicate';
 }
 
 function humanizeProviderLabel(label: string): string {
@@ -1782,11 +1754,13 @@ export function shouldAcknowledgeRelayWithoutTelegramDelivery(env: NodeJS.Proces
 }
 
 export function resetMissionRelayDeliveryStateForTests(): void {
+  terminalDeliveryCoordinator?.stop();
+  terminalDeliveryCoordinator = null;
+  completionDeliveryCacheWriter = writeJsonAtomic;
   deliveryCache.clear();
   openTaskStartCache.clear();
   completionDeliveryCache.clear();
   completionDeliveryInFlight.clear();
-  completionSummaryScheduled.clear();
   cancelledMissionCache.clear();
   pausedMissionCache.clear();
   missionHandoffOutcomeCache.clear();
@@ -1811,16 +1785,26 @@ export function releaseCompletionDeliveryClaimForTests(missionId: string): void 
 
 async function saveCompletionDeliveryCache(): Promise<void> {
   pruneCompletionDeliveryCache();
-  await writeJsonAtomic(completionDeliveryPathForCurrentRelay(), Array.from(completionDeliveryCache.keys()));
+  await completionDeliveryCacheWriter(completionDeliveryPathForCurrentRelay(), Array.from(completionDeliveryCache.keys()));
 }
 
-export async function loadCompletionDeliveryCacheForTests(): Promise<void> {
+async function loadCompletionDeliveryCache(): Promise<void> {
   const entries = (await readJsonFile<string[]>(completionDeliveryPathForCurrentRelay())) || [];
   for (const missionId of entries) {
     if (typeof missionId === 'string' && missionId.trim()) {
       completionDeliveryCache.set(missionId.trim(), Date.now());
     }
   }
+}
+
+export async function loadCompletionDeliveryCacheForTests(): Promise<void> {
+  await loadCompletionDeliveryCache();
+}
+
+export function setCompletionDeliveryCacheWriterForTests(
+  writer: typeof writeJsonAtomic | null
+): void {
+  completionDeliveryCacheWriter = writer || writeJsonAtomic;
 }
 
 export function resetMissionRelayRegistryForTests(): void {
@@ -2398,12 +2382,14 @@ export function missionRelayHealthPayload(): MissionRelayHealthPayload {
 
 export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }> {
   await loadRegistry();
+  await loadCompletionDeliveryCache();
 
   if (relayServer) {
     return { port: getRelayPort() };
   }
 
-	const port = getRelayPort();
+		const port = getRelayPort();
+		const terminalCoordinator = ensureTerminalDeliveryCoordinator(bot);
 
 	relayServer = createServer(async (req, res) => {
   try {
@@ -2483,7 +2469,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       return;
     }
 
-    if (shouldSkipDuplicate(event)) {
+    if (!isTerminalSummaryEvent(event) && shouldSkipDuplicate(event)) {
       writeJson(res, 202, { ok: true, duplicate: true });
       return;
     }
@@ -2505,6 +2491,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       if (event.type === 'mission_cancelled') {
         const alreadySuppressed = shouldSuppressMissionHandoff(event.missionId);
         markMissionRelayCancelled(event.missionId);
+        await terminalCoordinator.cancel(event.missionId);
         if (!alreadySuppressed) {
           const links = buildMissionSurfaceLinks(event.missionId, linkPreference, undefined, requestIdFromEvent(event));
           await bot.telegram.sendMessage(
@@ -2520,6 +2507,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       if (event.type === 'mission_paused') {
         const alreadyPaused = isMissionRelayPaused(event.missionId);
         markMissionRelayPaused(event.missionId);
+        await terminalCoordinator.pause(event.missionId);
         if (!alreadyPaused) {
           const links = buildMissionSurfaceLinks(event.missionId, linkPreference, undefined, requestIdFromEvent(event));
           await bot.telegram.sendMessage(
@@ -2535,6 +2523,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       if (event.type === 'mission_resumed') {
         const wasPaused = isMissionRelayPaused(event.missionId);
         markMissionRelayResumed(event.missionId);
+        await terminalCoordinator.resume(event.missionId);
         if (wasPaused) {
           const links = buildMissionSurfaceLinks(event.missionId, linkPreference, undefined, requestIdFromEvent(event));
           await bot.telegram.sendMessage(
@@ -2547,10 +2536,10 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
         return;
       }
 
-	      if (event.type === 'mission_completed' || isProviderLevelCompletionEvent(event)) {
-	        scheduleDelayedCompletionSummary(bot, chatId, subscription, event, verbosity);
-	        writeJson(res, 202, { ok: true, queued: 'completion_summary_delivery' });
-	        return;
+		      if (isTerminalSummaryEvent(event)) {
+		        const queued = await queueTerminalDelivery(bot, event);
+		        writeJson(res, 202, { ok: true, queued: 'completion_summary_delivery', duplicate: queued === 'duplicate' });
+		        return;
 	      }
 
       if (event.type === 'task_completed') {
@@ -2662,5 +2651,16 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
     });
   });
 
+  await terminalCoordinator.recover();
+
   return { port };
+}
+
+export async function stopMissionRelayForTests(): Promise<void> {
+  terminalDeliveryCoordinator?.stop();
+  terminalDeliveryCoordinator = null;
+  const server = relayServer;
+  relayServer = null;
+  if (!server) return;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
 }
