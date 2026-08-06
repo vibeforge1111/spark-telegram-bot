@@ -19,3 +19,25 @@ export function protectedJuryPreflightHandoffReply(): string {
     'It doesn’t own the protected review-control signer or durable replay store, so nothing was published; run the sealed preflight on the equipped review-control host and bring the receipt back here.'
   ].join(' ');
 }
+
+export async function handleProtectedJuryPreflightHandoff<TUser>(input: {
+  text: string;
+  user: TUser;
+  ctx: { reply: (text: string, extra?: Record<string, unknown>) => Promise<unknown> };
+  conversation: {
+    remember: (user: TUser, text: string) => Promise<unknown>;
+    rememberAssistantReply: (user: TUser, text: string) => Promise<unknown>;
+  };
+  traceExtra: (context: Record<string, unknown>) => Record<string, unknown>;
+}): Promise<boolean> {
+  if (!isProtectedJuryPreflightRequest(input.text)) return false;
+  const reply = protectedJuryPreflightHandoffReply();
+  await input.conversation.remember(input.user, input.text).catch(() => {});
+  await input.ctx.reply(reply, input.traceExtra({
+    route: 'spark_compete.protected_jury_handoff',
+    command: 'protected_jury_preflight',
+    replyKind: 'bounded_blocker'
+  }));
+  await input.conversation.rememberAssistantReply(input.user, reply).catch(() => {});
+  return true;
+}

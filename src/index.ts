@@ -383,7 +383,7 @@ import {
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
-import { isProtectedJuryPreflightRequest, protectedJuryPreflightHandoffReply } from './protectedJuryPreflight';
+import { handleProtectedJuryPreflightHandoff, isProtectedJuryPreflightRequest } from './protectedJuryPreflight';
 import { isNaturalHarnessProofInspectRequest } from './harnessProofNaturalRequest';
 import {
   decideNaturalRoute,
@@ -12308,18 +12308,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
       }
     }
 
-    if (isProtectedJuryPreflightRequest(text)) {
-      const reply = protectedJuryPreflightHandoffReply();
-      await conversation.remember(user, text).catch(() => {});
-      await ctx.reply(reply, outboundTraceExtra({
-        route: 'spark_compete.protected_jury_handoff',
-        command: 'protected_jury_preflight',
-        replyKind: 'bounded_blocker'
-      }));
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
-      return;
-    }
-
+    if (await handleProtectedJuryPreflightHandoff({ text, user, ctx, conversation, traceExtra: outboundTraceExtra })) return;
     const externalResearchAuthorization = isExternalResearchRequest(text)
       ? telegramActionAuthorityDecision(turnIntentEnvelope, {
         route: 'spawner.external_research',

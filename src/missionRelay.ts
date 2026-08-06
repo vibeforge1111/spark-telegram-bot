@@ -120,7 +120,7 @@ const openTaskStartCache = new Map<string, { taskKey: string; timestamp: number 
 const completionDeliveryCache = new Map<string, number>();
 const COMPLETION_CACHE_TTL_MS = 24 * 60 * 60_000;
 const completionDeliveryInFlight = new Set<string>();
-
+const completionSummaryScheduled = new Set<string>();
 function pruneCompletionDeliveryCache(now = Date.now()): void {
   for (const [key, ts] of completionDeliveryCache) {
     if (now - ts > COMPLETION_CACHE_TTL_MS) completionDeliveryCache.delete(key);
@@ -871,12 +871,18 @@ function scheduleDelayedCompletionSummary(
   event: DeliverableRelayEvent,
   verbosity: TelegramRelayVerbosity
 ): void {
+  if (completionDeliveryCache.has(event.missionId) || completionSummaryScheduled.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
+  completionSummaryScheduled.add(event.missionId);
   const summaryTimer = setTimeout(() => {
     void (async () => {
-      if (completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
-      const completion = await fetchMissionCompletionSummary(event.missionId, { attempts: 12, delayMs: 5000 });
-      if (!completion || completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
-      await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
+		try {
+			if (completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
+			const completion = await fetchMissionCompletionSummary(event.missionId, { attempts: 12, delayMs: 5000 });
+			if (!completion) return console.warn(formatCompletionSummaryDeliveryFailureLog(event.missionId, 'terminal result unavailable after bounded retries'));
+			if (!completionDeliveryCache.has(event.missionId) && !shouldSuppressMissionHandoff(event.missionId)) await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
+		} finally {
+			completionSummaryScheduled.delete(event.missionId);
+		}
     })().catch((error) => {
       console.warn(formatCompletionSummaryDeliveryFailureLog(event.missionId, error));
     });
@@ -1032,6 +1038,7 @@ function providerCompletionLooksStaged(text: string): boolean {
     /\b(?:tasks?|steps?)\s+queued\b/.test(normalized) && /\b(?:created|canvas_ready|0%)\b/.test(normalized) ||
     /\bexecution\s+(?:is\s+)?(?:still\s+)?pending\b/.test(normalized) ||
     /\bqueued,\s*not\s+completed\b/.test(normalized) ||
+    /\b(?:i(?:'ll|\s+will)|we(?:'ll|\s+will))\s+(?:now\s+)?(?:run|verify|inspect|check|perform|execute)\b.{0,260}\b(?:then\s+)?(?:return|report|send|provide)\b/.test(normalized) ||
     /\bcanvas_ready\b/.test(normalized) && /\b0%\b/.test(normalized)
   );
 }
@@ -1779,6 +1786,7 @@ export function resetMissionRelayDeliveryStateForTests(): void {
   openTaskStartCache.clear();
   completionDeliveryCache.clear();
   completionDeliveryInFlight.clear();
+  completionSummaryScheduled.clear();
   cancelledMissionCache.clear();
   pausedMissionCache.clear();
   missionHandoffOutcomeCache.clear();
@@ -2540,16 +2548,8 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       }
 
 	      if (event.type === 'mission_completed' || isProviderLevelCompletionEvent(event)) {
-	        const completion = completionDeliveryCache.has(event.missionId)
-	          ? null
-	          : await fetchMissionCompletionSummary(event.missionId);
-	        if (completion) {
-	          const chunks = await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
-	          writeJson(res, 200, { ok: true, chunks, completionFetched: true });
-	          return;
-	        }
 	        scheduleDelayedCompletionSummary(bot, chatId, subscription, event, verbosity);
-	        writeJson(res, 202, { ok: true, queued: 'completion_summary_retry' });
+	        writeJson(res, 202, { ok: true, queued: 'completion_summary_delivery' });
 	        return;
 	      }
 
