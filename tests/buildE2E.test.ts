@@ -537,6 +537,7 @@ async function run(): Promise<void> {
 			'Lane F: please run the legitimate protected review-control preflight for Spark Compete PR #124 at exact head e25f16b3e32626a541b5eceab3ece0035898f791.',
 			'Use the sealed public-safe evidence bundle /tmp/spark-r30-pr124-jury-evidence-bundle.json.',
 			'If and only if the fresh GitHub head, required non-jury checks, packet/security/jury/lab/duplicate/team-account gates, signature, freshness, and replay store all pass, publish the legitimate spark-jury-approval status.',
+			'If any gate fails, do not publish the status; return a bounded blocker receipt.',
 			'Do not bypass protection, expose HMAC/signing material, mutate points, merge a PR, or publish anything else.'
 		].join(' ');
 		const decision = classifyTelegramIntentV2(ctx.message.text);

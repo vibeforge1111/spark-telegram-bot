@@ -327,6 +327,7 @@ import {
   isNoEditSpawnerProbeExplanationRequest,
   isNoExecutionExplanationPrompt,
   isNoExecutionBoundary,
+  isProtectedJuryPreflightRequest,
   isProviderRuntimeConfigQuestion,
   isRouteWordMetaExplanationDiscussion,
   isPlainChatAnswerEditingRequest,
@@ -1005,6 +1006,7 @@ function gateValue(value: unknown): string {
 }
 
 function isPublicReleaseBlockerQuestion(normalized: string): boolean {
+  if (isProtectedJuryPreflightRequest(normalized)) return false;
   const asksBlocked =
     /\b(?:what\s+remains\s+blocked|what(?:'s|\s+is)\s+still\s+blocked|remaining\s+blockers?|current\s+blockers?|blocker\s+status|red\s+lanes?|release\s+gates?)\b/.test(normalized) ||
     /\b(?:what|which|show|tell|read|status|current|remaining|remains|still)\b.{0,80}\b(?:blocked|blockers?|red\s+lanes?|gates?)\b/.test(normalized) ||

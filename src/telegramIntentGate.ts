@@ -11,6 +11,7 @@ import {
   isBrowserComputerUseAuthorizationBoundaryQuestion,
   isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
+  isProtectedJuryPreflightRequest,
   isPublicationApprovalBoundaryQuestion,
   isQuotedDraftedExampleBoundary,
   isRouteWordMetaExplanationDiscussion,
@@ -273,6 +274,9 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
     hasReportedSpeechBeforeExecution(stripGlueGlyphs(normalized)) ||
     hasNonImperativeExecution(stripGlueGlyphs(normalized));
 
+  if (constraints.noExecution && isProtectedJuryPreflightRequest(normalized)) {
+    constraints.noExecution = false;
+  }
   if (constraints.noExecution && isExplicitSpawnerNoEditMissionRequest(normalized)) {
     constraints.noExecution = false;
   }

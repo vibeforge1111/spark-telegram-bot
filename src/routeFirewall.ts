@@ -1,4 +1,5 @@
 import { resolveBuildCommandBoundary } from './scopedBuildCommand';
+import { isProtectedJuryPreflightRequest } from './conversationIntent';
 import type { DeterministicRouteId } from './routeTypes';
 
 export type { DeterministicRouteId } from './routeTypes';
@@ -276,6 +277,7 @@ function isExplicitMissionControlAction(normalized: string): boolean {
 }
 
 function isNoExecutionBoundary(normalized: string): boolean {
+  if (isProtectedJuryPreflightRequest(normalized)) return false;
   return [
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas)\b(?:\s+(?:it|this|that|anything|something|yet|for\s+now|now))?/,
     /\bno\s+(?:build|mission|execution|new\s+work)(?:\s+or\s+(?:build|mission|execution|new\s+work))*\s+for\s+now\b/,
