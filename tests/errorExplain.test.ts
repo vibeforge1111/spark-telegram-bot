@@ -44,6 +44,16 @@ test('explains Spawner bridge auth separately from provider keys', () => {
   assert.doesNotMatch(reply, /spark setup/);
 });
 
+test('classifies SparkRun control auth as Spawner bridge auth', () => {
+  const reply = renderSparkErrorReply(
+    new Error('HTTP 401 - SparkRun routes require API key for non-local requests'),
+    'spawner',
+    true
+  );
+  assert.match(reply, /Spark spawner failure: spawner_bridge_auth/);
+  assert.doesNotMatch(reply, /provider authentication is not working/);
+});
+
 test('explains local service network failures', () => {
   const explanation = explainSparkError(new Error('ECONNREFUSED 127.0.0.1:3333'), 'spawner');
 
