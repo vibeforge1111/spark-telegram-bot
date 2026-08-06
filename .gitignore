@@ -2,6 +2,7 @@ node_modules/
 dist/
 
 # Local environment and secret material.
+.fleet-hooks/
 .env
 .env.*
 *.env
