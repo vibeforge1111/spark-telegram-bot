@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   missionRelayHealthPayload,
+  setMissionRelayRuntimeBuildIdentity,
   setMissionRelayRuntimeStatus,
 } from '../src/missionRelay';
 import { protectRelayHealthPayload } from '../src/relayHealthPrivacy';
@@ -15,12 +16,36 @@ function test(name: string, fn: () => void): void {
   }
 }
 
+setMissionRelayRuntimeBuildIdentity({
+  schema: 'spark.telegram.loaded-runtime.v1',
+  artifact: 'dist-js-tree',
+  sha256: 'a'.repeat(64),
+  fileCount: 42,
+  loadedAt: '2026-08-07T12:00:00.000Z'
+});
+
+test('relay health fails closed before loaded artifact identity is captured', () => {
+  setMissionRelayRuntimeBuildIdentity(null);
+  setMissionRelayRuntimeStatus({ telegramPolling: 'active', pollingStartedAt: '2026-08-07T12:00:00.000Z' });
+  const payload = missionRelayHealthPayload();
+  assert.equal(payload.ok, false);
+  assert.equal(payload.build, null);
+  setMissionRelayRuntimeBuildIdentity({
+    schema: 'spark.telegram.loaded-runtime.v1',
+    artifact: 'dist-js-tree',
+    sha256: 'a'.repeat(64),
+    fileCount: 42,
+    loadedAt: '2026-08-07T12:00:00.000Z'
+  });
+});
+
 test('relay health waits for Telegram polling to become active', () => {
   setMissionRelayRuntimeStatus({ telegramPolling: 'starting', pollingStartedAt: null });
 
   const payload = missionRelayHealthPayload();
 
   assert.equal(payload.ok, false);
+  assert.equal(payload.build?.sha256, 'a'.repeat(64));
   assert.deepEqual(payload.runtime, { telegramPolling: 'starting', pollingStartedAt: null });
 });
 
@@ -97,6 +122,7 @@ test('relay health exposes full runtime detail only with the relay secret', () =
   assert.equal(response.payload.service, 'spark-telegram-bot');
   assert.equal(typeof response.payload.pid, 'number');
   assert.equal(response.payload.runtime?.telegramPolling, 'active');
+  assert.equal((response.payload.build as { sha256?: string })?.sha256, 'a'.repeat(64));
   assert.equal(typeof response.payload.relay, 'object');
 });
 
@@ -117,6 +143,7 @@ test('relay health keeps unauthenticated liveness useful without topology detail
     assert.equal('pid' in response.payload, false);
     assert.equal('relay' in response.payload, false);
     assert.equal('runtime' in response.payload, false);
+    assert.equal('build' in response.payload, false);
   }
 });
 

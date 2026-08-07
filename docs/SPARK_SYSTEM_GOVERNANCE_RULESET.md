@@ -125,6 +125,7 @@ Use the owner that actually controls the domain:
 - Spark CLI/provider owner owns runtime/provider truth.
 - Access/governance owns authority level and approval truth.
 - Telegram owns ingress, delivery metadata, and human-facing composition.
+- A runtime owner must prove the code loaded by the live process when release claims depend on a rebuilt artifact. PID liveness, ready responses, disk/source sync, and file timestamps are supporting evidence only; a missing or mismatched load-time artifact identity blocks supervised QA and release truth.
 - Browser/computer-use, voice, schedule/publish, installer, Cockpit, Labs, and Swarm owners prove their own side effects.
 
 Done, saved, ready, installed, shipped, published, shared, fixed, or completed can only be claimed when the current owner proof supports it and no newer contradictory owner state exists.

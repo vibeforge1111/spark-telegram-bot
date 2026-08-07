@@ -37,9 +37,11 @@ import {
   type TerminalDeliveryOutboxRecord,
   type TerminalDeliveryTarget
 } from './terminalDeliveryOutbox';
+import type { RuntimeBuildIdentity } from './runtimeBuildIdentity';
 
 const MISSION_LESSON_APPROVAL_PATH = resolveStatePath('.spark-mission-lesson-approvals.json');
 let relayRuntimeStatus: MissionRelayRuntimeStatus = {};
+let relayRuntimeBuildIdentity: RuntimeBuildIdentity | null = null;
 const OUTBOUND_TRACE_CONTEXT_KEY = '__sparkTraceContext';
 
 type RelayEventType =
@@ -94,6 +96,7 @@ export interface MissionRelayHealthPayload extends Record<string, unknown> {
   service: 'spark-telegram-bot';
   relay: ReturnType<typeof getTelegramRelayIdentity>;
   pid: number;
+  build: RuntimeBuildIdentity | null;
   runtime: MissionRelayRuntimeStatus;
 }
 
@@ -2275,14 +2278,19 @@ export function setMissionRelayRuntimeStatus(status: MissionRelayRuntimeStatus):
   relayRuntimeStatus = { ...status };
 }
 
+export function setMissionRelayRuntimeBuildIdentity(identity: RuntimeBuildIdentity | null): void {
+  relayRuntimeBuildIdentity = identity ? { ...identity } : null;
+}
+
 export function missionRelayHealthPayload(): MissionRelayHealthPayload {
   const polling = relayRuntimeStatus.telegramPolling;
-  const ready = polling === 'active' || polling === 'disabled';
+  const ready = (polling === 'active' || polling === 'disabled') && relayRuntimeBuildIdentity !== null;
   return {
     ok: ready,
     service: 'spark-telegram-bot',
     relay: getTelegramRelayIdentity(),
     pid: process.pid,
+    build: relayRuntimeBuildIdentity,
     runtime: relayRuntimeStatus
   };
 }
