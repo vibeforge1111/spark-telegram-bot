@@ -8,6 +8,7 @@ import {
   registerPendingMissionRelay,
   resetMissionRelayDeliveryStateForTests,
   resetMissionRelayRegistryForTests,
+  shouldSuppressMissionHandoff,
   startMissionRelay,
   stopMissionRelayForTests
 } from '../src/missionRelay';
@@ -276,6 +277,14 @@ async function main(): Promise<void> {
       });
       assert.equal(failed.status, 200);
       assert.equal(lateStart.body.suppressed, 'mission_already_terminal');
+      assert.equal(shouldSuppressMissionHandoff(missionId), true);
+
+      const contradictoryCompletion = await postEvent(testCase.port, {
+        type: 'mission_completed', missionId, message: 'Mission completed.',
+        data: { requestId, traceRef }
+      });
+      assert.equal(contradictoryCompletion.status, 202);
+      await new Promise((resolve) => setTimeout(resolve, 50));
       assert.equal(testCase.sent.length, 1);
     } finally {
       await cleanupCase(testCase.stateDir);

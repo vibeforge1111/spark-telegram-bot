@@ -2512,6 +2512,9 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
         const delivery = event.type === 'task_failed'
           ? await deliverMissionFailureOnce(event.missionId, sendFailure)
           : (await sendFailure(), 'delivered' as const);
+        if (event.type === 'task_failed') {
+          tryClaimMissionHandoffOutcome(event.missionId, 'failed');
+        }
         if (delivery === 'duplicate') {
           writeJson(res, 200, { ok: true, suppressed: 'mission_failure_handoff_already_claimed' });
           return;
