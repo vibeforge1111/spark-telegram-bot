@@ -13,6 +13,7 @@ import {
 } from '../src/missionRelay';
 import { resetJsonStateForTests } from '../src/jsonState';
 import { resetTerminalDeliveryOutboxForTests } from '../src/terminalDeliveryOutbox';
+import { spawner } from '../src/spawner';
 
 const originalEnv = { ...process.env };
 const relaySecret = 'pending_subscription_test_secret_123456';
@@ -31,7 +32,9 @@ async function freePort(): Promise<number> {
   return port;
 }
 
-async function configureCase(): Promise<{
+async function configureCase(
+  sendMessage?: (chatId: number, text: string) => Promise<void>
+): Promise<{
   stateDir: string;
   port: number;
   sent: string[];
@@ -51,8 +54,9 @@ async function configureCase(): Promise<{
   const sent: string[] = [];
   const bot = {
     telegram: {
-      sendMessage: async (_chatId: number, text: string) => {
-        sent.push(text);
+      sendMessage: async (chatId: number, text: string) => {
+        if (sendMessage) await sendMessage(chatId, text);
+        else sent.push(text);
       }
     }
   };
@@ -143,7 +147,7 @@ async function main(): Promise<void> {
       });
 
       assert.equal([taskFailure, missionFailure].some((result) => result.body.ignored === 'unknown_mission'), false);
-      assert.equal(lateStart.body.suppressed, 'mission_already_failed');
+      assert.equal(lateStart.body.suppressed, 'mission_already_terminal');
       assert.equal(testCase.sent.length, 1);
       assert.match(testCase.sent[0], /could not finish|stopped before making changes/i);
       assert.doesNotMatch(testCase.sent[0], /123456789|987654321|tg-run-fast-terminal-request|trace:telegram-run/i);
@@ -172,8 +176,13 @@ async function main(): Promise<void> {
         type: 'mission_failed', missionId: 'spark-wrong-trace',
         data: { requestId, traceRef: 'trace:telegram-run:other' }
       });
+      const missingTrace = await postEvent(testCase.port, {
+        type: 'mission_failed', missionId: 'spark-missing-trace',
+        data: { requestId }
+      });
       assert.equal(wrongRequest.body.ignored, 'unknown_mission');
       assert.equal(wrongTrace.body.ignored, 'unknown_mission');
+      assert.equal(missingTrace.body.ignored, 'unknown_mission');
       assert.equal(testCase.sent.length, 0);
 
       const correct = await postEvent(testCase.port, {
@@ -183,6 +192,132 @@ async function main(): Promise<void> {
       assert.equal(correct.status, 200);
       assert.equal(testCase.sent.length, 1);
     } finally {
+      await cleanupCase(testCase.stateDir);
+    }
+  });
+
+  await test('does not trust event-supplied Telegram identity without a local pending request', async () => {
+    const testCase = await configureCase();
+    try {
+      const result = await postEvent(testCase.port, {
+        type: 'mission_failed', missionId: 'spark-injected-identity',
+        message: 'Attempted injected failure.',
+        data: {
+          requestId: 'tg-run-no-local-request',
+          traceRef: 'trace:telegram-run:tg-run-no-local-request',
+          chatId: '12345',
+          userId: '67890'
+        }
+      });
+      assert.equal(result.status, 202);
+      assert.equal(result.body.ignored, 'unknown_mission');
+      assert.equal(testCase.sent.length, 0);
+    } finally {
+      await cleanupCase(testCase.stateDir);
+    }
+  });
+
+  await test('retries a failed mission handoff and commits dedupe only after delivery', async () => {
+    let attempts = 0;
+    const sent: string[] = [];
+    const testCase = await configureCase(async (_chatId, text) => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('transient Telegram failure');
+      sent.push(text);
+    });
+    try {
+      const requestId = 'tg-run-retry-failure';
+      const traceRef = `trace:telegram-run:${requestId}`;
+      const missionId = 'spark-retry-failure';
+      registerPendingMissionRelay({
+        chatId: '12345', userId: '67890', requestId, traceRef,
+        goal: 'Run the safe check.', createdAt: new Date().toISOString(),
+        relayPort: testCase.port, relayProfile: 'pending-relay-test'
+      });
+      const event = {
+        type: 'mission_failed', missionId, message: 'The safe check could not finish.',
+        data: { requestId, traceRef }
+      };
+
+      const first = await postEvent(testCase.port, event);
+      const second = await postEvent(testCase.port, event);
+      const third = await postEvent(testCase.port, event);
+
+      assert.equal(first.status, 500);
+      assert.equal(first.body.error, 'delivery_failed');
+      assert.equal(second.status, 200);
+      assert.equal(third.status, 200);
+      assert.equal(third.body.suppressed, 'mission_failure_handoff_already_claimed');
+      assert.equal(attempts, 2);
+      assert.equal(sent.length, 1);
+    } finally {
+      await cleanupCase(testCase.stateDir);
+    }
+  });
+
+  await test('suppresses a late mission start after a provider task failure alone', async () => {
+    const testCase = await configureCase();
+    try {
+      const requestId = 'tg-run-task-failure-only';
+      const traceRef = `trace:telegram-run:${requestId}`;
+      const missionId = 'spark-task-failure-only';
+      registerPendingMissionRelay({
+        chatId: '12345', userId: '67890', requestId, traceRef,
+        goal: 'Run the safe check.', createdAt: new Date().toISOString(),
+        relayPort: testCase.port, relayProfile: 'pending-relay-test'
+      });
+      const failed = await postEvent(testCase.port, {
+        type: 'task_failed', missionId, message: 'Provider stopped.',
+        data: { requestId, traceRef, provider: 'openai', error: 'Provider stopped.' }
+      });
+      const lateStart = await postEvent(testCase.port, {
+        type: 'mission_started', missionId, message: 'Mission started.',
+        data: { requestId, traceRef }
+      });
+      assert.equal(failed.status, 200);
+      assert.equal(lateStart.body.suppressed, 'mission_already_terminal');
+      assert.equal(testCase.sent.length, 1);
+    } finally {
+      await cleanupCase(testCase.stateDir);
+    }
+  });
+
+  await test('handleRunCommand pre-binds a fast terminal event and suppresses the stale start acknowledgement', async () => {
+    const testCase = await configureCase();
+    const originalRunGoal = spawner.runGoal;
+    try {
+      process.env.ADMIN_TELEGRAM_IDS = '67890';
+      process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+      process.env.SPARK_BOT_TEST_MODE = '1';
+      (spawner as any).runGoal = async (input: { requestId: string; traceRef: string }) => {
+        const missionId = 'spark-handle-run-fast-failure';
+        const delivered = await postEvent(testCase.port, {
+          type: 'mission_failed', missionId, message: 'No tool-capable executor is available.',
+          data: { requestId: input.requestId, traceRef: input.traceRef, provider: 'openai' }
+        });
+        assert.equal(delivered.status, 200);
+        return { success: true, missionId, requestId: input.requestId, providers: ['openai'] };
+      };
+      const replies: string[] = [];
+      const ctx = {
+        chat: { id: 12345 },
+        from: { id: 67890, username: 'relay-test' },
+        update: { update_id: 42 },
+        sendChatAction: async () => {},
+        reply: async (text: string) => { replies.push(text); }
+      };
+      const relayProfile = process.env.SPARK_TELEGRAM_PROFILE;
+      process.env.SPARK_TELEGRAM_PROFILE = 'primary';
+      const { handleRunCommand } = await import('../src/index');
+      process.env.SPARK_TELEGRAM_PROFILE = relayProfile;
+      const missionId = await handleRunCommand(ctx, 'Run the tiny no-edit check.', ['openai']);
+
+      assert.equal(missionId, 'spark-handle-run-fast-failure');
+      assert.equal(testCase.sent.length, 1);
+      assert.match(testCase.sent[0], /could not finish|No tool-capable executor/i);
+      assert.equal(replies.length, 0, 'terminal relay must win over the stale mission-start acknowledgement');
+    } finally {
+      (spawner as any).runGoal = originalRunGoal;
       await cleanupCase(testCase.stateDir);
     }
   });

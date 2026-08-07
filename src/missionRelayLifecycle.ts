@@ -8,7 +8,7 @@ export type PendingMissionSubscription = Omit<MissionSubscription, 'missionId'> 
 
 const pendingMissionRelays = new Map<string, PendingMissionSubscription>();
 const missionFailureDeliveryCache = new Map<string, number>();
-const missionFailureDeliveryInFlight = new Map<string, number>();
+const missionFailureDeliveryInFlight = new Map<string, { startedAt: number; promise: Promise<void> }>();
 const terminalMissionEventCache = new Map<string, number>();
 
 function eventRequestId(event: DeliverableRelayEvent): string | null {
@@ -65,7 +65,7 @@ export function claimPendingMissionRelay(
     !pending
     || (pending.relayPort !== undefined && pending.relayPort !== target.relayPort)
     || (pending.relayProfile !== undefined && pending.relayProfile !== target.relayProfile)
-    || (pending.traceRef && traceRef && pending.traceRef !== traceRef)
+    || (pending.traceRef && pending.traceRef !== traceRef)
   ) return null;
 
   pendingMissionRelays.delete(requestId);
@@ -80,31 +80,53 @@ export function restorePendingMissionRelay(pending: PendingMissionSubscription):
 }
 
 function pruneMissionTerminalCaches(now = Date.now()): void {
-  for (const cache of [missionFailureDeliveryCache, terminalMissionEventCache, missionFailureDeliveryInFlight]) {
+  for (const cache of [missionFailureDeliveryCache, terminalMissionEventCache]) {
     for (const [missionId, timestamp] of cache) {
       if (now - timestamp > MISSION_STATE_CACHE_TTL_MS) cache.delete(missionId);
     }
   }
+  for (const [missionId, entry] of missionFailureDeliveryInFlight) {
+    if (now - entry.startedAt > MISSION_STATE_CACHE_TTL_MS) missionFailureDeliveryInFlight.delete(missionId);
+  }
 }
 
-export function tryClaimMissionFailureDelivery(missionId: string): boolean {
+export async function deliverMissionFailureOnce(
+  missionId: string,
+  send: () => Promise<void>
+): Promise<'delivered' | 'duplicate'> {
   pruneMissionTerminalCaches();
-  if (missionFailureDeliveryCache.has(missionId) || missionFailureDeliveryInFlight.has(missionId)) return false;
-  missionFailureDeliveryInFlight.set(missionId, Date.now());
-  return true;
-}
+  if (missionFailureDeliveryCache.has(missionId)) return 'duplicate';
+  const existing = missionFailureDeliveryInFlight.get(missionId);
+  if (existing) {
+    try {
+      await existing.promise;
+    } catch {
+      // The waiting webhook can take over the retry.
+    }
+    return deliverMissionFailureOnce(missionId, send);
+  }
 
-export function commitMissionFailureDelivery(missionId: string): void {
-  missionFailureDeliveryInFlight.delete(missionId);
-  missionFailureDeliveryCache.set(missionId, Date.now());
-}
-
-export function releaseMissionFailureDelivery(missionId: string): void {
-  missionFailureDeliveryInFlight.delete(missionId);
+  const promise = send();
+  const entry = { startedAt: Date.now(), promise };
+  missionFailureDeliveryInFlight.set(missionId, entry);
+  try {
+    await promise;
+    missionFailureDeliveryCache.set(missionId, Date.now());
+    return 'delivered';
+  } finally {
+    if (missionFailureDeliveryInFlight.get(missionId) === entry) {
+      missionFailureDeliveryInFlight.delete(missionId);
+    }
+  }
 }
 
 export function observeTerminalMissionEvent(event: DeliverableRelayEvent): void {
-  if (event.type === 'mission_completed' || event.type === 'mission_failed' || event.type === 'mission_cancelled') {
+  if (
+    event.type === 'task_failed'
+    || event.type === 'mission_completed'
+    || event.type === 'mission_failed'
+    || event.type === 'mission_cancelled'
+  ) {
     pruneMissionTerminalCaches();
     terminalMissionEventCache.set(event.missionId, Date.now());
   }
