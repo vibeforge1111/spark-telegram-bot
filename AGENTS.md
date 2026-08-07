@@ -132,6 +132,8 @@ lesson lives only in this chat, a final answer, or a local operator memory.
 - Conversation-frame summaries are local context support, not durable memory truth.
 - If Builder, CLI, or Spawner proof is unavailable, fail closed or say what proof is missing.
 - Do not turn route keywords like build, mission, access, setup, or go into global permission.
+- Register a bounded, local request-to-chat relay binding before calling an owner that can synchronously emit mission events. Bind the returned mission id only from an authenticated event carrying the same opaque request/trace; never trust event-supplied chat or user identity.
+- Mission lifecycle is monotonic at the Telegram surface. Once an owner-backed terminal failure is observed, late start/progress events must not restart heartbeats or produce a stale running acknowledgement.
 
 ## Privacy Red Lines
 
