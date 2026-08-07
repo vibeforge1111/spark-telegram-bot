@@ -1,11 +1,10 @@
 import { parseBuildIntent } from './buildIntent';
 import { domainChipLabsCreatorContractLines } from './domainChipLabsCreatorContract';
 import { isLoopEngineeringNoActionProofQuestion } from './loopEngineeringNoActionProof';
+import { isProtectedJuryPreflightRequest } from './protectedJuryPreflight';
 import { isRouteConfidenceDefinitionQuestion } from './routeConfidenceQuestion';
 import type { ShippedProjectContext } from './shippedProjectContext';
-
 export { isSparkWorkflowBugHuntRequest, renderSparkWorkflowBugHuntReply } from './sparkWorkflowBugHunt';
-
 const COLLABORATIVE_IDEA_PATTERNS = [
   /\bhelp\s+me\s+(?:shape|think|figure|explore|brainstorm|develop)\b/i,
   /\bhelp\s+me\s+(?:design|plan|scope)\b/i,
@@ -1346,6 +1345,7 @@ export function isMissionExecutionConfirmation(text: string): boolean {
 export function isNoExecutionBoundary(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!normalized) return false;
+  if (isProtectedJuryPreflightRequest(normalized)) return false;
   if (isActionWordMetaDiscussion(normalized)) return true;
   return [
     /^(?:no|nah|nope)(?:[,\s.!]+|$)/,

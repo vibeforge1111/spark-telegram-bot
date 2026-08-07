@@ -22,6 +22,7 @@ import {
   isUserMemoryRecallQuestion,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
+import { isProtectedJuryPreflightRequest } from './protectedJuryPreflight';
 import { parseBuildIntent } from './buildIntent';
 import { decideNaturalRoute, type NaturalRouteDecision, type NaturalRouteDecisionContext } from './naturalRouteDecision';
 import { isLiveSparkHealthQuestion } from './runtimeRouteGuards';
@@ -273,6 +274,9 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
     hasReportedSpeechBeforeExecution(stripGlueGlyphs(normalized)) ||
     hasNonImperativeExecution(stripGlueGlyphs(normalized));
 
+  if (constraints.noExecution && isProtectedJuryPreflightRequest(normalized)) {
+    constraints.noExecution = false;
+  }
   if (constraints.noExecution && isExplicitSpawnerNoEditMissionRequest(normalized)) {
     constraints.noExecution = false;
   }

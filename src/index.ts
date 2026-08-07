@@ -383,6 +383,7 @@ import {
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
+import { handleProtectedJuryPreflightHandoff, isProtectedJuryPreflightRequest } from './protectedJuryPreflight';
 import { isNaturalHarnessProofInspectRequest } from './harnessProofNaturalRequest';
 import {
   decideNaturalRoute,
@@ -1005,6 +1006,7 @@ function gateValue(value: unknown): string {
 }
 
 function isPublicReleaseBlockerQuestion(normalized: string): boolean {
+  if (isProtectedJuryPreflightRequest(normalized)) return false;
   const asksBlocked =
     /\b(?:what\s+remains\s+blocked|what(?:'s|\s+is)\s+still\s+blocked|remaining\s+blockers?|current\s+blockers?|blocker\s+status|red\s+lanes?|release\s+gates?)\b/.test(normalized) ||
     /\b(?:what|which|show|tell|read|status|current|remaining|remains|still)\b.{0,80}\b(?:blocked|blockers?|red\s+lanes?|gates?)\b/.test(normalized) ||
@@ -12306,14 +12308,14 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
       }
     }
 
+    if (await handleProtectedJuryPreflightHandoff({ text, user, ctx, conversation, traceExtra: outboundTraceExtra })) return;
     const externalResearchAuthorization = isExternalResearchRequest(text)
       ? telegramActionAuthorityDecision(turnIntentEnvelope, {
         route: 'spawner.external_research',
         text,
-        toolName: 'external.fetch',
-        ownerSystem: turnIntentEnvelope.selectedIntent.ownerSystem,
-        mutationClass: 'external_network',
-        externalNetwork: true
+        toolName: 'spawner.run',
+        ownerSystem: 'spawner-ui',
+        mutationClass: 'launches_mission'
       })
       : null;
     if (externalResearchAuthorization?.allow) {
@@ -12321,7 +12323,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
       if (!sparkAccessAllows(accessProfile, 'external_research')) {
         await ctx.reply(renderSparkAccessDenial(accessProfile, 'external_research'));
         recordTelegramHarnessCoreExecution(externalResearchAuthorization, {
-          toolName: 'external.fetch',
+          toolName: 'spawner.run',
           status: 'failure',
           summary: 'Natural external research was authorized by intent but blocked by Spark access.'
         });
@@ -12333,7 +12335,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
         actionAuthorization: externalResearchAuthorization
       });
       recordTelegramHarnessCoreExecution(externalResearchAuthorization, {
-        toolName: 'external.fetch',
+        toolName: 'spawner.run',
         status: missionId ? 'success' : 'failure',
         summary: missionId
           ? `Natural external research started Spawner mission ${missionId}.`

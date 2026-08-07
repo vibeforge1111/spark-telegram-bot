@@ -19,3 +19,8 @@ test('installable artifact binds and bundles the private Harness Core workspace'
   assert.equal(packageJson.dependencies?.['@spark/harness-core'], harnessPackage.version);
   assert.ok(packageJson.bundleDependencies?.includes('@spark/harness-core'));
 });
+
+test('installable artifact excludes fleet-local hook material', () => {
+  const ignored = readFileSync('.gitignore', 'utf8').split(/\r?\n/).map((line) => line.trim());
+  assert.ok(ignored.includes('.fleet-hooks/'));
+});

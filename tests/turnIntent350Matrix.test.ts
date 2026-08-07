@@ -38,7 +38,7 @@ const HIGH_AGENCY_PROBES: HighAgencyProbe[] = [
   { label: 'memory', route: 'memory.write', toolName: 'memory.write', ownerSystem: 'domain-chip-memory', mutationClass: 'writes_memory' },
   { label: 'schedule', route: 'schedule.delete', toolName: 'spawner.schedule.delete', ownerSystem: 'spawner-ui', mutationClass: 'deletes_schedule' },
   { label: 'chip', route: 'domain_chip.create', toolName: 'domain_chip.create', ownerSystem: 'domain-chip', mutationClass: 'creates_chip' },
-  { label: 'external', route: 'spawner.external_research', toolName: 'external.fetch', ownerSystem: 'spark-intelligence-builder', mutationClass: 'external_network', externalNetwork: true },
+  { label: 'external', route: 'spawner.external_research', toolName: 'spawner.run', ownerSystem: 'spawner-ui', mutationClass: 'launches_mission' },
   { label: 'provider', route: 'natural_run', toolName: 'provider.run', ownerSystem: 'spawner-ui', mutationClass: 'external_network', externalNetwork: true },
   { label: 'publish', route: 'spawner.build', toolName: 'publish.run', ownerSystem: 'spawner-ui', mutationClass: 'publishes', publishes: true },
   { label: 'self_improvement', route: 'spark.self_improvement', toolName: 'spark.self_improvement', ownerSystem: 'spark-intelligence-builder', mutationClass: 'writes_files' }
@@ -288,7 +288,7 @@ function buildPositiveCases(): PositiveCase[] {
       id: `positive-research-${idx + 1}`,
       category: 'positive_research',
       text,
-      action: { route: 'spawner.external_research' as const, text, toolName: 'external.fetch', ownerSystem: 'spark-intelligence-builder' as const, mutationClass: 'external_network' as const, externalNetwork: true }
+      action: { route: 'spawner.external_research' as const, text, toolName: 'spawner.run', ownerSystem: 'spawner-ui' as const, mutationClass: 'launches_mission' as const }
     })),
     ...providerPrompts.map((text, idx) => ({
       id: `positive-provider-${idx + 1}`,

@@ -306,15 +306,14 @@ test('lets benchmark-pack creation own stale score wording', () => {
   assert.equal(result.toolAuthorization.verdict, 'allowed');
 });
 
-test('allows explicit external research with network policy', () => {
+test('allows explicit external research through its Spawner mission adapter', () => {
   const text = 'Research the latest public docs and GitHub repos about agent harness routing.';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
     route: 'spawner.external_research',
     text,
-    toolName: 'external.fetch',
-    ownerSystem: 'spark-intelligence-builder',
-    mutationClass: 'external_network',
-    externalNetwork: true
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
   });
 
   assert.equal(result.allow, true);

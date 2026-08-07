@@ -101,7 +101,9 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
     context === 'spawner' &&
     (
       lower.includes('prdbridgewrite routes require api key for non-local requests') ||
-      lower.includes('unauthorized prdbridgewrite request')
+      lower.includes('unauthorized prdbridgewrite request') ||
+      lower.includes('sparkrun routes require api key for non-local requests') ||
+      lower.includes('unauthorized sparkrun request')
     )
   ) {
     return {
