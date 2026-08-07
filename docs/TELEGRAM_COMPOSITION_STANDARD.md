@@ -112,6 +112,14 @@ Move
 That shape is allowed only when the user asked for status, raw details, or a
 scan-friendly queue.
 
+## Mission Relay Timing
+
+- Install a bounded local subscription keyed by the opaque request id before a mission owner can emit callbacks or webhooks.
+- An authenticated event may promote that pending subscription to the real mission id only when request, trace when present, and relay target agree. Telegram identity comes from the local subscription, never from event fields.
+- Clear pending subscriptions when dispatch fails or normal mission registration completes.
+- Treat owner-backed terminal state as monotonic. A late `mission_started` or progress event cannot revive a failed mission, restart a heartbeat, or justify a stale start reply.
+- When task-level and mission-level failure arrive together, deliver one useful failure handoff and keep duplicate terminal narration quiet.
+
 Styling does not change the shape. In a natural follow-up, `**Mission**`,
 `Provider - Codex`, `> Status:`, and similar decorated rows still count as a
 report-card surface. Rewrite them as one or two human sentences unless the turn

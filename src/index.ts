@@ -186,6 +186,9 @@ import {
   markMissionRelayCancelled,
   markMissionRelayPaused,
   markMissionRelayResumed,
+  discardPendingMissionRelay,
+  hasObservedTerminalMissionEvent,
+  registerPendingMissionRelay,
   registerMissionRelay,
   shouldSuppressMissionHandoff,
   tryClaimMissionHandoffOutcome,
@@ -199,6 +202,7 @@ import { readAuthorityStatusSummary, renderAuthorityStatusSummary } from './auth
 import { readCapabilityGardenSummary, renderCapabilityGardenSummary } from './capabilityGarden';
 import { readMemoryMovementSummary, renderMemoryMovementSummary } from './memoryMovement';
 import { readTraceRepairSummary, renderTraceRepairSummary } from './traceRepair';
+import { humanAck, telegramBlocks } from './telegramReply';
 import { projectHarnessProof } from './harnessProofProjection';
 import { parseBuildIntent, polishBuildProjectName, type BuildLane } from './buildIntent';
 import {
@@ -6189,13 +6193,6 @@ bot.command('reflect', async (ctx) => {
   }
 });
 
-const PROVIDER_LABELS: Record<string, string> = {
-  minimax: 'MiniMax',
-  zai: 'Z.AI GLM',
-  claude: 'Claude',
-  codex: 'Codex'
-};
-
 const PROVIDER_ALIASES: Record<string, string> = {
   minimax: 'minimax', mini: 'minimax', mm: 'minimax',
   claude: 'claude', cla: 'claude',
@@ -6277,26 +6274,6 @@ export function parseNaturalRecursiveProposalIntent(text: string): NaturalRecurs
   if (/\bcrypto[-\s]+trading\b/.test(normalized)) return { target: 'crypto-trading', submit };
   if (/\bstartup[-\s]+yc\b/.test(normalized)) return { target: 'startup-yc', submit };
   return null;
-}
-
-function humanProviderList(providers: string[]): string {
-  const labels = providers.map((id) => PROVIDER_LABELS[id] || id);
-  if (labels.length === 1) return labels[0];
-  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
-  return labels.slice(0, -1).join(', ') + ', and ' + labels[labels.length - 1];
-}
-
-function humanAck(providers: string[]): string {
-  const who = humanProviderList(providers);
-  if (providers.length === 1) return `I will run that through ${who} now.`;
-  return `I will check that with ${who} in parallel now.`;
-}
-
-function telegramBlocks(...blocks: Array<string | null | undefined | false>): string {
-  return blocks
-    .filter((block): block is string => Boolean(block && block.trim()))
-    .map((block) => block.trim())
-    .join('\n\n');
 }
 
 function sentenceWithPeriod(value: string): string {
@@ -7864,6 +7841,15 @@ export async function handleRunCommand(
     userIntent: 'telegram_run_mission',
     reason: 'Telegram access gate passed for non-build /run; dispatching to Spawner with shared trace.'
   });
+  registerPendingMissionRelay({
+    chatId: String(ctx.chat.id),
+    userId: String(ctx.from.id),
+    requestId,
+    traceRef,
+    goal: options.relayGoal || goal,
+    createdAt: new Date().toISOString(),
+    updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
+  });
   const result = await spawner.runGoal({
     goal,
     chatId: String(ctx.chat.id),
@@ -7878,11 +7864,24 @@ export async function handleRunCommand(
   });
 
   if (!result.success || !result.missionId) {
+    discardPendingMissionRelay(requestId);
     await ctx.reply(renderSparkErrorReply(new Error(result.error || 'Spawner mission start failed'), 'spawner', conversation.isAdmin(ctx.from)));
     return null;
   }
 
-  const proofCapsule = buildTelegramDeliveryProofCapsule({
+  await registerMissionRelay({
+    missionId: result.missionId,
+    chatId: String(ctx.chat.id),
+    userId: String(ctx.from.id),
+    requestId: result.requestId || requestId,
+    traceRef,
+    goal: options.relayGoal || goal,
+    createdAt: new Date().toISOString(),
+    updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
+  });
+
+  if (!hasObservedTerminalMissionEvent(result.missionId)) {
+    const proofCapsule = buildTelegramDeliveryProofCapsule({
     turnRef: traceRef || requestId,
     route: 'spawner.run',
     owner: 'spawner-ui',
@@ -7899,33 +7898,23 @@ export async function handleRunCommand(
       spawner: 'joined'
     }
   });
-  await ctx.reply(humanAck(result.providers || providers), outboundTraceExtra({
-    route: 'spawner.run',
-    command: 'run',
-    replyKind: 'mission_ack',
-    requestId: result.requestId || requestId,
-    traceRef,
-    missionId: result.missionId,
-    proofCapsule
-  }));
-  recordCommandReplyDelivery({
-    command: 'run',
-    replyKind: 'mission_ack',
-    requestId: result.requestId || requestId,
-    traceRef,
-    proofCapsule
-  });
-
-  await registerMissionRelay({
-    missionId: result.missionId,
-    chatId: String(ctx.chat.id),
-    userId: String(ctx.from.id),
-    requestId: result.requestId || requestId,
-    traceRef,
-    goal: options.relayGoal || goal,
-    createdAt: new Date().toISOString(),
-    updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
-  });
+    await ctx.reply(humanAck(result.providers || providers), outboundTraceExtra({
+      route: 'spawner.run',
+      command: 'run',
+      replyKind: 'mission_ack',
+      requestId: result.requestId || requestId,
+      traceRef,
+      missionId: result.missionId,
+      proofCapsule
+    }));
+    recordCommandReplyDelivery({
+      command: 'run',
+      replyKind: 'mission_ack',
+      requestId: result.requestId || requestId,
+      traceRef,
+      proofCapsule
+    });
+  }
   return result.missionId;
 }
 
