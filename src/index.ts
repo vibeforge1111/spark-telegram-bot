@@ -489,6 +489,7 @@ import {
 import { buildVoiceBridgeUpdate } from './telegramVoiceBridge';
 import { formatVoiceMediaCaption } from './voiceCaption';
 import { writeTelegramVoiceBridgeRuntimeState } from './voiceRuntimeState';
+import { resolveVoiceCommandAuthoritySpec } from './voiceCommandAuthority';
 import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
 import {
   isSparkCommandDiscoveryQuestion,
@@ -6020,63 +6021,13 @@ bot.command('insights', async (ctx) => {
   await ctx.reply(insights);
 });
 
-function voiceCommandMutatesRuntime(text: string): boolean {
-  return /\b(?:onboard|onboarding|setup|set\s+up|install|configure|enable|disable|reset|prepare|connect|write|save)\b/i.test(text);
-}
-
-function voiceCommandAuthoritySpec(text: string): {
-  toolName: string;
-  ownerSystem: NaturalRouteOwnerSystem;
-  mutationClass: SparkHarnessMutationClass;
-  action: string;
-} {
-  if (/^\/voice\s+(?:speak|ask|answer)\b/i.test(text)) {
-    return {
-      toolName: 'voice.speak',
-      ownerSystem: 'spark-voice-comms',
-      mutationClass: 'external_network',
-      action: 'voice.speak'
-    };
-  }
-  if (/^\/voice\s+(?:status|probe|diagnose)\b/i.test(text) || /^\/voice\s*$/i.test(text)) {
-    return {
-      toolName: 'voice.status',
-      ownerSystem: 'spark-voice-comms',
-      mutationClass: 'read_only',
-      action: 'voice.status'
-    };
-  }
-  if (/^\/voice\s+(?:install)\b/i.test(text)) {
-    return {
-      toolName: 'voice.install',
-      ownerSystem: 'spark-voice-comms',
-      mutationClass: 'writes_files',
-      action: 'voice.install'
-    };
-  }
-  if (/^\/voice\s+(?:onboard|onboarding|setup|set\s+up|configure|enable|disable|reset|prepare|connect)\b/i.test(text)) {
-    return {
-      toolName: 'voice.onboard',
-      ownerSystem: 'spark-voice-comms',
-      mutationClass: 'writes_files',
-      action: 'voice.onboard'
-    };
-  }
-  return {
-    toolName: 'voice.command',
-    ownerSystem: 'spark-intelligence-builder',
-    mutationClass: voiceCommandMutatesRuntime(text) ? 'writes_files' : 'read_only',
-    action: voiceCommandMutatesRuntime(text) ? 'voice.configure' : 'voice.status_or_reply'
-  };
-}
-
 // /voice - Builder-owned voice status/onboarding. Do not fall back to the
 // deferred dashboard placeholder; voice is a Builder/chip capability now.
 bot.command('voice', async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
   console.log(`[Voice] /voice command received user=${userRef(ctx.from?.id)} chat_type=${ctx.chat?.type || 'unknown'}`);
   const voiceText = ctx.message?.text || '/voice';
-  const voiceAuthority = voiceCommandAuthoritySpec(voiceText);
+  const voiceAuthority = resolveVoiceCommandAuthoritySpec(voiceText);
   const authorization = telegramCommandActionAuthorityDecision(ctx, {
     commandName: 'voice',
     route: 'voice.command',
