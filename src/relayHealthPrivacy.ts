@@ -6,6 +6,7 @@ export interface RelayHealthDetailPayload extends Record<string, unknown> {
   service: 'spark-telegram-bot';
   relay?: unknown;
   pid?: number;
+  build?: unknown;
   runtime?: Record<string, unknown>;
 }
 

@@ -1,6 +1,13 @@
 import { runTelegramPollingHealth } from './healthPolling';
 import { loadSparkTelegramProfileEnv } from './profileEnv';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
+import {
+  assertLoadedRuntimeMatchesInstalled,
+  captureInstalledRuntimeBuildIdentity,
+  parseRuntimeBuildIdentity,
+  type RuntimeBuildArtifact,
+  type RuntimeBuildIdentity
+} from './runtimeBuildIdentity';
 
 export const DEFAULT_RELAY_HEALTH_TIMEOUT_MS = 8000;
 
@@ -32,7 +39,9 @@ export function relayHealthUrl(env: NodeJS.ProcessEnv = process.env): string {
 
 export async function validateRelayRuntime(
   fetchImpl: typeof fetch = fetch,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  resolveInstalledBuild: (artifact: RuntimeBuildArtifact) => RuntimeBuildIdentity =
+    (artifact) => captureInstalledRuntimeBuildIdentity(__filename, artifact)
 ): Promise<string> {
   const url = relayHealthUrl(env);
   const controller = new AbortController();
@@ -51,6 +60,7 @@ export async function validateRelayRuntime(
     const payload = await response.json() as {
       relay?: { profile?: string; port?: number };
       pid?: number;
+      build?: unknown;
       runtime?: {
         telegramPolling?: string;
         pollingActive?: boolean;
@@ -68,10 +78,21 @@ export async function validateRelayRuntime(
       const stoppedAt = payload.runtime?.pollingStoppedAt ? ` at ${payload.runtime.pollingStoppedAt}` : '';
       throw new Error(`Telegram polling is ${pollingState}${stoppedAt}${lastError}`);
     }
+    const loadedBuild = parseRuntimeBuildIdentity(payload.build);
+    const installedBuild = resolveInstalledBuild(loadedBuild.artifact);
+    const stableInstalledBuild = resolveInstalledBuild(loadedBuild.artifact);
+    if (
+      installedBuild.artifact !== stableInstalledBuild.artifact
+      || installedBuild.sha256 !== stableInstalledBuild.sha256
+      || installedBuild.fileCount !== stableInstalledBuild.fileCount
+    ) {
+      throw new Error('Telegram installed runtime changed during health verification; rerun health after build or sync finishes.');
+    }
+    assertLoadedRuntimeMatchesInstalled(loadedBuild, stableInstalledBuild);
     const profile = payload.relay?.profile || telegramRelayIdentityFromEnv(env).profile;
     const port = payload.relay?.port || new URL(url).port;
     const polling = ` polling=${pollingState}`;
-    return `${profile}@${port}${payload.pid ? ` pid=${payload.pid}` : ''}${polling}`;
+    return `${profile}@${port}${payload.pid ? ` pid=${payload.pid}` : ''}${polling} build=${installedBuild.sha256.slice(0, 12)}`;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Telegram relay runtime is not reachable at ${url}: ${message}`, { cause: error });

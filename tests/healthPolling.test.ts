@@ -7,6 +7,15 @@ import {
   relayHealthUrl,
   validateRelayRuntime
 } from '../src/healthRuntime';
+import type { RuntimeBuildIdentity } from '../src/runtimeBuildIdentity';
+
+const TEST_BUILD: RuntimeBuildIdentity = {
+  schema: 'spark.telegram.loaded-runtime.v1',
+  artifact: 'dist-js-tree',
+  sha256: 'a'.repeat(64),
+  fileCount: 42,
+  loadedAt: '2026-08-07T12:00:00.000Z'
+};
 
 function test(name: string, fn: () => void): void {
   try {
@@ -93,7 +102,7 @@ test('validates relay runtime without exposing secrets', async () => {
   const fetchImpl = async (_url: string | URL | Request, init?: RequestInit) => {
     observedHeaders = init?.headers;
     return new Response(
-      JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, runtime: { telegramPolling: 'active' } }),
+      JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, build: TEST_BUILD, runtime: { telegramPolling: 'active' } }),
       { status: 200, headers: { 'content-type': 'application/json' } }
     );
   };
@@ -101,9 +110,9 @@ test('validates relay runtime without exposing secrets', async () => {
   const detail = await validateRelayRuntime(fetchImpl as typeof fetch, {
     TELEGRAM_RELAY_PORT: '8789',
     TELEGRAM_RELAY_SECRET: 'relay-health-secret-abcdefghijklmnopqrstuvwxyz'
-  } as NodeJS.ProcessEnv);
+  } as NodeJS.ProcessEnv, () => TEST_BUILD);
 
-  assert.equal(detail, 'spark-agi@8789 pid=123 polling=active');
+  assert.equal(detail, 'spark-agi@8789 pid=123 polling=active build=aaaaaaaaaaaa');
   assert.deepEqual(observedHeaders, {
     'x-spark-telegram-relay-secret': 'relay-health-secret-abcdefghijklmnopqrstuvwxyz'
   });
@@ -132,13 +141,53 @@ test('rejects relay runtime when Telegram polling reports an error', async () =>
 
 test('validates relay runtime smoke-disabled polling state', async () => {
   const fetchImpl = async () => new Response(
-    JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, runtime: { telegramPolling: 'disabled' } }),
+    JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, build: TEST_BUILD, runtime: { telegramPolling: 'disabled' } }),
     { status: 200, headers: { 'content-type': 'application/json' } }
   );
 
-  const detail = await validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv);
+  const detail = await validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv, () => TEST_BUILD);
 
-  assert.equal(detail, 'spark-agi@8789 pid=123 polling=disabled');
+  assert.equal(detail, 'spark-agi@8789 pid=123 polling=disabled build=aaaaaaaaaaaa');
+});
+
+test('rejects a healthy poller that loaded a different runtime tree', async () => {
+  const loadedBuild = { ...TEST_BUILD, sha256: 'b'.repeat(64) };
+  const fetchImpl = async () => new Response(
+    JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, build: loadedBuild, runtime: { telegramPolling: 'active' } }),
+    { status: 200, headers: { 'content-type': 'application/json' } }
+  );
+  await assert.rejects(
+    () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv, () => TEST_BUILD),
+    /running Telegram process loaded a different artifact generation/i
+  );
+});
+
+test('rejects a healthy legacy poller that does not report loaded artifact identity', async () => {
+  const fetchImpl = async () => new Response(
+    JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, runtime: { telegramPolling: 'active' } }),
+    { status: 200, headers: { 'content-type': 'application/json' } }
+  );
+  await assert.rejects(
+    () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv, () => TEST_BUILD),
+    /did not report a valid loaded-artifact identity/i
+  );
+});
+
+test('rejects a runtime tree that changes while health is being verified', async () => {
+  const changedBuild = { ...TEST_BUILD, sha256: 'c'.repeat(64) };
+  const observed: RuntimeBuildIdentity[] = [TEST_BUILD, changedBuild];
+  const fetchImpl = async () => new Response(
+    JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, build: TEST_BUILD, runtime: { telegramPolling: 'active' } }),
+    { status: 200, headers: { 'content-type': 'application/json' } }
+  );
+  await assert.rejects(
+    () => validateRelayRuntime(
+      fetchImpl as typeof fetch,
+      { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv,
+      () => observed.shift() || changedBuild
+    ),
+    /changed during health verification/i
+  );
 });
 
 test('rejects relay runtime before Telegram polling is active', async () => {

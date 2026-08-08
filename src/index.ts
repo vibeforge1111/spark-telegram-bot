@@ -193,10 +193,12 @@ import {
   shouldSuppressMissionHandoff,
   tryClaimMissionHandoffOutcome,
   setMissionRelayRuntimeStatus,
+  setMissionRelayRuntimeBuildIdentity,
   setTelegramMissionLinkPreference,
   setTelegramRelayVerbosity,
   startMissionRelay
 } from './missionRelay';
+import { captureRuntimeBuildIdentity } from './runtimeBuildIdentity';
 import { buildDiagnoseReport } from './diagnose';
 import { readAuthorityStatusSummary, renderAuthorityStatusSummary } from './authorityStatus';
 import { readCapabilityGardenSummary, renderCapabilityGardenSummary } from './capabilityGarden';
@@ -505,6 +507,7 @@ export {
 } from './telegramPendingBuildEvidence';
 export { isDomainChipPendingDirection } from './telegramPendingDomainChipEvidence';
 export { __setTelegramImageAnalyzerForTest } from './telegramImageAnalysis';
+const LOADED_RUNTIME_BUILD_IDENTITY = captureRuntimeBuildIdentity(__filename);
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 const ACCESS_LEVEL_CHOICE_TEXT = 'Choose an access level: /access 1 chat/memory/diagnostics, /access 2 requested builds, /access 3 public research plus builds, /access 4 sandboxed local projects, or /access 5 whole-computer operator mode.';
 const execFileAsync = promisify(execFile);
@@ -12949,6 +12952,7 @@ process.once('SIGTERM', async () => {
 async function start() {
   const launchConfig = resolveTelegramLaunchConfig();
   requireRelaySecret();
+  setMissionRelayRuntimeBuildIdentity(LOADED_RUNTIME_BUILD_IDENTITY);
 
   if (!TELEGRAM_SMOKE_MODE) {
     await acquireGatewayOwnership({

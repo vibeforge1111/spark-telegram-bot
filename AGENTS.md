@@ -131,6 +131,7 @@ lesson lives only in this chat, a final answer, or a local operator memory.
 - Telegram may render Builder route verdicts, memory proof cards, CLI status, Spawner mission evidence, and voice status; it must not fork those owners' logic.
 - Conversation-frame summaries are local context support, not durable memory truth.
 - If Builder, CLI, or Spawner proof is unavailable, fail closed or say what proof is missing.
+- Disk/source sync, PID liveness, and file timestamps do not prove which code a running Telegram process loaded. After build or sync, authenticated runtime health must bind the live process to a load-time artifact identity that matches the current installed artifact; missing or mismatched identity blocks supervised QA until the profile is restarted.
 - Do not turn route keywords like build, mission, access, setup, or go into global permission.
 - Register a bounded, local request-to-chat relay binding before calling an owner that can synchronously emit mission events. Bind the returned mission id only from an authenticated event carrying the same opaque request/trace; never trust event-supplied chat or user identity.
 - Mission lifecycle is monotonic at the Telegram surface. Once an owner-backed terminal failure is observed, late start/progress events must not restart heartbeats or produce a stale running acknowledgement.
