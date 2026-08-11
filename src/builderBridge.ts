@@ -2692,7 +2692,9 @@ async function runBuilderTelegramBridgeOneShot(
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'spark-builder-telegram-'));
   const updatePath = path.join(tempDir, 'update.json');
   try {
-    await writeFile(updatePath, JSON.stringify(updatePayload, null, 2), 'utf-8');
+    const tmp = updatePath + '.tmp';
+    await writeFile(tmp, JSON.stringify(updatePayload, null, 2), 'utf-8');
+    await rename(tmp, updatePath);
 
     const { stdout, stderr } = await execFileAsync(
       config.pythonCommand,
