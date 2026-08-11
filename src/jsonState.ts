@@ -78,7 +78,8 @@ export async function readJsonFile<T>(filePath: string): Promise<T | null> {
     const parsed = JSON.parse(raw) as T;
     await writeJsonAtomic(filePath, parsed);
     return parsed;
-  } catch {
+  } catch (error) {
+    console.error('[jsonState] Failed to read state:', error);
     return null;
   }
 }
