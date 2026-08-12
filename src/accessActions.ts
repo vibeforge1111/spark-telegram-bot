@@ -235,9 +235,10 @@ export async function runSparkAccessActionDetailed(
 }
 
 async function defaultSparkCommandRunner(args: string[], timeoutMs: number): Promise<{ stdout: string; stderr: string }> {
+  try {
   const { stdout, stderr } = await execFileAsync(
-    'spark',
-    args,
+    '/data/data/com.termux/files/usr/bin/bash',
+    [process.env.SPARK_BIN || '/data/data/com.termux/files/home/.spark/bin/spark', ...args] as string[],
     withHiddenWindows({
       timeout: timeoutMs,
       maxBuffer: 1024 * 1024,
@@ -248,6 +249,12 @@ async function defaultSparkCommandRunner(args: string[], timeoutMs: number): Pro
     stdout: Buffer.isBuffer(stdout) ? stdout.toString('utf8') : String(stdout || ''),
     stderr: Buffer.isBuffer(stderr) ? stderr.toString('utf8') : String(stderr || ''),
   };
+  } catch (err: any) {
+    return {
+      stdout: Buffer.isBuffer(err.stdout) ? err.stdout.toString('utf8') : String(err.stdout || ''),
+      stderr: Buffer.isBuffer(err.stderr) ? err.stderr.toString('utf8') : String(err.stderr || ''),
+    };
+  }
 }
 
 function parseSparkJson(stdout: string): Record<string, unknown> | null {
@@ -359,7 +366,11 @@ export function scheduleSparkRestartAfterAccessChange(delayMs = 2_000): void {
   const script = [
     "const { spawnSync } = require('node:child_process');",
     "const delay = Number(process.argv[1] || 2000);",
-    "const spark = process.platform === 'win32' ? 'spark.cmd' : 'spark';",
+    "const os = require('os');",
+    "const path = require('path');",
+    "const sparkDefault = process.platform === 'win32' ? 'spark.cmd' : 'spark';",
+    "const sparkLocal = path.join(os.homedir(), '.spark', 'bin', sparkDefault);",
+    "const spark = require('fs').existsSync(sparkLocal) ? sparkLocal : sparkDefault;",
     "const run = (args) => spawnSync(spark, args, { stdio: 'ignore', shell: false, windowsHide: true });",
     "setTimeout(() => {",
     "  run(['restart', 'spawner-ui', '--allow-dirty-runtime']);",
