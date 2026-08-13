@@ -12,6 +12,25 @@
 import { redactText } from './redaction';
 import { LEGACY_PROMPT_SURFACE_BLOCKED_REFS } from './legacyPromptRefs';
 
+const REQUIRED_ENV_VARS = ['BOT_TOKEN', 'RELAY_SECRET'];
+const OPTIONAL_ENV_VARS = ['SPARK_PROFILE_TOKEN_MISSING', 'TELEGRAM_HEALTH_SKIP_API'];
+
+function validateStartupEnv(): void {
+  for (const key of REQUIRED_ENV_VARS) {
+    if (!process.env[key]?.trim()) {
+      console.warn(`[env] Required env var ${key} is not set at startup`);
+    }
+  }
+  for (const key of OPTIONAL_ENV_VARS) {
+    if (process.env[key]?.trim()) {
+      console.log(`[env] Optional env var ${key} is set`);
+    }
+  }
+}
+
+// Run on module load
+validateStartupEnv();
+
 const EM_DASH_FAMILY = [
   '\u2014', // em dash
   '\u2013', // en dash
