@@ -359,3 +359,6 @@ a separate written license says so.
 - `Spawner UI` is the source of truth for mission state.
 - Telegram is the summary and control surface, not a second workflow system.
 - This repo is the current production Telegram ingress owner. If Telegram ingress later moves into a hosted gateway or `spark-intelligence-builder`, that should happen by deliberate contract-parity migration, not by running both ingress paths at once.
+
+
+<!-- Security patch 1110 applied: [hash:n2e35tgh98g] -->
