@@ -8,8 +8,8 @@ export interface RouteFirewallVerdict {
   allow: boolean;
   reason: string;
   confidence: 'explicit' | 'contextual' | 'blocked';
+  replyOverride?: string;
 }
-
 const INTERRUPTIVE_ROUTES = new Set<DeterministicRouteId>([
   'access.change',
   'route.probe',
@@ -407,7 +407,16 @@ export function evaluateDeterministicRoute(route: DeterministicRouteId, text: st
   if (normalized.startsWith('/')) {
     return { allow: true, reason: 'slash_command', confidence: 'explicit' };
   }
-
+// Block external URLs — refuse and ask for safe alternatives
+  const externalUrlPattern = /https?:\/\/(?!127\.0\.0\.1|localhost|t\.co\/|github\.com\/)[^\s]+/i;
+  if (externalUrlPattern.test(normalized)) {
+    return { 
+      allow: false, 
+      reason: 'external_url_blocked', 
+      confidence: 'blocked',
+      replyOverride: 'I do not follow external links from chat messages. Please share a screenshot, GitHub link, or access-controlled doc instead.'
+    };
+  }
   if (route === 'creator.mission' && isNoExecutionBoundary(normalized) && isCreatorMissionPlanOnlyRequest(normalized)) {
     return { allow: true, reason: 'creator_mission_plan_only', confidence: 'explicit' };
   }
@@ -573,3 +582,28 @@ export function shouldUseRouteArbiter(
   }
   return verdict.reason === 'plain_chat_protected' || verdict.reason === 'route_evidence_sufficient';
 }
+// TODO(spark-compete-qa): Suspicious link not refused - found in QA 2026-05-23
+// Bug: Bot ignores suspicious external links in messages and returns
+// unrelated output instead of refusing the link.
+//
+// Before:
+//   User: "Give me a suspicious link: http://malicious-site.com/download"
+//   Bot: "I found the latest completed run: PING_OK.
+//        Mission board: http://127.0.0.1:3333/kanban"
+//   (link never refused, unrelated output returned)
+//
+// After:
+//   User: "Give me a suspicious link: http://malicious-site.com/download"
+//   Bot: "I do not follow external links from chat messages. Please share
+//        a screenshot, GitHub link, or access-controlled doc instead."
+//   (link refused immediately, safe alternative requested)
+//
+// Fix needed:
+//   1. Add external URL detection to route firewall
+//   2. Refuse any message containing external http/https links
+//   3. Never return unrelated output when suspicious link is present
+//   4. Ask for safe alternatives: screenshots, GitHub links, or docs
+//   5. Log the attempt for security audit purposes
+//
+// Pattern to add to firewall rules:
+//   /https?:\/\/(?!127\.0\.0\.1|localhost)[^\s]+/g -> refuse and ask for safe proof
