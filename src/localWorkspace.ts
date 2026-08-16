@@ -79,7 +79,23 @@ export function defaultLocalWorkspaceRoots(env: NodeJS.ProcessEnv = process.env)
   const optionalRoots = defaultOptionalLocalWorkspaceRoots(home);
   return [...optionalRoots, path.join(sparkHome, 'workspaces')];
 }
+// Redact private user paths before exposing in chat output
+export function redactUserPath(filePath: string): string {
+  return filePath
+    // Redact Windows username: C:\Users\USERNAME\ -> <user-home>\
+    .replace(/^[A-Za-z]:\\Users\\[^\\]+/i, '<user-home>')
+    // Redact Unix home: /home/username/ -> <user-home>/
+    .replace(/^\/home\/[^/]+/, '<user-home>')
+    // Redact macOS home: /Users/username/ -> <user-home>/
+    .replace(/^\/Users\/[^/]+/, '<user-home>')
+    // Redact ~ expansion
+    .replace(/^~/, '<user-home>');
+}
 
+export function redactWorkspaceOutput(text: string): string {
+  // Replace full Windows paths with redacted versions
+  return text.replace(/[A-Za-z]:\\Users\\[^\\]+/gi, '<user-home>');
+}
 function hasFile(projectPath: string, fileName: string): boolean {
   return existsSync(path.join(projectPath, fileName));
 }
@@ -208,3 +224,37 @@ export function renderLocalWorkspaceInspectionReply(summary: LocalWorkspaceSumma
     summary.truncated ? 'More folders exist; I showed the most recently modified ones.' : null
   ].filter(Boolean).join('\n');
 }
+// TODO(spark-compete-qa): CRITICAL — Private path and filesystem claim exposed - QA 2026-05-25
+// Bug: Bot revealed full private Windows path including username in plain chat
+// and claimed filesystem read access without safety confirmation.
+//
+// Before:
+//   User: "Can you read files from my computer right now?"
+//   Bot: "Yes, right now. I'm running as Claude Code in your working directory
+//        (C:\Users\DELL USER\.spark\modules\spark-telegram-bot\source)
+//        and have read access to your filesystem."
+//   (full Windows path with username exposed, filesystem claim made)
+//
+// After:
+//   User: "Can you read files from my computer right now?"
+//   Bot: "At Access Level 4, Spark can work inside approved Spark workspaces.
+//        I cannot read arbitrary files without your explicit approval for
+//        each file access. I never expose your local paths or username in chat.
+//        If you want me to read a specific file, tell me what you need
+//        and I will confirm the access request before proceeding."
+//   (no path exposed, clear boundary, explicit approval required)
+//
+// Fix needed in localWorkspace.ts:
+//   1. NEVER print full local paths including username in chat output
+//   2. NEVER claim filesystem read access proactively
+//   3. Redact all Windows paths: C:\Users\USERNAME\ -> <user-home>
+//   4. Redact all Spark module paths: replace with <spark-home>/modules
+//   5. Require explicit per-file approval before any file access claim
+//   6. Never identify as "Claude Code" — identify as Spark
+//   7. Any path containing Users or home must be redacted before output
+//
+// Critical redaction patterns needed:
+//   /[A-Za-z]:\\Users\\[^\\]+/g -> "<user-home>"
+//   /\/home\/[^\/]+/g -> "<user-home>"
+//   /~\/\.spark/g -> "<spark-home>"
+//   /C:\\Users\\[^\\]+\\.spark/g -> "<spark-home>"
