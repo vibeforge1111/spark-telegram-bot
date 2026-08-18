@@ -419,6 +419,7 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
     else tools.push('spawner.mission_control.command');
   }
   if (policy.canLaunchMission && spawnerRunRouteForDecision(decision)) tools.push('spawner.run');
+  if (decision.route === 'spawner.build') tools.push('spawner.prd.write');
   if (decision.route === 'natural_run') tools.push('provider.run');
   if (decision.route === 'pending_task.recovery') tools.push('pending_task.recovery');
   if (policy.canMutateFiles) tools.push('spawner.files');

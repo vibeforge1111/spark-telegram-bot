@@ -56,6 +56,7 @@ export { createHarnessCoreGovernorDecision };
 export interface HarnessCoreActionInput extends ToolAuthorizationInput {
   route: string;
   text: string;
+  requestId?: string;
 }
 
 export interface HarnessCoreAuthorizationBundle {
@@ -212,7 +213,7 @@ export function buildHarnessCoreAction(input: HarnessCoreActionInput, turnId: st
     mutationClass: input.mutationClass,
     source: input.route,
     reason: `Telegram proposed ${actionType} via ${input.toolName} for route ${input.route}.`,
-    requestId: turnId,
+    requestId: input.requestId || turnId,
     actorIdRef: 'telegram-human',
     target: input.route,
     riskTier,
@@ -239,7 +240,7 @@ export function buildTurnIntentEnvelopeVNextFromTelegram(
         mutationClass: action.mutationClass,
         source: action.route,
         reason: `Telegram proposed ${actionType} via ${action.toolName} for route ${action.route}.`,
-        requestId: envelope.turnId,
+        requestId: action.requestId || envelope.turnId,
         actorIdRef: envelope.user.userRef,
         target: action.route,
         confidence: confidenceValue(envelope),

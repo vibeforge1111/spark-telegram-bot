@@ -55,6 +55,7 @@ test('allows explicit project build only when route and envelope both authorize 
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
     route: 'spawner.build',
     text,
+    requestId: 'tg-build-acceptance-123',
     toolName: 'spawner.run',
     ownerSystem: 'spawner-ui',
     mutationClass: 'launches_mission'
@@ -64,6 +65,7 @@ test('allows explicit project build only when route and envelope both authorize 
   assert.equal(result.routeVerdict.allow, true);
   assert.equal(result.toolAuthorization.verdict, 'allowed');
   assert.equal(result.governorDecision?.tool_ledgers[0]?.authorization.restrictions.write_allowed, true);
+  assert.match(result.harnessCore?.action.args_ref.path_or_uri || '', /tg-build-acceptance-123$/);
 });
 
 test('keeps local-only publication bans as build constraints', () => {

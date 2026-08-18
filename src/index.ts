@@ -7962,6 +7962,20 @@ export async function handleBuildIntent(
     : `# ${polishedProjectName}\n\nBuild mode: ${buildMode}\nBuild mode reason: ${buildModeReason}\nBuild lane: ${buildLane}\nBuild lane reason: ${buildLaneReason}\n\n${prd}`;
 
   const tier = getTierForUser(ctx.from.id);
+  const prdWriteAuthorization = options.actionAuthorization?.legacyEnvelope
+    ? telegramActionAuthorityDecision(options.actionAuthorization.legacyEnvelope, {
+        route: 'spawner.build',
+        text: options.actionAuthorization.legacyEnvelope.text.raw,
+        requestId,
+        toolName: 'spawner.prd.write',
+        ownerSystem: 'spawner-ui',
+        mutationClass: 'writes_files'
+      })
+    : null;
+  if (options.actionAuthorization && !prdWriteAuthorization?.allow) {
+    await ctx.reply('I could not authorize the Spawner PRD write for this build. Nothing was queued.');
+    return { status: 'failure', summary: 'Build dispatch blocked because Spawner PRD write authority was not granted.', requestId, traceRef };
+  }
   try {
     const res = await postLocalServiceWithRetry(
       `${spawnerUrl}/api/prd-bridge/write`,
@@ -7977,6 +7991,9 @@ export async function handleBuildIntent(
         chatId: String(chatId),
         userId: String(ctx.from.id),
         harnessProofRef: proofCapsule.turnRef, harnessProofCapsule: proofCapsule,
+        ...(prdWriteAuthorization?.governorDecision
+          ? { executionAuthority: prdWriteAuthorization.governorDecision }
+          : {}),
         runnerCapability: runnerPreflight
           ? {
               runnerWritable: runnerPreflight.runnerWritable,
