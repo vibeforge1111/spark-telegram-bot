@@ -32,6 +32,7 @@ export interface RouteEvidenceVerdict {
 export interface TelegramActionAuthorityInput extends ToolAuthorizationInput {
   route: DeterministicRouteId;
   text: string;
+  requestId?: string;
 }
 
 export interface TelegramActionAuthorityResult {

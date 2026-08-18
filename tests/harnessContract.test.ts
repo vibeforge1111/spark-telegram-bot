@@ -306,6 +306,7 @@ test('authorizes live Spawner build briefs without granting incidental health or
     assert.equal(envelope.selectedIntent.action, 'spawner.build', prompt);
     assert.equal(envelope.executionPolicy.canLaunchMission, true, prompt);
     assert.ok(envelope.toolPolicy.allowedTools.includes('spawner.run'), prompt);
+    assert.ok(envelope.toolPolicy.allowedTools.includes('spawner.prd.write'), prompt);
 
     const spawnerAuthorization = authorizeToolCallFromEnvelope(envelope, {
       toolName: 'spawner.run',
@@ -313,6 +314,13 @@ test('authorizes live Spawner build briefs without granting incidental health or
       mutationClass: 'launches_mission'
     });
     assert.deepEqual(spawnerAuthorization, { verdict: 'allowed', reasonCodes: [] }, prompt);
+
+    const prdWriteAuthorization = authorizeToolCallFromEnvelope(envelope, {
+      toolName: 'spawner.prd.write',
+      ownerSystem: 'spawner-ui',
+      mutationClass: 'writes_files'
+    });
+    assert.deepEqual(prdWriteAuthorization, { verdict: 'allowed', reasonCodes: [] }, prompt);
 
     const healthAuthorization = authorizeToolCallFromEnvelope(envelope, {
       toolName: 'spark.read_only_state',
