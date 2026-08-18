@@ -367,7 +367,7 @@ function projectNameFromPathSegment(pathName: string): string {
 
 function cleanExtractedPath(value: string): string {
   const sentenceBoundary = value.search(
-    /\.(?:\s+)(?=(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
+    /\.(?:\s+)(?=(?:The|Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
   );
   const bounded = sentenceBoundary >= 0 ? value.slice(0, sentenceBoundary) : value;
   return normalizePathForPlatform(
@@ -380,10 +380,10 @@ function cleanExtractedPath(value: string): string {
 
 function extractPathCandidate(text: string): string | null {
   const labeledMatch = text.match(
-    /\b(?:target\s+folder|project\s+path|local\s+project|full\s+local\s+project|create\s+(?:a\s+)?(?:full\s+)?local\s+project\s+(?:at|in|into))\s*:?\s*(?:\r?\n\s*)?((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
+    /\b(?:target\s+folder|project\s+path|local\s+project|full\s+local\s+project|create\s+(?:a\s+)?(?:full\s+)?local\s+project\s+(?:at|in|into))\s*:?\s*(?:\r?\n\s*)?((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:The|Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
   );
   const atMatch = labeledMatch ?? text.match(
-    /(?:at|in|into)\s*:?\s*(?:\r?\n\s*)?((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
+    /(?:at|in|into)\s*:?\s*(?:\r?\n\s*)?((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:The|Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+(?:Create|Include|Required|Keep|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
   );
   return atMatch ? cleanExtractedPath(atMatch[1]) : null;
 }

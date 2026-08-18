@@ -201,6 +201,15 @@ test('stops target paths before sentence-level proof instructions', () => {
   assert.match(intent.prd, /SPARK_OS_INSTALLED_BUILDER_PROOF_K_20260511/);
 });
 
+test('stops an unquoted target path before a sentence beginning with The', () => {
+  const intent = parseBuildIntent(
+    'Build a Node.js CLI at C:\\Users\\USER\\Desktop\\spark-acceptance-pulse. The CLI accepts a service name and prints JSON.'
+  );
+
+  assert.ok(intent);
+  assert.equal(intent.projectPath, 'C:\\Users\\USER\\Desktop\\spark-acceptance-pulse');
+});
+
 test('ignores paths outside the configured workspace root', () => {
   const intent = parseBuildIntent('build this at D:\\tmp\\outside: a tiny HTML file called Outside Test.');
 
