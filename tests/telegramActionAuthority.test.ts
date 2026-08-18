@@ -9,6 +9,10 @@ import {
   governorOutcomeAllowsTelegramAction
 } from '../src/telegramActionAuthority';
 import { classifyTelegramIntentV2 } from '../src/telegramIntentGate';
+import {
+  buildSpawnerDispatchExecutionAuthority,
+  spawnerDispatchAuthorityBindingFailureReason
+} from '../src/spawnerPrdWriteAuthority';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -66,6 +70,18 @@ test('allows explicit project build only when route and envelope both authorize 
   assert.equal(result.toolAuthorization.verdict, 'allowed');
   assert.equal(result.governorDecision?.tool_ledgers[0]?.authorization.restrictions.write_allowed, true);
   assert.match(result.harnessCore?.action.args_ref.path_or_uri || '', /tg-build-acceptance-123$/);
+
+  const dispatchAuthority = buildSpawnerDispatchExecutionAuthority({
+    telegramExecutionAuthority: result.governorDecision,
+    requestId: 'tg-build-acceptance-123',
+    missionId: 'mission-acceptance-123',
+    projectName: 'Memory Reports'
+  });
+  assert.equal(spawnerDispatchAuthorityBindingFailureReason({
+    authority: dispatchAuthority,
+    requestId: 'tg-build-acceptance-123',
+    missionId: 'mission-acceptance-123'
+  }), null);
 });
 
 test('keeps local-only publication bans as build constraints', () => {

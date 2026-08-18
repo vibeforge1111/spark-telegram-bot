@@ -129,6 +129,7 @@ import {
   type RecursiveCommand
 } from './recursive';
 import { spawnerAxiosOptions } from './spawnerAuth';
+import { buildSpawnerDispatchExecutionAuthority } from './spawnerPrdWriteAuthority';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
 import { readNoEditProbeMission, storeNoEditProbeMission, type NoEditProbeMission } from './noEditProbeStore';
 import {
@@ -5852,6 +5853,7 @@ function startPrdCanvasReadyNotifier(args: {
 	kanbanUrl: string;
 	buildLane?: BuildLane;
 	tier?: SkillTier;
+	executionAuthority?: unknown;
 }): void {
   void (async () => {
     const started = Date.now();
@@ -5886,7 +5888,13 @@ function startPrdCanvasReadyNotifier(args: {
             }
             const queue = await axios.post(
               `${args.spawnerUrl}/api/prd-bridge/load-to-canvas`,
-              { requestId: args.requestId, missionId: args.missionId, autoRun: true, telegramRelay: getTelegramRelayIdentity() },
+              {
+                requestId: args.requestId,
+                missionId: args.missionId,
+                autoRun: true,
+                telegramRelay: getTelegramRelayIdentity(),
+                ...(args.executionAuthority ? { executionAuthority: args.executionAuthority } : {})
+              },
               spawnerAxiosOptions(8000)
             );
             if (shouldSuppressMissionHandoff(args.missionId)) {
@@ -7977,6 +7985,15 @@ export async function handleBuildIntent(
     return { status: 'failure', summary: 'Build dispatch blocked because Spawner PRD write authority was not granted.', requestId, traceRef };
   }
   try {
+    const dispatchExecutionAuthority = options.actionAuthorization?.governorDecision
+      ? buildSpawnerDispatchExecutionAuthority({
+          telegramExecutionAuthority: options.actionAuthorization.governorDecision,
+          requestId,
+          missionId,
+          projectName: polishedProjectName,
+          traceRef
+        })
+      : undefined;
     const res = await postLocalServiceWithRetry(
       `${spawnerUrl}/api/prd-bridge/write`,
       {
@@ -8097,7 +8114,8 @@ export async function handleBuildIntent(
       canvasUrl,
       kanbanUrl,
       buildLane,
-      tier
+      tier,
+      executionAuthority: dispatchExecutionAuthority
     });
     return { status: 'success', summary: `Spawner accepted PRD bridge build for ${polishedProjectName}.`, missionId, requestId, traceRef };
   } catch (err: any) {
