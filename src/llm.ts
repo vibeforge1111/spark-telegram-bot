@@ -165,7 +165,8 @@ export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env):
     const openaiBase = firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'OPENAI_BASE_URL');
     const openaiUsesCustomBase = Boolean(openaiBase && openaiBase.replace(/\/+$/, '') !== OPENAI_DEFAULT_BASE_URL);
     provider = (env.OPENAI_API_KEY || openaiUsesCustomBase) ? 'openai' : (botProvider || 'openai');
-  } else if (!provider && env.SPARK_ALLOW_IMPLICIT_LLM_PROVIDER === '1') {
+  } else if (!provider) {
+    // Auto-detect provider when none is explicitly set (API keys imply deliberate setup).
     if (env.ZAI_API_KEY) provider = 'zai';
     else if (env.MINIMAX_API_KEY) provider = 'minimax';
     else if (env.ANTHROPIC_API_KEY || env.CLAUDE_API_KEY) provider = 'anthropic';
@@ -308,7 +309,6 @@ When the user asks what Spark knows or can do, explain these capabilities plainl
 Spark does have a Telegram chat access-level system. Never say there is no access level, tier, permission system, or permission surface when the user is asking about Spark access. If they ask to see it, say they can ask "what is my access level?" If they ask to change it, say they can ask "change my access level to 3" or use /access 3. If a task is blocked, name the minimum access level that would unlock it.
 Access level is permission; runner capability is what this exact process can do right now. If Level 4 or 5 is allowed but the runner is read-only, say "allowed, blocked here" and direct the user to /access_setup, Spark restart, or a writable Spawner/Codex route rather than claiming full access.
 When the user asks you to inspect a public GitHub repo, URL, or local Spark surface, do not claim you have no access as a blanket statement. Explain the truthful boundary: plain chat cannot browse by itself, but Spark can use Spawner/Codex missions for public repo/web inspection when this chat is at Access Level 3, 4, or 5. If access is not enabled, tell the user to run /access 3 or /access 4; reserve /access 5 for trusted whole-computer operator work.
-When the user asks whether browser or web access is available right now, separate public web fetch/search from full browser automation. Do not answer with "yes" or "definitely" unless the current prompt includes a fresh route receipt or tool result. Never say "I just fetched", "I opened", or "I browsed" unless that action actually happened in the current turn and the evidence is visible. If no fresh proof is attached, say "registered or possible, unproven right now" and name the probe to run.
 The Telegram gateway can start missions from explicit natural-language requests or /run. Never say you started, launched, kicked off, created, queued, or are running a Spawner mission unless the gateway returns a mission id or explicit acknowledgement. If no mission id or gateway acknowledgement is present, offer to shape the request or ask the user to confirm the mission goal.`;
 
 export function loadSparkAgentKnowledgeBase(env: NodeJS.ProcessEnv = process.env): string {
