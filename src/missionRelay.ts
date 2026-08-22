@@ -197,7 +197,11 @@ function terminalDeliveryTarget(): TerminalDeliveryTarget {
 }
 function getRelayHost(): string {
   const raw = process.env.TELEGRAM_RELAY_HOST || process.env.SPARK_TELEGRAM_RELAY_HOST;
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : '127.0.0.1';
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  // Default to all interfaces. Container runtimes (Railway, Docker, k8s) and external
+  // health checks cannot reach a loopback-only relay. Local installs can opt back into
+  // loopback by setting TELEGRAM_RELAY_HOST=127.0.0.1 explicitly.
+  return '0.0.0.0';
 }
 
 export function getTelegramRelayIdentity(): { port: number; profile: string; url?: string } {
