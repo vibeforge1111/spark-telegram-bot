@@ -147,6 +147,14 @@ function codexServiceTierHelp(): string {
   return Array.from(CODEX_SERVICE_TIERS).join(', ');
 }
 
+function codexReasoningHelp(): string {
+  return Array.from(CODEX_REASONING_EFFORTS).join(', ');
+}
+
+function codexServiceTierHelp(): string {
+  return Array.from(CODEX_SERVICE_TIERS).join(', ');
+}
+
 function isModelLikeToken(token: string): boolean {
   return /^(?:gpt|o\d|openai\/|codex\/)/i.test(token) || token.includes('/');
 }
