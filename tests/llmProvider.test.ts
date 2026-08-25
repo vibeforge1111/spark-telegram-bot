@@ -267,6 +267,9 @@ test('system prompt includes editable Spark agent knowledge', () => {
   assert.match(prompt, /Creator and recursive system map/);
   assert.match(prompt, /spark-domain-chip-labs/);
   assert.match(prompt, /Spark Swarm, Spawner runtime, and live Telegram control are not public release dependencies yet/);
+  assert.match(prompt, /autostart or startup troubleshooting/);
+  assert.match(prompt, /start with read-only checks/);
+  assert.match(prompt, /before suggesting changes to startup entries/);
   assert.match(prompt, /Do not quote it as a canned panel/);
 });
 
