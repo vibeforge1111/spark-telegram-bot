@@ -1,3 +1,4 @@
+import { safeJsonParse } from './safeJson';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
