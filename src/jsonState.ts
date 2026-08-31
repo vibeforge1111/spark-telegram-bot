@@ -1,3 +1,4 @@
+import { safeJsonParse } from './safeJson';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
