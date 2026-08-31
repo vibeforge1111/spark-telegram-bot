@@ -11372,7 +11372,7 @@ async function handleTextMessageInChatScope(ctx: any): Promise<void> {
       await ctx.reply(reply);
       await conversation.rememberAssistantReply(user, reply).catch(() => {});
     } catch (err: any) {
-      const reply = `Safe operator check failed: ${err?.message || String(err)}`;
+      const reply = renderSparkErrorReply(err, 'chat', conversation.isAdmin(ctx.from));
       await ctx.reply(reply);
       await conversation.rememberAssistantReply(user, reply).catch(() => {});
     }
