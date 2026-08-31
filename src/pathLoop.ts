@@ -1,3 +1,4 @@
+import { safeJsonParse } from './safeJson';
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
@@ -417,6 +418,89 @@ async function readJsonObject(filePath: string | null): Promise<Record<string, a
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
+  }
+}
+
+async function readBenchmarkCaseCount(casesPath: string): Promise<number | null> {
+  const parsed = await readJsonObject(casesPath);
+  return Array.isArray(parsed?.cases) ? parsed.cases.length : null;
+}
+
+export async function runSpecializationPathBenchmark(
+  target: RecursiveStartTarget
+): Promise<SpecializationPathBenchmarkResult> {
+  const pathKey = target.key;
+  const repoRoot = target.repoRoot;
+  if (!pathKey) return { ok: false, pathKey, error: 'empty specialization path key' };
+  if (!repoRoot) return { ok: false, pathKey, error: `specialization path ${pathKey} has no attached repo root` };
+
+  const config = resolveConfig();
+  const casesPath = path.join(repoRoot, 'benchmarks', 'evidence', 'mac_lab_cases.json');
+  const evidenceRoot = path.join(repoRoot, 'benchmarks', 'evidence', 'runs', 'latest');
+  const outputPath = path.join(repoRoot, '.spark-swarm', 'evidence-benchmark', 'latest-from-telegram.json');
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await rm(outputPath, { force: true });
+
+  const args = buildSpecializationPathEvidenceBenchmarkArgs({ casesPath, evidenceRoot, outputPath });
+  const env: NodeJS.ProcessEnv = { ...process.env, PYTHONIOENCODING: 'utf-8' };
+  const specializationPathSrc = path.join(repoRoot, 'src');
+  env.PYTHONPATH = [specializationPathSrc, env.PYTHONPATH].filter(Boolean).join(path.delimiter);
+
+  try {
+    const { stdout, stderr } = await execFileAsync(config.pythonCommand, args, withHiddenWindows({
+      cwd: repoRoot,
+      timeout: 120000,
+      env,
+      maxBuffer: 10 * 1024 * 1024,
+    }));
+    const parsed = await readJsonObject(outputPath);
+    if (!parsed) {
+      return { ok: false, pathKey, repoRoot, outputPath, stdout, stderr, error: 'benchmark runner did not write a score artifact' };
+    }
+    const expectedCaseCount = await readBenchmarkCaseCount(casesPath);
+    const caseCount = typeof parsed.caseCount === 'number' ? parsed.caseCount : null;
+    if (expectedCaseCount !== null && caseCount !== expectedCaseCount) {
+      return {
+        ok: false,
+        pathKey,
+        repoRoot,
+        score: typeof parsed.overallScore === 'number' ? parsed.overallScore : null,
+        caseCount,
+        missingEvidenceCount: typeof parsed.missingEvidenceCount === 'number' ? parsed.missingEvidenceCount : null,
+        outputPath,
+        stdout,
+        stderr,
+        error: `benchmark runner caseCount ${caseCount} does not match the benchmark case pack count ${expectedCaseCount}`,
+      };
+    }
+    const score = typeof parsed.overallScore === 'number' ? parsed.overallScore : null;
+    const missingEvidenceCount = typeof parsed.missingEvidenceCount === 'number' ? parsed.missingEvidenceCount : null;
+    const pass = parsed.pass === true && (missingEvidenceCount === null || missingEvidenceCount === 0);
+    return {
+      ok: pass,
+      pathKey,
+      repoRoot,
+      score,
+      caseCount,
+      missingEvidenceCount,
+      outputPath,
+      stdout,
+      stderr,
+      error: pass ? undefined : 'benchmark runner did not pass evidence gates',
+    };
+  } catch (err: any) {
+    const stdout = redactText(typeof err?.stdout === 'string' ? err.stdout : '');
+    const stderr = redactText(typeof err?.stderr === 'string' ? err.stderr : '');
+    const message = redactText(err?.message ? String(err.message) : '');
+    return {
+      ok: false,
+      pathKey,
+      repoRoot,
+      outputPath,
+      stdout,
+      stderr,
+      error: message ? `${message}${stderr ? ': ' + stderr.slice(-400) : ''}` : 'benchmark runner failed',
+    };
   }
 }
 
