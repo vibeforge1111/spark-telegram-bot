@@ -1,3 +1,4 @@
+import { safeJsonParse } from './safeJson';
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
