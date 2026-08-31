@@ -2329,12 +2329,15 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
     }
 
 		const relaySecret = getRelaySecret();
-		if (relaySecret) {
-			const secretHeader = req.headers['x-spark-telegram-relay-secret'];
-			if (!relaySecretMatches(secretHeader, relaySecret)) {
-				writeJson(res, 401, { ok: false, error: 'invalid_relay_secret' });
-				return;
-			}
+		if (!relaySecret) {
+			// Fail-closed: relay events require TELEGRAM_RELAY_SECRET to be configured.
+			writeJson(res, 401, { ok: false, error: 'relay_secret_not_configured' });
+			return;
+		}
+		const secretHeader = req.headers['x-spark-telegram-relay-secret'];
+		if (!relaySecretMatches(secretHeader, relaySecret)) {
+			writeJson(res, 401, { ok: false, error: 'invalid_relay_secret' });
+			return;
 		}
 
     const bodyOutcome = await readRelayJsonBody<RelayWebhookPayload>(req);
