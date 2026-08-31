@@ -526,6 +526,7 @@ async function latestSessionSummaryPath(repoRoot: string, pathKey: string): Prom
       return { summaryPath, mtimeMs: info.mtimeMs };
     }));
   const newest = dirs
+    // NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
     .filter((entry): entry is { summaryPath: string; mtimeMs: number } => Boolean(entry))
     .sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
   return newest?.summaryPath || null;
