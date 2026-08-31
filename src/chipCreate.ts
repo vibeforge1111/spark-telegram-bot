@@ -336,6 +336,11 @@ export async function createChipFromPrompt(prompt: string, options: ChipCreateOp
       outputDir: config.outputDir,
       chipLabsRoot: config.chipLabsRoot,
     });
+    // Ensure the chips output directory exists before invoking the Python scaffolder.
+    // On a fresh install `~/.spark/chips` is not created by `spark setup`, so the
+    // scaffolder fails with a directory-not-found error and the user has no
+    // actionable hint. `mkdir -p` makes the first call self-healing.
+    await mkdir(config.outputDir, { recursive: true });
     const { stdout } = await execFileAsync(config.pythonCommand, args, withHiddenWindows({
       cwd: config.builderRepo,
       timeout: config.timeoutMs,
