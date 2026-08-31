@@ -101,6 +101,7 @@ export async function runChipLoop(chipKey: string, rounds: number, suggestLimit 
     : builderSrc;
   try {
     const { stdout } = await execFileAsync(config.pythonCommand, args, withHiddenWindows({
+      timeout: config.timeoutMs || 900000,
       cwd: config.builderRepo,
       timeout: config.timeoutMs,
       env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONPATH: pythonPath },
