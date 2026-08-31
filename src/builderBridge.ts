@@ -1,3 +1,4 @@
+import { safeJsonParse } from './safeJson';
 import { execFile } from 'node:child_process';
 import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { constants as fsConstants, existsSync, readFileSync } from 'node:fs';
