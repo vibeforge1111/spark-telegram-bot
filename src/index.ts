@@ -6187,10 +6187,12 @@ export function parseNaturalRunIntent(text: string): { providers: string[]; goal
     if (p) return { providers: [p], goal: singleVerbMatch[2].trim() };
   }
 
-  const leadMatch = trimmed.match(/^(\w[\w.]*)\s*[,:\-\u2014]\s*(.{3,})$/i);
+  const leadMatch = trimmed.match(/^(\w[\w.]*)\s*[,:\-–]\s*(.{3,})$/i);
   if (leadMatch) {
     const p = PROVIDER_ALIASES[leadMatch[1].toLowerCase()];
-    if (p) return { providers: [p], goal: leadMatch[2].trim() };
+    // Require minimum goal length to avoid false positives on casual chat
+    // e.g., "claude, what do you think?" should not trigger a mission
+    if (p && leadMatch[2].trim().length >= 15) return { providers: [p], goal: leadMatch[2].trim() };
   }
 
   return null;
