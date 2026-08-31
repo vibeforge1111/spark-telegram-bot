@@ -1233,13 +1233,36 @@ function projectPreviewLink(projectPath: string | null): string | null {
   return `${projectPreviewBaseUrl()}/preview/${token}/index.html`;
 }
 
+const PRIVATE_IP_RANGES = [
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^::1$/,
+  /^fc[0-9a-f]{2}:/i,
+  /^fd[0-9a-f]{2}:/i,
+];
+
+function isPrivateOrLoopbackHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (h === 'localhost' || h === 'localhost.localdomain') return true;
+  return PRIVATE_IP_RANGES.some((re) => re.test(h));
+}
+
 function normalizePreviewLink(previewUrl: string | null, projectPath: string | null): string | null {
   if (!previewUrl) return projectPreviewLink(projectPath);
   try {
     const parsed = new URL(previewUrl);
-    const localHost = ['127.0.0.1', 'localhost', '::1', '[::1]'].includes(parsed.hostname.toLowerCase());
-    const configuredDedicatedPreview = Boolean(process.env.SPARK_PROJECT_PREVIEW_URL?.trim());
-    if (localHost && parsed.port === '5555' && !configuredDedicatedPreview && projectPath) {
+    const hostname = parsed.hostname.toLowerCase();
+    if (isPrivateOrLoopbackHost(hostname)) {
+      const configuredDedicatedPreview = Boolean(process.env.SPARK_PROJECT_PREVIEW_URL?.trim());
+      if (hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]') {
+        if (parsed.port === '5555' && !configuredDedicatedPreview && projectPath) {
+          return projectPreviewLink(projectPath);
+        }
+      }
+      // All other private/loopback IPs are rejected — return safe fallback
       return projectPreviewLink(projectPath);
     }
   } catch {
