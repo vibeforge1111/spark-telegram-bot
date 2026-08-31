@@ -1872,6 +1872,17 @@ function claimVerboseNarrationSlot(
     return true;
   }
   const key = `${event.missionId}:${chatId}`;
+  
+  // Prune stale entries to prevent unbounded growth
+  if (verboseNarrationCounts.size > 1000) {
+    const missionPrefix = `${event.missionId}:`;
+    for (const k of verboseNarrationCounts.keys()) {
+      if (!k.startsWith(missionPrefix)) {
+        verboseNarrationCounts.delete(k);
+      }
+    }
+  }
+  
   const count = verboseNarrationCounts.get(key) || 0;
   if (count >= 3) {
     return false;
