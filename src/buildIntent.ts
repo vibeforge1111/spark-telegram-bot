@@ -28,10 +28,17 @@ function defaultWorkspaceRoot(): string {
   if (process.env.SPARK_PROJECT_ROOT?.trim()) return process.env.SPARK_PROJECT_ROOT.trim();
   if (process.env.SPARK_WORKSPACE_ROOT?.trim()) return process.env.SPARK_WORKSPACE_ROOT.trim();
   if (process.platform === 'win32') {
-    const home = process.env.USERPROFILE || 'C:\\Users\\USER';
+    const home = process.env.USERPROFILE
+      || (process.env.HOMEDRIVE && process.env.HOMEPATH ? `${process.env.HOMEDRIVE}${process.env.HOMEPATH}` : '');
+    if (!home) {
+      throw new Error('Cannot resolve workspace root: USERPROFILE is unset and HOMEDRIVE/HOMEPATH are not available. Set SPARK_PROJECT_ROOT or USERPROFILE explicitly.');
+    }
     return `${home.replace(/[\\/]$/, '')}\\Desktop`;
   }
-  const home = process.env.HOME || '/root';
+  const home = process.env.HOME || require('node:os').homedir();
+  if (!home) {
+    throw new Error('Cannot resolve workspace root: HOME is unset and os.homedir() returned empty. Set SPARK_PROJECT_ROOT or HOME explicitly.');
+  }
   return home.replace(/[\\/]$/, '');
 }
 
