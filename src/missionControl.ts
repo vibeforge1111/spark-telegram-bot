@@ -204,3 +204,50 @@ export class ChipCreateMissionReporter {
     });
   }
 }
+// TODO(spark-compete-qa): Bot hallucinates /mission clear failed command - QA 2026-05-24
+// Bug: Bot suggested /mission clear failed as a solution to clearing failed jobs,
+// but this command does not exist. Actual commands are: status, pause, resume, kill.
+//
+// Before:
+//   User: "Why does my board keep showing 8 failed jobs? How do I clear them?"
+//   Bot: "Send /mission clear failed if that command is wired up."
+//   User: "/mission clear failed"
+//   Bot: "Usage: /mission <status|pause|resume|kill> <missionId>"
+//   (bot invented a command that does not exist)
+//
+// After:
+//   User: "Why does my board keep showing 8 failed jobs? How do I clear them?"
+//   Bot: "Failed jobs stay on the board until cleared manually.
+//        To clear them go to localhost:3333 Kanban view and use
+//        the archive or clear action on the failed column.
+//        From Telegram you can use /mission kill <missionId> to
+//        stop individual stuck missions.
+//        Available mission commands: status, pause, resume, kill"
+//   (accurate commands only, no hallucinated commands)
+//
+// Fix needed in missionControl.ts:
+//   1. Never suggest /mission clear failed — it does not exist
+//   2. Only suggest commands that are actually implemented:
+//      status, pause, resume, kill
+//   3. Direct users to localhost:3333 Kanban for bulk clear actions
+//   4. Add clear failed jobs guidance to the usage message
+//   5. Usage message should list all valid subcommands explicitly
+// Valid mission subcommands — never suggest commands outside this list
+export const VALID_MISSION_SUBCOMMANDS = ['status', 'pause', 'resume', 'kill'] as const;
+export type ValidMissionSubcommand = typeof VALID_MISSION_SUBCOMMANDS[number];
+
+export function isValidMissionSubcommand(cmd: string): cmd is ValidMissionSubcommand {
+  return VALID_MISSION_SUBCOMMANDS.includes(cmd as ValidMissionSubcommand);
+}
+
+export function getMissionUsageMessage(): string {
+  return 'Usage: /mission <status|pause|resume|kill> <missionId>\n\nTo clear failed missions, open the Kanban board at localhost:3333 and use the archive action on the failed column.';
+}
+
+// Safety check — never suggest /mission clear failed as it does not exist
+export function validateMissionSubcommand(cmd: string): string | null {
+  if (!isValidMissionSubcommand(cmd)) {
+    return getMissionUsageMessage();
+  }
+  return null;
+}
