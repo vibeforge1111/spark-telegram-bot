@@ -29,12 +29,10 @@ test('hidden process options always request hidden Windows windows', () => {
 
 test('Windows cmd shims preserve spaced paths without shell interpolation', () => {
   assert.equal(quoteWindowsArg('C:\\Users\\Example\\.npm-global\\codex.cmd'), 'C:\\Users\\Example\\.npm-global\\codex.cmd');
-  assert.deepEqual(windowsCmdShimArgs('C:\\Program Files\\Spark\\spark.cmd', ['run', 'hello world']), [
-    '/d',
-    '/s',
-    '/c',
-    '"C:\\Program Files\\Spark\\spark.cmd" run "hello world"',
-  ]);
+  assert.deepStrictEqual(
+    windowsCmdShimArgs('C:\\Program Files\\Spark\\spark.cmd', ['run', 'hello world']),
+    ['/d', '/s', '/c', '""C:\\Program Files\\Spark\\spark.cmd" run "hello world""']
+  );
 });
 
 test('Windows command resolver finds cmd shims from PATH', () => {
