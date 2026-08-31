@@ -338,6 +338,17 @@ test('system prompt reads the room without promoting style hints to memory', () 
   assert.match(prompt, /Style hints are turn guidance, not durable memory/);
 });
 
+test('system prompt keeps Spark Compete PR role boundaries precise', () => {
+  const prompt = buildSparkChatSystemPrompt('', '');
+
+  assert.match(prompt, /Spark Compete or team coordination/);
+  assert.match(prompt, /Researcher, Tester, and PR manager/);
+  assert.match(prompt, /share findings and safe proof, not accounts or secrets/);
+  assert.match(prompt, /opens or updates the PR and responds to review/);
+  assert.match(prompt, /do not say they own merge/);
+  assert.match(prompt, /Maintainers and the repo policy decide merge, publish, or acceptance/);
+});
+
 test('uses Claude Code print mode when Anthropic is selected for chat', () => {
   const config = resolveChatProviderConfig({
     SPARK_CHAT_LLM_PROVIDER: 'anthropic',
