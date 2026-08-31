@@ -65,8 +65,8 @@ test('health wrappers bound Telegram API hangs with a watchdog', () => {
 });
 
 test('builds relay health URL from configured relay port', () => {
-  assert.equal(relayHealthUrl({ TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv), 'http://127.0.0.1:8789/health');
-  assert.equal(relayHealthUrl({ TELEGRAM_RELAY_PORT: 'not-a-port' } as NodeJS.ProcessEnv), 'http://127.0.0.1:8788/health');
+  assert.equal(relayHealthUrl({ TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv), 'http://localhost:8789/health');
+  assert.equal(relayHealthUrl({ TELEGRAM_RELAY_PORT: 'not-a-port' } as NodeJS.ProcessEnv), 'http://localhost:8788/health');
 });
 
 test('gives relay health enough time to cross slow startup boundaries', () => {
@@ -198,7 +198,7 @@ test('rejects relay runtime before Telegram polling is active', async () => {
 
   await assert.rejects(
     () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
-    /Telegram relay runtime is not reachable at http:\/\/127\.0\.0\.1:8789\/health: Telegram polling is starting/
+    /Telegram relay runtime is not reachable at http:\/\/localhost:8789\/health: Telegram polling is starting/
   );
 });
 
@@ -210,7 +210,7 @@ test('rejects stale relay runtime without Telegram polling status', async () => 
 
   await assert.rejects(
     () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
-    /Telegram relay runtime is not reachable at http:\/\/127\.0\.0\.1:8789\/health: Telegram polling status is missing/
+    /Telegram relay runtime is not reachable at http:\/\/localhost:8789\/health: Telegram polling status is missing/
   );
 });
 
@@ -230,6 +230,6 @@ test('explains unreachable relay runtime', async () => {
 
   await assert.rejects(
     () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
-    /Telegram relay runtime is not reachable at http:\/\/127\.0\.0\.1:8789\/health: HTTP 503/
+    /Telegram relay runtime is not reachable at http:\/\/localhost:8789\/health: HTTP 503/
   );
 });

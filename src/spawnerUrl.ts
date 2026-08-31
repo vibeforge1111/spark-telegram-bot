@@ -1,4 +1,4 @@
-export const DEFAULT_SPAWNER_UI_URL = 'http://127.0.0.1:3333';
+export const DEFAULT_SPAWNER_UI_URL = 'http://localhost:3333';
 
 function firstNonBlank(...values: Array<string | undefined>): string | undefined {
   return values.find((value) => typeof value === 'string' && value.trim())?.trim();
