@@ -1023,7 +1023,8 @@ function voiceLine(kind: keyof typeof VOICE_LINES, seed: string, replacements: R
   const choices = VOICE_LINES[kind];
   let line: string = choices[stableHash(`${kind}:${seed}`) % choices.length] || choices[0];
   for (const [key, value] of Object.entries(replacements)) {
-    line = line.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+    const escapedKey = key.replace(/[.*+?^${}()|[]\\]/g, '\$&');
+    line = line.replace(new RegExp(`\\{${escapedKey}\\}`, 'g'), value);
   }
   return line;
 }
