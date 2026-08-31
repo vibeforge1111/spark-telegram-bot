@@ -2590,7 +2590,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       }
       writeJson(res, 200, { ok: true, chunks: chunks.length });
     } catch (error) {
-      console.error('[MissionRelay] Failed to deliver Telegram update:', error);
+      console.error('[MissionRelay] Failed to deliver Telegram update:', error instanceof Error ? { message: error.message, stack: error.stack?.split('\n').slice(0, 4).join('\n') } : String(error));
       writeJson(res, 500, { ok: false, error: 'delivery_failed' });
     }
   } catch (error) {
