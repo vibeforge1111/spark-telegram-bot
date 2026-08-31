@@ -98,7 +98,7 @@ post_ready_watch_seconds = 30
 
 [healthcheck]
 command = "npm run health:polling"
-timeout_seconds = 20
+timeout_seconds = 45
 success_hint = "Telegram long-polling ingress owner is configured."
 failure_hint = "Run `npm run health:polling` in the module home for the repair detail."
 
