@@ -362,6 +362,16 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
     };
   }
 
+  if (/HTTP [45]\d\d/.test(detail)) {
+    return {
+      category: 'upstream_failure',
+      userLine: `Spark hit an upstream error before it could answer cleanly.`,
+      detail,
+      check: `Check the endpoint that returned the error with /diagnose.`,
+      repair: `Operator fix: spark logs spark-telegram-bot --lines 80`
+    };
+  }
+
   return {
     category: 'unknown',
     userLine: 'Spark hit an internal error before it could answer cleanly.',
