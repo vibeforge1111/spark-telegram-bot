@@ -1,3 +1,4 @@
+import { safeJsonParse } from './safeJson';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -71,7 +72,7 @@ export function buildTelegramVoiceBridgeRuntimeState(input: TelegramVoiceBridgeD
     : {};
   const stt = objectValue(existing.stt);
   const priorTts = objectValue(existing.tts);
-  const sentAt = input.sentAtIso || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const sentAt = input.sentAtIso || new Date().toISOString().replace(/\\.\\d{3}Z$/, 'Z');
   const nativeVoiceMessageReady = input.sendMethod === 'sendVoice';
   const sendStatus = nativeVoiceMessageReady ? 'success' : 'document_fallback';
   const tts = {
