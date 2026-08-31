@@ -609,12 +609,12 @@ export function parseRecursiveCommand(raw: string): RecursiveCommand | null {
 
   if (action === 'sessions' || action === 'paths' || action === 'help') return { action };
   if (action === 'sync') {
-    const syncKind = normalizeRecursiveArtifactSyncKind(parts[0]);
+    const syncKind = normalizeRecursiveArtifactSyncKind(parts.length > 0 ? parts[0] : '');
     if (syncKind) return { action, syncKind, syncArgs: parts.slice(1) };
-    return { action, id: parts[0] };
+    return { action, id: parts.length > 0 ? parts[0] : '' };
   }
   if (action === 'propose') {
-    return { action, id: parts[0], proposeArgs: parts.slice(1) };
+    return { action, id: parts.length > 0 ? parts[0] : '', proposeArgs: parts.slice(1) };
   }
   if (
     action === 'session' ||
@@ -629,7 +629,7 @@ export function parseRecursiveCommand(raw: string): RecursiveCommand | null {
     action === 'canvas' ||
     action === 'trace'
   ) {
-    return { action, id: parts[0] };
+    return { action, id: parts.length > 0 ? parts[0] : '' };
   }
   if (action === 'approve' || action === 'defer' || action === 'reject' || action === 'more-eval') {
     const id = parts.shift();
@@ -2279,7 +2279,7 @@ function workspaceDecisionForAction(action: 'approve' | 'defer' | 'reject' | 'mo
 
 function parseRounds(parts: string[]): number {
   const roundIndex = parts.findIndex((part) => part.toLowerCase() === 'rounds');
-  const raw = roundIndex >= 0 ? parts[roundIndex + 1] : parts[0];
+  const raw = roundIndex >= 0 ? parts[roundIndex + 1] : parts.length > 0 ? parts[0] : '';
   return Math.max(1, Math.min(50, Number.parseInt(raw || '3', 10) || 3));
 }
 
