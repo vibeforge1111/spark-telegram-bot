@@ -168,6 +168,7 @@ function parseLiveNlCommandCase(value: unknown, index: number): LiveNlCommandCas
     const label = parsed.id ? `Live NL case ${parsed.id}` : `Live NL case ${index + 1}`;
     throw new Error(`${label} is missing required field(s): ${missing.join(', ')}.`);
   }
+
   const allowedRisks = ['safe', 'mission', 'writes_files', 'external'] as const;
   if (!allowedRisks.includes(parsed.risk as (typeof allowedRisks)[number])) {
     throw new Error(
