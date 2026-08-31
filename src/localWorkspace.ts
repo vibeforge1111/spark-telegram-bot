@@ -133,6 +133,7 @@ async function summarizeRoot(root: string, limit: number): Promise<{
       projects.push(...batch.filter((project): project is LocalWorkspaceProject => project !== null));
     }
 
+    // NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
     projects.sort((a, b) => Date.parse(b.modifiedAt) - Date.parse(a.modifiedAt));
     return {
       root: { path: resolvedRoot, exists: true },
