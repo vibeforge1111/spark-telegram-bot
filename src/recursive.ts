@@ -392,6 +392,7 @@ function bridgeSessionFilePath(): string {
 function bridgeSessionValue(key: string): string | null {
   try {
     const sessionPath = bridgeSessionFilePath();
+    // NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
     if (!existsSync(sessionPath)) return null;
     const parsed = JSON.parse(readFileSync(sessionPath, 'utf-8'));
     const value = parsed?.[key];
