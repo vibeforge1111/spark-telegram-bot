@@ -2479,6 +2479,14 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
           clearHeartbeatForMission(event.missionId);
           const hasProjectLink = !!(previewLinkFromEvent(event) || projectPathFromEvent(event));
           const openLink = hasProjectLink ? await readyProjectOpenLinkFromEvent(event) : undefined;
+          // Re-check after the openLink fetch: a parallel mission_cancelled / mission_failed
+          // event may have arrived during that await and marked the handoff as suppressed.
+          // Without this, the operator sees task-completion chatter after they already saw
+          // the cancel notice.
+          if (shouldSuppressMissionHandoff(event.missionId)) {
+            writeJson(res, 200, { ok: true, suppressed: true });
+            return;
+          }
           const message = formatProviderCompletionForTelegram({
             providerLabel: extracted.providerLabel,
             response: extracted.response,
