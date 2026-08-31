@@ -2257,3 +2257,14 @@ test('provides a conversational fallback for mission dashboard refinement', () =
   assert.match(reply, /not a task list/);
   assert.doesNotMatch(reply, /Nothing active/);
 });
+
+test('researcher_advisory replies with substance are not suppressed as low_information', () => {
+  assert.equal(
+    builderReplySuppressionReason('Working memory shows recent mission context.', 'researcher_advisory'),
+    null
+  );
+  assert.equal(
+    builderReplySuppressionReason('no concrete guidance', 'researcher_advisory'),
+    'low_information'
+  );
+});

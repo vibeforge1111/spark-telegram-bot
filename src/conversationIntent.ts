@@ -3404,6 +3404,17 @@ export function builderReplySuppressionReason(reply: string, routingDecision: st
     return 'memory_acknowledgement';
   }
   if (isLowInformationLlmReply(reply)) {
+    const routing = routingDecision.trim();
+    if (/^researcher_advisory$/i.test(routing)) {
+      const normalized = reply.trim().toLowerCase();
+      const explicitNoGuidance =
+        !normalized ||
+        normalized === 'spark researcher returned no concrete guidance for this message.' ||
+        normalized === 'no concrete guidance';
+      if (!explicitNoGuidance) {
+        return null;
+      }
+    }
     return 'low_information';
   }
   return null;
