@@ -10,7 +10,12 @@ async function main(): Promise<void> {
   const fixturePath = process.argv[2]
     ? path.resolve(process.argv[2])
     : path.join(__dirname, '..', 'tests', 'fixtures', 'natural-route-replay-cases.jsonl');
-  const jsonl = fs.readFileSync(fixturePath, 'utf8');
+  try {
+    const jsonl = fs.readFileSync(fixturePath, 'utf8');
+  } catch (error) {
+    console.error('readFileSync failed:', error);
+    throw error;
+  }
   const cases = parseNaturalRouteReplayCases(jsonl);
   const summary = runNaturalRouteReplayCases(cases);
   console.log(formatNaturalRouteReplaySummary(summary));
