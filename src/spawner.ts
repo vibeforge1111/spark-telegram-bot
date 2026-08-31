@@ -725,6 +725,14 @@ function missionTraceUrl(missionId: string, baseUrl = spawnerPublicUrl()): strin
 }
 
 function missionInspectionLines(missionId: string, baseUrl = spawnerPublicUrl()): string[] {
+  const isLocalhost = baseUrl.includes('127.0.0.1') || baseUrl.includes('localhost');
+  if (isLocalhost) {
+    return [
+      'Inspect',
+      `• Open localhost:3333 on the machine running Spark`,
+      `• Navigate to Kanban or Trace for mission: ${missionId.slice(0, 24)}...`
+    ];
+  }
   return [
     'Inspect',
     `• Detail: ${missionDetailUrl(missionId, baseUrl)}`,
@@ -2520,3 +2528,30 @@ export const spawner = {
     }
   }
 };
+// TODO(spark-compete-qa): /board exposes localhost URLs in Telegram chat - QA 2026-06-03
+// Bug: Bot sends internal localhost URLs in Telegram /board response.
+// These URLs only work on the local machine running Spark.
+// Remote Telegram users cannot use these links at all.
+//
+// Before:
+//   Bot: "Detail: http://127.0.0.1:3333/missions/spark-1780472809896
+//         Board: http://127.0.0.1:3333/kanban?mission=spark-1780472809896
+//         Trace: http://127.0.0.1:3333/trace?missionId=spark-1780472809896"
+//   (localhost URLs useless for remote Telegram users)
+//
+// After:
+//   Bot: "Latest mission: Reply with exactly: PING_OK
+//         Status: completed | Provider: Claude
+//         To inspect: run spark logs spawner-ui or open localhost:3333
+//         on the machine running Spark."
+//   (no raw URLs, clear instruction to open locally)
+//
+// Fix needed in spawner.ts board output:
+//   1. Never send raw localhost URLs in Telegram chat
+//   2. Replace with human-readable instruction:
+//      "Open localhost:3333 on the machine running Spark"
+//   3. If public Spawner URL is configured use that instead
+//   4. Only send URLs that are actually accessible to the recipient
+//   5. Check SPAWNER_UI_PUBLIC_URL env var before sending any URL
+//      - if set: use public URL
+//      - if not set: say "open localhost:3333 on your Spark machine"

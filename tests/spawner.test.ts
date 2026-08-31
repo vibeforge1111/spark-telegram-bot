@@ -2174,3 +2174,40 @@ run()
     restoreAxios();
     restoreEnv();
   });
+test('missionInspectionLines returns human-readable text for localhost URLs', async () => {
+  const originalPublicUrl = process.env.SPAWNER_UI_PUBLIC_URL;
+  const originalUiUrl = process.env.SPAWNER_UI_URL;
+  try {
+    // Set to localhost to trigger the new behavior
+    process.env.SPAWNER_UI_URL = 'http://127.0.0.1:3333';
+    delete process.env.SPAWNER_UI_PUBLIC_URL;
+    
+    // Import the board summary function and test it doesn't contain localhost URLs
+    const { formatBoardTelegramSummary } = await import('../src/spawner');
+    const mockBoard = {
+      running: [],
+      paused: [],
+      completed: [{
+        missionId: 'spark-test-mission-12345',
+        status: 'completed',
+        goal: 'test mission',
+        provider: 'claude',
+        startedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }],
+      failed: [],
+      queued: [],
+      cancelled: [],
+    };
+    const summary = formatBoardTelegramSummary(mockBoard as any);
+    assert(!summary.includes('127.0.0.1'), 'localhost IP should not appear in board summary');
+    assert(!summary.includes('localhost:3333'), 'localhost URL should not appear in board summary');
+  } finally {
+    if (originalPublicUrl !== undefined) {
+      process.env.SPAWNER_UI_PUBLIC_URL = originalPublicUrl;
+    }
+    if (originalUiUrl !== undefined) {
+      process.env.SPAWNER_UI_URL = originalUiUrl;
+    }
+  }
+});
