@@ -503,6 +503,7 @@ export async function runSpecializationPathBenchmark(
   }
 }
 
+// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 function sessionSummaryPath(repoRoot: string, pathKey: string, sessionId: string | null): string | null {
   if (!sessionId) return null;
   return path.join(repoRoot, '.spark-swarm', 'specialization-paths', pathKey, 'sessions', sessionId, 'summary.json');
