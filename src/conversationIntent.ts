@@ -1089,6 +1089,7 @@ function dynamicNaturalRecursiveTarget(text: string, targets: NaturalRecursiveCo
     if (score > 0) candidates.push({ target, score });
   }
 
+  // NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
   candidates.sort((a, b) => b.score - a.score);
   if (!candidates[0]) return null;
   if (candidates[1] && candidates[1].score === candidates[0].score) return null;
