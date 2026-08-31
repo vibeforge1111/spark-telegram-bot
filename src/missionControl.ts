@@ -79,6 +79,7 @@ async function defaultPostJson(url: string, payload: MissionControlEvent): Promi
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       signal: controller.signal,
+    // NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
     });
     if (!response.ok) {
       const body = await response.text().catch(() => '');
