@@ -89,6 +89,11 @@ export function classifySafeOperatorAction(text: string): SafeOperatorAction | n
       /\b(?:do\s+not|don't|dont)\s+open\s+files\s+or\s+read\s+file\s+contents\b/.test(normalized)
     )
   ) {
+    // Resolve and verify the path is actually inside a Desktop directory
+    const resolvedDesktop = path.win32.resolve(windowsPath);
+    const resolvedNormalized = path.win32.normalize(resolvedDesktop).toLowerCase();
+    const desktopPattern = /^[a-z]:\\users\\[^\\]+\\desktop$/;
+    if (!desktopPattern.test(resolvedNormalized)) return null;
     const limitMatch = normalized.match(/\bfirst\s+(\d+)\s+top[-\s]+level/);
     return { kind: 'folder_list', folderPath: windowsPath, limit: Math.min(Number(limitMatch?.[1] || 5), 10) };
   }
